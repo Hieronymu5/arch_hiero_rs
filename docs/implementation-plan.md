@@ -39,8 +39,8 @@ Diagram type specs:
 | **Versions** (new) | A Save button (⌘S) records the current diagram as a new numbered version. The status shows *Saved* when the current record matches the latest version, otherwise *Unsaved*. | `hiero-core::history` + `hiero-store` + `hiero-editor` |
 | **History view** (new) | Lists versions with number and date. Each version can be reverted to, or exported as .zip, SVG, or draw.io. | `hiero-app::pages::history` |
 
-Out of scope for now, but the design should make these easy later: systems catalogue entities
-and REST sync. Usernames are dropped: the Rust version records dates only, with no "by <user>".
+Out of scope for now, but the design should make it easy later: systems catalogue entities.
+There will be no REST API: the app is local-first, and agents use the MCP server. Usernames are dropped: the Rust version records dates only, with no "by <user>".
 
 ---
 
@@ -615,11 +615,10 @@ diagram crate. This is the payoff of keeping the crates separate.
 | 5 | Version labels? | **An optional short description** (≤ 200 characters), asked for in the Save prompt and shown in the history view. |
 | 6 | One database or one file per diagram? | **One SQLite database.** Diagrams move between machines as zipped JSON (`.zip` holding `diagram.json`, compatible with the prototype), through import/export in the GUI and the MCP server. |
 | 7 | Agent access? | **A local MCP server** (`arch-hiero-mcp`, stdio) over the same database, using each type's rules (section 5). |
+| 8 | REST API? | **No.** The app is local-only. `DiagramRepository` is a plain struct over SQLite, not a trait for swapping in a remote backend. |
 
 ## 8. Open questions
 
-1. **REST later.** The prototype's repository was a stand-in for a future API. Keep
-   `DiagramRepository` a trait, so a remote implementation can replace SQLite or sync with it.
-2. **Redo after revert.** A revert done outside an editor session, from the list's history
+1. **Undoing a revert made outside the editor.** A revert done outside an editor session, from the list's history
    link, can't be undone with ⌘Z. It can only be reverted again. This seems fine, because
    every saved version stays available.
