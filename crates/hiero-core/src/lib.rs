@@ -3,11 +3,16 @@
 
 pub mod color;
 pub mod engine;
+pub mod export;
+pub mod figures;
 pub mod file;
 pub mod geometry;
 pub mod history;
 pub mod layout;
+pub mod look;
 pub mod model;
+pub mod palette;
 pub mod routing;
+pub mod scene;
 pub mod stored;
 pub mod text;

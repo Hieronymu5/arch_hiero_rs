@@ -372,6 +372,50 @@ pub trait DiagramType: Sized + 'static {
     fn arrow_rect(_eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
         element.rect
     }
+
+    /// Applies an edited element from the properties panel or an agent, with any side effects
+    /// the type has, such as a component that becomes a figure letting go of what it held.
+    fn apply_element(
+        eng: &mut Engine<Self>,
+        id: &ElementId,
+        with: El<Self>,
+        parent_id: Option<ElementId>,
+    ) {
+        eng.apply_changes(id, with, parent_id);
+    }
+
+    /// Checks an edited element, returning the message to show when it isn't valid.
+    fn validate_element(element: &El<Self>) -> Result<(), String> {
+        validate_label(&element.label)
+    }
+
+    /// Checks an edited arrow, returning the message to show when it isn't valid.
+    fn validate_arrow(_arrow: &Self::Arrow) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+/// The longest element name.
+pub const LABEL_MAX: usize = 100;
+
+/// Checks an element's name.
+pub fn validate_label(label: &str) -> Result<(), String> {
+    if label.trim().is_empty() {
+        Err("Enter a name.".into())
+    } else if label.chars().count() > LABEL_MAX {
+        Err("Name must be 100 characters or fewer.".into())
+    } else {
+        Ok(())
+    }
+}
+
+/// Checks that `text` is at most `max` characters, naming the field in the message.
+pub fn validate_length(field: &str, text: &str, max: usize) -> Result<(), String> {
+    if text.chars().count() > max {
+        Err(format!("{field} must be {max} characters or fewer."))
+    } else {
+        Ok(())
+    }
 }
 
 /// A diagram being edited: its elements and arrows, their layout, the selection, and what

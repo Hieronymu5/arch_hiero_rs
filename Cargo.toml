@@ -80,6 +80,11 @@ items_after_statements = "allow"
 implicit_hasher = "allow"
 manual_midpoint = "allow"
 assert_is_empty = "allow"
+many_single_char_names = "allow"
+trivially_copy_pass_by_ref = "allow"
+format_push_string = "allow"
+ref_option = "allow"
+doc_markdown = "allow"
 
 [profile.release]
 lto = "thin"

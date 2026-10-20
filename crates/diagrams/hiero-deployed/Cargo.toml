@@ -1,12 +1,25 @@
 [package]
 name = "hiero-deployed"
+description = "Deployed component diagrams for Arch Hiero: layers of components with their protocols and tech stacks"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = ["ui"]
+# The egui properties panel. Off for the MCP server, which needs only the rules.
+ui = ["dep:egui", "dep:hiero-editor"]
+
 [dependencies]
+hiero-core.workspace = true
+serde.workspace = true
+egui = { workspace = true, optional = true }
+hiero-editor = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true
