@@ -8,3 +8,7 @@ cargo run -p hiero-app --release
 ```
 
 Contributor and agent guidelines: [AGENTS.md](AGENTS.md).
+
+## License
+
+[MIT](LICENSE)

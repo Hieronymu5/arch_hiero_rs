@@ -4,6 +4,7 @@ description = "Arch Hiero desktop application"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 authors.workspace = true
 
 [[bin]]
