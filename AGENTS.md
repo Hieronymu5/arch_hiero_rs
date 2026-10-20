@@ -60,6 +60,10 @@ Target crate boundaries (they apply as soon as the crates exist):
   an immutable version in `diagram_versions`, with an optional description (≤ 200 characters) asked for in the Save prompt. The status is *Saved* when the current content
   hash equals the latest version's hash. Snapshot types must serialise deterministically, so
   use `Vec`/`BTreeMap` and never `HashMap`, or the hash breaks. See plan section 4.
+- **History is append-only, except for an explicit Delete.** Reverting records the old content
+  as a *new* version. Version numbers come from `diagrams.next_version` and are never reused.
+  Undo/redo changes only the current record, never versions. Undo stacks are per diagram and
+  in memory: they survive closing and reopening a diagram, and are cleared when the app quits.
 
 ## Commands
 
