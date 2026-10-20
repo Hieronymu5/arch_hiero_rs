@@ -1,6 +1,14 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = [
+    "crates/hiero-core",
+    "crates/hiero-store",
+    "crates/hiero-editor",
+    "crates/hiero-registry",
+    "crates/hiero-app",
+    "crates/hiero-mcp",
+    "crates/diagrams/*",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,11 +19,39 @@ authors = ["Jeroen Naus <naus.jeroen@gmail.com>"]
 
 [workspace.dependencies]
 hiero-core = { path = "crates/hiero-core" }
+hiero-store = { path = "crates/hiero-store" }
+hiero-editor = { path = "crates/hiero-editor" }
+hiero-registry = { path = "crates/hiero-registry" }
+hiero-conceptual = { path = "crates/diagrams/hiero-conceptual", default-features = false }
+hiero-physical = { path = "crates/diagrams/hiero-physical", default-features = false }
+hiero-deployed = { path = "crates/diagrams/hiero-deployed", default-features = false }
+
 eframe = { version = "0.37", features = ["persistence"] }
 egui = "0.37"
+egui_extras = { version = "0.37", features = ["image"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+lyon_tessellation = "1"
+lyon_path = "1"
+rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.28", features = ["v4"] }
+jiff = "0.2"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+sha2 = "0.11"
+harfrust = "0.12"
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
+base64 = "0.22"
+rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite_migration = "2.6"
+directories = "6"
+rmcp = { version = "3.6", features = ["server", "transport-io", "macros"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
+schemars = "1.2"
 log = "0.4"
 env_logger = "0.11"
+insta = "1.49"
+tempfile = "3"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -24,6 +60,26 @@ unsafe_code = "forbid"
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
+# Geometry ports from the TypeScript prototype use many float/int conversions on small values.
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+float_cmp = "allow"
+too_many_lines = "allow"
+similar_names = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+return_self_not_must_use = "allow"
+needless_pass_by_value = "allow"
+too_many_arguments = "allow"
+struct_excessive_bools = "allow"
+fn_params_excessive_bools = "allow"
+items_after_statements = "allow"
+implicit_hasher = "allow"
+manual_midpoint = "allow"
+assert_is_empty = "allow"
 
 [profile.release]
 lto = "thin"

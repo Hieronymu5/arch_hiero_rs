@@ -12,12 +12,6 @@ name = "arch-hiero"
 path = "src/main.rs"
 
 [dependencies]
-hiero-core.workspace = true
-eframe.workspace = true
-egui.workspace = true
-serde.workspace = true
-log.workspace = true
-env_logger.workspace = true
 
 [lints]
 workspace = true

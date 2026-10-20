@@ -1,6 +1,6 @@
 [package]
 name = "hiero-core"
-description = "UI-independent diagram model for Arch Hiero"
+description = "UI-free diagram model, layout, routing, scene, exports, and file format for Arch Hiero"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +9,14 @@ authors.workspace = true
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+jiff.workspace = true
+zip.workspace = true
+sha2.workspace = true
+harfrust.workspace = true
+skrifa.workspace = true
+base64.workspace = true
 
 [lints]
 workspace = true
