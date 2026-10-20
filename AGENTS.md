@@ -44,6 +44,13 @@ Target crate boundaries (they apply as soon as the crates exist):
 - `hiero-store` knows nothing about specific diagram types. Type-specific fields go in the JSON
   `props` columns, defined by each type's serde enums. Keep that JSON the same as the
   prototype's (camelCase, kebab-case kind tags), so prototype `.zip` files import unchanged.
+- A diagram's **type is fixed at creation**. Never add a code path that changes it. The
+  database enforces this with a trigger.
+- No usernames anywhere: records carry dates only.
+- **Two kinds of save:** every change autosaves to the current record. The Save button records
+  an immutable version in `diagram_versions`. The status is *Saved* when the current content
+  hash equals the latest version's hash. Snapshot types must serialise deterministically, so
+  use `Vec`/`BTreeMap` and never `HashMap`, or the hash breaks. See plan section 4.
 
 ## Commands
 
