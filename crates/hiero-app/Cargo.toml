@@ -1,0 +1,22 @@
+[package]
+name = "hiero-app"
+description = "Arch Hiero desktop application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "arch-hiero"
+path = "src/main.rs"
+
+[dependencies]
+hiero-core.workspace = true
+eframe.workspace = true
+egui.workspace = true
+serde.workspace = true
+log.workspace = true
+env_logger.workspace = true
+
+[lints]
+workspace = true
