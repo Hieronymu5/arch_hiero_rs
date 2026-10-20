@@ -48,7 +48,7 @@ Target crate boundaries (they apply as soon as the crates exist):
   database enforces this with a trigger.
 - No usernames anywhere: records carry dates only.
 - **Two kinds of save:** every change autosaves to the current record. The Save button records
-  an immutable version in `diagram_versions`. The status is *Saved* when the current content
+  an immutable version in `diagram_versions`, with an optional description (≤ 200 characters) asked for in the Save prompt. The status is *Saved* when the current content
   hash equals the latest version's hash. Snapshot types must serialise deterministically, so
   use `Vec`/`BTreeMap` and never `HashMap`, or the hash breaks. See plan section 4.
 

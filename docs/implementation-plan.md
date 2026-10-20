@@ -289,6 +289,7 @@ CREATE TABLE diagram_versions (
   diagram_id   TEXT NOT NULL REFERENCES diagrams(id) ON DELETE CASCADE,
   version      INTEGER NOT NULL CHECK (version >= 1),   -- 1, 2, 3 … per diagram
   saved_at     TEXT NOT NULL,                           -- RFC 3339 UTC
+  description  TEXT CHECK (description IS NULL OR length(description) <= 200),  -- optional, from the Save prompt
   content_hash TEXT NOT NULL,
   snapshot     TEXT NOT NULL CHECK (json_valid(snapshot)),  -- the diagram.json payload
   PRIMARY KEY (diagram_id, version)
@@ -372,9 +373,14 @@ Two kinds of saving work side by side:
   right away, so a new diagram starts *Saved*.
 - Editing details (name, description, colours) changes the current record, so the status
   becomes *Unsaved* until the next Save.
+- **Save prompt:** clicking Save, or pressing ⌘S / Ctrl+S, opens a small popover titled "Save
+  version 5". It has one optional field, **Description** (at most 200 characters, e.g. "Before
+  the network redesign"), with focus in it, and **Save version** / **Cancel** buttons. Enter
+  saves and Escape cancels, so saving without a description is still quick: ⌘S then Enter. A
+  blank description is stored as `NULL`.
 - **Save** runs in one transaction: read the current record, build its snapshot and hash, and
-  insert version `max(version) + 1`. It does nothing if the hash already equals the latest
-  version's.
+  insert version `max(version) + 1` with the description. It does nothing if the hash already
+  equals the latest version's.
 - There's no warning when leaving the editor or quitting while Unsaved, because autosave has
   already stored everything in the current record. *Unsaved* only means "not recorded as a
   version".
@@ -399,10 +405,10 @@ Two kinds of saving work side by side:
 Opened from **History** in the editor, or from a diagram's row in the list. It's a page that
 lists the versions, newest first:
 
-| Version | Saved | |
-|---|---|---|
-| v4 · *matches current* | 20 Oct 2026, 17:42 | Revert · Export ▾ (.zip / SVG / draw.io) |
-| v3 | 18 Oct 2026, 09:10 | Revert · Export ▾ |
+| Version | Saved | Description | |
+|---|---|---|---|
+| v4 · *matches current* | 20 Oct 2026, 17:42 | Before the network redesign | Revert · Export ▾ (.zip / SVG / draw.io) |
+| v3 | 18 Oct 2026, 09:10 | – | Revert · Export ▾ |
 
 - **Revert to vN** replaces the current record with version N's snapshot. Later versions are
   kept, so history is never rewritten. Afterwards the status is *Unsaved* (unless N is the
@@ -410,7 +416,8 @@ lists the versions, newest first:
 - Before reverting, a dialog asks for confirmation, with Cancel focused:
   - If the status is Unsaved: "Revert to v3? Your current changes haven't been saved as a
     version and will be lost." The choices are **Save as v5, then revert**, **Revert**, and
-    **Cancel**.
+    **Cancel**. *Save as v5, then revert* has the same optional Description field, pre-filled
+    with "Before reverting to v3" and editable.
   - If Saved: "Revert to v3?" The choices are **Revert** and **Cancel**.
 - When the history page was opened from the editor, the revert also goes onto that session's
   undo stack, so ⌘Z brings the previous state back.
@@ -433,7 +440,7 @@ Each phase ends with `cargo fmt`, clippy, and tests clean, and a runnable app.
 |---|---|---|---|
 | 0 | **Restructure** | Create the crates above and move the current scaffold into them. Add the dependency-rule CI check. Update AGENTS.md. | Workspace builds. The existing demo canvas still runs. |
 | 1 | **Core model + file format** | Port `geometry`, `ids`, `audit`, `Element`/`Connection`, `KindInfo`, `file.rs` (zip). Port the prototype's `diagram-file.spec.ts` and `zip.spec.ts` cases. | A prototype-exported `.zip` round-trips through Rust unchanged. |
-| 2 | **Store + versions** | `hiero-store` with migration 1 (including `diagram_versions` and the type trigger), the repository, `save_version`/`list_versions`/`revert_to_version`/`status`, the seed, and the store thread. `hiero-core::history` (snapshot, hash, `UndoStack`). Tests on an in-memory DB. | CRUD, import (including refusing a type mismatch), versioning, and the Saved/Unsaved status are all tested. Cascade delete works. Changing the type is rejected. |
+| 2 | **Store + versions** | `hiero-store` with migration 1 (including `diagram_versions` and the type trigger), the repository, `save_version` (with optional description)/`list_versions`/`revert_to_version`/`status`, the seed, and the store thread. `hiero-core::history` (snapshot, hash, `UndoStack`). Tests on an in-memory DB. | CRUD, import (including refusing a type mismatch), versioning, and the Saved/Unsaved status are all tested. Cascade delete works. Changing the type is rejected. |
 | 3 | **App shell + history view** | List page with Saved/Unsaved badges. Add/Edit details form with validation, where the type is chosen only when adding. Delete confirmation, import/export zip (`rfd` file dialogs), theme picker, outcome messages. History page with revert and .zip export. | Every non-editor flow works against SQLite. |
 | 4 | **Layout + routing ports** | `layout.rs`, `routing.rs`, `color.rs`, and `edit.rs` with the prototype's `diagram-layout.spec.ts` and `diagram-connections.spec.ts` cases ported as Rust tests. | Rust and TypeScript give the same results on the ported cases. |
 | 5 | **Generic editor engine** | Canvas (fixed world, grid, pan, zoom 10–100%), Scene painter, palette (click and drag), selection and multi-select, move, snap, containers, resize handles, delete, properties panel frame, help panel, autosave, page chrome, **Save button + status, undo/redo**. Uses a throwaway "test type" crate. | Works with a minimal `DiagramType`. Keyboard-only use works. |
@@ -483,6 +490,7 @@ diagram crate. This is the payoff of keeping the crates separate.
 | 2 | Usernames on records? | **Dropped.** There are no `created_by`/`updated_by` columns. The list shows "Last updated <date>". |
 | 3 | Zoom range? | **10–100%** to start (`ZOOM_MIN`/`ZOOM_MAX` constants in `hiero-editor::canvas`). To be revisited after trying it. |
 | 4 | Undo/redo? | **Yes**, plus a Save button that records versions, a Saved/Unsaved status, and a history view with revert and export (section 4). |
+| 5 | Version labels? | **An optional short description** (≤ 200 characters), asked for in the Save prompt and shown in the history view. |
 
 ## 7. Open questions
 
@@ -491,8 +499,6 @@ diagram crate. This is the payoff of keeping the crates separate.
    beside it.
 2. **REST later.** The prototype's repository was a stand-in for a future API. Keep
    `DiagramRepository` a trait, so a remote implementation can replace SQLite or sync with it.
-3. **Version labels.** Versions are numbered and dated only. A short optional note on Save
-   ("Before the network redesign") would be a small addition if it turns out to be useful.
-4. **Redo after revert.** A revert done outside an editor session, from the list's history
+3. **Redo after revert.** A revert done outside an editor session, from the list's history
    link, can't be undone with ⌘Z. It can only be reverted again. This seems fine, because
    every saved version stays available.
