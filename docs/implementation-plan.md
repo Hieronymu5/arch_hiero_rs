@@ -89,7 +89,8 @@ crates/
     palette.rs           Shared colour tables (dependency fills, defaults reused by >1 type)
     figures.rs           Shared figure geometry: actor, cylinder, storage stack, cloud path
     scene.rs             Scene primitives: Rect, RoundedRect, Path, Line, Text, Image, Dash
-    text.rs              trait MeasureText + an estimating implementation for tests
+    text.rs              trait MeasureText, FontMetrics (the bundled font read with ttf-parser),
+                         and an estimating implementation for tests
     export/svg.rs        Scene → SVG string, cropped to the content
     export/drawio.rs     mxfile writer: cells, containers, edges, heading
     file.rs              .zip diagram file read/write. Same format as the prototype.
@@ -105,28 +106,40 @@ crates/
     engine.rs            Editor<T: DiagramType + DiagramView>: input → hiero_core::edit ops
     arrows.rs            Connect handle, pending arrow, arrow selection
     palette.rs, properties.rs, page.rs (chrome), widgets.rs (text field w/ validation, etc.)
-    text.rs              MeasureText built on egui fonts (the same numbers on screen and in exports)
+                         (Text is measured with hiero_core::text::FontMetrics, and egui renders the
+                         same bundled font, so the app, the MCP server, and exports agree.)
   diagrams/
     hiero-conceptual/    model.rs (ConceptualKind, ConceptualArrow, Colors), rules.rs (impl
                          DiagramType), scene.rs, drawio.rs, ui.rs (impl DiagramView), help.rs
+                         ui.rs and the hiero-editor dependency sit behind a default `ui` feature.
     hiero-physical/      same layout. rules.rs holds the zone/network stacking logic.
     hiero-deployed/      same layout, plus tech_stack.rs and assets/tech/*.png, and its own
                          svg.rs and drawio.rs
-  hiero-app/             The binary: navigation, list/details pages, theme, the registry of
-                         diagram types, and the store thread
+  hiero-registry/        UI-free registry of diagram types: id → label, has_arrows,
+                         new content, apply ops, export. Used by the app and the MCP server.
+                         Depends on the diagram crates with `default-features = false`.
+  hiero-app/             The GUI binary `arch-hiero`: navigation, list/details pages, theme,
+                         the store thread, and the external-change watcher
+  hiero-mcp/             The MCP server binary `arch-hiero-mcp` (stdio). Built on rmcp + tokio.
+                         Has no egui dependency.
 ```
 
 **Allowed dependencies** (CI checks these with `cargo metadata`):
 
 ```
-hiero-app ──► hiero-store ──► hiero-core
-    │                            ▲
-    ├──► hiero-editor ───────────┤
-    └──► hiero-{conceptual,physical,deployed} ──► hiero-editor, hiero-core
+hiero-core       ◄── everything (depends on nothing in the workspace)
+hiero-store      ──► hiero-core
+hiero-editor     ──► hiero-core
+diagrams/hiero-* ──► hiero-core, and hiero-editor only with the "ui" feature (default on)
+hiero-registry   ──► diagrams/hiero-* (default-features = false), hiero-core
+hiero-app        ──► hiero-registry, hiero-store, hiero-editor, diagrams/hiero-* (with "ui")
+hiero-mcp        ──► hiero-registry, hiero-store            (no egui anywhere in its tree)
 ```
 
-Inside a diagram crate, only `ui.rs` (and its submodules) may `use egui`. A test in each crate
-checks this by searching the source files.
+Inside a diagram crate, only `ui.rs` (and its submodules) may `use egui`, and only under
+`#[cfg(feature = "ui")]`. CI builds `hiero-mcp` on its own and checks that `egui` isn't in its
+dependency tree (`cargo tree -p hiero-mcp -i egui` must fail). That proves the rules, scene, and
+export code really are UI-free.
 
 ### Core types
 
@@ -214,7 +227,9 @@ pub trait DiagramView: DiagramType {
 
 ### App-level registry (type erasure)
 
-`hiero-editor` provides an object-safe `trait DiagramEditor { fn ui(&mut self, ui) -> Outcome;
+The UI-free half lives in `hiero-registry`, so the GUI and the MCP server share it:
+`TypeEntry { id, label, has_arrows, palette(), new_content(), apply(ops), to_svg(), to_drawio(),
+schema() }`. `hiero-editor` provides an object-safe `trait DiagramEditor { fn ui(&mut self, ui) -> Outcome;
 fn export_svg(&self) -> String; fn export_drawio(&self) -> String; fn take_dirty(&mut self) ->
 Option<StoredContent>; }`, which every `Editor<T>` implements. The app keeps one table:
 
@@ -227,7 +242,8 @@ pub static DIAGRAM_TYPES: &[TypeEntry] = &[
 ```
 
 **Adding a fourth diagram type** means a new crate, one `impl DiagramType` and one `impl
-DiagramView`, plus one line here. Nothing else changes.
+DiagramView`, plus one line in `hiero-registry` and one in the app. The MCP server picks the new
+type up automatically.
 
 ---
 
@@ -249,6 +265,7 @@ CREATE TABLE diagrams (
   description TEXT CHECK (description IS NULL OR length(description) <= 1000),
   colors      TEXT CHECK (colors IS NULL OR json_valid(colors)),  -- only overridden colours
   content_hash TEXT NOT NULL,                         -- SHA-256 of the current snapshot (section 4)
+  revision    INTEGER NOT NULL DEFAULT 0,             -- +1 on every write; optimistic concurrency
   created_at  TEXT NOT NULL,                          -- RFC 3339 UTC; no usernames
   updated_at  TEXT NOT NULL
 ) STRICT;
@@ -325,8 +342,8 @@ principle 5, and every new field would need a migration.
   never blocks on disk, and a failure shows the prototype's "Your last change couldn't be saved"
   banner.
 - `save_content` runs in one transaction: `DELETE` the diagram's elements and connections,
-  `INSERT` them all again with prepared statements, then update `updated_at` and
-  `content_hash`.
+  `INSERT` them all again with prepared statements, then update `updated_at`, `content_hash`,
+  and `revision`.
   Diagrams have hundreds of rows at most, so a full rewrite is simpler and safer than diffing.
   If profiling says otherwise, switch to diffing.
 - **Import** (`.zip`) upserts by id: an existing diagram is replaced completely, and fields
@@ -336,6 +353,17 @@ principle 5, and every new field would need a migration.
   physical diagram."
 - **Seed:** on the first run (an empty `diagrams` table), insert the prototype's sample
   diagrams from an embedded copy of `diagrams.json`, each with version 1.
+- **One database, two processes.** The GUI and the MCP server (section 5) open the same file.
+  WAL mode lets them read concurrently, and `busy_timeout` queues writes.
+  - Every write passes the `revision` it read. `UPDATE … WHERE id = ? AND revision = ?`
+    changing no rows means someone else wrote first, so the write fails with `Conflict`.
+  - **Noticing outside changes:** the GUI's store thread checks `PRAGMA data_version` every
+    500 ms. It's a cheap counter that changes only when *another* connection commits. When it
+    changes, the list is refreshed, and an open diagram whose `revision` moved is reloaded.
+  - The reload becomes one undo step labelled "Changes from an agent", with the notice "This
+    diagram was changed outside the editor". ⌘Z takes the outside change back out.
+  - If the GUI's own save hits `Conflict`, it reloads first. The user's change stays on the
+    redo stack, and a notice says so, so nothing is silently overwritten.
 
 ---
 
@@ -432,7 +460,95 @@ lists the versions, newest first:
 
 ---
 
-## 5. Phases
+## 5. Local MCP server
+
+An agent such as Claude Code, Codex, or Cursor can read and edit diagrams through a local MCP
+server, while the user watches the changes appear in the GUI.
+
+### Shape
+
+- A separate binary, **`arch-hiero-mcp`**, speaks MCP over **stdio**. The agent's client
+  launches it as a child process, so it works whether or not the GUI is open, and there's no
+  network port or authentication to manage. It's shipped inside the app bundle
+  (`ArchHiero.app/Contents/MacOS/arch-hiero-mcp`).
+- It's built with the official Rust SDK, **`rmcp` 3.6** (`server`, `transport-io`, `macros`),
+  on tokio. Tool input schemas are generated with `schemars` from the same serde types the app
+  uses, so they can't drift.
+- It opens the **same SQLite database** as the GUI (section 3), and `--db <path>` overrides the
+  location for tests. Edits go through `hiero-registry`, which runs each diagram type's own
+  rules (`arrange`, `created`, `can_connect`, `remove`, …). An agent therefore can't produce a
+  layout the editor wouldn't: zones still fill their network, layers still stack, and arrows
+  still respect `connects_to`.
+- Client setup, documented in the README:
+
+  ```sh
+  claude mcp add arch-hiero -- /Applications/ArchHiero.app/Contents/MacOS/arch-hiero-mcp
+  ```
+
+  or in `.mcp.json`:
+  `{"mcpServers":{"arch-hiero":{"command":"/Applications/ArchHiero.app/Contents/MacOS/arch-hiero-mcp"}}}`
+
+  During development: `cargo run -p hiero-mcp`.
+
+### Tools
+
+Names use snake_case. Inputs and outputs are JSON in the diagram file format, so an agent sees
+the same shapes as a `.zip`'s `diagram.json`. Tools that write return the new `revision`, and
+take an optional `expected_revision` that is checked as described in section 3.
+
+| Tool | Purpose | Annotations |
+|---|---|---|
+| `list_diagram_types` | Each type with its palette: kinds, which kinds each can contain or connect to, and the per-kind property schema | read-only |
+| `list_diagrams` | id, name, type, updated_at, Saved/Unsaved, latest version | read-only |
+| `get_diagram` | The full current diagram (elements + connections), with each element's laid-out `x/y/width/height` | read-only |
+| `create_diagram` | name, type, description. Physical diagrams get their starting zones. Records v1. | – |
+| `update_diagram_details` | name, description, colours. The type can't be changed. | – |
+| `delete_diagram` | Deletes a diagram and its versions | **destructive** |
+| `edit_diagram` | A batch of operations applied in one transaction: `add_element{kind, label, parent_id?, x?, y?, props?}` (no position means a free spot, as with a palette click), `update_element{id, label?, props?}`, `move_element{id, x, y \| parent_id}`, `resize_element`, `remove_element`, `add_connection{source_id, target_id, props?}`, `update_connection`, `remove_connection`. Earlier ops in a batch can refer to new elements by a client-chosen `ref`. Returns the ids created and the laid-out result. Any invalid op rejects the whole batch with a readable reason ("A firewall can't go inside a zone"). | – |
+| `save_version` | Records a version, with an optional description (≤ 200) | – |
+| `list_versions` | Version number, saved_at, description, and whether it matches the current record | read-only |
+| `revert_to_version` | Same semantics as the history view. Fails if the diagram is Unsaved, unless `discard_unsaved: true`. | **destructive** |
+| `export_diagram` | `format: zip \| svg \| drawio`, optional `version`. SVG and draw.io are returned as text, and also written to `path` if one is given. A zip is written to `path`, and is required for zip. Won't overwrite an existing file unless `overwrite: true`. | read-only (writes only to the given path) |
+| `import_diagram` | Imports a `.zip` from `path`, with the same rules as the GUI (upsert by id, refuse a type mismatch) | – |
+
+### Resources and prompts
+
+- `arch-hiero://diagrams/{id}` gives the current diagram as JSON, and
+  `arch-hiero://diagrams/{id}/versions/{n}` a saved version. `arch-hiero://diagrams/{id}.svg`
+  gives a rendering, so an agent can see the layout it produced.
+- `arch-hiero://types/{type}` gives that type's spec, built from the `docs/diagrams/*.md` files
+  with `include_str!`. The specs stay the single source of truth for both humans and agents.
+- The server `instructions` tell agents to:
+  - call `list_diagram_types` before editing
+  - call `save_version` with a description such as "Before agent edits" before large changes
+  - batch related operations into one `edit_diagram` call
+
+### Safety
+
+- **Local only:** stdio, no network listener, and it runs with the user's own permissions.
+- **Every agent change can be recovered:** writes go to the current record, which becomes
+  *Unsaved*. Saved versions are never changed by `edit_diagram`. If the GUI is open, each batch
+  is one undo step there.
+- **Destructive tools** (`delete_diagram`, `revert_to_version`) carry `destructiveHint`, so
+  clients ask the user before running them.
+- **File access** is limited to the paths an agent passes to import/export. Nothing is
+  overwritten without `overwrite: true`, and only `.zip`, `.svg`, and `.drawio` extensions are
+  accepted.
+- **Logging** goes to stderr only (stdout carries the protocol), with `RUST_LOG` to set the
+  level.
+
+### Testing
+
+- Unit tests call the tool handlers directly against an in-memory database.
+- An integration test starts `arch-hiero-mcp --db <tmp>` with rmcp's client
+  (`transport-child-process`) and runs a scripted session: create a physical diagram, add a
+  server to a zone, connect it to a database, save a version, export SVG, and revert.
+- An integration test for running both processes at once: the GUI's store and the MCP server
+  write to the same database file, and a conflict comes back as `Conflict`, never as lost data.
+
+---
+
+## 6. Phases
 
 Each phase ends with `cargo fmt`, clippy, and tests clean, and a runnable app.
 
@@ -448,7 +564,8 @@ Each phase ends with `cargo fmt`, clippy, and tests clean, and a runnable app.
 | 7 | **Physical** | `hiero-physical` (spec: [physical.md](diagrams/physical.md)). Port `physical-diagram.spec.ts`. | Its parity checklist is ticked. |
 | 8 | **Deployed component** | `hiero-deployed` (spec: [deployed-component.md](diagrams/deployed-component.md)), tech-stack extraction script, `deployed-component-layout.spec.ts` ported. | Its parity checklist is ticked. |
 | 9 | **Exports** | Scene→SVG and the shared draw.io writer, plus the deployed component writers. SVG and draw.io export of history versions. Snapshot tests (`insta`) against SVG and draw.io output from the prototype for the seed diagrams. | Exported files open in a browser and in draw.io and match the prototype. |
-| 10 | **Accessibility + packaging** | AccessKit labels and live announcements from `describe()`. macOS `.app` bundle (`cargo-packager`), icon, and code signing notes. | VoiceOver can operate the editor. The `.app` installs and runs. |
+| 10 | **MCP server** | `hiero-registry`, then `hiero-mcp` with the tools, resources, and instructions in section 5. The GUI's external-change watcher and conflict handling. Integration tests. The read-only tools, versions, and import/export can be built as soon as phase 2 is done. `edit_diagram` support for each type follows that type's phase. | An agent creates and edits each type of diagram with the GUI open, and the changes appear live and can be undone. `cargo tree -p hiero-mcp -i egui` finds nothing. |
+| 11 | **Accessibility + packaging** | AccessKit labels and live announcements from `describe()`. macOS `.app` bundle (`cargo-packager`) containing both binaries, an icon, and code signing notes. | VoiceOver can operate the editor. The `.app` installs and runs. The MCP setup command in the README works against the installed bundle. |
 
 Phases 6–8 depend only on phase 5, so they can run in parallel, one agent or developer per
 diagram crate. This is the payoff of keeping the crates separate.
@@ -461,8 +578,9 @@ diagram crate. This is the payoff of keeping the crates separate.
 - **Golden fixtures.** Run the prototype once to export SVG, draw.io, and zip for every seed
   diagram, then commit them under `tests/fixtures/prototype/`. Rust snapshot tests compare
   against them, normalising number formatting.
-- **Text measurement.** Bundle one font (such as Inter) and use it on screen and in exports. The
-  same `MeasureText` then gives the same widths everywhere. Tests use the estimating measurer.
+- **Text measurement.** Bundle one font (such as Inter). `hiero_core::text::FontMetrics` reads
+  it with ttf-parser, and egui renders it, so the screen, exports, and the MCP server all get
+  the same widths. Tests use the estimating measurer.
 
 ### Suggested dependencies
 
@@ -479,10 +597,14 @@ diagram crate. This is the payoff of keeping the crates separate.
 | `egui_extras` (`image`) | 0.37 | editor, deployed | Tech-stack logos |
 | `rfd` | latest | app | Native open/save dialogs |
 | `insta` | 1.49 | dev | Snapshot tests for exports |
+| `rmcp` (`server`, `transport-io`, `macros`) | 3.6 | mcp | MCP server SDK |
+| `tokio` (`rt`, `macros`, `io-std`) | 1.54 | mcp | Async runtime for rmcp |
+| `schemars` | 1.2 | core, mcp | Tool input schemas from the serde types |
+| `ttf-parser` | 0.25 | core | Text measurement from the bundled font, without egui |
 
 ---
 
-## 6. Decisions
+## 7. Decisions
 
 | # | Question | Decision |
 |---|---|---|
@@ -491,14 +613,13 @@ diagram crate. This is the payoff of keeping the crates separate.
 | 3 | Zoom range? | **10–100%** to start (`ZOOM_MIN`/`ZOOM_MAX` constants in `hiero-editor::canvas`). To be revisited after trying it. |
 | 4 | Undo/redo? | **Yes**, plus a Save button that records versions, a Saved/Unsaved status, and a history view with revert and export (section 4). |
 | 5 | Version labels? | **An optional short description** (≤ 200 characters), asked for in the Save prompt and shown in the history view. |
+| 6 | One database or one file per diagram? | **One SQLite database.** Diagrams move between machines as zipped JSON (`.zip` holding `diagram.json`, compatible with the prototype), through import/export in the GUI and the MCP server. |
+| 7 | Agent access? | **A local MCP server** (`arch-hiero-mcp`, stdio) over the same database, using each type's rules (section 5). |
 
-## 7. Open questions
+## 8. Open questions
 
-1. **One database or one file per diagram?** This plan uses one database, with `.zip` files for
-   sharing. If teams later need to share via git, a per-diagram file format could be added
-   beside it.
-2. **REST later.** The prototype's repository was a stand-in for a future API. Keep
+1. **REST later.** The prototype's repository was a stand-in for a future API. Keep
    `DiagramRepository` a trait, so a remote implementation can replace SQLite or sync with it.
-3. **Redo after revert.** A revert done outside an editor session, from the list's history
+2. **Redo after revert.** A revert done outside an editor session, from the list's history
    link, can't be undone with ⌘Z. It can only be reverted again. This seems fine, because
    every saved version stays available.

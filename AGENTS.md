@@ -44,6 +44,15 @@ Target crate boundaries (they apply as soon as the crates exist):
 - `hiero-store` knows nothing about specific diagram types. Type-specific fields go in the JSON
   `props` columns, defined by each type's serde enums. Keep that JSON the same as the
   prototype's (camelCase, kebab-case kind tags), so prototype `.zip` files import unchanged.
+- Diagram crates put `ui` (and their `hiero-editor` dependency) behind a default `ui` feature.
+  `hiero-registry` and the MCP server use them with `default-features = false`.
+  `cargo tree -p hiero-mcp -i egui` must find nothing.
+- **One SQLite database** is shared by the GUI (`arch-hiero`) and the local MCP server
+  (`arch-hiero-mcp`, stdio, see plan section 5). Every write checks `revision` for conflicts.
+  Diagrams move between machines only as zipped JSON (`.zip` holding `diagram.json`).
+- MCP edits must go through `hiero-registry`, so each type's rules apply. Never write element
+  rows directly from `hiero-mcp`. When you add or change a feature, update the matching MCP tool
+  and its schema too.
 - A diagram's **type is fixed at creation**. Never add a code path that changes it. The
   database enforces this with a trigger.
 - No usernames anywhere: records carry dates only.
