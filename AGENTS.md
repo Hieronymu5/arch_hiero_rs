@@ -22,6 +22,29 @@ crates/
     src/canvas.rs       # pan/zoom diagram canvas, drawn with egui::Painter
 ```
 
+## Roadmap and specs
+
+This app is a rewrite of the Angular prototype in `../arch_hiero`, with diagrams stored in
+SQLite. Read these before working on diagrams or storage:
+
+- `docs/implementation-plan.md`: the target crate layout, the `DiagramType`/`DiagramView` traits,
+  the SQLite schema, phases, and open questions.
+- `docs/diagrams/{conceptual,physical,deployed-component}.md`: the feature spec and parity
+  checklist for each diagram type. Tick a checklist item when it's done.
+
+Target crate boundaries (they apply as soon as the crates exist):
+
+- `hiero-core` (UI-free shared model, layout, routing, scene, exports, file format) ←
+  `hiero-store` (SQLite) and `hiero-editor` (generic egui engine) ← `diagrams/hiero-*` (one
+  crate per diagram type) ← `hiero-app`.
+- **Diagram crates never depend on each other.** When a second type needs some code, move it
+  down into `hiero-core` (UI-free) or `hiero-editor` (egui).
+- In a diagram crate, only the `ui` module may use `egui`. The model, rules, scene, and draw.io
+  code stay UI-free and unit-tested.
+- `hiero-store` knows nothing about specific diagram types. Type-specific fields go in the JSON
+  `props` columns, defined by each type's serde enums. Keep that JSON the same as the
+  prototype's (camelCase, kebab-case kind tags), so prototype `.zip` files import unchanged.
+
 ## Commands
 
 ```sh
