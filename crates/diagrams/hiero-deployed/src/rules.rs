@@ -39,7 +39,10 @@ fn new_element(eng: &mut DEngine, kind: DeployedKind, label: &str) -> El<Deploye
 
 /// Moves a layer up or down one place.
 fn move_layer(eng: &mut DEngine, layer: &ElementId, step: i32) -> bool {
-    let mut order: Vec<ElementId> = layers_in_order(eng.elements()).into_iter().map(|l| l.id).collect();
+    let mut order: Vec<ElementId> = layers_in_order(eng.elements())
+        .into_iter()
+        .map(|l| l.id)
+        .collect();
     let Some(index) = order.iter().position(|id| id == layer) else {
         return false;
     };
@@ -85,7 +88,10 @@ fn move_in_layer(eng: &mut DEngine, component: &ElementId, step: i32) -> bool {
 
 /// Moves a component to the layer above or below, as near its place there as it can go.
 fn move_to_layer(eng: &mut DEngine, component: &ElementId, step: i32) -> bool {
-    let layers: Vec<ElementId> = layers_in_order(eng.elements()).into_iter().map(|l| l.id).collect();
+    let layers: Vec<ElementId> = layers_in_order(eng.elements())
+        .into_iter()
+        .map(|l| l.id)
+        .collect();
     let Some(from) = eng.element(component).and_then(|c| c.parent_id.clone()) else {
         return false;
     };
@@ -122,7 +128,10 @@ pub fn place_of(eng: &DEngine, element: &El<DeployedComponent>) -> String {
     let elements = eng.elements();
     if is_layer(element) {
         let layers = layers_in_order(elements);
-        let index = layers.iter().position(|l| l.id == element.id).map_or(0, |i| i + 1);
+        let index = layers
+            .iter()
+            .position(|l| l.id == element.id)
+            .map_or(0, |i| i + 1);
         return format!("layer {index} of {}", layers.len());
     }
     let current = eng.element(&element.id).unwrap_or(element);
@@ -130,7 +139,10 @@ pub fn place_of(eng: &DEngine, element: &El<DeployedComponent>) -> String {
         return String::new();
     };
     let siblings = components_in_order(elements, &layer.id);
-    let index = siblings.iter().position(|c| c.id == element.id).map_or(0, |i| i + 1);
+    let index = siblings
+        .iter()
+        .position(|c| c.id == element.id)
+        .map_or(0, |i| i + 1);
     format!("{index} of {} in {}", siblings.len(), layer.label)
 }
 
@@ -143,7 +155,10 @@ pub fn toggle_tech(eng: &mut DEngine, id: &ElementId, tech: &str) {
         } else {
             ids.push(tech.to_owned());
         }
-        let ordered: Vec<String> = tech_stack::items(&ids).iter().map(|i| i.id.to_owned()).collect();
+        let ordered: Vec<String> = tech_stack::items(&ids)
+            .iter()
+            .map(|i| i.id.to_owned())
+            .collect();
         stored.props.tech_stack = (!ordered.is_empty()).then_some(ordered);
         stored
     });
@@ -167,7 +182,10 @@ impl DiagramType for DeployedComponent {
     /// A component takes the size its description needs; a layer, the size of an empty one.
     fn natural_size(element: &El<Self>, _info: &'static KindInfo<DeployedKind>) -> Size {
         if is_layer(element) {
-            Size::new(MIN_LAYER_WIDTH, empty_layer_height(characteristics(element)))
+            Size::new(
+                MIN_LAYER_WIDTH,
+                empty_layer_height(characteristics(element)),
+            )
         } else {
             component_size(element.description.as_deref())
         }
@@ -197,7 +215,13 @@ impl DiagramType for DeployedComponent {
         let layer = layers
             .iter()
             .copied()
-            .reduce(|nearest, each| if distance(each) < distance(nearest) { each } else { nearest })
+            .reduce(|nearest, each| {
+                if distance(each) < distance(nearest) {
+                    each
+                } else {
+                    nearest
+                }
+            })
             .expect("there's at least one layer");
         Placement {
             parent_id: Some(layer.id().clone()),
@@ -207,7 +231,11 @@ impl DiagramType for DeployedComponent {
 
     /// A new layer, or a new component in the layer it's placed in. The first component on the
     /// diagram comes with a layer to hold it.
-    fn created(eng: &mut DEngine, kind: &'static KindInfo<DeployedKind>, placement: Placement) -> Created<Self> {
+    fn created(
+        eng: &mut DEngine,
+        kind: &'static KindInfo<DeployedKind>,
+        placement: Placement,
+    ) -> Created<Self> {
         if kind.kind == DeployedKind::Layer {
             let mut layer = new_element(eng, DeployedKind::Layer, kind.label);
             layer.x = LAYERS_ORIGIN.x;
@@ -241,10 +269,18 @@ impl DiagramType for DeployedComponent {
     /// component goes after the selected one, or at the end of the selected layer, or the last.
     fn add_at_free_position(eng: &mut DEngine, kind: &'static KindInfo<DeployedKind>) {
         let selected = eng.selected().cloned();
-        let layers: Vec<DLaid> = eng.layout().iter().filter(|e| is_layer(&e.el)).cloned().collect();
+        let layers: Vec<DLaid> = eng
+            .layout()
+            .iter()
+            .filter(|e| is_layer(&e.el))
+            .cloned()
+            .collect();
         let layer = match &selected {
             Some(s) if is_layer(&s.el) => Some(s.clone()),
-            Some(s) => layers.iter().find(|l| Some(l.id()) == s.el.parent_id.as_ref()).cloned(),
+            Some(s) => layers
+                .iter()
+                .find(|l| Some(l.id()) == s.el.parent_id.as_ref())
+                .cloned(),
             None => None,
         }
         .or_else(|| layers.last().cloned());
@@ -266,9 +302,9 @@ impl DiagramType for DeployedComponent {
             !is_layer(&s.el) && s.el.parent_id.as_ref() == layer.as_ref().map(Laid::id)
         });
         let width = component_size(Some("")).width;
-        let x = after
-            .as_ref()
-            .map_or(CANVAS_WIDTH, |a| a.rect.x + a.rect.width / 2.0 - width / 2.0);
+        let x = after.as_ref().map_or(CANVAS_WIDTH, |a| {
+            a.rect.x + a.rect.width / 2.0 - width / 2.0
+        });
         eng.add(
             kind,
             Placement {
@@ -329,7 +365,11 @@ impl DiagramType for DeployedComponent {
                 "{} and its {} {} removed.",
                 element.label,
                 held.len(),
-                if held.len() == 1 { "component" } else { "components" }
+                if held.len() == 1 {
+                    "component"
+                } else {
+                    "components"
+                }
             );
         }
     }
@@ -381,7 +421,12 @@ impl DiagramType for DeployedComponent {
 
     /// A layer keeps only its name and characteristics. A component moved to another layer
     /// goes at its end.
-    fn apply_element(eng: &mut DEngine, id: &ElementId, mut with: El<Self>, parent_id: Option<ElementId>) {
+    fn apply_element(
+        eng: &mut DEngine,
+        id: &ElementId,
+        mut with: El<Self>,
+        parent_id: Option<ElementId>,
+    ) {
         let Some(selected) = eng.element(id).cloned() else {
             return;
         };
@@ -417,7 +462,12 @@ impl DiagramType for DeployedComponent {
 
     fn validate_element(element: &El<Self>) -> Result<(), String> {
         validate_label(&element.label)?;
-        let characteristics = element.props.characteristics.clone().unwrap_or_default().join(", ");
+        let characteristics = element
+            .props
+            .characteristics
+            .clone()
+            .unwrap_or_default()
+            .join(", ");
         validate_length("Characteristics", &characteristics, CHARACTERISTICS_MAX)?;
         let protocols = element.props.protocols.clone().unwrap_or_default();
         validate_length("Protocols", &protocols.join(", "), PROTOCOLS_MAX)?;
@@ -480,9 +530,15 @@ mod tests {
         e.add_at_free_position(DeployedKind::Component);
         assert_eq!(e.elements().len(), 2);
         let layer = e.laid(&id("id2")).unwrap();
-        assert_eq!(layer.rect, hiero_core::geometry::Rect::new(40.0, 40.0, 860.0, 250.0));
+        assert_eq!(
+            layer.rect,
+            hiero_core::geometry::Rect::new(40.0, 40.0, 860.0, 250.0)
+        );
         let component = e.laid(&id("id1")).unwrap();
-        assert_eq!(component.rect, hiero_core::geometry::Rect::new(60.0, 80.0, 260.0, 190.0));
+        assert_eq!(
+            component.rect,
+            hiero_core::geometry::Rect::new(60.0, 80.0, 260.0, 190.0)
+        );
     }
 
     #[test]
@@ -510,7 +566,10 @@ mod tests {
         e.arrow_key(&id("id1"), Dir::Down, false);
         assert_eq!(e.element(&id("id1")).unwrap().parent_id, Some(id("id3")));
         e.arrow_key(&id("id3"), Dir::Up, false);
-        let order: Vec<ElementId> = layers_in_order(e.elements()).into_iter().map(|l| l.id).collect();
+        let order: Vec<ElementId> = layers_in_order(e.elements())
+            .into_iter()
+            .map(|l| l.id)
+            .collect();
         assert_eq!(order, [id("id3"), id("id2")]);
     }
 

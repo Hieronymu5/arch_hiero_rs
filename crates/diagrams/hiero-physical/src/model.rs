@@ -298,7 +298,14 @@ pub static PALETTE: [KindInfo<PhysicalKind>; 9] = [
         ..KindInfo::new(K::Network, "Network")
     },
     KindInfo {
-        can_contain: &[K::User, K::Server, K::Database, K::LoadBalancer, K::Gateway, K::Storage],
+        can_contain: &[
+            K::User,
+            K::Server,
+            K::Database,
+            K::LoadBalancer,
+            K::Gateway,
+            K::Storage,
+        ],
         header: Some(20.0),
         footer: Some(20.0),
         size: Some(ZONE_SIZE),

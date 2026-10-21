@@ -97,7 +97,12 @@ pub fn stacked_in<'a>(eng: &'a PEngine, container: &ElementId) -> Vec<&'a PLaid>
         .iter()
         .filter(|e| e.el.parent_id.as_ref() == Some(container) && e.el.kind.stacks())
         .collect();
-    stack.sort_by(|a, b| a.rect.y.partial_cmp(&b.rect.y).unwrap_or(std::cmp::Ordering::Equal));
+    stack.sort_by(|a, b| {
+        a.rect
+            .y
+            .partial_cmp(&b.rect.y)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     stack
 }
 
@@ -164,7 +169,12 @@ fn fill_with_stack(elements: Vec<El<Physical>>, holder_id: &ElementId) -> Vec<El
     }
     let sized = |e: &El<Physical>| {
         let size = info(e.kind).size();
-        Rect::new(e.x, e.y, e.width.unwrap_or(size.width), e.height.unwrap_or(size.height))
+        Rect::new(
+            e.x,
+            e.y,
+            e.width.unwrap_or(size.width),
+            e.height.unwrap_or(size.height),
+        )
     };
     let minimums: Vec<Size> = stack
         .iter()
@@ -214,7 +224,10 @@ fn fill_with_stack(elements: Vec<El<Physical>>, holder_id: &ElementId) -> Vec<El
     let mut placed: HashMap<ElementId, Rect> = HashMap::new();
     let mut y = holder.y + header;
     for (zone, height) in stack.iter().zip(&heights) {
-        placed.insert(zone.id.clone(), Rect::new(holder.x + padding, y, width, *height));
+        placed.insert(
+            zone.id.clone(),
+            Rect::new(holder.x + padding, y, width, *height),
+        );
         y += height;
     }
     let mut shifts: HashMap<ElementId, Point> = HashMap::new();
@@ -245,14 +258,19 @@ fn fill_with_stack(elements: Vec<El<Physical>>, holder_id: &ElementId) -> Vec<El
 
 /// Moves `zone` to `index` in its network's stack, restacking the zones in their new order.
 fn move_in_stack(eng: &mut PEngine, zone_id: &ElementId, holder_id: &ElementId, index: usize) {
-    let (Some(zone), Some(holder)) = (eng.laid(zone_id).cloned(), eng.laid(holder_id).cloned()) else {
+    let (Some(zone), Some(holder)) = (eng.laid(zone_id).cloned(), eng.laid(holder_id).cloned())
+    else {
         return;
     };
     let stack: Vec<PLaid> = stacked_in(eng, holder_id).into_iter().cloned().collect();
     if stack.get(index).is_some_and(|s| s.id() == zone_id) {
         return;
     }
-    let mut order: Vec<PLaid> = stack.iter().filter(|e| e.id() != zone_id).cloned().collect();
+    let mut order: Vec<PLaid> = stack
+        .iter()
+        .filter(|e| e.id() != zone_id)
+        .cloned()
+        .collect();
     order.insert(index.min(order.len()), zone.clone());
     let mut shifts: HashMap<ElementId, f64> = HashMap::new();
     let mut y = holder.rect.y + holder.header;
@@ -333,7 +351,9 @@ fn step_out_of_container(eng: &mut PEngine, element: &PLaid, dir: Dir) -> bool {
         .containers_for(element.el.kind, eng.layout())
         .into_iter()
         .rev()
-        .find(|c| c.id() != element.id() && !inside.contains(c.id()) && c.rect.contains_point(middle))
+        .find(|c| {
+            c.id() != element.id() && !inside.contains(c.id()) && c.rect.contains_point(middle)
+        })
         .cloned();
     let snapped = snap_to_canvas(out, r.size());
     let placement = Placement {
@@ -356,7 +376,11 @@ fn stack_template(eng: &PEngine, kind: PhysicalKind) -> Option<PLaid> {
 
 /// The zones a new network at `rect` starts with: copies of the first network's, or the
 /// usual ones, stacked from the top.
-fn starting_stack(eng: &PEngine, kind: PhysicalKind, rect: Rect) -> Vec<(PhysicalKind, String, Rect)> {
+fn starting_stack(
+    eng: &PEngine,
+    kind: PhysicalKind,
+    rect: Rect,
+) -> Vec<(PhysicalKind, String, Rect)> {
     if let Some(template) = stack_template(eng, kind) {
         return stacked_in(eng, template.id())
             .into_iter()
@@ -414,7 +438,8 @@ fn span_across(eng: &PEngine, rect: Rect) -> Vec<El<Physical>> {
             let Some(shown) = eng.laid(&element.id) else {
                 return element;
             };
-            if element.parent_id.is_some() || !element.kind.stacks() || shown.rect.bottom() > rect.y {
+            if element.parent_id.is_some() || !element.kind.stacks() || shown.rect.bottom() > rect.y
+            {
                 return element;
             }
             let left = shown.rect.x.min(rect.x);
@@ -428,7 +453,12 @@ fn span_across(eng: &PEngine, rect: Rect) -> Vec<El<Physical>> {
         .collect()
 }
 
-fn new_element(eng: &mut PEngine, kind: PhysicalKind, label: &str, parent: Option<ElementId>) -> El<Physical> {
+fn new_element(
+    eng: &mut PEngine,
+    kind: PhysicalKind,
+    label: &str,
+    parent: Option<ElementId>,
+) -> El<Physical> {
     Element {
         id: ElementId(eng.new_id()),
         kind,
@@ -494,14 +524,17 @@ impl DiagramType for Physical {
             .filter(|e| e.kind.holds_stack())
             .map(|e| e.id.clone())
             .collect();
-        holders
-            .iter()
-            .fold(held, fill_with_stack)
+        holders.iter().fold(held, fill_with_stack)
     }
 
     /// Resizing a network resizes its zones too, in proportion. Resizing a zone in a network
     /// resizes the network to match.
-    fn resized(eng: &PEngine, elements: Vec<El<Physical>>, id: &ElementId, rect: Rect) -> Vec<El<Physical>> {
+    fn resized(
+        eng: &PEngine,
+        elements: Vec<El<Physical>>,
+        id: &ElementId,
+        rect: Rect,
+    ) -> Vec<El<Physical>> {
         let Some(target) = eng.laid(id).cloned() else {
             return eng.base_resized(elements, id, rect);
         };
@@ -524,14 +557,23 @@ impl DiagramType for Physical {
         let (holder_rect, heights) = if holder.id() == target.id() {
             let heights = distribute(
                 &stack.iter().map(|z| z.rect.height).collect::<Vec<_>>(),
-                &stack.iter().map(|z| minimum_of(eng, z).height).collect::<Vec<_>>(),
+                &stack
+                    .iter()
+                    .map(|z| minimum_of(eng, z).height)
+                    .collect::<Vec<_>>(),
                 room(rect.height),
             );
             (rect, heights)
         } else {
             let heights: Vec<f64> = stack
                 .iter()
-                .map(|z| if z.id() == id { rect.height } else { z.rect.height })
+                .map(|z| {
+                    if z.id() == id {
+                        rect.height
+                    } else {
+                        z.rect.height
+                    }
+                })
                 .collect();
             let height: f64 = heights.iter().sum();
             (
@@ -544,8 +586,11 @@ impl DiagramType for Physical {
                 heights,
             )
         };
-        let new_heights: HashMap<&ElementId, f64> =
-            stack.iter().zip(heights).map(|(z, h)| (z.id(), h)).collect();
+        let new_heights: HashMap<&ElementId, f64> = stack
+            .iter()
+            .zip(heights)
+            .map(|(z, h)| (z.id(), h))
+            .collect();
         elements
             .into_iter()
             .map(|mut e| {
@@ -607,7 +652,10 @@ impl DiagramType for Physical {
             };
         };
         let top = holder.rect.y + holder.header;
-        let bottom = holder.rect.y + holder.rect.height - holder.padding - holder.footer - element.rect.height;
+        let bottom = holder.rect.y + holder.rect.height
+            - holder.padding
+            - holder.footer
+            - element.rect.height;
         let y = placement.position.y.max(top).min(top.max(bottom));
         Placement {
             position: Point::new(element.rect.x, y),
@@ -616,15 +664,24 @@ impl DiagramType for Physical {
     }
 
     /// A zone dragged within its network takes the place in its stack where its middle lands.
-    fn commit_move(eng: &mut PEngine, id: &ElementId, placement: Placement, with: Option<El<Physical>>) {
+    fn commit_move(
+        eng: &mut PEngine,
+        id: &ElementId,
+        placement: Placement,
+        with: Option<El<Physical>>,
+    ) {
         let zone = eng.laid(id).cloned();
         let holder = zone.as_ref().and_then(|z| stack_holder_of(eng, z)).cloned();
         match (zone, holder) {
-            (Some(zone), Some(holder)) if placement.parent_id.as_ref() == Some(holder.id()) && with.is_none() => {
+            (Some(zone), Some(holder))
+                if placement.parent_id.as_ref() == Some(holder.id()) && with.is_none() =>
+            {
                 let middle = placement.position.y + zone.rect.height / 2.0;
                 let index = stacked_in(eng, holder.id())
                     .into_iter()
-                    .filter(|other| other.id() != id && other.rect.y + other.rect.height / 2.0 < middle)
+                    .filter(|other| {
+                        other.id() != id && other.rect.y + other.rect.height / 2.0 < middle
+                    })
                     .count();
                 move_in_stack(eng, id, holder.id(), index);
             }
@@ -694,7 +751,12 @@ impl DiagramType for Physical {
     }
 
     /// A figure dropped in a zone sits within the room the zone has.
-    fn drop_position(eng: &PEngine, kind: &'static KindInfo<PhysicalKind>, position: Point, parent: &PLaid) -> Point {
+    fn drop_position(
+        eng: &PEngine,
+        kind: &'static KindInfo<PhysicalKind>,
+        position: Point,
+        parent: &PLaid,
+    ) -> Point {
         let size = Self::new_size_of(eng, kind);
         keep_inside(
             snap_to_canvas(keep_inside(position, size, parent), size),
@@ -706,9 +768,17 @@ impl DiagramType for Physical {
     /// A zone goes under the others in its container, across its width. A network starts with
     /// copies of the first network's zones, or the usual ones, and widens anything stacked
     /// above it, such as the End User zone, to span it too.
-    fn created(eng: &mut PEngine, kind: &'static KindInfo<PhysicalKind>, placement: Placement) -> Created<Physical> {
+    fn created(
+        eng: &mut PEngine,
+        kind: &'static KindInfo<PhysicalKind>,
+        placement: Placement,
+    ) -> Created<Physical> {
         let default_size = kind.size();
-        let parent = placement.parent_id.as_ref().and_then(|p| eng.laid(p)).cloned();
+        let parent = placement
+            .parent_id
+            .as_ref()
+            .and_then(|p| eng.laid(p))
+            .cloned();
         let template = stack_template(eng, kind.kind);
         let size = Self::new_size_of(eng, kind);
         let rect = match &parent {
@@ -808,11 +878,21 @@ impl DiagramType for Physical {
         }
         for c in eng.connections() {
             let tag = c.props.tag();
-            let over = if tag.is_empty() { String::new() } else { format!(" over {tag}") };
+            let over = if tag.is_empty() {
+                String::new()
+            } else {
+                format!(" over {tag}")
+            };
             if c.source_id == *element.id() {
-                parts.push(format!("arrow to {}{over}", eng.label_of(&c.target_id).unwrap_or_default()));
+                parts.push(format!(
+                    "arrow to {}{over}",
+                    eng.label_of(&c.target_id).unwrap_or_default()
+                ));
             } else if c.target_id == *element.id() {
-                parts.push(format!("arrow from {}{over}", eng.label_of(&c.source_id).unwrap_or_default()));
+                parts.push(format!(
+                    "arrow from {}{over}",
+                    eng.label_of(&c.source_id).unwrap_or_default()
+                ));
             }
         }
         parts
@@ -855,7 +935,12 @@ impl DiagramType for Physical {
     }
 
     /// Clears settings the element's kind doesn't have.
-    fn apply_element(eng: &mut PEngine, id: &ElementId, mut with: El<Physical>, parent_id: Option<ElementId>) {
+    fn apply_element(
+        eng: &mut PEngine,
+        id: &ElementId,
+        mut with: El<Physical>,
+        parent_id: Option<ElementId>,
+    ) {
         let kind = with.kind;
         if !kind.has_server_type() {
             with.props.server_type = None;
@@ -931,7 +1016,16 @@ mod tests {
     fn starts_with_end_user_and_an_intranet_of_three_zones() {
         let e = engine();
         let labels: Vec<&str> = e.elements().iter().map(|e| e.label.as_str()).collect();
-        assert_eq!(labels, ["End User", "Intranet", "Perimeter", "Business", "Restricted"]);
+        assert_eq!(
+            labels,
+            [
+                "End User",
+                "Intranet",
+                "Perimeter",
+                "Business",
+                "Restricted"
+            ]
+        );
         assert_eq!(rect(&e, "id1"), Rect::new(40.0, 40.0, 600.0, 200.0));
         // The network grows to fit its three zones under its header.
         assert_eq!(rect(&e, "id2"), Rect::new(40.0, 280.0, 600.0, 640.0));
@@ -944,11 +1038,17 @@ mod tests {
         e.add_at_free_position(PhysicalKind::Network);
         let network = e.selected().unwrap().clone();
         assert_eq!(network.rect, Rect::new(680.0, 280.0, 600.0, 640.0));
-        let zones: Vec<String> = stacked_in(&e, network.id()).iter().map(|z| z.el.label.clone()).collect();
+        let zones: Vec<String> = stacked_in(&e, network.id())
+            .iter()
+            .map(|z| z.el.label.clone())
+            .collect();
         assert_eq!(zones, ["Perimeter", "Business", "Restricted"]);
         // The End User zone is widened to span both networks.
         assert_eq!(rect(&e, "id1"), Rect::new(40.0, 40.0, 1240.0, 200.0));
-        assert!(e.announcement.contains("with zones Perimeter, Business, Restricted"));
+        assert!(
+            e.announcement
+                .contains("with zones Perimeter, Business, Restricted")
+        );
     }
 
     #[test]
@@ -956,7 +1056,10 @@ mod tests {
         let mut e = engine();
         e.select(&id("id3"));
         e.arrow_key(&id("id3"), Dir::Down, false);
-        let order: Vec<String> = stacked_in(&e, &id("id2")).iter().map(|z| z.el.label.clone()).collect();
+        let order: Vec<String> = stacked_in(&e, &id("id2"))
+            .iter()
+            .map(|z| z.el.label.clone())
+            .collect();
         assert_eq!(order, ["Business", "Perimeter", "Restricted"]);
         assert_eq!(e.announcement, "Perimeter moved to 2 of 3 in Intranet.");
     }
@@ -965,10 +1068,17 @@ mod tests {
     fn resizing_a_network_shares_height_among_zones() {
         let mut e = engine();
         let network = e.laid(&id("id2")).unwrap().clone();
-        let r = e.resize_bounds(&network, hiero_core::engine::Corner::BottomRight, Point::new(0.0, 300.0));
+        let r = e.resize_bounds(
+            &network,
+            hiero_core::engine::Corner::BottomRight,
+            Point::new(0.0, 300.0),
+        );
         e.commit_resize(&id("id2"), r);
         assert_eq!(rect(&e, "id2").height, 940.0);
-        let heights: Vec<f64> = stacked_in(&e, &id("id2")).iter().map(|z| z.rect.height).collect();
+        let heights: Vec<f64> = stacked_in(&e, &id("id2"))
+            .iter()
+            .map(|z| z.rect.height)
+            .collect();
         assert_eq!(heights, [300.0, 300.0, 300.0]);
     }
 
@@ -983,7 +1093,10 @@ mod tests {
         e.select(&id("id5"));
         e.delete_selection();
         assert!(e.element(&id("id2")).is_none());
-        assert_eq!(e.announcement, "Restricted and its network Intranet removed.");
+        assert_eq!(
+            e.announcement,
+            "Restricted and its network Intranet removed."
+        );
     }
 
     #[test]
@@ -1011,11 +1124,32 @@ mod tests {
         e.add_at_free_position(PhysicalKind::Database);
         e.select(&id("id3"));
         e.add_at_free_position(PhysicalKind::Storage);
-        let server = e.elements().iter().find(|x| x.kind == PhysicalKind::Server).unwrap().id.clone();
-        let database = e.elements().iter().find(|x| x.kind == PhysicalKind::Database).unwrap().id.clone();
-        let storage = e.elements().iter().find(|x| x.kind == PhysicalKind::Storage).unwrap().id.clone();
+        let server = e
+            .elements()
+            .iter()
+            .find(|x| x.kind == PhysicalKind::Server)
+            .unwrap()
+            .id
+            .clone();
+        let database = e
+            .elements()
+            .iter()
+            .find(|x| x.kind == PhysicalKind::Database)
+            .unwrap()
+            .id
+            .clone();
+        let storage = e
+            .elements()
+            .iter()
+            .find(|x| x.kind == PhysicalKind::Storage)
+            .unwrap()
+            .id
+            .clone();
         e.add_connection(&server, &database);
-        assert_eq!(e.announcement, "Arrow from Server to Database added, over TCP:5432.");
+        assert_eq!(
+            e.announcement,
+            "Arrow from Server to Database added, over TCP:5432."
+        );
         e.add_connection(&server, &storage);
         assert_eq!(e.connections()[1].props.tag(), "TCP:445");
         e.add_connection(&database, &server);

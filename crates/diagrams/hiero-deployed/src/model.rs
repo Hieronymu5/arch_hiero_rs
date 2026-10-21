@@ -7,7 +7,6 @@ use hiero_core::palette::{
 };
 use serde::{Deserialize, Serialize};
 
-
 /// The deployed component diagram type.
 pub struct DeployedComponent;
 

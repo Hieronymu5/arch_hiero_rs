@@ -12,6 +12,23 @@ name = "arch-hiero"
 path = "src/main.rs"
 
 [dependencies]
+hiero-core.workspace = true
+hiero-store.workspace = true
+hiero-editor.workspace = true
+hiero-registry.workspace = true
+hiero-conceptual = { workspace = true, features = ["ui"] }
+hiero-physical = { workspace = true, features = ["ui"] }
+hiero-deployed = { workspace = true, features = ["ui"] }
+eframe.workspace = true
+egui.workspace = true
+egui_extras.workspace = true
+image.workspace = true
+rfd.workspace = true
+jiff.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+env_logger.workspace = true
 
 [lints]
 workspace = true

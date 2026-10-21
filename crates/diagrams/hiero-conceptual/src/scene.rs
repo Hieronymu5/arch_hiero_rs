@@ -18,7 +18,10 @@ use crate::model::{Conceptual, ConceptualKind};
 use crate::rules::{Figure, figure_of, is_cloud};
 
 /// An element's fill from the diagram's colours, and text that reads on it.
-fn fill_of(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> (Option<String>, Option<String>) {
+fn fill_of(
+    eng: &Engine<Conceptual>,
+    element: &Laid<Conceptual>,
+) -> (Option<String>, Option<String>) {
     let colors = eng.colors();
     let figure = figure_of(&element.el);
     if element.el.kind == ConceptualKind::Section {
@@ -127,12 +130,18 @@ pub fn drawn_arrows(
             let props = &c.props;
             let connector = props.connector.as_ref().map(|text| {
                 let width = measure.width(text, CONNECTOR_BOX_FONT_SIZE, Weight::SemiBold);
-                (text.clone(), connector_placement(route.to, route.to_side, width))
+                (
+                    text.clone(),
+                    connector_placement(route.to, route.to_side, width),
+                )
             });
             let to = connector.as_ref().map_or(route.to, |(_, p)| p.arrow_end);
             let transformation = props.transformation.as_ref().map(|text| {
                 let width = measure.width(text, CONNECTOR_BOX_FONT_SIZE, Weight::SemiBold);
-                (text.clone(), transformation_placement(route.from, to, width).0)
+                (
+                    text.clone(),
+                    transformation_placement(route.from, to, width).0,
+                )
             });
             let straightenable = matches!(
                 (rects.get(&c.source_id), rects.get(&c.target_id)),
@@ -177,6 +186,26 @@ pub fn scene_of(
 /// The diagram as it's stored, drawn.
 pub fn scene(eng: &Engine<Conceptual>) -> Scene {
     scene_of(eng, eng.layout(), None)
+}
+
+/// The diagram as a draw.io file, with `heading` above it.
+pub fn to_drawio(
+    eng: &Engine<Conceptual>,
+    title: &str,
+    heading: Option<&hiero_core::export::drawio::Heading>,
+) -> String {
+    let elements: Vec<LookElement> = eng.layout().iter().map(|e| look_of(eng, e)).collect();
+    let arrows: Vec<hiero_core::export::drawio::DrawioArrow> =
+        drawn_arrows(eng, eng.layout(), None)
+            .into_iter()
+            .map(|a| hiero_core::export::drawio::DrawioArrow {
+                id: a.id,
+                source_id: a.source_id,
+                target_id: a.target_id,
+                look: a.look,
+            })
+            .collect();
+    hiero_core::export::drawio::diagram_to_drawio(title, &elements, &arrows, heading, eng.colors())
 }
 
 #[cfg(test)]

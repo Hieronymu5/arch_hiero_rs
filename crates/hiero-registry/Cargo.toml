@@ -1,5 +1,6 @@
 [package]
 name = "hiero-registry"
+description = "The diagram types Arch Hiero knows, without their UI: content, rules, edits, and exports"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,6 +8,12 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+hiero-core.workspace = true
+hiero-conceptual.workspace = true
+hiero-physical.workspace = true
+hiero-deployed.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

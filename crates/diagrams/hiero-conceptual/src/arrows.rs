@@ -26,7 +26,12 @@ pub fn offset_within(range: StraightRange, at: f64) -> f64 {
 }
 
 /// Sets or clears an arrow's hand-placed offset, saying what changed.
-pub fn set_manual_offset(eng: &mut Engine<Conceptual>, id: &ConnectionId, offset: Option<f64>, change: &str) {
+pub fn set_manual_offset(
+    eng: &mut Engine<Conceptual>,
+    id: &ConnectionId,
+    offset: Option<f64>,
+    change: &str,
+) {
     let Some(connection) = eng.connection(id).cloned() else {
         return;
     };
@@ -58,7 +63,11 @@ pub fn place_automatically(eng: &mut Engine<Conceptual>, id: &ConnectionId) {
 /// The offset an arrow being dragged to `pointer` takes, snapped to half a grid step.
 pub fn offset_at(eng: &Engine<Conceptual>, id: &ConnectionId, pointer: Point) -> Option<f64> {
     let range = range_for(eng, id)?;
-    let along = if range.side.is_vertical() { pointer.y } else { pointer.x };
+    let along = if range.side.is_vertical() {
+        pointer.y
+    } else {
+        pointer.x
+    };
     let at = js_round(along / ARROW_STEP) * ARROW_STEP;
     Some(offset_within(range, at))
 }
@@ -85,7 +94,12 @@ pub fn arrow_key(eng: &mut Engine<Conceptual>, dir: Dir, shift: bool) -> bool {
     } else {
         arrow.look.from.x
     };
-    set_manual_offset(eng, &id, Some(offset_within(range, current + delta)), "moved");
+    set_manual_offset(
+        eng,
+        &id,
+        Some(offset_within(range, current + delta)),
+        "moved",
+    );
     true
 }
 
@@ -122,6 +136,9 @@ mod tests {
         assert!(!arrow_key(&mut e, Dir::Left, false));
         place_automatically(&mut e, &cid);
         assert_eq!(e.connection(&cid).unwrap().props.manual_offset, None);
-        assert_eq!(e.announcement, "Arrow from Application to Application placed automatically.");
+        assert_eq!(
+            e.announcement,
+            "Arrow from Application to Application placed automatically."
+        );
     }
 }

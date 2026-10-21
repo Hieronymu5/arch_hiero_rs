@@ -1,5 +1,6 @@
 [package]
 name = "hiero-editor"
+description = "The generic egui diagram editor for Arch Hiero: canvas, painting, palette, and interaction"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,6 +8,11 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+hiero-core.workspace = true
+egui.workspace = true
+image.workspace = true
+lyon_tessellation.workspace = true
+lyon_path.workspace = true
 
 [lints]
 workspace = true

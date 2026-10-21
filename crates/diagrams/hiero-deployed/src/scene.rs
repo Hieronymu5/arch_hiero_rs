@@ -28,14 +28,26 @@ pub const CORNER_RADIUS: f64 = 6.0;
 
 /// `text` on one line no wider than `width`, ending with "…" when it's cut.
 fn fit(text: &str, width: f64, style: (f64, Weight), measure: &dyn MeasureText) -> String {
-    wrap_text(text, width, TextStyle::new(style.0, style.1, style.0, 1), measure)
-        .into_iter()
-        .next()
-        .unwrap_or_default()
+    wrap_text(
+        text,
+        width,
+        TextStyle::new(style.0, style.1, style.0, 1),
+        measure,
+    )
+    .into_iter()
+    .next()
+    .unwrap_or_default()
 }
 
 /// Text centred from top to bottom in a band `height` high starting at `top`.
-fn text(value: String, x: f64, top: f64, height: f64, style: (f64, Weight), anchor: Anchor) -> Node {
+fn text(
+    value: String,
+    x: f64,
+    top: f64,
+    height: f64,
+    style: (f64, Weight),
+    anchor: Anchor,
+) -> Node {
     let baseline = top + (height - style.0) / 2.0 + style.0 * 0.8;
     Node::text(
         Point::new(round2(x), round2(baseline)),
@@ -99,7 +111,12 @@ fn draw_layer(layer: &Laid<DeployedComponent>, measure: &dyn MeasureText) -> Vec
         ));
     }
     nodes.push(text(
-        fit(&layer.el.label, r.width - LAYER_PADDING * 2.0, LAYER_NAME, measure),
+        fit(
+            &layer.el.label,
+            r.width - LAYER_PADDING * 2.0,
+            LAYER_NAME,
+            measure,
+        ),
         r.x + LAYER_PADDING,
         r.y + layer_name_top(chars),
         LAYER_NAME_HEIGHT,
@@ -116,14 +133,29 @@ fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText
     let tech = tech_stack::items(el.props.tech_stack.as_deref().unwrap_or_default());
     let count = el.props.instance_count.unwrap_or(1);
     let parts = component_parts(r, el.description.as_deref(), tech.len(), count);
-    let divider = |y: f64| Node::line(Point::new(r.x, y), Point::new(r.right(), y), Paint::stroke(color.border, 1.5));
+    let divider = |y: f64| {
+        Node::line(
+            Point::new(r.x, y),
+            Point::new(r.right(), y),
+            Paint::stroke(color.border, 1.5),
+        )
+    };
     let mut nodes = vec![
-        Node::rect(r, CORNER_RADIUS, Paint::fill_stroke(color.fill, color.border, 1.5)),
+        Node::rect(
+            r,
+            CORNER_RADIUS,
+            Paint::fill_stroke(color.fill, color.border, 1.5),
+        ),
         divider(parts.name_divider_y),
         divider(parts.footer_divider_y),
     ];
     if let Some(protocols) = el.props.protocols.as_ref().filter(|p| !p.is_empty()) {
-        nodes.extend(bar(parts.protocol_bar, protocols, colors::PROTOCOL_BORDER, measure));
+        nodes.extend(bar(
+            parts.protocol_bar,
+            protocols,
+            colors::PROTOCOL_BORDER,
+            measure,
+        ));
     }
     nodes.push(text(
         fit(&el.label, parts.name.width, COMPONENT_NAME, measure),
@@ -142,7 +174,12 @@ fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText
                 paint: Paint::default(),
             });
             nodes.push(text(
-                fit(row, column.width - BULLET_INDENT - 4.0, BULLET_TEXT, measure),
+                fit(
+                    row,
+                    column.width - BULLET_INDENT - 4.0,
+                    BULLET_TEXT,
+                    measure,
+                ),
                 column.x + BULLET_INDENT,
                 top,
                 BULLET_LINE,
@@ -169,7 +206,10 @@ fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText
     }
     if let Some((label, badge)) = &parts.instances {
         nodes.push(Node::rect(
-            Rect { x: round2(badge.x), ..*badge },
+            Rect {
+                x: round2(badge.x),
+                ..*badge
+            },
             badge.height / 2.0,
             Paint {
                 fill: Some(colors::BAR_FILL.into()),
@@ -245,7 +285,8 @@ mod tests {
 
     #[test]
     fn draws_layers_components_bars_and_logos() {
-        let mut e = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {}).with_measure(&ESTIMATE);
+        let mut e = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {})
+            .with_measure(&ESTIMATE);
         e.add_at_free_position(DeployedKind::Component);
         let id = e.selected_id().unwrap().clone();
         e.replace(&id, |mut c| {

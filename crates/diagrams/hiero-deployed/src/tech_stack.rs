@@ -70,7 +70,12 @@ mod tests {
         assert!(TECH_STACK.iter().all(|i| i.png.starts_with(b"\x89PNG")));
         let order: Vec<usize> = TECH_STACK
             .iter()
-            .map(|i| TechCategory::ALL.iter().position(|c| *c == i.category).unwrap())
+            .map(|i| {
+                TechCategory::ALL
+                    .iter()
+                    .position(|c| *c == i.category)
+                    .unwrap()
+            })
             .collect();
         assert!(order.windows(2).all(|w| w[0] <= w[1]));
         assert_eq!(find("aws").unwrap().label, "AWS");

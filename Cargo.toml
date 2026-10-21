@@ -32,7 +32,7 @@ egui_extras = { version = "0.37", features = ["image"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 lyon_tessellation = "1"
 lyon_path = "1"
-rfd = "0.15"
+rfd = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.28", features = ["v4"] }
@@ -86,6 +86,10 @@ format_push_string = "allow"
 ref_option = "allow"
 doc_markdown = "allow"
 single_match_else = "allow"
+unused_self = "allow"
+format_collect = "allow"
+assigning_clones = "allow"
+option_option = "allow"
 
 [profile.release]
 lto = "thin"

@@ -44,7 +44,9 @@ impl std::fmt::Display for StoreError {
             Self::Sqlite(e) => write!(f, "The database couldn't be used: {e}"),
             Self::Migration(e) => write!(f, "The database couldn't be upgraded: {e}"),
             Self::NotFound => f.write_str("That diagram doesn't exist. It may have been deleted."),
-            Self::Conflict => f.write_str("The diagram was changed somewhere else in the meantime."),
+            Self::Conflict => {
+                f.write_str("The diagram was changed somewhere else in the meantime.")
+            }
             Self::TypeMismatch {
                 name,
                 existing,
@@ -194,7 +196,12 @@ pub fn default_path() -> Option<PathBuf> {
 pub fn seed_diagrams() -> Vec<StoredDiagram> {
     let seed: Value = serde_json::from_str(include_str!("seed.json")).expect("the seed is JSON");
     seed.as_array()
-        .map(|items| items.iter().filter_map(|d| diagram_from_json(d).ok()).collect())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|d| diagram_from_json(d).ok())
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -214,7 +221,9 @@ fn props_json(props: &Map<String, Value>) -> String {
 fn read_props(text: &str) -> Result<Map<String, Value>> {
     match serde_json::from_str::<Value>(text) {
         Ok(Value::Object(map)) => Ok(map),
-        _ => Err(StoreError::Corrupt("properties aren't a JSON object".into())),
+        _ => Err(StoreError::Corrupt(
+            "properties aren't a JSON object".into(),
+        )),
     }
 }
 
@@ -226,8 +235,9 @@ impl Store {
     /// Opens (creating if need be) the database at `path`, upgrading its schema.
     pub fn open(path: &Path) -> Result<Self> {
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)
-                .map_err(|e| StoreError::Migration(format!("can't create {}: {e}", dir.display())))?;
+            std::fs::create_dir_all(dir).map_err(|e| {
+                StoreError::Migration(format!("can't create {}: {e}", dir.display()))
+            })?;
         }
         Self::setup(Connection::open(path)?)
     }
@@ -256,7 +266,9 @@ impl Store {
 
     /// Adds the sample diagrams when there are no diagrams yet. Returns how many were added.
     pub fn seed_if_empty(&mut self) -> Result<usize> {
-        let count: i64 = self.conn.query_row("SELECT COUNT(*) FROM diagrams", [], |r| r.get(0))?;
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM diagrams", [], |r| r.get(0))?;
         if count > 0 {
             return Ok(0);
         }
@@ -293,7 +305,8 @@ impl Store {
             ))
         })?;
         rows.map(|row| {
-            let (id, ty, name, description, created, updated, revision, hash, latest_hash, latest) = row?;
+            let (id, ty, name, description, created, updated, revision, hash, latest_hash, latest) =
+                row?;
             Ok(Summary {
                 meta: DiagramMeta {
                     id: DiagramId(id),
@@ -342,7 +355,11 @@ impl Store {
     /// Replaces a diagram's current record with `diagram`: its name, description, colours,
     /// and content. The type and creation date are kept. Fails with `Conflict` when
     /// `expected_revision` is given and the stored one differs.
-    pub fn save(&mut self, diagram: &StoredDiagram, expected_revision: Option<i64>) -> Result<Record> {
+    pub fn save(
+        &mut self,
+        diagram: &StoredDiagram,
+        expected_revision: Option<i64>,
+    ) -> Result<Record> {
         let tx = self.conn.transaction()?;
         let current = read_record(&tx, &diagram.meta.id)?.ok_or(StoreError::NotFound)?;
         if expected_revision.is_some_and(|r| r != current.revision) {
@@ -358,7 +375,9 @@ impl Store {
 
     /// Deletes a diagram and its versions.
     pub fn delete(&mut self, id: &DiagramId) -> Result<()> {
-        let changed = self.conn.execute("DELETE FROM diagrams WHERE id = ?1", params![id.0])?;
+        let changed = self
+            .conn
+            .execute("DELETE FROM diagrams WHERE id = ?1", params![id.0])?;
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
@@ -398,7 +417,11 @@ impl Store {
 
     /// Records the current record as a new version. Returns its number, or `None` when the
     /// latest version already has the same content.
-    pub fn save_version(&mut self, id: &DiagramId, description: Option<&str>) -> Result<Option<i64>> {
+    pub fn save_version(
+        &mut self,
+        id: &DiagramId,
+        description: Option<&str>,
+    ) -> Result<Option<i64>> {
         let tx = self.conn.transaction()?;
         let record = read_record(&tx, id)?.ok_or(StoreError::NotFound)?;
         if status_of(&tx, id)?.saved {
@@ -413,7 +436,11 @@ impl Store {
     pub fn list_versions(&self, id: &DiagramId) -> Result<Vec<VersionSummary>> {
         let hash: Option<String> = self
             .conn
-            .query_row("SELECT content_hash FROM diagrams WHERE id = ?1", params![id.0], |r| r.get(0))
+            .query_row(
+                "SELECT content_hash FROM diagrams WHERE id = ?1",
+                params![id.0],
+                |r| r.get(0),
+            )
             .optional()?;
         let hash = hash.ok_or(StoreError::NotFound)?;
         let mut statement = self.conn.prepare(
@@ -526,7 +553,9 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
         return Ok(None);
     };
     let colors: BTreeMap<String, String> = match colors {
-        Some(text) => serde_json::from_str(&text).map_err(|e| StoreError::Corrupt(e.to_string()))?,
+        Some(text) => {
+            serde_json::from_str(&text).map_err(|e| StoreError::Corrupt(e.to_string()))?
+        }
         None => BTreeMap::new(),
     };
     let mut elements = Vec::new();
@@ -666,13 +695,23 @@ fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) ->
     if changed == 0 {
         return Err(StoreError::Conflict);
     }
-    tx.execute("DELETE FROM elements WHERE diagram_id = ?1", params![m.id.0])?;
-    tx.execute("DELETE FROM connections WHERE diagram_id = ?1", params![m.id.0])?;
+    tx.execute(
+        "DELETE FROM elements WHERE diagram_id = ?1",
+        params![m.id.0],
+    )?;
+    tx.execute(
+        "DELETE FROM connections WHERE diagram_id = ?1",
+        params![m.id.0],
+    )?;
     insert_content(tx, &m.id, &diagram.content)
 }
 
 /// Records `diagram` as the next version, returning its number.
-fn insert_version(tx: &Transaction<'_>, diagram: &StoredDiagram, description: Option<&str>) -> Result<i64> {
+fn insert_version(
+    tx: &Transaction<'_>,
+    diagram: &StoredDiagram,
+    description: Option<&str>,
+) -> Result<i64> {
     let id = &diagram.meta.id;
     let version: i64 = tx.query_row(
         "UPDATE diagrams SET next_version = next_version + 1 WHERE id = ?1
@@ -728,27 +767,43 @@ mod tests {
     #[test]
     fn create_list_get_round_trip() {
         let mut store = Store::open_in_memory().unwrap();
-        let created = store.create(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        let created = store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         assert_eq!(created.revision, 0);
         let list = store.list().unwrap();
         assert_eq!(list.len(), 1);
-        assert_eq!(list[0].status, Status { saved: true, latest: Some(1) });
+        assert_eq!(
+            list[0].status,
+            Status {
+                saved: true,
+                latest: Some(1)
+            }
+        );
         let got = store.get(&"d1".into()).unwrap().unwrap();
-        assert_eq!(got.diagram.content, diagram("d1", DiagramTypeId::Conceptual).content);
+        assert_eq!(
+            got.diagram.content,
+            diagram("d1", DiagramTypeId::Conceptual).content
+        );
         assert!(!got.diagram.meta.created_at.is_empty());
     }
 
     #[test]
     fn saving_changes_status_and_checks_revisions() {
         let mut store = Store::open_in_memory().unwrap();
-        let record = store.create(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        let record = store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         let mut changed = record.diagram.clone();
         changed.meta.name = "Renamed".into();
         let saved = store.save(&changed, Some(record.revision)).unwrap();
         assert_eq!(saved.revision, 1);
         assert_eq!(store.status(&"d1".into()).unwrap().label(), "Unsaved · v1");
         // A stale revision is refused.
-        assert!(matches!(store.save(&changed, Some(0)), Err(StoreError::Conflict)));
+        assert!(matches!(
+            store.save(&changed, Some(0)),
+            Err(StoreError::Conflict)
+        ));
         // Changing it back matches version 1 again.
         changed.meta.name = "Overview".into();
         store.save(&changed, Some(1)).unwrap();
@@ -758,13 +813,22 @@ mod tests {
     #[test]
     fn versions_revert_forwards_and_numbers_are_not_reused() {
         let mut store = Store::open_in_memory().unwrap();
-        let record = store.create(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        let record = store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         let mut changed = record.diagram.clone();
         changed.content.elements.pop();
         changed.content.connections.clear();
         store.save(&changed, None).unwrap();
-        assert_eq!(store.save_version(&"d1".into(), Some("  Fewer  ")).unwrap(), Some(2));
-        assert_eq!(store.save_version(&"d1".into(), None).unwrap(), None, "already saved");
+        assert_eq!(
+            store.save_version(&"d1".into(), Some("  Fewer  ")).unwrap(),
+            Some(2)
+        );
+        assert_eq!(
+            store.save_version(&"d1".into(), None).unwrap(),
+            None,
+            "already saved"
+        );
         let (reverted, version) = store.revert_to_version(&"d1".into(), 1, None).unwrap();
         assert_eq!(version, 3);
         assert_eq!(reverted.diagram.content.elements.len(), 2);
@@ -787,22 +851,31 @@ mod tests {
     #[test]
     fn every_version_deleted_reads_unsaved() {
         let mut store = Store::open_in_memory().unwrap();
-        store.create(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         store.delete_version(&"d1".into(), 1).unwrap();
-        assert_eq!(store.status(&"d1".into()).unwrap().label(), "Unsaved · no versions");
+        assert_eq!(
+            store.status(&"d1".into()).unwrap().label(),
+            "Unsaved · no versions"
+        );
     }
 
     #[test]
     fn imports_replace_or_add_and_refuse_type_changes() {
         let mut store = Store::open_in_memory().unwrap();
-        let first = store.import(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        let first = store
+            .import(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         assert!(!first.replaced);
         let mut again = diagram("d1", DiagramTypeId::Conceptual);
         again.meta.name = "Imported".into();
         let second = store.import(&again).unwrap();
         assert!(second.replaced);
         assert_eq!(second.record.diagram.meta.name, "Imported");
-        let error = store.import(&diagram("d1", DiagramTypeId::Physical)).unwrap_err();
+        let error = store
+            .import(&diagram("d1", DiagramTypeId::Physical))
+            .unwrap_err();
         assert_eq!(
             error.to_string(),
             "“Imported” is a conceptual diagram, but the file holds a physical diagram."
@@ -812,17 +885,26 @@ mod tests {
     #[test]
     fn the_type_cannot_be_changed() {
         let mut store = Store::open_in_memory().unwrap();
-        store.create(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         let result = store
             .conn
             .execute("UPDATE diagrams SET type = 'physical' WHERE id = 'd1'", []);
-        assert!(result.unwrap_err().to_string().contains("type can't be changed"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("type can't be changed")
+        );
     }
 
     #[test]
     fn deleting_cascades() {
         let mut store = Store::open_in_memory().unwrap();
-        store.create(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         store.delete(&"d1".into()).unwrap();
         let count = |table: &str| -> i64 {
             store
@@ -830,8 +912,14 @@ mod tests {
                 .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
                 .unwrap()
         };
-        assert_eq!(count("elements") + count("connections") + count("diagram_versions"), 0);
-        assert!(matches!(store.delete(&"d1".into()), Err(StoreError::NotFound)));
+        assert_eq!(
+            count("elements") + count("connections") + count("diagram_versions"),
+            0
+        );
+        assert!(matches!(
+            store.delete(&"d1".into()),
+            Err(StoreError::NotFound)
+        ));
     }
 
     #[test]
@@ -839,8 +927,20 @@ mod tests {
         let mut store = Store::open_in_memory().unwrap();
         assert_eq!(store.seed_if_empty().unwrap(), 3);
         assert_eq!(store.seed_if_empty().unwrap(), 0);
-        let names: Vec<String> = store.list().unwrap().into_iter().map(|s| s.meta.name).collect();
-        assert_eq!(names, ["Customer Portal Deployment", "Enterprise Overview", "Primary Data Center"]);
+        let names: Vec<String> = store
+            .list()
+            .unwrap()
+            .into_iter()
+            .map(|s| s.meta.name)
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "Customer Portal Deployment",
+                "Enterprise Overview",
+                "Primary Data Center"
+            ]
+        );
     }
 
     #[test]
@@ -849,7 +949,9 @@ mod tests {
         let path = dir.path().join("db.sqlite3");
         let mut gui = Store::open(&path).unwrap();
         let mut agent = Store::open(&path).unwrap();
-        let record = gui.create(&diagram("d1", DiagramTypeId::Conceptual)).unwrap();
+        let record = gui
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
         let before = gui.data_version().unwrap();
         let mut changed = record.diagram.clone();
         changed.meta.name = "By agent".into();
@@ -858,7 +960,13 @@ mod tests {
         // The GUI's stale write is refused rather than overwriting the agent's.
         let mut mine = record.diagram.clone();
         mine.meta.name = "By me".into();
-        assert!(matches!(gui.save(&mine, Some(record.revision)), Err(StoreError::Conflict)));
-        assert_eq!(gui.get(&"d1".into()).unwrap().unwrap().diagram.meta.name, "By agent");
+        assert!(matches!(
+            gui.save(&mine, Some(record.revision)),
+            Err(StoreError::Conflict)
+        ));
+        assert_eq!(
+            gui.get(&"d1".into()).unwrap().unwrap().diagram.meta.name,
+            "By agent"
+        );
     }
 }

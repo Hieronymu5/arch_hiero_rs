@@ -90,7 +90,12 @@ pub fn bullet_columns(rows: &[String]) -> Vec<Vec<String>> {
 /// The size a component takes for its description.
 pub fn component_size(description: Option<&str>) -> Size {
     let columns = bullet_columns(&description_rows(description));
-    let rows = columns.iter().map(Vec::len).max().unwrap_or(0).max(MIN_ROWS);
+    let rows = columns
+        .iter()
+        .map(Vec::len)
+        .max()
+        .unwrap_or(0)
+        .max(MIN_ROWS);
     let n = columns.len() as f64;
     Size::new(
         n * COLUMN_WIDTH + (n - 1.0) * LAYER_PADDING,
@@ -131,7 +136,12 @@ pub struct ComponentParts {
 }
 
 /// Where each part of a component goes in `rect`.
-pub fn component_parts(rect: Rect, description: Option<&str>, logo_count: usize, instance_count: u32) -> ComponentParts {
+pub fn component_parts(
+    rect: Rect,
+    description: Option<&str>,
+    logo_count: usize,
+    instance_count: u32,
+) -> ComponentParts {
     let name_top = rect.y + bar_inside();
     let name_divider_y = name_top + NAME;
     let footer_divider_y = rect.y + rect.height - FOOTER;
@@ -231,7 +241,10 @@ pub fn characteristics(element: &Dc) -> &[String] {
 /// The size an element takes before it's arranged, for working out its middle.
 pub fn provisional_size(element: &Dc) -> Size {
     let natural = if is_layer(element) {
-        Size::new(MIN_LAYER_WIDTH, empty_layer_height(characteristics(element)))
+        Size::new(
+            MIN_LAYER_WIDTH,
+            empty_layer_height(characteristics(element)),
+        )
     } else {
         component_size(element.description.as_deref())
     };
@@ -242,7 +255,11 @@ pub fn provisional_size(element: &Dc) -> Size {
 }
 
 fn sorted_by(elements: &[Dc], keep: impl Fn(&Dc) -> bool, key: impl Fn(&Dc) -> f64) -> Vec<Dc> {
-    let mut indexed: Vec<(usize, &Dc)> = elements.iter().enumerate().filter(|(_, e)| keep(e)).collect();
+    let mut indexed: Vec<(usize, &Dc)> = elements
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| keep(e))
+        .collect();
     indexed.sort_by(|(ai, a), (bi, b)| {
         key(a)
             .partial_cmp(&key(b))
@@ -254,7 +271,9 @@ fn sorted_by(elements: &[Dc], keep: impl Fn(&Dc) -> bool, key: impl Fn(&Dc) -> f
 
 /// The layers from top to bottom: by their middles, keeping the list's order for ties.
 pub fn layers_in_order(elements: &[Dc]) -> Vec<Dc> {
-    sorted_by(elements, is_layer, |e| e.y + provisional_size(e).height / 2.0)
+    sorted_by(elements, is_layer, |e| {
+        e.y + provisional_size(e).height / 2.0
+    })
 }
 
 /// The components in a layer from left to right: by their middles.
@@ -271,7 +290,13 @@ fn nearest_layer<'a>(element: &Dc, layers: &'a [Dc]) -> &'a Dc {
     let distance = |l: &Dc| (l.y + provisional_size(l).height / 2.0 - middle).abs();
     layers
         .iter()
-        .reduce(|nearest, l| if distance(l) < distance(nearest) { l } else { nearest })
+        .reduce(|nearest, l| {
+            if distance(l) < distance(nearest) {
+                l
+            } else {
+                nearest
+            }
+        })
         .expect("there's at least one layer")
 }
 
@@ -348,10 +373,16 @@ pub fn arrange_layers(elements: Vec<Dc>) -> Vec<Dc> {
         } else {
             header + row.height + LAYER_PADDING
         };
-        placed.insert(row.layer.id.clone(), Rect::new(LAYERS_ORIGIN.x, y, layer_width, height));
+        placed.insert(
+            row.layer.id.clone(),
+            Rect::new(LAYERS_ORIGIN.x, y, layer_width, height),
+        );
         let mut x = LAYERS_ORIGIN.x + LAYER_PADDING;
         for (component, size) in &row.components {
-            placed.insert(component.id.clone(), Rect::new(x, y + header, size.width, row.height));
+            placed.insert(
+                component.id.clone(),
+                Rect::new(x, y + header, size.width, row.height),
+            );
             x += size.width + LAYER_PADDING;
         }
         y += height + LAYER_GAP;
@@ -375,7 +406,11 @@ pub fn arrange_layers(elements: Vec<Dc>) -> Vec<Dc> {
 
 /// The elements with the layers in `layers` from top to bottom, and the components given for
 /// any layer in `components` from left to right, once arranged.
-pub fn in_order(elements: Vec<Dc>, layers: &[ElementId], components: &[(ElementId, Vec<ElementId>)]) -> Vec<Dc> {
+pub fn in_order(
+    elements: Vec<Dc>,
+    layers: &[ElementId],
+    components: &[(ElementId, Vec<ElementId>)],
+) -> Vec<Dc> {
     let mut moved_y: HashMap<ElementId, f64> = HashMap::new();
     let mut moved_x: HashMap<ElementId, (f64, ElementId)> = HashMap::new();
     let mut y = LAYERS_ORIGIN.y;
@@ -420,7 +455,10 @@ mod tests {
         assert_eq!(component_size(Some(five)), Size::new(540.0, 190.0));
         let columns = bullet_columns(&description_rows(Some(five)));
         assert_eq!(columns[0].len(), 3);
-        let ten = (0..10).map(|i| i.to_string()).collect::<Vec<_>>().join("\n");
+        let ten = (0..10)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
         assert_eq!(component_size(Some(&ten)).height, 210.0);
     }
 
@@ -441,6 +479,9 @@ mod tests {
             &["HTTPS".into(), "JWT".into(), "XSRF".into()],
         );
         assert_eq!(segments[1].x, 100.0);
-        assert_eq!(separators[0], (Point::new(95.0, 20.0), Point::new(105.0, 0.0)));
+        assert_eq!(
+            separators[0],
+            (Point::new(95.0, 20.0), Point::new(105.0, 0.0))
+        );
     }
 }

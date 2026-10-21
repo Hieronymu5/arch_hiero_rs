@@ -19,22 +19,35 @@ use hiero_core::routing::{
 use hiero_core::scene::Scene;
 use hiero_core::text::Weight;
 
-use crate::model::{BLUE_ZONE, BORDER_WIDTH, GENERIC_DATABASE, Physical, PhysicalKind, ZoneColorInfo};
+use crate::model::{
+    BLUE_ZONE, BORDER_WIDTH, GENERIC_DATABASE, Physical, PhysicalKind, ZoneColorInfo,
+};
 use crate::rules::{database_of, figure_of, holds_stack, instance_count_of, is_stacked};
 
 /// How far under a figure's name an arrow at its bottom ends, so it almost touches it.
 const NAME_CLEARANCE: f64 = 2.0;
 
 /// The colours of a zone outside a network, in its own colour or blue. Unset otherwise.
-fn zone_color_of(eng: &Engine<Physical>, element: &hiero_core::engine::El<Physical>) -> Option<ZoneColorInfo> {
+fn zone_color_of(
+    eng: &Engine<Physical>,
+    element: &hiero_core::engine::El<Physical>,
+) -> Option<ZoneColorInfo> {
     if !element.kind.has_zone_color() || is_stacked(eng, element) {
         return None;
     }
-    Some(element.props.zone_color.map_or(BLUE_ZONE, crate::model::ZoneColor::info))
+    Some(
+        element
+            .props
+            .zone_color
+            .map_or(BLUE_ZONE, crate::model::ZoneColor::info),
+    )
 }
 
 /// The fill of the zone outside a network that an element is in.
-fn zone_fill_around(eng: &Engine<Physical>, element: &hiero_core::engine::El<Physical>) -> Option<String> {
+fn zone_fill_around(
+    eng: &Engine<Physical>,
+    element: &hiero_core::engine::El<Physical>,
+) -> Option<String> {
     let parent = eng.element(element.parent_id.as_ref()?)?;
     zone_color_of(eng, parent).map(|z| z.fill.to_owned())
 }
@@ -87,7 +100,9 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
         let count = instance_count_of(&element.el);
         Look {
             detail_color: Some(black_or_white(&fill).to_owned()),
-            name_fill: Some(zone_fill_around(eng, &element.el).unwrap_or_else(|| colors.zones.clone())),
+            name_fill: Some(
+                zone_fill_around(eng, &element.el).unwrap_or_else(|| colors.zones.clone()),
+            ),
             text_color: Some(colors.labels.clone()),
             on_top: true,
             figure_text: database.map(|d| d.abbreviation.to_owned()),
@@ -122,9 +137,15 @@ pub struct DrawnArrow {
 pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<DrawnArrow> {
     let rects: HashMap<ElementId, _> = layout
         .iter()
-        .map(|e| (e.el.id.clone(), <Physical as hiero_core::engine::DiagramType>::arrow_rect(eng, e)))
+        .map(|e| {
+            (
+                e.el.id.clone(),
+                <Physical as hiero_core::engine::DiagramType>::arrow_rect(eng, e),
+            )
+        })
         .collect();
-    let by_id: HashMap<&ElementId, &Laid<Physical>> = layout.iter().map(|e| (&e.el.id, e)).collect();
+    let by_id: HashMap<&ElementId, &Laid<Physical>> =
+        layout.iter().map(|e| (&e.el.id, e)).collect();
     let ends: Vec<ConnectionEnds> = eng
         .connections()
         .iter()
@@ -200,12 +221,40 @@ pub fn base_colors(eng: &Engine<Physical>) -> DiagramColors {
 /// The diagram drawn from `layout`.
 pub fn scene_of(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Scene {
     let elements: Vec<LookElement> = layout.iter().map(|e| look_of(eng, e)).collect();
-    let arrows: Vec<ArrowLook> = drawn_arrows(eng, layout).into_iter().map(|a| a.look).collect();
+    let arrows: Vec<ArrowLook> = drawn_arrows(eng, layout)
+        .into_iter()
+        .map(|a| a.look)
+        .collect();
     draw_diagram(&elements, &arrows, eng.measure(), &base_colors(eng))
 }
 
 pub fn scene(eng: &Engine<Physical>) -> Scene {
     scene_of(eng, eng.layout())
+}
+
+/// The diagram as a draw.io file, with `heading` above it.
+pub fn to_drawio(
+    eng: &Engine<Physical>,
+    title: &str,
+    heading: Option<&hiero_core::export::drawio::Heading>,
+) -> String {
+    let elements: Vec<LookElement> = eng.layout().iter().map(|e| look_of(eng, e)).collect();
+    let arrows: Vec<hiero_core::export::drawio::DrawioArrow> = drawn_arrows(eng, eng.layout())
+        .into_iter()
+        .map(|a| hiero_core::export::drawio::DrawioArrow {
+            id: a.id,
+            source_id: a.source_id,
+            target_id: a.target_id,
+            look: a.look,
+        })
+        .collect();
+    hiero_core::export::drawio::diagram_to_drawio(
+        title,
+        &elements,
+        &arrows,
+        heading,
+        &base_colors(eng),
+    )
 }
 
 #[cfg(test)]
@@ -219,13 +268,16 @@ mod tests {
 
     #[test]
     fn draws_zones_networks_and_figures() {
-        let mut e = Engine::<Physical>::new_diagram(PhysicalColors::default()).with_measure(&ESTIMATE);
+        let mut e =
+            Engine::<Physical>::new_diagram(PhysicalColors::default()).with_measure(&ESTIMATE);
         let zone = e.elements()[2].id.clone();
         e.select(&zone);
         e.add_at_free_position(PhysicalKind::Database);
         let svg = scene_to_svg("Infra", &scene(&e));
         // The End User zone on its own: blue and dashed.
-        assert!(svg.contains(r##"fill="#dae8fc" stroke="#2d5f9e" stroke-width="2" stroke-dasharray="8 4""##));
+        assert!(svg.contains(
+            r##"fill="#dae8fc" stroke="#2d5f9e" stroke-width="2" stroke-dasharray="8 4""##
+        ));
         // The network's outline drawn over its zones.
         assert!(svg.contains(r##"fill="none" stroke="#333333" stroke-width="2""##));
         // The database's abbreviation.

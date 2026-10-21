@@ -64,7 +64,11 @@ fn arrow_kind(arrow: &ConceptualArrow) -> String {
     format!(
         "{}{}arrow",
         if arrow.is_manual() { "manual " } else { "" },
-        if arrow.bidirectional { "bi-directional " } else { "" }
+        if arrow.bidirectional {
+            "bi-directional "
+        } else {
+            ""
+        }
     )
 }
 
@@ -143,9 +147,19 @@ impl DiagramType for Conceptual {
             .filter_map(|c| {
                 let label = |id: &ElementId| eng.label_of(id).unwrap_or_default().to_owned();
                 if c.source_id == *element.id() {
-                    Some(format!("{} to {}{}", arrow_kind(&c.props), label(&c.target_id), saying(&c.props)))
+                    Some(format!(
+                        "{} to {}{}",
+                        arrow_kind(&c.props),
+                        label(&c.target_id),
+                        saying(&c.props)
+                    ))
                 } else if c.target_id == *element.id() {
-                    Some(format!("{} from {}{}", arrow_kind(&c.props), label(&c.source_id), saying(&c.props)))
+                    Some(format!(
+                        "{} from {}{}",
+                        arrow_kind(&c.props),
+                        label(&c.source_id),
+                        saying(&c.props)
+                    ))
                 } else {
                     None
                 }
@@ -160,7 +174,12 @@ impl DiagramType for Conceptual {
     /// Announces a change of bot, cloud, or component type. A component that becomes a
     /// database or storage is drawn as a figure, which can't hold elements, so what it held is
     /// put on the canvas.
-    fn apply_element(eng: &mut Engine<Self>, id: &ElementId, mut with: El<Self>, parent_id: Option<ElementId>) {
+    fn apply_element(
+        eng: &mut Engine<Self>,
+        id: &ElementId,
+        mut with: El<Self>,
+        parent_id: Option<ElementId>,
+    ) {
         let Some(selected) = eng.laid(id).cloned() else {
             return;
         };
@@ -233,7 +252,11 @@ impl DiagramType for Conceptual {
     }
 
     fn validate_arrow(arrow: &ConceptualArrow) -> Result<(), String> {
-        validate_length("Text", arrow.label.as_deref().unwrap_or_default(), ARROW_LABEL_MAX)?;
+        validate_length(
+            "Text",
+            arrow.label.as_deref().unwrap_or_default(),
+            ARROW_LABEL_MAX,
+        )?;
         validate_length(
             "Connector",
             arrow.connector.as_deref().unwrap_or_default(),
@@ -332,7 +355,10 @@ mod tests {
         let cid = e.connections()[0].id.clone();
         e.set_connection_props(&cid, conn);
         let laid = e.laid(&id("id1")).unwrap().clone();
-        assert!(e.accessible_label(&laid).contains("manual arrow to Application via API"));
+        assert!(
+            e.accessible_label(&laid)
+                .contains("manual arrow to Application via API")
+        );
     }
 
     #[test]
