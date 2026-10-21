@@ -169,6 +169,35 @@ fn column_headers(ui: &mut Ui, headers: &[&str]) {
     }
 }
 
+/// The vertical gap between a table's rows, with a rule drawn across its middle.
+const ROW_GAP: f32 = 20.0;
+
+/// A table of rows separated by subtle rules, like the prototype's tables. `rows` adds the
+/// cells and calls `end_row` after each row, which records where the rule goes.
+fn ruled_grid(
+    ui: &mut Ui,
+    id: &str,
+    columns: usize,
+    rows: impl FnOnce(&mut Ui, &mut dyn FnMut(&mut Ui)),
+) {
+    let mut rules = Vec::new();
+    let grid = egui::Grid::new(id)
+        .num_columns(columns)
+        .spacing([24.0, ROW_GAP])
+        .show(ui, |ui| {
+            rows(ui, &mut |ui: &mut Ui| {
+                ui.end_row();
+                rules.push(ui.cursor().min.y - ROW_GAP / 2.0);
+            });
+        });
+    // No rule under the last row.
+    rules.pop();
+    let stroke = egui::Stroke::new(1.0, palette(ui).border);
+    for y in rules {
+        ui.painter().hline(grid.response.rect.x_range(), y, stroke);
+    }
+}
+
 /// A version tag: Release or Draft, with the latest version.
 fn status_badge(ui: &mut Ui, status: Status) {
     let (fill, text) = if status.saved {
@@ -348,42 +377,38 @@ impl App {
         }
         let rows = self.list.clone();
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Grid::new("diagrams")
-                .num_columns(5)
-                .striped(true)
-                .spacing([24.0, 10.0])
-                .show(ui, |ui| {
-                    column_headers(ui, &["Name", "Type", "Last updated", "Status", ""]);
-                    let size = egui::TextStyle::Body.resolve(ui.style()).size;
-                    ui.end_row();
-                    for row in rows {
-                        let id = row.meta.id.clone();
-                        let name = RichText::new(&row.meta.name)
-                            .font(fonts::bold(size))
-                            .color(palette(ui).accent);
-                        if ui.link(name).clicked() {
-                            self.open_diagram(&id);
-                        }
-                        ui.label(row.meta.diagram_type.label());
-                        ui.label(date(&row.meta.updated_at));
-                        status_badge(ui, row.status);
-                        ui.horizontal(|ui| {
-                            if row_button(ui, "History").clicked() {
-                                self.go(Page::History(id.clone()));
-                            }
-                            if row_button(ui, "Export").clicked() {
-                                self.export(&id, None, ExportFormat::Zip);
-                            }
-                            if row_button(ui, "Delete").clicked() {
-                                self.dialog = Some(Dialog::DeleteDiagram {
-                                    id: id.clone(),
-                                    name: row.meta.name.clone(),
-                                });
-                            }
-                        });
-                        ui.end_row();
+            ruled_grid(ui, "diagrams", 5, |ui, end_row| {
+                column_headers(ui, &["Name", "Type", "Last updated", "Status", ""]);
+                let size = egui::TextStyle::Body.resolve(ui.style()).size;
+                end_row(ui);
+                for row in rows {
+                    let id = row.meta.id.clone();
+                    let name = RichText::new(&row.meta.name)
+                        .font(fonts::bold(size))
+                        .color(palette(ui).accent);
+                    if ui.link(name).clicked() {
+                        self.open_diagram(&id);
                     }
-                });
+                    ui.label(row.meta.diagram_type.label());
+                    ui.label(date(&row.meta.updated_at));
+                    status_badge(ui, row.status);
+                    ui.horizontal(|ui| {
+                        if row_button(ui, "History").clicked() {
+                            self.go(Page::History(id.clone()));
+                        }
+                        if row_button(ui, "Export").clicked() {
+                            self.export(&id, None, ExportFormat::Zip);
+                        }
+                        if row_button(ui, "Delete").clicked() {
+                            self.dialog = Some(Dialog::DeleteDiagram {
+                                id: id.clone(),
+                                name: row.meta.name.clone(),
+                            });
+                        }
+                    });
+                    end_row(ui);
+                }
+            });
         });
     }
 
@@ -609,6 +634,7 @@ impl App {
                     });
                 }
             });
+            ui.add_space(5.0);
             let line = ui.separator();
             // The palette, canvas, and properties fill the window to its right and bottom edges
             // and meet the toolbar's line, past the page's margin, so no strip of the page shows
@@ -689,55 +715,51 @@ impl App {
         let unsaved = status.is_some_and(|s| !s.saved);
         ui.add_space(6.0);
         egui::ScrollArea::vertical().show(ui, |ui| {
-            egui::Grid::new("versions")
-                .num_columns(4)
-                .striped(true)
-                .spacing([24.0, 10.0])
-                .show(ui, |ui| {
-                    column_headers(ui, &["Version", "Saved", "Description", ""]);
-                    ui.end_row();
-                    for v in versions {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(format!("v{}", v.version)).strong());
-                            if v.matches_current {
-                                ui.label(RichText::new("matches current").italics().weak());
-                            }
-                        });
-                        ui.label(date(&v.saved_at));
-                        ui.label(v.description.clone().unwrap_or_else(|| "–".into()));
-                        ui.horizontal(|ui| {
-                            if !v.matches_current && row_button(ui, "Revert").clicked() {
-                                let next = self.next_version(id);
-                                self.dialog = Some(Dialog::Revert {
-                                    id: id.clone(),
-                                    version: v.version,
-                                    unsaved,
-                                    next,
-                                    save_description: String::new(),
-                                    description: format!("Reverted to v{}", v.version),
-                                });
-                            }
-                            let export = row_button(ui, "Export");
-                            egui::Popup::menu(&export).show(|ui| {
-                                for format in
-                                    [ExportFormat::Zip, ExportFormat::Svg, ExportFormat::Drawio]
-                                {
-                                    if ui.button(format.label()).clicked() {
-                                        self.export(id, Some(v.version), format);
-                                        ui.close();
-                                    }
-                                }
+            ruled_grid(ui, "versions", 4, |ui, end_row| {
+                column_headers(ui, &["Version", "Saved", "Description", ""]);
+                end_row(ui);
+                for v in versions {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("v{}", v.version)).strong());
+                        if v.matches_current {
+                            ui.label(RichText::new("matches current").italics().weak());
+                        }
+                    });
+                    ui.label(date(&v.saved_at));
+                    ui.label(v.description.clone().unwrap_or_else(|| "–".into()));
+                    ui.horizontal(|ui| {
+                        if !v.matches_current && row_button(ui, "Revert").clicked() {
+                            let next = self.next_version(id);
+                            self.dialog = Some(Dialog::Revert {
+                                id: id.clone(),
+                                version: v.version,
+                                unsaved,
+                                next,
+                                save_description: String::new(),
+                                description: format!("Reverted to v{}", v.version),
                             });
-                            if row_button(ui, "Delete").clicked() {
-                                self.dialog = Some(Dialog::DeleteVersion {
-                                    id: id.clone(),
-                                    version: v.version,
-                                });
+                        }
+                        let export = row_button(ui, "Export");
+                        egui::Popup::menu(&export).show(|ui| {
+                            for format in
+                                [ExportFormat::Zip, ExportFormat::Svg, ExportFormat::Drawio]
+                            {
+                                if ui.button(format.label()).clicked() {
+                                    self.export(id, Some(v.version), format);
+                                    ui.close();
+                                }
                             }
                         });
-                        ui.end_row();
-                    }
-                });
+                        if row_button(ui, "Delete").clicked() {
+                            self.dialog = Some(Dialog::DeleteVersion {
+                                id: id.clone(),
+                                version: v.version,
+                            });
+                        }
+                    });
+                    end_row(ui);
+                }
+            });
         });
     }
 

@@ -16,6 +16,8 @@ pub struct Palette {
     pub text: Color32,
     pub text_muted: Color32,
     pub input_border: Color32,
+    /// Table rules and other subtle dividers.
+    pub border: Color32,
     pub error: Color32,
     pub surface: Color32,
 }
@@ -26,6 +28,7 @@ pub const DARK: Palette = Palette {
     text: Color32::from_rgb(0xe6, 0xe9, 0xed),
     text_muted: Color32::from_rgb(0xa3, 0xac, 0xb6),
     input_border: Color32::from_rgb(0x8b, 0x94, 0x9e),
+    border: Color32::from_rgb(0x35, 0x3c, 0x44),
     error: Color32::from_rgb(0xff, 0x8a, 0x80),
     surface: Color32::from_rgb(0x17, 0x1b, 0x20),
 };
@@ -36,6 +39,7 @@ pub const LIGHT: Palette = Palette {
     text: Color32::from_rgb(0x1b, 0x1f, 0x24),
     text_muted: Color32::from_rgb(0x57, 0x60, 0x6a),
     input_border: Color32::from_rgb(0x6e, 0x77, 0x81),
+    border: Color32::from_rgb(0xd0, 0xd7, 0xde),
     error: Color32::from_rgb(0xb3, 0x26, 0x1e),
     surface: Color32::WHITE,
 };
@@ -165,7 +169,7 @@ pub fn accent_button(
     .inner
 }
 
-/// A palette element button, `height` tall and as wide as `ui`: outlined, tinted with the
+/// A palette element button, `height` tall and as wide as `ui`, its name on the left: outlined, tinted with the
 /// accent and outlined in it while the pointer is over it, and filled with it while pressed, in
 /// each theme's own accent. It's drawn here rather than by egui's button because the drag area
 /// around it takes the hover.
@@ -209,8 +213,8 @@ pub fn element_button(ui: &mut Ui, text: &str, height: f32) -> egui::Response {
             );
         }
         painter.text(
-            rect.center(),
-            egui::Align2::CENTER_CENTER,
+            egui::pos2(rect.left() + 10.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
             text,
             egui::TextStyle::Button.resolve(ui.style()),
             color,

@@ -349,11 +349,12 @@ impl<T: DiagramView> Editor<T> {
             top: 2,
             bottom: 2,
         });
-        egui::Panel::left(self.salt.with("palette"))
+        // Named "elements", not "palette", so a width saved before it was narrowed is dropped.
+        egui::Panel::left(self.salt.with("elements"))
             .frame(palette_frame)
             .resizable(true)
-            .default_size(240.0)
-            .size_range(180.0..=360.0)
+            .default_size(180.0)
+            .size_range(140.0..=360.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
