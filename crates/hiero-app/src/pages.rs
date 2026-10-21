@@ -4,6 +4,7 @@
 use egui::{Align, Color32, Key, Layout, Modifiers, RichText, Ui};
 use hiero_core::history::validate_version_description;
 use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
+use hiero_core::text::Weight;
 use hiero_editor::fonts;
 use hiero_store::Status;
 
@@ -17,12 +18,222 @@ fn error_text(ui: &Ui, text: &str) -> RichText {
     RichText::new(text).color(ui.visuals().error_fg_color)
 }
 
-/// The page's main button, filled with the theme's accent colour.
-fn primary_button(ui: &mut Ui, text: &str) -> egui::Response {
-    let visuals = ui.visuals();
-    let button = egui::Button::new(RichText::new(text).color(visuals.strong_text_color()))
-        .fill(visuals.selection.bg_fill);
-    ui.add(button)
+/// The prototype's colours for the current theme.
+struct Palette {
+    accent: Color32,
+    on_accent: Color32,
+    text: Color32,
+    text_muted: Color32,
+    input_border: Color32,
+}
+
+fn palette(ui: &Ui) -> Palette {
+    if ui.visuals().dark_mode {
+        Palette {
+            accent: Color32::from_rgb(0x6c, 0xb2, 0xff),
+            on_accent: Color32::from_rgb(0x0f, 0x12, 0x15),
+            text: Color32::from_rgb(0xe6, 0xe9, 0xed),
+            text_muted: Color32::from_rgb(0xa3, 0xac, 0xb6),
+            input_border: Color32::from_rgb(0x8b, 0x94, 0x9e),
+        }
+    } else {
+        Palette {
+            accent: Color32::from_rgb(0x0b, 0x5c, 0xad),
+            on_accent: Color32::WHITE,
+            text: Color32::from_rgb(0x1b, 0x1f, 0x24),
+            text_muted: Color32::from_rgb(0x57, 0x60, 0x6a),
+            input_border: Color32::from_rgb(0x6e, 0x77, 0x81),
+        }
+    }
+}
+
+/// A page action styled like the prototype's `.button`: an accent border, and filled with the
+/// accent when it's the main action. It looks the same in every state, so hovering doesn't shift
+/// its text.
+fn page_button(ui: &mut Ui, text: &str, main: bool) -> egui::Response {
+    accent_button(ui, text, main, egui::vec2(12.0, 5.0), 14.0)
+}
+
+/// A button in a row of the list, styled like the prototype's `.button-secondary` but at the
+/// padding of egui's buttons and smaller text.
+fn row_button(ui: &mut Ui, text: &str) -> egui::Response {
+    let padding = ui.spacing().button_padding;
+    accent_button(ui, text, false, padding, 12.0)
+}
+
+/// An accent-bordered button with the given padding and font size.
+fn accent_button(
+    ui: &mut Ui,
+    text: &str,
+    main: bool,
+    padding: egui::Vec2,
+    font_size: f32,
+) -> egui::Response {
+    let Palette {
+        accent,
+        on_accent,
+        text: text_color,
+        ..
+    } = palette(ui);
+    // The border turns white on hover, or the text colour in the light theme, where white
+    // wouldn't show.
+    let hover_border = if ui.visuals().dark_mode {
+        Color32::WHITE
+    } else {
+        text_color
+    };
+    let (fill, color) = if main {
+        (accent, on_accent)
+    } else {
+        (Color32::TRANSPARENT, accent)
+    };
+    ui.scope(|ui| {
+        let style = ui.style_mut();
+        style.spacing.button_padding = padding;
+        let widgets = &mut style.visuals.widgets;
+        // An outlined button's text follows its border; a filled one's stays readable on the fill.
+        let hover_text = if main { color } else { hover_border };
+        for (state, border, text) in [
+            (&mut widgets.inactive, accent, color),
+            (&mut widgets.hovered, hover_border, hover_text),
+            (&mut widgets.active, hover_border, hover_text),
+        ] {
+            state.weak_bg_fill = fill;
+            state.bg_stroke = egui::Stroke::new(1.0, border);
+            state.fg_stroke.color = text;
+            state.corner_radius = egui::CornerRadius::same(6);
+            state.expansion = 0.0;
+        }
+        let label = RichText::new(text).font(fonts::font_id(font_size, Weight::SemiBold));
+        let response = ui.add(egui::Button::new(label));
+        if response.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        response
+    })
+    .inner
+}
+
+/// The prototype's theme picker: a monitor, a sun, and a moon in a bordered group, with the
+/// chosen one filled with the accent. Returns the theme clicked, if any.
+fn theme_picker(ui: &mut Ui, current: egui::ThemePreference) -> Option<egui::ThemePreference> {
+    const CELL: f32 = 28.0;
+    const GAP: f32 = 2.0;
+    let colors = palette(ui);
+    let themes = [
+        (egui::ThemePreference::System, "System theme"),
+        (egui::ThemePreference::Light, "Light theme"),
+        (egui::ThemePreference::Dark, "Dark theme"),
+    ];
+    // A 1px border, 2px of padding, and the cells 2px apart.
+    let inset = 1.0 + GAP;
+    let size = egui::vec2(2.0 * inset + 3.0 * CELL + 2.0 * GAP, 2.0 * inset + CELL);
+    let (group, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let painter = ui.painter();
+    painter.rect_stroke(
+        group,
+        egui::CornerRadius::same(6),
+        egui::Stroke::new(1.0, colors.input_border),
+        egui::StrokeKind::Inside,
+    );
+    let mut chosen = None;
+    for (i, (theme, label)) in themes.into_iter().enumerate() {
+        #[expect(clippy::cast_precision_loss, reason = "three cells")]
+        let left = group.left() + inset + i as f32 * (CELL + GAP);
+        let cell = egui::Rect::from_min_size(
+            egui::pos2(left, group.top() + inset),
+            egui::vec2(CELL, CELL),
+        );
+        let response = ui
+            .interact(cell, ui.scope_id().with(("theme", i)), egui::Sense::click())
+            .on_hover_text(label)
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        let selected = current == theme;
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::Role::RadioButton, true, selected, label)
+        });
+        let painter = ui.painter();
+        let color = if selected {
+            painter.rect_filled(cell, egui::CornerRadius::same(4), colors.accent);
+            colors.on_accent
+        } else if response.hovered() {
+            colors.text
+        } else {
+            colors.text_muted
+        };
+        if response.has_focus() {
+            painter.rect_stroke(
+                cell.expand(2.0),
+                egui::CornerRadius::same(6),
+                egui::Stroke::new(2.0, colors.accent),
+                egui::StrokeKind::Outside,
+            );
+        }
+        theme_icon(painter, cell.center(), theme, color);
+        if response.clicked() {
+            chosen = Some(theme);
+        }
+    }
+    chosen
+}
+
+/// Paints a theme's 18px icon, drawn on the prototype's 24-unit grid with 2-unit lines.
+fn theme_icon(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    theme: egui::ThemePreference,
+    color: Color32,
+) {
+    let scale = 18.0 / 24.0;
+    let at = |x: f32, y: f32| center + egui::vec2(x - 12.0, y - 12.0) * scale;
+    let stroke = egui::Stroke::new(2.0 * scale, color);
+    let line = |from: (f32, f32), to: (f32, f32)| {
+        painter.line_segment([at(from.0, from.1), at(to.0, to.1)], stroke);
+    };
+    match theme {
+        egui::ThemePreference::System => {
+            painter.rect_stroke(
+                egui::Rect::from_min_max(at(3.0, 4.0), at(21.0, 16.0)),
+                egui::CornerRadius::same(1),
+                stroke,
+                egui::StrokeKind::Middle,
+            );
+            line((8.0, 20.0), (16.0, 20.0));
+            line((12.0, 16.0), (12.0, 20.0));
+        }
+        egui::ThemePreference::Light => {
+            painter.circle_stroke(center, 4.0 * scale, stroke);
+            for (from, to) in [
+                ((12.0, 2.0), (12.0, 4.0)),
+                ((12.0, 20.0), (12.0, 22.0)),
+                ((4.9, 4.9), (6.3, 6.3)),
+                ((17.7, 17.7), (19.1, 19.1)),
+                ((2.0, 12.0), (4.0, 12.0)),
+                ((20.0, 12.0), (22.0, 12.0)),
+                ((4.9, 19.1), (6.3, 17.7)),
+                ((17.7, 6.3), (19.1, 4.9)),
+            ] {
+                line(from, to);
+            }
+        }
+        egui::ThemePreference::Dark => {
+            // The crescent's two arcs, from `M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z`:
+            // the outer one around (12.64, 11.36), and the inner one, a half circle whose
+            // radius SVG stretches to reach its ends, around (14.75, 9.25).
+            let arc = |cx: f32, cy: f32, r: f32, start: f32, sweep: f32| {
+                (0..=16).map(move |i| {
+                    #[expect(clippy::cast_precision_loss, reason = "small counts")]
+                    let angle = start + sweep * i as f32 / 16.0;
+                    (cx + r * angle.cos(), cy + r * angle.sin())
+                })
+            };
+            let points = arc(12.6435, 11.3565, 8.0, 0.4038, 3.9048)
+                .chain(arc(14.75, 9.25, 7.4246, -2.3562, -std::f32::consts::PI).skip(1))
+                .map(|(x, y)| at(x, y))
+                .collect();
+            painter.add(egui::Shape::closed_line(points, stroke));
+        }
+    }
 }
 
 /// A Saved/Unsaved badge.
@@ -96,6 +307,15 @@ impl App {
                     self.refresh_list();
                 }
                 if let Some((title, description)) = self.page_heading() {
+                    // In the editor, the diagram's Saved/Unsaved badge goes next to its name.
+                    let status = match &self.page {
+                        Page::Editor(id) => self
+                            .open
+                            .as_ref()
+                            .filter(|o| o.record.meta.id == *id)
+                            .map(|o| o.status),
+                        _ => None,
+                    };
                     ui.add_space(8.0);
                     // The title on one line with the description under it, each cut short when
                     // there isn't room. The description's full text shows on hover.
@@ -106,7 +326,17 @@ impl App {
                             let title = RichText::new(title)
                                 .font(fonts::bold(18.0))
                                 .color(ui.visuals().strong_text_color());
-                            ui.add(egui::Label::new(title).truncate());
+                            ui.horizontal(|ui| {
+                                // Leave room for the badge, about 90 points wide.
+                                let badge_room = if status.is_some() { 90.0 } else { 0.0 };
+                                ui.scope(|ui| {
+                                    ui.set_max_width(ui.available_width() - badge_room);
+                                    ui.add(egui::Label::new(title).truncate());
+                                });
+                                if let Some(status) = status {
+                                    status_badge(ui, status);
+                                }
+                            });
                             if let Some(description) = description.filter(|d| !d.is_empty()) {
                                 ui.add(
                                     egui::Label::new(RichText::new(&description).weak()).truncate(),
@@ -117,17 +347,10 @@ impl App {
                     });
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    for (theme, label) in [
-                        (egui::ThemePreference::Dark, "Dark"),
-                        (egui::ThemePreference::Light, "Light"),
-                        (egui::ThemePreference::System, "System"),
-                    ] {
-                        if ui.selectable_label(self.theme == theme, label).clicked() {
-                            self.theme = theme;
-                            ui.ctx().set_theme(theme);
-                        }
+                    if let Some(theme) = theme_picker(ui, self.theme) {
+                        self.theme = theme;
+                        ui.ctx().set_theme(theme);
                     }
-                    ui.label(RichText::new("Theme").weak());
                 });
             });
         });
@@ -164,15 +387,13 @@ impl App {
     pub fn list_page(&mut self, ui: &mut Ui) {
         // The top bar shows the title, Diagrams.
         ui.horizontal(|ui| {
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.button("Add diagram").clicked() {
-                    self.form = DetailsForm::default();
-                    self.go(Page::New);
-                }
-                if ui.button("Import diagram").clicked() {
-                    self.import();
-                }
-            });
+            if page_button(ui, "Add Diagram", true).clicked() {
+                self.form = DetailsForm::default();
+                self.go(Page::New);
+            }
+            if page_button(ui, "Import Diagram", false).clicked() {
+                self.import();
+            }
         });
         ui.add_space(8.0);
         self.outcome_ui(ui);
@@ -180,7 +401,6 @@ impl App {
             ui.label("No diagrams have been added yet.");
             return;
         }
-        ui.label(RichText::new(format!("{} diagrams, sorted by name", self.list.len())).weak());
         let rows = self.list.clone();
         egui::ScrollArea::vertical().show(ui, |ui| {
             egui::Grid::new("diagrams")
@@ -188,8 +408,13 @@ impl App {
                 .striped(true)
                 .spacing([24.0, 10.0])
                 .show(ui, |ui| {
+                    let size = egui::TextStyle::Body.resolve(ui.style()).size;
                     for header in ["Name", "Type", "Last updated", "Status", ""] {
-                        ui.label(RichText::new(header).strong());
+                        ui.label(
+                            RichText::new(header)
+                                .font(fonts::bold(size))
+                                .color(ui.visuals().strong_text_color()),
+                        );
                     }
                     ui.end_row();
                     for row in rows {
@@ -201,13 +426,13 @@ impl App {
                         ui.label(date(&row.meta.updated_at));
                         status_badge(ui, row.status);
                         ui.horizontal(|ui| {
-                            if ui.button("History").clicked() {
+                            if row_button(ui, "History").clicked() {
                                 self.go(Page::History(id.clone()));
                             }
-                            if ui.button("Export").clicked() {
+                            if row_button(ui, "Export").clicked() {
                                 self.export(&id, None, ExportFormat::Zip);
                             }
-                            if ui.button("Delete").clicked() {
+                            if row_button(ui, "Delete").clicked() {
                                 self.dialog = Some(Dialog::DeleteDiagram {
                                     id: id.clone(),
                                     name: row.meta.name.clone(),
@@ -283,13 +508,13 @@ impl App {
         }
         ui.add_space(10.0);
         ui.horizontal(|ui| {
-            if ui.button("Add diagram").clicked() {
+            if page_button(ui, "Add Diagram", true).clicked() {
                 self.form.tried = true;
                 if valid {
                     self.create();
                 }
             }
-            if ui.button("Cancel").clicked() {
+            if page_button(ui, "Cancel", false).clicked() {
                 self.go_back();
             }
         });
@@ -336,13 +561,13 @@ impl App {
             }
             ui.add_space(10.0);
             ui.horizontal(|ui| {
-                if ui.button("Save changes").clicked() {
+                if page_button(ui, "Save Changes", true).clicked() {
                     self.form.tried = true;
                     if valid {
                         self.save_details();
                     }
                 }
-                if ui.button("Cancel").clicked() {
+                if page_button(ui, "Cancel", false).clicked() {
                     self.go_back();
                 }
             });
@@ -366,59 +591,55 @@ impl App {
         let mut action: Option<&'static str> = None;
         if let Some(open) = &mut self.open {
             let meta = open.record.meta.clone();
-            // The top bar shows the name and description.
+            // The top bar shows the name, description, and status.
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{} diagram", meta.diagram_type.label())).weak());
-                ui.add_space(8.0);
-                status_badge(ui, open.status);
+                if page_button(ui, "Back", true).clicked() {
+                    action = Some("back");
+                }
+                let save =
+                    ui.add_enabled_ui(!open.status.saved, |ui| page_button(ui, "Save", false));
+                if save
+                    .inner
+                    .on_hover_text("Record a version (Cmd+S)")
+                    .clicked()
+                {
+                    action = Some("save");
+                }
+                let undo = ui.add_enabled_ui(can_undo, |ui| page_button(ui, "Undo", false));
+                if undo.inner.on_hover_text("Cmd+Z").clicked() {
+                    action = Some("undo");
+                }
+                let redo = ui.add_enabled_ui(can_redo, |ui| page_button(ui, "Redo", false));
+                if redo.inner.on_hover_text("Shift+Cmd+Z").clicked() {
+                    action = Some("redo");
+                }
+                if page_button(ui, "History", false).clicked() {
+                    action = Some("history");
+                }
+                // Filled while the help shows.
+                let help = open.editor.show_help();
+                if page_button(ui, "Help", *help).clicked() {
+                    *help = !*help;
+                }
+                let has_content = open.editor.has_content();
+                let svg = ui.add_enabled_ui(has_content, |ui| page_button(ui, "Export SVG", false));
+                if svg.inner.clicked() {
+                    action = Some("svg");
+                }
+                let drawio =
+                    ui.add_enabled_ui(has_content, |ui| page_button(ui, "Export draw.io", false));
+                if drawio.inner.clicked() {
+                    action = Some("drawio");
+                }
+                if page_button(ui, "Edit details", false).clicked() {
+                    action = Some("details");
+                }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if primary_button(ui, "Back").clicked() {
-                        action = Some("back");
-                    }
-                    if ui.button("Edit details").clicked() {
-                        action = Some("details");
-                    }
-                    let has_content = open.editor.has_content();
-                    if ui
-                        .add_enabled(has_content, egui::Button::new("Export draw.io"))
-                        .clicked()
-                    {
-                        action = Some("drawio");
-                    }
-                    if ui
-                        .add_enabled(has_content, egui::Button::new("Export SVG"))
-                        .clicked()
-                    {
-                        action = Some("svg");
-                    }
-                    let help = open.editor.show_help();
-                    if ui.selectable_label(*help, "Help").clicked() {
-                        *help = !*help;
-                    }
-                    if ui.button("History").clicked() {
-                        action = Some("history");
-                    }
-                    if ui
-                        .add_enabled(can_redo, egui::Button::new("Redo"))
-                        .on_hover_text("Shift+Cmd+Z")
-                        .clicked()
-                    {
-                        action = Some("redo");
-                    }
-                    if ui
-                        .add_enabled(can_undo, egui::Button::new("Undo"))
-                        .on_hover_text("Cmd+Z")
-                        .clicked()
-                    {
-                        action = Some("undo");
-                    }
-                    if ui
-                        .add_enabled(!open.status.saved, egui::Button::new("Save"))
-                        .on_hover_text("Record a version (Cmd+S)")
-                        .clicked()
-                    {
-                        action = Some("save");
-                    }
+                    ui.label(
+                        RichText::new(format!("{} diagram", meta.diagram_type.label()))
+                            .font(fonts::bold(16.0))
+                            .color(ui.visuals().strong_text_color()),
+                    );
                 });
             });
             if let Some(message) = &open.save_failed {
