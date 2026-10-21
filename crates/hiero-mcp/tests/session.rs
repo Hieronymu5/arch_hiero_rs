@@ -113,7 +113,7 @@ async fn an_agent_builds_versions_and_exports_a_physical_diagram() {
     .await;
     assert!(ok, "{edited}");
     let edited: Value = serde_json::from_str(&edited).unwrap();
-    assert_eq!(edited["status"], "Unsaved · v1");
+    assert_eq!(edited["status"], "Draft · v1");
     assert_eq!(edited["diagram"]["connections"][0]["port"], "5432");
 
     // A rule violation rejects the whole batch with a reason.

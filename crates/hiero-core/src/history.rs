@@ -1,4 +1,4 @@
-//! Version history support: the content a version captures, its hash for the Saved/Unsaved
+//! Version history support: the content a version captures, its hash for the Release/Draft
 //! status, and the undo/redo stack.
 
 use std::collections::BTreeMap;

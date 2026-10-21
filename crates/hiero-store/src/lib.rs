@@ -88,12 +88,13 @@ pub struct Status {
 }
 
 impl Status {
-    /// Such as "Saved · v4", "Unsaved · v4", or "Unsaved · no versions".
+    /// The version tag: "Release · v4" when the diagram matches its latest version, "Draft · v4"
+    /// when it has changed since, or "Draft · no versions".
     pub fn label(self) -> String {
         match (self.saved, self.latest) {
-            (true, Some(v)) => format!("Saved · v{v}"),
-            (false, Some(v)) => format!("Unsaved · v{v}"),
-            (_, None) => "Unsaved · no versions".into(),
+            (true, Some(v)) => format!("Release · v{v}"),
+            (false, Some(v)) => format!("Draft · v{v}"),
+            (_, None) => "Draft · no versions".into(),
         }
     }
 }
@@ -280,7 +281,7 @@ impl Store {
         Ok(n)
     }
 
-    /// Every diagram, sorted by name, with its Saved/Unsaved status.
+    /// Every diagram, sorted by name, with its Release/Draft status.
     pub fn list(&self) -> Result<Vec<Summary>> {
         let mut statement = self.conn.prepare(
             "SELECT d.id, d.type, d.name, d.description, d.created_at, d.updated_at, d.revision,
@@ -331,7 +332,7 @@ impl Store {
         read_record(&self.conn, id)
     }
 
-    /// A diagram's Saved/Unsaved status.
+    /// A diagram's Release/Draft status.
     pub fn status(&self, id: &DiagramId) -> Result<Status> {
         status_of(&self.conn, id)
     }
@@ -798,7 +799,7 @@ mod tests {
         changed.meta.name = "Renamed".into();
         let saved = store.save(&changed, Some(record.revision)).unwrap();
         assert_eq!(saved.revision, 1);
-        assert_eq!(store.status(&"d1".into()).unwrap().label(), "Unsaved · v1");
+        assert_eq!(store.status(&"d1".into()).unwrap().label(), "Draft · v1");
         // A stale revision is refused.
         assert!(matches!(
             store.save(&changed, Some(0)),
@@ -857,7 +858,7 @@ mod tests {
         store.delete_version(&"d1".into(), 1).unwrap();
         assert_eq!(
             store.status(&"d1".into()).unwrap().label(),
-            "Unsaved · no versions"
+            "Draft · no versions"
         );
     }
 
