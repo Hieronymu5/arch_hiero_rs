@@ -12,6 +12,35 @@ Diagram type specs:
 
 ---
 
+## Status (20 Oct 2026)
+
+All phases are implemented. What's built differs from the plan below in these places:
+
+- **Element model.** Each type has a fieldless `Kind` enum and one flattened `Props` struct
+  (`Element<K, P>`), not a tagged enum with per-kind fields. That mirrors the prototype's
+  optional fields and keeps the same JSON. Each type's `apply_element` clears fields its kind
+  doesn't have.
+- **Engine.** The `DiagramType` hooks receive the whole `Engine` and can call its `base_*`
+  methods, as the prototype's overrides called `super`. The editing logic lives in
+  `hiero-core::engine`; `hiero-editor` only maps input to it.
+- **Text.** Measured with `harfrust` and the bundled Inter font (the shaper egui uses), so
+  widths agree everywhere. Exported SVGs name Inter first, then the system fonts.
+- **Undo history** lives in the app (`App::undo`, one stack per diagram), holding whole
+  `DiagramSnapshot`s. Editors report each change with the content before it.
+- **Store thread.** The app reads on its own connection and writes through a worker thread
+  that tracks its own revisions, so a run of autosaves doesn't conflict with itself.
+- **Exports** are ported writers with unit tests and visual checks. They haven't yet been
+  compared with files the prototype exported (the golden-fixture idea in phase 9).
+- **Tech stack**: the prototype has 92 technologies, not 93.
+- **Packaging** uses `scripts/bundle-macos.sh` rather than `cargo-packager`. There's no icon
+  yet.
+- **Dev hooks**: `ARCH_HIERO_*` environment variables open, create, select, and screenshot,
+  for checking the app without clicking (see AGENTS.md).
+
+Not done yet: AccessKit beyond labels and live regions (each element isn't its own
+accessibility node yet; the canvas announces the focused one), an app icon, and Windows and
+Linux CI.
+
 ## 1. Feature inventory (what "parity" means)
 
 | Area | Prototype behaviour | Rust home |

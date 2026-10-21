@@ -78,8 +78,17 @@ impl App {
             } else {
                 RichText::new(&outcome.message)
             };
+            let error = outcome.error;
             ui.horizontal(|ui| {
-                ui.label(text);
+                // Announced politely when it worked, and at once when it didn't.
+                let message = ui.label(text);
+                ui.ctx().accesskit_node_builder(message.id, |node| {
+                    node.set_live(if error {
+                        egui::accesskit::Live::Assertive
+                    } else {
+                        egui::accesskit::Live::Polite
+                    });
+                });
                 if ui.small_button("Dismiss").clicked() {
                     self.outcome = None;
                 }

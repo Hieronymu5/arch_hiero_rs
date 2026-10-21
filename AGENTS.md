@@ -13,13 +13,26 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor, Copilot, etc.) an
 ## Layout
 
 ```
-Cargo.toml              # workspace: shared deps, lints, profiles
+Cargo.toml                 workspace: shared deps, lints, profiles
 crates/
-  hiero-core/           # UI-independent diagram model (nodes, edges, hit-testing). No UI deps.
-  hiero-app/            # eframe desktop app; binary is `arch-hiero`
-    src/main.rs         # window setup / entry point
-    src/app.rs          # top-level App state, panels, persistence
-    src/canvas.rs       # pan/zoom diagram canvas, drawn with egui::Painter
+  hiero-core/              UI-free: geometry, model, the editing engine (`engine.rs`, the
+                           `DiagramType` trait), layout, arrow routing, scenes, SVG and
+                           draw.io export, the .zip file format, history and hashing,
+                           text measurement with the bundled Inter font
+  hiero-store/             SQLite: diagrams, elements, connections, versions; migrations
+  hiero-editor/            egui: scene painter, canvas, palette, interaction, `DiagramView`
+  diagrams/
+    hiero-conceptual/      model.rs, rules.rs, scene.rs, arrows.rs (UI-free) + ui.rs
+    hiero-physical/        model.rs, rules.rs (networks and zones), scene.rs + ui.rs
+    hiero-deployed/        model.rs, layout.rs, rules.rs, scene.rs, drawio.rs,
+                           tech_stack(_data).rs + assets/tech/*.png (generated) + ui.rs
+  hiero-registry/          UI-free table of types (`TypeOps`) and agent edits (`EditOp`)
+  hiero-app/               the GUI binary `arch-hiero`: pages, store thread, dev hooks
+  hiero-mcp/               the MCP server binary `arch-hiero-mcp` (stdio)
+scripts/
+  bundle-macos.sh          builds target/bundle/ArchHiero.app with both binaries
+  extract-tech-stack.py    regenerates the tech stack from the prototype
+docs/                      the plan and each diagram type's spec
 ```
 
 ## Roadmap and specs
@@ -32,7 +45,7 @@ SQLite. Read these before working on diagrams or storage:
 - `docs/diagrams/{conceptual,physical,deployed-component}.md`: the feature spec and parity
   checklist for each diagram type. Tick a checklist item when it's done.
 
-Target crate boundaries (they apply as soon as the crates exist):
+Crate boundaries:
 
 - `hiero-core` (UI-free shared model, layout, routing, scene, exports, file format) ←
   `hiero-store` (SQLite) and `hiero-editor` (generic egui engine) ← `diagrams/hiero-*` (one
@@ -42,7 +55,8 @@ Target crate boundaries (they apply as soon as the crates exist):
 - In a diagram crate, only the `ui` module may use `egui`. The model, rules, scene, and draw.io
   code stay UI-free and unit-tested.
 - `hiero-store` knows nothing about specific diagram types. Type-specific fields go in the JSON
-  `props` columns, defined by each type's serde enums. Keep that JSON the same as the
+  `props` columns, defined by each type's `Props` struct (flattened into the element's JSON
+  next to its fieldless `Kind` enum). Keep that JSON the same as the
   prototype's (camelCase, kebab-case kind tags), so prototype `.zip` files import unchanged.
 - Diagram crates put `ui` (and their `hiero-editor` dependency) behind a default `ui` feature.
   `hiero-registry` and the MCP server use them with `default-features = false`.
@@ -68,36 +82,46 @@ Target crate boundaries (they apply as soon as the crates exist):
 ## Commands
 
 ```sh
-cargo run -p hiero-app              # run the app (debug)
-cargo run -p hiero-app --release    # run optimized
-cargo test --workspace              # tests
-cargo fmt --all                     # format
-cargo clippy --workspace --all-targets -- -D warnings   # lint (must be clean)
+cargo run -p hiero-app                        # run the app (debug)
+cargo run -p hiero-app --release              # run optimized
+cargo run -p hiero-mcp -- --db /tmp/x.sqlite3 # run the MCP server on a scratch database
+cargo test --workspace                        # tests
+cargo fmt --all                               # format
+cargo clippy --workspace --all-targets --examples -- -D warnings   # lint (must be clean)
+./scripts/bundle-macos.sh                     # build ArchHiero.app
 ```
 
-Before you call a change done, run `cargo fmt --all`, the clippy command above, and `cargo test --workspace`. CI runs the same checks.
+Before you call a change done, run `cargo fmt --all`, the clippy command above, and `cargo test --workspace`. CI runs the same checks, plus the dependency-rule checks in `.github/workflows/ci.yml`.
+
+### Checking the app without clicking
+
+The app reads these environment variables (see `crates/hiero-app/src/devtools.rs`):
+
+- `ARCH_HIERO_DB=<path>`: use a scratch database instead of the real one. Always do this when testing.
+- `ARCH_HIERO_OPEN=<diagram name>` or `ARCH_HIERO_NEW=<type>`: open or create a diagram on start.
+- `ARCH_HIERO_SELECT=<element name>`: select an element.
+- `ARCH_HIERO_SCREENSHOT=<file.png>` (with optional `ARCH_HIERO_SCREENSHOT_AFTER=<seconds>`): save a screenshot of the window and quit. Look at it.
+
+`cargo run -p hiero-mcp --example agent_edit -- <db> <diagram name>` edits a diagram from another process, to check the app's live reload.
 
 ## Architecture rules
 
-1. **Model/view split.** Diagram data and logic (geometry, hit-testing, editing operations, serialization) go in `hiero-core`. It must **not** depend on `egui`, `eframe`, or any windowing/rendering crate. `hiero-app` handles input and drawing only.
-2. **Unit-test `hiero-core`.** Every new model operation gets a test. UI code is thin enough that it doesn't need tests.
-3. **Performance.**
-   - Draw diagrams with `egui::Painter` shapes, not one widget per node.
-   - Cull anything outside the visible rect before painting.
-   - Don't allocate per frame in hot paths when you can avoid it.
-   - Large diagrams will eventually need a spatial index in `hiero-core`; don't do linear scans in new hot paths.
-   - Dependencies are built with `opt-level = 2` even in dev builds, so debug runs stay responsive.
-4. **Coordinates.** The model stores *world* coordinates (`hiero_core::Point`). Only `Canvas::to_screen` / `Canvas::to_world` convert between world and screen space.
-5. **Persistence.** App state is saved through eframe's `persistence` feature (serde/RON). New persisted fields need `#[serde(default)]` so older saved state still loads. Mark transient UI state `#[serde(skip)]`.
-6. **Cross-platform.** Wrap platform-specific code in `#[cfg(target_os = "...")]`. Use `⌘/Ctrl` via `egui::Modifiers::command`, never a hard-coded Cmd key.
-7. **Safety.** `unsafe_code` is forbidden workspace-wide.
+1. **Model/view split.** Everything that decides where things go (rules, layout, routing, scenes, exports) is UI-free and unit-tested: `hiero-core` and the non-`ui` modules of each diagram crate. Only `hiero-editor`, the diagram crates' `ui` modules, and `hiero-app` touch egui.
+2. **Every change goes through the engine.** Mutations call `Engine` methods (or a type's hooks), which keep the layout, arrange the elements by the type's rules, and count changes. In the editor, wrap them in `Editor::act` so they're saved and undoable.
+3. **Render once, draw twice.** A type builds a `Scene`; the editor paints it and the SVG export serialises it. Don't draw an element's look in egui directly.
+4. **Performance.** Paint shapes, not widgets; paths are tessellated once and cached (`hiero-editor::paint`). Rebuild the scene only when the content changes or while dragging.
+5. **Coordinates.** The model stores canvas (world) pixels. Only `paint::Transform` converts to and from the screen.
+6. **Text.** Measure with `hiero_core::text` (harfrust and the bundled Inter font, the same as egui draws), never with egui's layout, so exports and the MCP server agree with the screen.
+7. **Cross-platform.** Wrap platform-specific code in `#[cfg(target_os = "...")]`. Use `egui::Modifiers::COMMAND` for shortcuts, never a hard-coded Cmd key.
+8. **Safety.** `unsafe_code` is forbidden workspace-wide.
 
 ## Conventions
 
-- Lints: `clippy::pedantic` is on (warn) for the whole workspace and CI treats warnings as errors. Fix the lint rather than `#[allow]`ing it. If you must allow one, add a short comment saying why.
+- Lints: `clippy::pedantic` is on (warn) for the whole workspace and CI treats warnings as errors. A few noisy pedantic lints are allowed in the root `Cargo.toml`. Otherwise fix the lint rather than `#[allow]`ing it; if you must allow one, add a short reason.
 - Add dependencies to `[workspace.dependencies]` in the root `Cargo.toml`, then reference them with `dep.workspace = true`.
 - Keep egui crate versions in lockstep (`egui`, `eframe`, and any `egui_*` add-ons must share a minor version).
-- Check the egui API against the **0.37** version. It changed a lot between releases: e.g. `App::ui(&mut self, ui, frame)` replaced `App::update`, and `egui::Panel::top/left/right` replaced `TopBottomPanel`/`SidePanel`. Read the sources in `~/.cargo/registry/src/*/egui-0.37*/` when unsure.
+- Check the egui API against the **0.37** version. It changed a lot between releases: e.g. `App::ui(&mut self, ui, frame)` replaced `App::update`, `egui::Panel::top/left/right` replaced `TopBottomPanel`/`SidePanel`, `Id::unique`/`IdSalt` replaced `Id::new`, and `egui::Role` replaced `WidgetType`. Read the sources in `~/.cargo/registry/src/*/egui-0.37*/` when unsure. The same goes for `rmcp` 3.6.
+- Generated files: `crates/diagrams/hiero-deployed/src/tech_stack_data.rs` and its `assets/tech/` come from `scripts/extract-tech-stack.py`; `hiero-core/src/export/stencils.rs` holds draw.io stencils copied from the prototype.
 - Commits: small, imperative subject lines (`Add edge selection`, `Fix zoom clamp`).
 
 ## Upgrading Rust / egui

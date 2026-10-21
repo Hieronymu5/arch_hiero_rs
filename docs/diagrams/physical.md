@@ -146,18 +146,16 @@ arrow colours as the editor.
 { "protocol": "HTTPS", "port": "443" }
 ```
 
-Rust shape: `enum PhysicalKind { User, Server { server_type, instance_count }, Database {
-database_type, instance_count }, Firewall, LoadBalancer, Gateway, Storage, Network, Zone {
-zone_color } }`. Arrows use `PhysicalArrow { protocol: String, port: String }`.
+Rust shape: `Element<PhysicalKind, PhysicalProps>`, a fieldless kind enum with `PhysicalProps { database_type, server_type, instance_count, zone_color }` flattened beside it, and arrows as `Connection<PhysicalArrow { protocol, port }>`.
 
 ## Parity checklist
 
-- [ ] Starting elements on a new diagram
-- [ ] All 9 figures, including the 3 server variants and the database abbreviations
-- [ ] Zone stacking, swapping, proportional resize, and network copying zones
-- [ ] Figures confined to a zone's room. Arrow keys cross zone edges.
-- [ ] Firewall stands alone. Removing the last zone removes the network.
-- [ ] Zone colours outside networks
-- [ ] Arrows with protocol and port tags and the default rules
-- [ ] 12 custom colours
-- [ ] SVG and draw.io export that match the prototype
+- [x] Starting elements on a new diagram
+- [x] All 9 figures, including the 3 server variants and the database abbreviations
+- [x] Zone stacking, swapping, proportional resize, and network copying zones
+- [x] Figures confined to a zone's room. Arrow keys cross zone edges.
+- [x] Firewall stands alone. Removing the last zone removes the network.
+- [x] Zone colours outside networks
+- [x] Arrows with protocol and port tags and the default rules
+- [x] 12 custom colours
+- [ ] SVG and draw.io export that match the prototype — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

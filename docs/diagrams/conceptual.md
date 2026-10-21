@@ -125,18 +125,15 @@ shared editor engine described in [the plan](../implementation-plan.md#shared-ed
   "connector": "API", "transformation": "Map fields", "manualOffset": 40 }
 ```
 
-Rust shape: `enum ConceptualKind { Actor { agent: bool }, Domain, Application { description,
-cloud_hosted }, Component { component_type }, Process, Job, Entity, Section }`, using
-`#[serde(tag = "kind", rename_all = "kebab-case")]` and camelCase fields. This keeps the JSON
-identical to the prototype's.
+Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` is a fieldless enum serialised in kebab-case (`"kind": "application"`) and `ConceptualProps { agent, component_type, cloud_hosted }` is flattened into the same JSON object in camelCase. The description is a common field of every element. Arrows are `Connection<ConceptualArrow>`. The JSON is the same as the prototype's.
 
 ## Parity checklist
 
-- [ ] Palette with all 8 kinds. Click adds the element at a free spot. Drag drops it where released.
-- [ ] Containment rules and the container `box` look for application and component
-- [ ] Resize domain and application from two corners, and section across only
-- [ ] Bot, cloud-hosted, and component-type rendering
-- [ ] Arrow draw, route, select, straighten, and place automatically. Arrow keys nudge the selected arrow.
-- [ ] Arrow text, mode, bidirectional, connector, and transformation
-- [ ] Per-diagram colours with "Use the default colors"
-- [ ] SVG and draw.io export that match the prototype (snapshot tests)
+- [x] Palette with all 8 kinds. Click adds the element at a free spot. Drag drops it where released.
+- [x] Containment rules and the container `box` look for application and component
+- [x] Resize domain and application from two corners, and section across only
+- [x] Bot, cloud-hosted, and component-type rendering
+- [x] Arrow draw, route, select, straighten, and place automatically. Arrow keys nudge the selected arrow.
+- [x] Arrow text, mode, bidirectional, connector, and transformation
+- [x] Per-diagram colours with "Use the default colors"
+- [ ] SVG and draw.io export that match the prototype (snapshot tests) — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

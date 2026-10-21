@@ -21,5 +21,27 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets --examples -- -D warnings
       - run: cargo test --workspace
+      # Each diagram type's rules build and pass without its UI.
+      - run: |
+          for c in hiero-conceptual hiero-physical hiero-deployed; do
+            cargo test -p "$c" --no-default-features
+          done
+      - name: The MCP server and registry don't depend on egui
+        run: |
+          for c in hiero-mcp hiero-registry hiero-core hiero-store; do
+            if cargo tree -p "$c" -e normal -i egui >/dev/null 2>&1; then
+              echo "$c depends on egui"; exit 1
+            fi
+          done
+      - name: Diagram crates don't depend on each other
+        run: |
+          for c in hiero-conceptual hiero-physical hiero-deployed; do
+            for other in hiero-conceptual hiero-physical hiero-deployed; do
+              [ "$c" = "$other" ] && continue
+              if cargo tree -p "$c" -e normal --prefix none | grep -q "^$other "; then
+                echo "$c depends on $other"; exit 1
+              fi
+            done
+          done

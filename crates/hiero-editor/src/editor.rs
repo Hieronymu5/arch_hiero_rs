@@ -362,7 +362,11 @@ impl<T: DiagramView> Editor<T> {
                     } else {
                         self.eng.announcement.clone()
                     };
-                    ui.label(RichText::new(text).weak());
+                    // A polite live region: screen readers hear what each change did.
+                    let status = ui.label(RichText::new(text).weak());
+                    ui.ctx().accesskit_node_builder(status.id, |node| {
+                        node.set_live(egui::accesskit::Live::Polite);
+                    });
                 });
             });
         });
@@ -571,8 +575,26 @@ impl<T: DiagramView> Editor<T> {
     fn canvas_ui(&mut self, ui: &mut Ui, rect: egui::Rect) {
         let id = self.salt.with("canvas");
         let response = ui.interact(rect, id, Sense::click_and_drag());
-        response
-            .widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, "Diagram canvas"));
+        // Screen readers hear the focused element's name and details, as the prototype's
+        // hidden text gave them.
+        let focused_label = self
+            .focused_element()
+            .map(|e| self.eng.accessible_label(&e))
+            .or_else(|| {
+                self.eng
+                    .selected_connection
+                    .as_ref()
+                    .and_then(|c| self.eng.connection(c))
+                    .map(|c| self.eng.arrow_name(&c.source_id, &c.target_id))
+            });
+        let label = match focused_label {
+            Some(l) => format!("Diagram canvas: {l}"),
+            None => format!(
+                "Diagram canvas, {} elements. Press Tab to move through them.",
+                self.eng.elements().len()
+            ),
+        };
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, &label));
         self.view.clamp(rect);
         let painter = ui.painter_at(rect);
         let dark = ui.visuals().dark_mode;

@@ -80,7 +80,7 @@ These fills are also used by physical zone colours, so the table lives in
 
 ## Tech stack catalogue
 
-The prototype has 93 technologies, each with an id, label, category, and 18×18 PNG logo stored as
+The prototype has 92 technologies, each with an id, label, category, and 18×18 PNG logo stored as
 a base64 data URL in `model/tech-stack.ts`. For Rust:
 
 - A one-off script extracts them to `crates/diagrams/hiero-deployed/assets/tech/<id>.png`, plus a
@@ -124,17 +124,14 @@ Text is fitted with `fit_text`, which truncates with an ellipsis.
 There are no connections. The prototype leaves the `connections` key unset for this type; the
 Rust version stores none and writes no `connections` key on export.
 
-Rust shape: `enum DeployedKind { Layer { characteristics: Vec<String> }, Component {
-description, protocols, tech_stack: Vec<TechId>, dependency: Option<Dependency>, instance_count
-} }`. The arrow type is `NoArrows` (an uninhabited enum), so the arrow tool is turned off when
-the code is compiled.
+Rust shape: `Element<DeployedKind, DeployedProps>`, with `DeployedProps { characteristics, protocols, tech_stack, dependency, instance_count }` flattened beside the fieldless kind enum. There are no arrows: no kind connects to anything, so the arrow tools never appear, and the registry and MCP server refuse arrows for this type.
 
 ## Parity checklist
 
-- [ ] Automatic arrangement of layers and components, including nearest-layer adoption
-- [ ] Component anatomy: protocol bar, bullet columns, logos, and instance oval
-- [ ] Characteristics bar on layers
-- [ ] Keyboard and drag reordering, and moving components between layers
-- [ ] 93-item tech stack picker with grouped, collapsible categories
-- [ ] Dependency colours
-- [ ] Custom SVG and draw.io export that match the prototype
+- [x] Automatic arrangement of layers and components, including nearest-layer adoption
+- [x] Component anatomy: protocol bar, bullet columns, logos, and instance oval
+- [x] Characteristics bar on layers
+- [x] Keyboard and drag reordering, and moving components between layers
+- [x] 92-item tech stack picker with grouped, collapsible categories
+- [x] Dependency colours
+- [ ] Custom SVG and draw.io export that match the prototype — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*
