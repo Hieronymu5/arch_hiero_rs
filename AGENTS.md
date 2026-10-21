@@ -122,7 +122,12 @@ The app reads these environment variables (see `crates/hiero-app/src/devtools.rs
 - Keep egui crate versions in lockstep (`egui`, `eframe`, and any `egui_*` add-ons must share a minor version).
 - Check the egui API against the **0.37** version. It changed a lot between releases: e.g. `App::ui(&mut self, ui, frame)` replaced `App::update`, `egui::Panel::top/left/right` replaced `TopBottomPanel`/`SidePanel`, `Id::unique`/`IdSalt` replaced `Id::new`, and `egui::Role` replaced `WidgetType`. Read the sources in `~/.cargo/registry/src/*/egui-0.37*/` when unsure. The same goes for `rmcp` 3.6.
 - Generated files: `crates/diagrams/hiero-deployed/src/tech_stack_data.rs` and its `assets/tech/` come from `scripts/extract-tech-stack.py`; `hiero-core/src/export/stencils.rs` holds draw.io stencils copied from the prototype.
-- Commits: small, imperative subject lines (`Add edge selection`, `Fix zoom clamp`).
+- Commits: small, following [Conventional Commits](https://www.conventionalcommits.org/), with
+  lower-case imperative subjects (`feat(editor): add edge selection`, `fix(app): clamp zoom`).
+  The `commit` skill in `.agents/skills/commit/` has the types, scopes, and steps.
+- Skills: put agent skills in `.agents/skills/<name>/SKILL.md`, following the open
+  [Agent Skills](https://agentskills.io/specification) format, so any agent can use them.
+  Claude Code finds them through a symlink in `.claude/skills/`, so add one for each new skill.
 
 ## Upgrading Rust / egui
 
