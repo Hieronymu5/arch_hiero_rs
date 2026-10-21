@@ -1,5 +1,6 @@
 [package]
 name = "hiero-store"
+description = "SQLite storage for Arch Hiero diagrams and their versions"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,6 +8,14 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+hiero-core.workspace = true
+rusqlite.workspace = true
+rusqlite_migration.workspace = true
+serde_json.workspace = true
+directories.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

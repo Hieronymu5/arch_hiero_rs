@@ -85,6 +85,7 @@ trivially_copy_pass_by_ref = "allow"
 format_push_string = "allow"
 ref_option = "allow"
 doc_markdown = "allow"
+single_match_else = "allow"
 
 [profile.release]
 lto = "thin"

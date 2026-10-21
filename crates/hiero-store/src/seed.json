@@ -1,0 +1,73 @@
+[
+  {
+    "id": "d1a6a000-0000-4000-8000-000000000001",
+    "name": "Enterprise Overview",
+    "type": "conceptual",
+    "elements": [
+      {
+        "id": "e1000000-0000-4000-8000-000000000001",
+        "kind": "domain",
+        "label": "Customer Relationship",
+        "x": 40,
+        "y": 40
+      },
+      {
+        "id": "e1000000-0000-4000-8000-000000000002",
+        "kind": "application",
+        "label": "Customer Portal",
+        "description": "Self-service website where customers manage their accounts",
+        "parentId": "e1000000-0000-4000-8000-000000000001",
+        "x": 60,
+        "y": 80
+      },
+      {
+        "id": "e1000000-0000-4000-8000-000000000004",
+        "kind": "application",
+        "label": "CRM",
+        "description": "Tracks customer interactions and sales pipeline",
+        "parentId": "e1000000-0000-4000-8000-000000000001",
+        "x": 280,
+        "y": 80
+      },
+      {
+        "id": "e1000000-0000-4000-8000-000000000003",
+        "kind": "actor",
+        "label": "Customer",
+        "x": 580,
+        "y": 100
+      }
+    ],
+    "connections": [
+      {
+        "id": "c1000000-0000-4000-8000-000000000001",
+        "sourceId": "e1000000-0000-4000-8000-000000000002",
+        "targetId": "e1000000-0000-4000-8000-000000000004"
+      }
+    ],
+    "createdAt": "2026-10-01T09:00:00.000Z",
+    "createdBy": "hiero",
+    "updatedAt": "2026-10-01T09:00:00.000Z",
+    "updatedBy": "hiero"
+  },
+  {
+    "id": "d1a6a000-0000-4000-8000-000000000002",
+    "name": "Customer Portal Deployment",
+    "type": "deployed-component",
+    "elements": [],
+    "createdAt": "2026-10-01T09:00:00.000Z",
+    "createdBy": "hiero",
+    "updatedAt": "2026-10-01T09:00:00.000Z",
+    "updatedBy": "hiero"
+  },
+  {
+    "id": "d1a6a000-0000-4000-8000-000000000003",
+    "name": "Primary Data Center",
+    "type": "physical",
+    "elements": [],
+    "connections": [],
+    "createdAt": "2026-10-01T09:00:00.000Z",
+    "createdBy": "hiero",
+    "updatedAt": "2026-10-01T09:00:00.000Z",
+    "updatedBy": "hiero"
+  }
+]
