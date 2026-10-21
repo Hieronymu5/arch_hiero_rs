@@ -10,6 +10,9 @@ use hiero_store::Status;
 use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
 use crate::format::date;
 
+/// Something to do once a dialog closes.
+type Action = Box<dyn FnOnce(&mut App)>;
+
 fn error_text(ui: &Ui, text: &str) -> RichText {
     RichText::new(text).color(ui.visuals().error_fg_color)
 }
@@ -281,7 +284,7 @@ impl App {
     // The editor
 
     pub fn editor_page(&mut self, ui: &mut Ui, id: &DiagramId) {
-        if !self.open.as_ref().is_some_and(|o| o.record.meta.id == *id) {
+        if self.open.as_ref().is_none_or(|o| o.record.meta.id != *id) {
             ui.label("This diagram doesn't exist. It may have been deleted.");
             if ui.link("Back to diagrams").clicked() {
                 self.page = Page::List;
@@ -507,7 +510,7 @@ impl App {
             return;
         };
         let mut keep = true;
-        let mut next: Option<Box<dyn FnOnce(&mut App)>> = None;
+        let mut next: Option<Action> = None;
         let mut dialog = dialog;
         let modal = egui::Modal::new(egui::Id::unique("dialog")).show(ctx, |ui| {
             ui.set_width(420.0);

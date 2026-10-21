@@ -139,7 +139,7 @@ impl App {
             Err(e) => {
                 self.outcome = Some(Outcome::error(format!(
                     "The diagrams couldn't be loaded. {e}"
-                )))
+                )));
             }
         }
     }
@@ -470,7 +470,7 @@ impl App {
                 self.outcome = Some(Outcome::ok(format!("Deleted “{name}”.")));
             }
             Err(e) => {
-                self.outcome = Some(Outcome::error(format!("“{name}” couldn't be deleted. {e}")))
+                self.outcome = Some(Outcome::error(format!("“{name}” couldn't be deleted. {e}")));
             }
         }
         self.refresh_list();
@@ -625,7 +625,7 @@ impl App {
             Err(e) => {
                 self.outcome = Some(Outcome::error(format!(
                     "The diagram couldn't be reverted. {e}"
-                )))
+                )));
             }
         }
         self.refresh_list();
@@ -641,7 +641,7 @@ impl App {
             Err(e) => {
                 self.outcome = Some(Outcome::error(format!(
                     "v{version} couldn't be deleted. {e}"
-                )))
+                )));
             }
         }
         if let Some(open) = self.open.as_mut().filter(|o| o.record.meta.id == *id)
@@ -671,7 +671,7 @@ impl App {
                 self.outcome = Some(Outcome::ok(format!("Saved {shown}.")));
             }
             Err(e) => {
-                self.outcome = Some(Outcome::error(format!("The file couldn't be saved. {e}")))
+                self.outcome = Some(Outcome::error(format!("The file couldn't be saved. {e}")));
             }
         }
     }
@@ -713,7 +713,7 @@ impl App {
             Err(e) => {
                 self.outcome = Some(Outcome::error(format!(
                     "The diagram couldn't be exported. {e}"
-                )))
+                )));
             }
         }
     }

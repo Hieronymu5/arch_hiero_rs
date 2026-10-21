@@ -2,14 +2,14 @@
 
 /// An RFC 3339 timestamp in local time, such as "20 Oct 2026, 17:42".
 pub fn date(rfc3339: &str) -> String {
-    rfc3339
-        .parse::<jiff::Timestamp>()
-        .map(|t| {
+    rfc3339.parse::<jiff::Timestamp>().map_or_else(
+        |_| rfc3339.to_owned(),
+        |t| {
             t.to_zoned(jiff::tz::TimeZone::system())
                 .strftime("%-d %b %Y, %H:%M")
                 .to_string()
-        })
-        .unwrap_or_else(|_| rfc3339.to_owned())
+        },
+    )
 }
 
 #[cfg(test)]

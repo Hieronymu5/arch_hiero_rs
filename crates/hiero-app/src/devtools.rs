@@ -72,7 +72,11 @@ impl DevTools {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(
                 egui::ScreenshotCallback::new(move |image| {
                     let [w, h] = image.size;
-                    let bytes: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
+                    let bytes: Vec<u8> = image
+                        .pixels
+                        .iter()
+                        .flat_map(egui::Color32::to_array)
+                        .collect();
                     if let Some(buffer) = image::RgbaImage::from_raw(w as u32, h as u32, bytes) {
                         let _ = buffer.save(&path);
                     }
