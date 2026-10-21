@@ -1,12 +1,29 @@
 [package]
 name = "hiero-mcp"
+description = "A local MCP server that lets agents read and edit Arch Hiero diagrams"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[[bin]]
+name = "arch-hiero-mcp"
+path = "src/main.rs"
+
 [dependencies]
+hiero-core.workspace = true
+hiero-store.workspace = true
+hiero-registry.workspace = true
+rmcp.workspace = true
+tokio.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+rmcp = { workspace = true, features = ["client", "transport-child-process"] }
 
 [lints]
 workspace = true

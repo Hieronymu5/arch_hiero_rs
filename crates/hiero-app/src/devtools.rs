@@ -7,6 +7,7 @@
 //! - `ARCH_HIERO_SELECT`: the name of an element to select in the open diagram.
 //! - `ARCH_HIERO_SCREENSHOT`: a PNG path; the window is saved there after it has settled, and
 //!   the app quits.
+//! - `ARCH_HIERO_SCREENSHOT_AFTER`: how many seconds to wait before the screenshot.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -20,6 +21,8 @@ pub struct DevTools {
     select: Option<String>,
     screenshot: Option<std::path::PathBuf>,
     frame: u32,
+    started: Option<std::time::Instant>,
+    delay: f32,
     requested: bool,
     done: Arc<AtomicBool>,
 }
@@ -30,6 +33,10 @@ impl DevTools {
             open: std::env::var("ARCH_HIERO_OPEN").ok(),
             new: std::env::var("ARCH_HIERO_NEW").ok(),
             select: std::env::var("ARCH_HIERO_SELECT").ok(),
+            delay: std::env::var("ARCH_HIERO_SCREENSHOT_AFTER")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0.0),
             screenshot: std::env::var_os("ARCH_HIERO_SCREENSHOT").map(Into::into),
             ..Self::default()
         }
@@ -65,7 +72,8 @@ impl DevTools {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
-        if self.frame > 40 && !self.requested {
+        let started = *self.started.get_or_insert_with(std::time::Instant::now);
+        if self.frame > 40 && started.elapsed().as_secs_f32() >= self.delay && !self.requested {
             self.requested = true;
             let done = self.done.clone();
             let repaint = ctx.clone();
