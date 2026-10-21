@@ -349,12 +349,14 @@ impl<T: DiagramView> Editor<T> {
             top: 2,
             bottom: 2,
         });
-        // Named "elements", not "palette", so a width saved before it was narrowed is dropped.
-        egui::Panel::left(self.salt.with("elements"))
+        // The bar is just wide enough for the longest name, "Load Balancer". Its id carries
+        // the default width, so a width saved before the default changed is dropped.
+        const ELEMENTS_WIDTH: u16 = 140;
+        egui::Panel::left(self.salt.with(("elements", ELEMENTS_WIDTH)))
             .frame(palette_frame)
             .resizable(true)
-            .default_size(180.0)
-            .size_range(140.0..=360.0)
+            .default_size(f32::from(ELEMENTS_WIDTH))
+            .size_range(125.0..=360.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
