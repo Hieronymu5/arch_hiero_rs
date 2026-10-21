@@ -146,8 +146,6 @@ pub struct Look {
     pub outline_on_top: bool,
     /// Draws it after everything else, such as a firewall across two networks.
     pub on_top: bool,
-    /// The background behind the name under a figure.
-    pub name_fill: Option<String>,
     /// Its fill. Unset means white, or the domain colour for a container.
     pub fill: Option<String>,
     /// The colour of its text. Unset means the usual dark text.
@@ -173,7 +171,6 @@ impl Look {
             dashed: false,
             outline_on_top: false,
             on_top: false,
-            name_fill: None,
             fill: None,
             text_color: None,
             detail_color: None,
@@ -442,8 +439,9 @@ fn figure_text(figure: PhysicalFigure, text: Option<&String>, color: &str) -> Ve
     }]
 }
 
-/// An element's figure badge, such as "×3", to the right of its figure, level with its middle.
-fn figure_badge(element: &LookElement, measure: &dyn MeasureText) -> Vec<Node> {
+/// An element's figure badge, such as "×3", to the right of its figure, level with its middle,
+/// with no background, as the names under figures.
+fn figure_badge(element: &LookElement) -> Vec<Node> {
     let (Some(badge), Shape::Physical(figure)) = (&element.look.figure_badge, element.look.shape)
     else {
         return Vec::new();
@@ -451,16 +449,7 @@ fn figure_badge(element: &LookElement, measure: &dyn MeasureText) -> Vec<Node> {
     let size = figure.size();
     let left = element.rect.x + (element.rect.width + size.width) / 2.0 + FIGURE_BADGE_GAP;
     let top = element.rect.y + (size.height - BADGE.line_height) / 2.0;
-    let width = measure.width(badge, BADGE.size, BADGE.weight) + FIGURE_BADGE_INSET * 2.0;
-    let mut nodes = Vec::new();
-    if let Some(fill) = &element.look.name_fill {
-        nodes.push(Node::rect(
-            r(round2(left), round2(top), round2(width), BADGE.line_height),
-            0.0,
-            Paint::fill(fill.clone()),
-        ));
-    }
-    nodes.extend(colored(
+    colored(
         text_lines(
             std::slice::from_ref(badge),
             left + FIGURE_BADGE_INSET,
@@ -469,8 +458,7 @@ fn figure_badge(element: &LookElement, measure: &dyn MeasureText) -> Vec<Node> {
             Anchor::Start,
         ),
         element.look.text_color.as_ref(),
-    ));
-    nodes
+    )
 }
 
 /// The nodes that draw one element.
@@ -528,11 +516,6 @@ pub fn draw_element(
             let size = figure.size();
             let name = wrap_text(&element.label, text_width, FIGURE_NAME, measure);
             let name_top = y + size.height + FIGURE_NAME_GAP;
-            let name_width = name
-                .iter()
-                .map(|l| measure.width(l, FIGURE_NAME.size, FIGURE_NAME.weight))
-                .fold(0.0, f64::max)
-                + 8.0;
             let detail = look
                 .detail_color
                 .clone()
@@ -548,18 +531,7 @@ pub fn draw_element(
                 ),
                 children,
             )];
-            if let (Some(fill), false) = (&look.name_fill, name.is_empty()) {
-                nodes.push(Node::rect(
-                    r(
-                        round2(center_x - name_width / 2.0),
-                        round2(name_top),
-                        round2(name_width),
-                        name.len() as f64 * FIGURE_NAME.line_height,
-                    ),
-                    0.0,
-                    Paint::fill(fill.clone()),
-                ));
-            }
+            // No background, so whatever is behind the name, such as its zone, shows through.
             nodes.extend(colored(
                 text_lines(&name, center_x, name_top, FIGURE_NAME, Anchor::Middle),
                 look.text_color.as_ref(),
@@ -793,7 +765,7 @@ pub fn draw_diagram(
     for e in elements.iter().filter(|e| e.look.on_top) {
         nodes.extend(draw_element(e, measure, colors));
     }
-    nodes.extend(draw_arrows(elements, arrows, measure, colors));
+    nodes.extend(draw_arrows(elements, arrows, colors));
     Scene {
         nodes,
         bounds: bounds_of(elements, arrows),
@@ -807,7 +779,6 @@ pub fn draw_diagram(
 pub fn draw_arrows(
     elements: &[LookElement],
     arrows: &[ArrowLook],
-    measure: &dyn MeasureText,
     colors: &DiagramColors,
 ) -> Vec<Node> {
     let mut nodes: Vec<Node> = Vec::new();
@@ -831,7 +802,7 @@ pub fn draw_arrows(
     }
     // Over the arrows, so they don't move to make room.
     for e in elements {
-        nodes.extend(figure_badge(e, measure));
+        nodes.extend(figure_badge(e));
     }
     let connector_text = readable_text(&colors.connectors);
     for (label, rect) in arrows
@@ -952,13 +923,12 @@ mod tests {
     }
 
     #[test]
-    fn physical_figures_have_names_on_backgrounds() {
+    fn physical_figures_have_names_with_no_background() {
         let mut e = element(
             Shape::Physical(PhysicalFigure::DatabaseCylinder),
             Rect::new(40.0, 40.0, 120.0, 100.0),
         );
         e.label = "Orders".into();
-        e.look.name_fill = Some("#f5f5f5".into());
         e.look.figure_text = Some("PSQL".into());
         e.look.figure_badge = Some("×3".into());
         let scene = draw_diagram(
@@ -971,5 +941,7 @@ mod tests {
         assert!(svg.contains(r#"<g transform="translate(76 40)""#));
         assert!(svg.contains(">PSQL</text>"));
         assert!(svg.contains(">×3</text>"));
+        // The figure is drawn in its group; there's no box behind the name or the badge.
+        assert!(!scene.nodes.iter().any(|n| matches!(n, Node::Rect { .. })));
     }
 }

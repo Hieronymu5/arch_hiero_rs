@@ -304,6 +304,6 @@ mod tests {
         assert!(svg.contains(">Serves pages</text>"));
         assert!(svg.contains(">2</text>"));
         // Cropped to include the protocol bar raised over the component's top.
-        assert!(svg.contains(r#"viewBox="20 20 900 290""#));
+        assert!(svg.contains(r#"viewBox="0 0 900 290""#));
     }
 }

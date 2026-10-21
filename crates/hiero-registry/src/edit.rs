@@ -331,10 +331,14 @@ impl<T: DiagramType> Batch<'_, T> {
                 if let Some(r) = reference {
                     self.refs.insert(r.clone(), id.0.clone());
                 }
-                let message = self.eng.announcement.clone();
                 if let Some(props) = props {
                     self.update_connection(&id, props)?;
                 }
+                // Described after the props are applied, so it names the arrow's own protocol.
+                let message = self
+                    .eng
+                    .connection(&id)
+                    .map_or_else(String::new, |c| T::arrow_added(&self.eng, c));
                 Ok(format!("{message} ({id})"))
             }
             EditOp::UpdateConnection { id, props } => {
@@ -482,6 +486,28 @@ mod tests {
             Some(zone.as_str())
         );
         assert_eq!(web.props["instanceCount"], json!(3));
+    }
+
+    #[test]
+    fn added_arrows_are_described_with_their_given_protocol() {
+        let diagram = new_diagram(DiagramTypeId::Physical, "Infra", None);
+        let zone = diagram.content.elements[2].id.0.clone();
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "proxy", "kind": "server", "label": "Proxy", "parent_id": zone},
+            {"op": "add_element", "ref": "api", "kind": "server", "label": "API", "parent_id": zone},
+            {"op": "add_connection", "source_id": "proxy", "target_id": "api",
+             "props": {"protocol": "HTTP", "port": "8080"}}
+        ]));
+        let outcome = ops(DiagramTypeId::Physical)
+            .apply(&diagram, &edits)
+            .unwrap();
+        let arrow = &outcome.content.connections[0];
+        assert!(
+            outcome.messages[2].starts_with("Arrow from Proxy to API added, over HTTP:8080. ("),
+            "{}",
+            outcome.messages[2]
+        );
+        assert_eq!(arrow.props["port"], json!("8080"));
     }
 
     #[test]

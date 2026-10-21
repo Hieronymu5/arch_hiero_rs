@@ -11,9 +11,10 @@ and storage inside them, and the traffic between them with its protocol and port
 ## Elements
 
 The figure kinds take a 120×100 area: a 40 px tall figure at the top, with room for a name of up
-to two lines underneath. Each figure's name sits on a background in the *zones* colour, with
-text in the *labels* colour, so it stays readable over zones, borders, and arrows. Figures are
-drawn on top of zones and networks (`onTop`).
+to two lines underneath. Each figure's name, and a server's or database's instance count, is
+in the *labels* colour with no background, so whatever is behind it, such as its zone, shows
+through, in the editor and the SVG and draw.io exports. Figures are drawn on top of zones and
+networks (`onTop`).
 
 | Kind | Label | Figure | Fill | Can contain | Extra properties |
 |---|---|---|---|---|---|

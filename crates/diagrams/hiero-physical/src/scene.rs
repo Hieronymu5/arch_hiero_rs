@@ -43,15 +43,6 @@ fn zone_color_of(
     )
 }
 
-/// The fill of the zone outside a network that an element is in.
-fn zone_fill_around(
-    eng: &Engine<Physical>,
-    element: &hiero_core::engine::El<Physical>,
-) -> Option<String> {
-    let parent = eng.element(element.parent_id.as_ref()?)?;
-    zone_color_of(eng, parent).map(|z| z.fill.to_owned())
-}
-
 /// How an element looks.
 pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement {
     let colors = eng.colors();
@@ -100,9 +91,7 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
         let count = instance_count_of(&element.el);
         Look {
             detail_color: Some(black_or_white(&fill).to_owned()),
-            name_fill: Some(
-                zone_fill_around(eng, &element.el).unwrap_or_else(|| colors.zones.clone()),
-            ),
+            // The name, and the instance count, in the labels' colour with no background.
             text_color: Some(colors.labels.clone()),
             on_top: true,
             figure_text: database.map(|d| d.abbreviation.to_owned()),

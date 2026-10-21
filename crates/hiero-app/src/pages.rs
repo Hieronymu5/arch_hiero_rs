@@ -17,6 +17,14 @@ fn error_text(ui: &Ui, text: &str) -> RichText {
     RichText::new(text).color(ui.visuals().error_fg_color)
 }
 
+/// The page's main button, filled with the theme's accent colour.
+fn primary_button(ui: &mut Ui, text: &str) -> egui::Response {
+    let visuals = ui.visuals();
+    let button = egui::Button::new(RichText::new(text).color(visuals.strong_text_color()))
+        .fill(visuals.selection.bg_fill);
+    ui.add(button)
+}
+
 /// A Saved/Unsaved badge.
 fn status_badge(ui: &mut Ui, status: Status) {
     let (fill, text) = if status.saved {
@@ -40,19 +48,73 @@ fn status_badge(ui: &mut Ui, status: Status) {
 }
 
 impl App {
+    /// The page's title for the top bar, with a description under it: the diagram's name and
+    /// description in the editor, and Diagrams on the list. Other pages have their own heading.
+    fn page_heading(&self) -> Option<(String, Option<String>)> {
+        match &self.page {
+            Page::List => Some(("Diagrams".to_owned(), None)),
+            Page::Editor(id) => Some(
+                self.open
+                    .as_ref()
+                    .filter(|o| o.record.meta.id == *id)
+                    .map_or_else(
+                        || ("Diagram".to_owned(), None),
+                        |o| {
+                            let meta = &o.record.meta;
+                            (meta.name.clone(), meta.description.clone())
+                        },
+                    ),
+            ),
+            _ => None,
+        }
+    }
+
     pub fn top_bar(&mut self, ui: &mut Ui) {
         egui::Panel::top("top-bar").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Arch Hiero").font(fonts::bold(18.0)));
-                ui.separator();
-                if ui
-                    .selectable_label(matches!(self.page, Page::List), "Diagrams")
-                    .clicked()
-                {
+                // White on transparent, tinted to the theme's text colour: black or white.
+                let tint = if ui.visuals().dark_mode {
+                    Color32::WHITE
+                } else {
+                    Color32::BLACK
+                };
+                let logo = ui
+                    .add(
+                        egui::Image::new(egui::include_image!("../assets/logo.png"))
+                            .fit_to_exact_size(egui::vec2(60.0, 45.0))
+                            .tint(tint)
+                            .sense(egui::Sense::click()),
+                    )
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                logo.widget_info(|| {
+                    egui::WidgetInfo::labeled(egui::Role::Link, true, "ArchHiero, go to diagrams")
+                });
+                if logo.clicked() && !matches!(self.page, Page::List) {
                     self.flush_save();
                     self.back.clear();
                     self.page = Page::List;
                     self.refresh_list();
+                }
+                if let Some((title, description)) = self.page_heading() {
+                    ui.add_space(8.0);
+                    // The title on one line with the description under it, each cut short when
+                    // there isn't room. The description's full text shows on hover.
+                    let room = (ui.available_width() - 260.0).max(120.0);
+                    ui.allocate_ui(egui::vec2(room, 45.0), |ui| {
+                        ui.vertical(|ui| {
+                            ui.add_space(4.0);
+                            let title = RichText::new(title)
+                                .font(fonts::bold(18.0))
+                                .color(ui.visuals().strong_text_color());
+                            ui.add(egui::Label::new(title).truncate());
+                            if let Some(description) = description.filter(|d| !d.is_empty()) {
+                                ui.add(
+                                    egui::Label::new(RichText::new(&description).weak()).truncate(),
+                                )
+                                .on_hover_text(description);
+                            }
+                        });
+                    });
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     for (theme, label) in [
@@ -100,8 +162,8 @@ impl App {
     // The list of diagrams
 
     pub fn list_page(&mut self, ui: &mut Ui) {
+        // The top bar shows the title, Diagrams.
         ui.horizontal(|ui| {
-            ui.heading(RichText::new("Diagrams").font(fonts::bold(26.0)));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui.button("Add diagram").clicked() {
                     self.form = DetailsForm::default();
@@ -304,20 +366,13 @@ impl App {
         let mut action: Option<&'static str> = None;
         if let Some(open) = &mut self.open {
             let meta = open.record.meta.clone();
+            // The top bar shows the name and description.
             ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.label(RichText::new(&meta.name).font(fonts::bold(22.0)));
-                    ui.label(
-                        RichText::new(format!("{} diagram", meta.diagram_type.label())).weak(),
-                    );
-                });
-                ui.add_space(12.0);
-                ui.vertical(|ui| {
-                    ui.add_space(6.0);
-                    status_badge(ui, open.status);
-                });
+                ui.label(RichText::new(format!("{} diagram", meta.diagram_type.label())).weak());
+                ui.add_space(8.0);
+                status_badge(ui, open.status);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("Back").clicked() {
+                    if primary_button(ui, "Back").clicked() {
                         action = Some("back");
                     }
                     if ui.button("Edit details").clicked() {

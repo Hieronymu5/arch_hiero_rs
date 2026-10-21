@@ -57,7 +57,7 @@ Linux CI.
 | Containers | Kinds declare `can_contain`. Containers grow to fit, with header, padding, and footer. A removed container's children stay. | `hiero-core::layout` |
 | Resize | Top-left and bottom-right handles (or width-only), by drag or arrow keys. Minimum sizes. Stays around its children. | same |
 | Delete | Delete/Backspace removes the selection, unless focus is in a text field. | same |
-| Properties panel | Collapsible. Per-type fields. Applied while valid. Escape returns focus to the canvas. | per-type `ui` + `hiero-editor::properties` |
+| Properties panel | Right of the canvas, shown only while one element or arrow is selected. Per-type fields. Applied while valid. Escape returns focus to the canvas. | per-type `ui` + `hiero-editor::properties` |
 | Arrows | Drag from the connect handle, or "Add arrow to". Facing-side routing with even spread. Select, edit, delete. | `hiero-core::routing` + `hiero-editor::arrows` |
 | Help | Per-type help text above the canvas | per-type `HELP` constant |
 | Exports | SVG cropped to the content. draw.io with containers and attached connectors, and a name/description heading. | `hiero-core::export` + per-type overrides |

@@ -19,8 +19,8 @@ description, its tech stack logos, and its instance count.
 
 This type has no free placement. Everything is **arranged** automatically:
 
-- Layers stack from the top-left (40,40) with a 20 px gap. They're all as wide as the widest one
-  needs, and at least 860 px wide.
+- Layers stack from the top-left (20,20), one grid cell in, with a 20 px gap. They're all as
+  wide as the widest one needs, and at least 860 px wide.
 - The order of layers is by vertical middle, and the order of components within a layer is by
   horizontal middle. Ties keep the list order, so the list order must be stored.
 - Components in a layer sit side by side with 20 px gaps, all as tall as the tallest.

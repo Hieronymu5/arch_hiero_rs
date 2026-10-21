@@ -11,5 +11,12 @@ pub mod ui;
 
 pub use model::{Conceptual, ConceptualArrow, ConceptualKind, ConceptualProps};
 
-/// The editor's instructions, shown above the canvas.
-pub const HELP: &str = "Drag an element onto the grid, or select it to add it. Move a placed element by dragging it, or focus it and use the arrow keys (hold Shift for bigger steps). Press Enter to edit its properties and Delete to remove it. Select more than one element by holding Shift, Ctrl, or Cmd as you click each, or by focusing each and pressing Shift+Space, to move them together by dragging or with the arrow keys, or to remove them together with Delete. Applications dropped onto a domain go inside it, components dropped onto an application go inside it, and processes and entities dropped onto an application or component go inside that. An application or component holding elements shows its name and description at its top. Resize a domain or application with the handles on its top-left and bottom-right corners, by dragging or with the arrow keys. To draw an arrow between applications, components, and jobs, or from an actor to an application, component, job, or domain, drag from the round handle on the selected element, or use Add arrow in its properties. Drag an arrow sideways, or select it and use the arrow keys, to run it straight between the shapes. Give an arrow a connector, such as API, in its properties to show it in a box where the arrow meets its target, or a transformation to show it in a box on the middle of the line. Name a part of the diagram with a section placed above it, and resize it across with the handles on its ends. Scroll the canvas by dragging an empty part of it, or focus it and use the arrow keys. Zoom with the Zoom slider in its bottom-right corner, or with Cmd or Ctrl and the scroll wheel.";
+/// The editor's instructions, shown above the canvas: the main ways to add, move, edit,
+/// connect, and scroll, one per line.
+pub const HELP: &str = concat!(
+    "• Drag an element onto the canvas, or select it to add it. Drop applications into domains, and components, processes, and entities into applications.\n",
+    "• Drag an element, or use the arrow keys, to move it. Resize domains, applications, and sections with their handles.\n",
+    "• Press Enter to edit an element's properties and Delete to remove it. Hold Shift, Ctrl, or Cmd as you click, or press Shift+Space on each, to select several and move or remove them together.\n",
+    "• Drag from the round handle on the selected element, or use Add arrow in its properties, to draw an arrow. Select an arrow to give it text, a connector, or a transformation.\n",
+    "• Drag an empty part of the canvas to scroll, and use the Zoom slider in its corner, or Cmd or Ctrl and the scroll wheel, to see more."
+);

@@ -11,7 +11,7 @@ use hiero_core::model::ElementId;
 use crate::model::{DeployedComponent, DeployedKind, LAYER_PADDING};
 
 /// Where the top layer's top-left corner sits.
-pub const LAYERS_ORIGIN: Point = Point::new(GRID * 2.0, GRID * 2.0);
+pub const LAYERS_ORIGIN: Point = Point::new(GRID, GRID);
 /// The gap between one layer and the next.
 pub const LAYER_GAP: f64 = GRID;
 /// The characteristics bar across a layer's top, raised half its height over the edge.

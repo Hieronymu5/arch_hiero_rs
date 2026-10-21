@@ -360,7 +360,7 @@ pub fn diagram_to_drawio(
                 )
             }
             Shape::Physical(figure) => {
-                let mut style = base_style(colors)
+                let style = base_style(colors)
                     .set(
                         "shape",
                         format!(
@@ -371,11 +371,7 @@ pub fn diagram_to_drawio(
                     .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
                     .set("align", "center")
                     .set("verticalAlign", "top")
-                    .num("spacingTop", figure.size().height + FIGURE_NAME_GAP);
-                if let Some(fill) = &look.name_fill {
-                    style = style.set("labelBackgroundColor", fill);
-                }
-                let style = style
+                    .num("spacingTop", figure.size().height + FIGURE_NAME_GAP)
                     .set("fontColor", look.text_color.as_deref().unwrap_or(TEXT))
                     .set("fontStyle", 1)
                     .set("fontSize", 16);
@@ -721,18 +717,14 @@ pub fn diagram_to_drawio(
         };
         let (left, top, parent) = place(e);
         let size = figure.size();
-        let mut style = Style::new()
+        let style = Style::new()
             .set("text", "")
             .set("html", 1)
             .set("align", "left")
             .set("verticalAlign", "middle")
             .set("fillColor", "none")
             .set("strokeColor", "none")
-            .set("fontColor", e.look.text_color.as_deref().unwrap_or(TEXT));
-        if let Some(fill) = &e.look.name_fill {
-            style = style.set("labelBackgroundColor", fill);
-        }
-        let style = style
+            .set("fontColor", e.look.text_color.as_deref().unwrap_or(TEXT))
             .set("fontStyle", 1)
             .num("fontSize", FIGURE_BADGE_FONT_SIZE)
             .set("spacing", 0)

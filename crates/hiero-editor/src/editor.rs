@@ -235,7 +235,6 @@ pub struct Editor<T: DiagramView> {
     cache: PaintCache,
     scene_cache: Option<(u64, Scene)>,
     outbox: Vec<Change>,
-    pub properties_open: bool,
     pub show_help: bool,
     focus_name: bool,
     salt: Id,
@@ -262,7 +261,6 @@ impl<T: DiagramView> Editor<T> {
             cache: PaintCache::default(),
             scene_cache: None,
             outbox: Vec::new(),
-            properties_open: true,
             show_help: false,
             focus_name: false,
             salt,
@@ -325,7 +323,8 @@ impl<T: DiagramView> Editor<T> {
 
     // Layout of the editor
 
-    /// The palette, properties panel, and canvas.
+    /// The palette on the left, the canvas filling the rest, and the selected element's or
+    /// arrow's properties on the right while there's one to edit.
     pub fn ui(&mut self, ui: &mut Ui) {
         if self.show_help {
             egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -334,19 +333,31 @@ impl<T: DiagramView> Editor<T> {
             });
             ui.add_space(4.0);
         }
-        egui::Panel::left(self.salt.with("sidebar"))
+        egui::Panel::left(self.salt.with("palette"))
             .resizable(true)
-            .default_size(300.0)
-            .size_range(220.0..=480.0)
+            .default_size(240.0)
+            .size_range(180.0..=360.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
-                    .show(ui, |ui| {
-                        self.properties_ui(ui);
-                        ui.separator();
-                        self.palette_ui(ui);
-                    });
+                    .show(ui, |ui| self.palette_ui(ui));
             });
+        // With nothing or several selected, the canvas gets the room.
+        let editing = self.eng.selected_connection.is_some() || self.eng.selected().is_some();
+        if editing {
+            egui::Panel::right(self.salt.with("properties"))
+                .resizable(true)
+                .default_size(290.0)
+                .size_range(220.0..=480.0)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .auto_shrink(false)
+                        .show(ui, |ui| {
+                            heading(ui, "Properties");
+                            self.properties_body(ui);
+                        });
+                });
+        }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             let status_height = 22.0;
             let mut rect = ui.available_rect_before_wrap();
@@ -402,17 +413,7 @@ impl<T: DiagramView> Editor<T> {
         }
     }
 
-    fn properties_ui(&mut self, ui: &mut Ui) {
-        let header =
-            egui::CollapsingHeader::new(RichText::new("Properties").font(crate::fonts::bold(15.0)))
-                .id_salt(self.salt.with("properties"))
-                .open(Some(self.properties_open))
-                .show(ui, |ui| self.properties_body(ui));
-        if header.header_response.clicked() {
-            self.properties_open = !self.properties_open;
-        }
-    }
-
+    /// The selected element's or arrow's properties. Shown only while there's one.
     fn properties_body(&mut self, ui: &mut Ui) {
         let mut cx = PropsCx {
             eng: &self.eng,
@@ -484,14 +485,6 @@ impl<T: DiagramView> Editor<T> {
             if ui.button(format!("Remove {}", element.el.label)).clicked() {
                 remove_selection = true;
             }
-        } else if cx.eng.selected_elements().len() > 1 {
-            let n = cx.eng.selected_elements().len();
-            ui.label(format!("{n} elements selected"));
-            if ui.button(format!("Remove {n} selected elements")).clicked() {
-                remove_selection = true;
-            }
-        } else {
-            ui.label(RichText::new("Select an element or arrow to see its properties.").weak());
         }
         let ops = std::mem::take(&mut cx.ops);
         drop(cx);
@@ -1203,8 +1196,8 @@ impl<T: DiagramView> Editor<T> {
                 }
                 Key::Enter => {
                     if let Focus::Element(id) = self.focus.clone() {
+                        // Selecting it alone shows its properties; its name is focused then.
                         self.eng.select(&id);
-                        self.properties_open = true;
                         self.focus_name = true;
                     }
                 }

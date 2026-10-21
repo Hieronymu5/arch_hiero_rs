@@ -532,12 +532,12 @@ mod tests {
         let layer = e.laid(&id("id2")).unwrap();
         assert_eq!(
             layer.rect,
-            hiero_core::geometry::Rect::new(40.0, 40.0, 860.0, 250.0)
+            hiero_core::geometry::Rect::new(20.0, 20.0, 860.0, 250.0)
         );
         let component = e.laid(&id("id1")).unwrap();
         assert_eq!(
             component.rect,
-            hiero_core::geometry::Rect::new(60.0, 80.0, 260.0, 190.0)
+            hiero_core::geometry::Rect::new(40.0, 60.0, 260.0, 190.0)
         );
     }
 
