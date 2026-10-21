@@ -345,18 +345,20 @@ impl<T: DiagramView> Editor<T> {
         }
         let palette_frame = egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin {
             left: inset,
-            right: 8,
+            // The page's 8pt margin shows left of the bar but not right of it, as the bar
+            // reaches past it to the canvas, so the right side adds it to match.
+            right: inset + 8,
             top: 2,
             bottom: 2,
         });
         // The bar is just wide enough for the longest name, "Load Balancer". Its id carries
         // the default width, so a width saved before the default changed is dropped.
-        const ELEMENTS_WIDTH: u16 = 140;
+        const ELEMENTS_WIDTH: u16 = 149;
         egui::Panel::left(self.salt.with(("elements", ELEMENTS_WIDTH)))
             .frame(palette_frame)
             .resizable(true)
             .default_size(f32::from(ELEMENTS_WIDTH))
-            .size_range(125.0..=360.0)
+            .size_range(134.0..=360.0)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
