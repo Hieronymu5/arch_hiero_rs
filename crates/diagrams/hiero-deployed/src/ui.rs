@@ -1,10 +1,10 @@
 //! The deployed component diagram's properties panel and its place in the shared editor.
 
-use egui::{RichText, Ui};
+use egui::Ui;
 use hiero_core::engine::{Engine, Laid, validate_length};
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
-use hiero_editor::widgets::{select, text_field};
+use hiero_editor::widgets::{self, select, text_field};
 use hiero_editor::{DiagramView, PropsCx};
 
 use crate::layout::is_layer;
@@ -153,8 +153,7 @@ impl DiagramView for DeployedComponent {
             cx.commit(element, with, parent, field);
         }
 
-        ui.add_space(6.0);
-        ui.label(RichText::new("Tech stack").strong());
+        widgets::label(ui, "Tech stack", false);
         let chosen: Vec<String> = element.el.props.tech_stack.clone().unwrap_or_default();
         for category in TechCategory::ALL {
             let items: Vec<_> = TECH_STACK

@@ -5,7 +5,8 @@ use hiero_core::engine::{Conn, DiagramType, Dir, Engine, Laid, validate_length};
 use hiero_core::geometry::Point;
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
-use hiero_editor::widgets::text_field;
+use hiero_editor::theme::page_button;
+use hiero_editor::widgets::{self, text_field};
 use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
 use crate::arrows::{self, offset_at, place_automatically, set_manual_offset, straighten};
@@ -69,18 +70,16 @@ impl DiagramView for Conceptual {
             with.description = Some(description);
             field = Some("description");
         }
-        if kind.can_be_agent() && ui.checkbox(&mut with.props.agent, "Bot").changed() {
+        if kind.can_be_agent() && widgets::checkbox(ui, &mut with.props.agent, "Bot").changed() {
             field = Some("agent");
         }
         if kind.can_be_cloud_hosted()
-            && ui
-                .checkbox(&mut with.props.cloud_hosted, "Cloud hosted")
-                .changed()
+            && widgets::checkbox(ui, &mut with.props.cloud_hosted, "Cloud hosted").changed()
         {
             field = Some("cloud");
         }
         if kind.has_component_type() {
-            ui.label("Type");
+            widgets::label(ui, "Type", false);
             ui.horizontal_wrapped(|ui| {
                 for (value, label) in [
                     (None, "Default"),
@@ -125,7 +124,7 @@ impl DiagramView for Conceptual {
             arrow.label = Some(v);
             field = Some("label");
         }
-        ui.label("Type");
+        widgets::label(ui, "Type", false);
         let mut manual = current.is_manual();
         ui.horizontal(|ui| {
             if ui.radio_value(&mut manual, false, "Automated").changed()
@@ -135,10 +134,7 @@ impl DiagramView for Conceptual {
             }
         });
         arrow.mode = manual.then_some(ArrowMode::Manual);
-        if ui
-            .checkbox(&mut arrow.bidirectional, "Bi-directional")
-            .changed()
-        {
+        if widgets::checkbox(ui, &mut arrow.bidirectional, "Bi-directional").changed() {
             field = Some("bidirectional");
         }
         if let Some(v) = text(
@@ -192,11 +188,13 @@ impl DiagramView for Conceptual {
         ui.add_space(6.0);
         let straightenable = arrows::range_for(cx.eng, &id).is_some();
         ui.horizontal(|ui| {
-            if straightenable && ui.button("Straighten").clicked() {
+            if straightenable && page_button(ui, "Straighten", false).clicked() {
                 let id = id.clone();
                 cx.apply(None, move |eng| straighten(eng, &id));
             }
-            if current.manual_offset.is_some() && ui.button("Place automatically").clicked() {
+            if current.manual_offset.is_some()
+                && page_button(ui, "Place automatically", false).clicked()
+            {
                 let id = id.clone();
                 cx.apply(None, move |eng| place_automatically(eng, &id));
             }

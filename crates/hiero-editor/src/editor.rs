@@ -16,6 +16,7 @@ use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent};
 
 use crate::paint::{PaintCache, Transform, color, paint_scene, world_line};
+use crate::theme::{element_button, page_button};
 use crate::view::{View, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
 
@@ -326,14 +327,30 @@ impl<T: DiagramView> Editor<T> {
     /// The palette on the left, the canvas filling the rest, and the selected element's or
     /// arrow's properties on the right while there's one to edit.
     pub fn ui(&mut self, ui: &mut Ui) {
+        // Content lines up with the logo, CONTENT_INSET in from the edge.
+        let inset = crate::theme::CONTENT_INSET;
         if self.show_help {
-            egui::Frame::group(ui.style()).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.label(T::HELP);
-            });
+            egui::Frame::new()
+                .inner_margin(egui::Margin {
+                    left: inset,
+                    ..Default::default()
+                })
+                .show(ui, |ui| {
+                    egui::Frame::group(ui.style()).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.label(T::HELP);
+                    });
+                });
             ui.add_space(4.0);
         }
+        let palette_frame = egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin {
+            left: inset,
+            right: 8,
+            top: 2,
+            bottom: 2,
+        });
         egui::Panel::left(self.salt.with("palette"))
+            .frame(palette_frame)
             .resizable(true)
             .default_size(240.0)
             .size_range(180.0..=360.0)
@@ -353,32 +370,22 @@ impl<T: DiagramView> Editor<T> {
                     egui::ScrollArea::vertical()
                         .auto_shrink(false)
                         .show(ui, |ui| {
+                            crate::theme::form_style(ui);
                             heading(ui, "Properties");
                             self.properties_body(ui);
                         });
                 });
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
-            let status_height = 22.0;
-            let mut rect = ui.available_rect_before_wrap();
-            rect.max.y -= status_height;
+            let rect = ui.available_rect_before_wrap();
             self.canvas_ui(ui, rect);
-            let status =
-                egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.max.y), ui.max_rect().max);
-            ui.scope_builder(egui::UiBuilder::new().max_rect(status), |ui| {
-                ui.horizontal_centered(|ui| {
-                    ui.add_space(8.0);
-                    let text = if self.eng.announcement.is_empty() {
-                        "Ready.".to_owned()
-                    } else {
-                        self.eng.announcement.clone()
-                    };
-                    // A polite live region: screen readers hear what each change did.
-                    let status = ui.label(RichText::new(text).weak());
-                    ui.ctx().accesskit_node_builder(status.id, |node| {
-                        node.set_live(egui::accesskit::Live::Polite);
-                    });
-                });
+            // A polite live region that isn't drawn: screen readers hear what each change did.
+            let (_, status) = ui.allocate_exact_size(Vec2::ZERO, Sense::hover());
+            let text = self.eng.announcement.clone();
+            ui.ctx().accesskit_node_builder(status.id, |node| {
+                node.set_role(egui::accesskit::Role::Status);
+                node.set_live(egui::accesskit::Live::Polite);
+                node.set_label(text);
             });
         });
     }
@@ -394,10 +401,7 @@ impl<T: DiagramView> Editor<T> {
             let id = self.salt.with(("palette", index));
             let response = ui
                 .dnd_drag_source(id, PaletteDrag(index), |ui| {
-                    ui.add_sized(
-                        [ui.available_width(), 28.0],
-                        egui::Button::new(kind.label).sense(Sense::click()),
-                    )
+                    element_button(ui, kind.label, 28.0)
                 })
                 .inner;
             if response.clicked() {
@@ -434,7 +438,7 @@ impl<T: DiagramView> Editor<T> {
             ui.label(RichText::new(title).strong());
             T::arrow_properties(ui, &mut cx, &connection);
             ui.add_space(6.0);
-            if ui.button("Remove arrow").clicked() {
+            if page_button(ui, "Remove arrow", false).clicked() {
                 remove_arrow = Some(id);
             }
         } else if let Some(element) = cx.eng.selected().cloned() {
@@ -470,9 +474,10 @@ impl<T: DiagramView> Editor<T> {
                             target = choice;
                         }
                         ui.data_mut(|d| d.insert_temp(target_id, target.clone()));
-                        if ui
-                            .add_enabled(target.is_some(), egui::Button::new("Add arrow"))
-                            .clicked()
+                        let add = ui.add_enabled_ui(target.is_some(), |ui| {
+                            page_button(ui, "Add arrow", false)
+                        });
+                        if add.inner.clicked()
                             && let Some(target) = target
                         {
                             add_arrow = Some((element.id().clone(), target));
@@ -482,7 +487,7 @@ impl<T: DiagramView> Editor<T> {
                 }
             }
             ui.add_space(6.0);
-            if ui.button(format!("Remove {}", element.el.label)).clicked() {
+            if page_button(ui, &format!("Remove {}", element.el.label), false).clicked() {
                 remove_selection = true;
             }
         }

@@ -5,6 +5,7 @@
 pub mod editor;
 pub mod fonts;
 pub mod paint;
+pub mod theme;
 pub mod view;
 pub mod widgets;
 

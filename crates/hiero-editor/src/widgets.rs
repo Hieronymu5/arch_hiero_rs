@@ -3,9 +3,20 @@
 
 use egui::{Id, RichText, Ui};
 
+use crate::theme::{field_label, palette};
+
+/// The space above each field, between it and the one before.
+pub const FIELD_GAP: f32 = 10.0;
+
 /// The colour of error messages.
 pub fn error_color(ui: &Ui) -> egui::Color32 {
-    ui.visuals().error_fg_color
+    palette(ui).error
+}
+
+/// A field's label, with the space above it. Marked required when `required`.
+pub fn label(ui: &mut Ui, text: &str, required: bool) {
+    ui.add_space(FIELD_GAP);
+    field_label(ui, text, required);
 }
 
 /// A labelled text field whose text is kept in egui's memory under `id`, so typing isn't lost
@@ -22,7 +33,8 @@ pub fn text_field(
     let mut text = ui
         .data_mut(|d| d.get_temp::<String>(id))
         .unwrap_or_else(|| current.to_owned());
-    ui.label(label);
+    // A field that can't be left empty is required.
+    self::label(ui, label, validate("").is_err());
     let edit = if multiline {
         egui::TextEdit::multiline(&mut text).desired_rows(3)
     } else {
@@ -36,6 +48,12 @@ pub fn text_field(
     }
     ui.data_mut(|d| d.insert_temp(id, text.clone()));
     (response.changed() && result.is_ok() && text != current).then_some(text)
+}
+
+/// A checkbox, with the space above it that fields have.
+pub fn checkbox(ui: &mut Ui, checked: &mut bool, text: &str) -> egui::Response {
+    ui.add_space(FIELD_GAP);
+    ui.checkbox(checked, text)
 }
 
 /// Forgets what was typed in the field `id`, so it shows the stored value again.
@@ -53,7 +71,7 @@ pub fn select<T: Clone + PartialEq>(
     none: Option<&str>,
     options: &[(T, String)],
 ) -> Option<Option<T>> {
-    ui.label(label);
+    self::label(ui, label, none.is_none());
     let selected_text = match current {
         Some(value) => options
             .iter()

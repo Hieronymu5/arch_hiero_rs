@@ -11,8 +11,8 @@ pub const ZOOM_MAX: f32 = 1.00;
 /// The slider's step.
 pub const ZOOM_STEP: f32 = 0.05;
 
-/// Space kept around the paper when scrolled to an edge.
-const MARGIN: f32 = 24.0;
+/// Space kept around the paper when scrolled to an edge: none, so the paper meets the panels.
+const MARGIN: f32 = 0.0;
 
 /// How the canvas is zoomed and scrolled. `scroll` is the screen offset of the paper's
 /// top-left corner from the viewport's, like a scroll view's.

@@ -39,6 +39,7 @@ impl Shell {
     fn start(cc: &eframe::CreationContext<'_>) -> Self {
         hiero_editor::fonts::install(&cc.egui_ctx);
         egui_extras::install_image_loaders(&cc.egui_ctx);
+        hiero_editor::theme::install_text_colors(&cc.egui_ctx);
         let theme = theme_from(cc.storage.and_then(|s| s.get_string(THEME_KEY)));
         cc.egui_ctx.set_theme(theme);
         let path = std::env::var_os("ARCH_HIERO_DB")
@@ -93,12 +94,13 @@ impl eframe::App for Shell {
         dev.frame(app, &ctx);
         app.handle_events();
         app.top_bar(ui);
+        // The editor lines up its own toolbar; its panels and canvas fill the window.
         egui::CentralPanel::default_margins().show(ui, |ui| match app.page.clone() {
-            Page::List => app.list_page(ui),
-            Page::New => app.new_page(ui),
-            Page::Details(id) => app.details_page(ui, &id),
+            Page::List => pages::under_logo(ui, |ui| app.list_page(ui)),
+            Page::New => pages::under_logo(ui, |ui| app.new_page(ui)),
+            Page::Details(id) => pages::under_logo(ui, |ui| app.details_page(ui, &id)),
             Page::Editor(id) => app.editor_page(ui, &id),
-            Page::History(id) => app.history_page(ui, &id),
+            Page::History(id) => pages::under_logo(ui, |ui| app.history_page(ui, &id)),
         });
         app.dialogs(&ctx);
         app.collect_changes();

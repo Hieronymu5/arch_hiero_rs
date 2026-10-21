@@ -1,11 +1,13 @@
-//! The app's pages: the list of diagrams, the Add diagram and Edit details forms, the editor
+//! The app's pages: the list of diagrams, the Add diagram and Edit Details forms, the editor
 //! with its toolbar, and a diagram's history; and the dialogs over them.
 
 use egui::{Align, Color32, Key, Layout, Modifiers, RichText, Ui};
 use hiero_core::history::validate_version_description;
 use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
-use hiero_core::text::Weight;
 use hiero_editor::fonts;
+use hiero_editor::theme::{
+    CONTENT_INSET, field_label, form_style, page_button, palette, row_button,
+};
 use hiero_store::Status;
 
 use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
@@ -15,103 +17,7 @@ use crate::format::date;
 type Action = Box<dyn FnOnce(&mut App)>;
 
 fn error_text(ui: &Ui, text: &str) -> RichText {
-    RichText::new(text).color(ui.visuals().error_fg_color)
-}
-
-/// The prototype's colours for the current theme.
-struct Palette {
-    accent: Color32,
-    on_accent: Color32,
-    text: Color32,
-    text_muted: Color32,
-    input_border: Color32,
-}
-
-fn palette(ui: &Ui) -> Palette {
-    if ui.visuals().dark_mode {
-        Palette {
-            accent: Color32::from_rgb(0x6c, 0xb2, 0xff),
-            on_accent: Color32::from_rgb(0x0f, 0x12, 0x15),
-            text: Color32::from_rgb(0xe6, 0xe9, 0xed),
-            text_muted: Color32::from_rgb(0xa3, 0xac, 0xb6),
-            input_border: Color32::from_rgb(0x8b, 0x94, 0x9e),
-        }
-    } else {
-        Palette {
-            accent: Color32::from_rgb(0x0b, 0x5c, 0xad),
-            on_accent: Color32::WHITE,
-            text: Color32::from_rgb(0x1b, 0x1f, 0x24),
-            text_muted: Color32::from_rgb(0x57, 0x60, 0x6a),
-            input_border: Color32::from_rgb(0x6e, 0x77, 0x81),
-        }
-    }
-}
-
-/// A page action styled like the prototype's `.button`: an accent border, and filled with the
-/// accent when it's the main action. It looks the same in every state, so hovering doesn't shift
-/// its text.
-fn page_button(ui: &mut Ui, text: &str, main: bool) -> egui::Response {
-    accent_button(ui, text, main, egui::vec2(12.0, 5.0), 14.0)
-}
-
-/// A button in a row of the list, styled like the prototype's `.button-secondary` but at the
-/// padding of egui's buttons and smaller text.
-fn row_button(ui: &mut Ui, text: &str) -> egui::Response {
-    let padding = ui.spacing().button_padding;
-    accent_button(ui, text, false, padding, 12.0)
-}
-
-/// An accent-bordered button with the given padding and font size.
-fn accent_button(
-    ui: &mut Ui,
-    text: &str,
-    main: bool,
-    padding: egui::Vec2,
-    font_size: f32,
-) -> egui::Response {
-    let Palette {
-        accent,
-        on_accent,
-        text: text_color,
-        ..
-    } = palette(ui);
-    // The border turns white on hover, or the text colour in the light theme, where white
-    // wouldn't show.
-    let hover_border = if ui.visuals().dark_mode {
-        Color32::WHITE
-    } else {
-        text_color
-    };
-    let (fill, color) = if main {
-        (accent, on_accent)
-    } else {
-        (Color32::TRANSPARENT, accent)
-    };
-    ui.scope(|ui| {
-        let style = ui.style_mut();
-        style.spacing.button_padding = padding;
-        let widgets = &mut style.visuals.widgets;
-        // An outlined button's text follows its border; a filled one's stays readable on the fill.
-        let hover_text = if main { color } else { hover_border };
-        for (state, border, text) in [
-            (&mut widgets.inactive, accent, color),
-            (&mut widgets.hovered, hover_border, hover_text),
-            (&mut widgets.active, hover_border, hover_text),
-        ] {
-            state.weak_bg_fill = fill;
-            state.bg_stroke = egui::Stroke::new(1.0, border);
-            state.fg_stroke.color = text;
-            state.corner_radius = egui::CornerRadius::same(6);
-            state.expansion = 0.0;
-        }
-        let label = RichText::new(text).font(fonts::font_id(font_size, Weight::SemiBold));
-        let response = ui.add(egui::Button::new(label));
-        if response.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        response
-    })
-    .inner
+    RichText::new(text).color(palette(ui).error)
 }
 
 /// The prototype's theme picker: a monitor, a sun, and a moon in a bordered group, with the
@@ -236,7 +142,34 @@ fn theme_icon(
     }
 }
 
-/// A Saved/Unsaved badge.
+/// The margin egui's central panel keeps around a page.
+const PAGE_MARGIN: f32 = 8.0;
+
+/// Shows `add` indented to line up with the logo's lettering, so nothing on a page starts left
+/// of it.
+pub fn under_logo<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    egui::Frame::new()
+        .inner_margin(egui::Margin {
+            left: CONTENT_INSET,
+            ..Default::default()
+        })
+        .show(ui, add)
+        .inner
+}
+
+/// A table's header row, in bold. The caller ends the row.
+fn column_headers(ui: &mut Ui, headers: &[&str]) {
+    let size = egui::TextStyle::Body.resolve(ui.style()).size;
+    for header in headers {
+        ui.label(
+            RichText::new(*header)
+                .font(fonts::bold(size))
+                .color(ui.visuals().strong_text_color()),
+        );
+    }
+}
+
+/// A version tag: Release or Draft, with the latest version.
 fn status_badge(ui: &mut Ui, status: Status) {
     let (fill, text) = if status.saved {
         (
@@ -260,7 +193,8 @@ fn status_badge(ui: &mut Ui, status: Status) {
 
 impl App {
     /// The page's title for the top bar, with a description under it: the diagram's name and
-    /// description in the editor, and Diagrams on the list. Other pages have their own heading.
+    /// description in the editor, the diagram's history, and Diagrams on the list. Other pages
+    /// have their own heading.
     fn page_heading(&self) -> Option<(String, Option<String>)> {
         match &self.page {
             Page::List => Some(("Diagrams".to_owned(), None)),
@@ -276,8 +210,19 @@ impl App {
                         },
                     ),
             ),
+            Page::History(id) => Some((format!("History of {}", self.diagram_name(id)), None)),
             _ => None,
         }
+    }
+
+    /// A diagram's name, from the list or the open diagram.
+    fn diagram_name(&self, id: &DiagramId) -> String {
+        self.list
+            .iter()
+            .find(|s| s.meta.id == *id)
+            .map(|s| s.meta.name.clone())
+            .or_else(|| self.open.as_ref().map(|o| o.record.meta.name.clone()))
+            .unwrap_or_default()
     }
 
     pub fn top_bar(&mut self, ui: &mut Ui) {
@@ -307,13 +252,10 @@ impl App {
                     self.refresh_list();
                 }
                 if let Some((title, description)) = self.page_heading() {
-                    // In the editor, the diagram's Saved/Unsaved badge goes next to its name.
+                    // In the editor and the history, the diagram's version tag goes
+                    // next to its name.
                     let status = match &self.page {
-                        Page::Editor(id) => self
-                            .open
-                            .as_ref()
-                            .filter(|o| o.record.meta.id == *id)
-                            .map(|o| o.status),
+                        Page::Editor(id) | Page::History(id) => self.status_of(id),
                         _ => None,
                     };
                     ui.add_space(8.0);
@@ -322,7 +264,10 @@ impl App {
                     let room = (ui.available_width() - 260.0).max(120.0);
                     ui.allocate_ui(egui::vec2(room, 45.0), |ui| {
                         ui.vertical(|ui| {
-                            ui.add_space(4.0);
+                            // A title alone is centred on the logo; one with a description sits
+                            // above it.
+                            let description = description.filter(|d| !d.is_empty());
+                            ui.add_space(if description.is_some() { 4.0 } else { 11.0 });
                             let title = RichText::new(title)
                                 .font(fonts::bold(18.0))
                                 .color(ui.visuals().strong_text_color());
@@ -337,7 +282,7 @@ impl App {
                                     status_badge(ui, status);
                                 }
                             });
-                            if let Some(description) = description.filter(|d| !d.is_empty()) {
+                            if let Some(description) = description {
                                 ui.add(
                                     egui::Label::new(RichText::new(&description).weak()).truncate(),
                                 )
@@ -408,18 +353,15 @@ impl App {
                 .striped(true)
                 .spacing([24.0, 10.0])
                 .show(ui, |ui| {
+                    column_headers(ui, &["Name", "Type", "Last updated", "Status", ""]);
                     let size = egui::TextStyle::Body.resolve(ui.style()).size;
-                    for header in ["Name", "Type", "Last updated", "Status", ""] {
-                        ui.label(
-                            RichText::new(header)
-                                .font(fonts::bold(size))
-                                .color(ui.visuals().strong_text_color()),
-                        );
-                    }
                     ui.end_row();
                     for row in rows {
                         let id = row.meta.id.clone();
-                        if ui.link(RichText::new(&row.meta.name).strong()).clicked() {
+                        let name = RichText::new(&row.meta.name)
+                            .font(fonts::bold(size))
+                            .color(palette(ui).accent);
+                        if ui.link(name).clicked() {
                             self.open_diagram(&id);
                         }
                         ui.label(row.meta.diagram_type.label());
@@ -448,17 +390,34 @@ impl App {
     // Add diagram and Edit details
 
     fn details_fields(&mut self, ui: &mut Ui, adding: bool) -> bool {
+        const FIELD_GAP: f32 = 14.0;
         let tried = self.form.tried;
-        ui.label(RichText::new("Fields marked * are required.").weak());
-        ui.add_space(4.0);
-        ui.label("Name *");
+        form_style(ui);
+        let mut hint = egui::text::LayoutJob::default();
+        let weak = egui::TextFormat::simple(
+            egui::TextStyle::Body.resolve(ui.style()),
+            ui.visuals().weak_text_color(),
+        );
+        hint.append("Fields marked ", 0.0, weak.clone());
+        hint.append(
+            "*",
+            0.0,
+            egui::TextFormat {
+                color: palette(ui).error,
+                ..weak.clone()
+            },
+        );
+        hint.append(" are required.", 0.0, weak);
+        ui.label(hint);
+        ui.add_space(FIELD_GAP);
+        field_label(ui, "Name", true);
         ui.add(egui::TextEdit::singleline(&mut self.form.name).desired_width(420.0));
         let name_ok = validate_name(&self.form.name);
         if let (true, Err(message)) = (tried, name_ok) {
             ui.label(error_text(ui, message));
         }
-        ui.add_space(6.0);
-        ui.label("Type *");
+        ui.add_space(FIELD_GAP);
+        field_label(ui, "Type", adding);
         if adding {
             let selected = self
                 .form
@@ -479,14 +438,9 @@ impl App {
             ui.label(
                 RichText::new(self.form.diagram_type.map_or("", DiagramTypeId::label)).strong(),
             );
-            ui.label(
-                RichText::new("A diagram's type can't be changed after it's created.")
-                    .weak()
-                    .small(),
-            );
         }
-        ui.add_space(6.0);
-        ui.label("Description");
+        ui.add_space(FIELD_GAP);
+        field_label(ui, "Description", false);
         ui.add(
             egui::TextEdit::multiline(&mut self.form.description)
                 .desired_width(420.0)
@@ -526,14 +480,14 @@ impl App {
             return;
         };
         let meta = open.record.meta.clone();
-        ui.heading(RichText::new("Edit diagram details").font(fonts::bold(26.0)));
+        ui.heading(RichText::new("Edit Details").font(fonts::bold(26.0)));
         ui.add_space(8.0);
         egui::ScrollArea::vertical().show(ui, |ui| {
             let valid = self.details_fields(ui, false);
             let ops = hiero_registry::ops(meta.diagram_type);
             if !ops.color_fields().is_empty() {
-                ui.add_space(10.0);
-                ui.label(RichText::new("Colors").strong());
+                ui.add_space(14.0);
+                field_label(ui, "Colors", false);
                 let defaults = ops.default_colors();
                 for (key, label) in ops.color_fields() {
                     let current = self
@@ -581,10 +535,12 @@ impl App {
 
     pub fn editor_page(&mut self, ui: &mut Ui, id: &DiagramId) {
         if self.open.as_ref().is_none_or(|o| o.record.meta.id != *id) {
-            ui.label("This diagram doesn't exist. It may have been deleted.");
-            if ui.link("Back to diagrams").clicked() {
-                self.page = Page::List;
-            }
+            under_logo(ui, |ui| {
+                ui.label("This diagram doesn't exist. It may have been deleted.");
+                if ui.link("Back to diagrams").clicked() {
+                    self.page = Page::List;
+                }
+            });
             return;
         }
         let (can_undo, can_redo) = (self.can_undo(), self.can_redo());
@@ -592,66 +548,78 @@ impl App {
         if let Some(open) = &mut self.open {
             let meta = open.record.meta.clone();
             // The top bar shows the name, description, and status.
-            ui.horizontal(|ui| {
-                if page_button(ui, "Back", true).clicked() {
-                    action = Some("back");
-                }
-                let save =
-                    ui.add_enabled_ui(!open.status.saved, |ui| page_button(ui, "Save", false));
-                if save
-                    .inner
-                    .on_hover_text("Record a version (Cmd+S)")
-                    .clicked()
-                {
-                    action = Some("save");
-                }
-                let undo = ui.add_enabled_ui(can_undo, |ui| page_button(ui, "Undo", false));
-                if undo.inner.on_hover_text("Cmd+Z").clicked() {
-                    action = Some("undo");
-                }
-                let redo = ui.add_enabled_ui(can_redo, |ui| page_button(ui, "Redo", false));
-                if redo.inner.on_hover_text("Shift+Cmd+Z").clicked() {
-                    action = Some("redo");
-                }
-                if page_button(ui, "History", false).clicked() {
-                    action = Some("history");
-                }
-                // Filled while the help shows.
-                let help = open.editor.show_help();
-                if page_button(ui, "Help", *help).clicked() {
-                    *help = !*help;
-                }
-                let has_content = open.editor.has_content();
-                let svg = ui.add_enabled_ui(has_content, |ui| page_button(ui, "Export SVG", false));
-                if svg.inner.clicked() {
-                    action = Some("svg");
-                }
-                let drawio =
-                    ui.add_enabled_ui(has_content, |ui| page_button(ui, "Export draw.io", false));
-                if drawio.inner.clicked() {
-                    action = Some("drawio");
-                }
-                if page_button(ui, "Edit details", false).clicked() {
-                    action = Some("details");
-                }
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(format!("{} diagram", meta.diagram_type.label()))
-                            .font(fonts::bold(16.0))
-                            .color(ui.visuals().strong_text_color()),
-                    );
-                });
-            });
-            if let Some(message) = &open.save_failed {
-                ui.label(error_text(ui, &format!("Your last change couldn't be saved. Make another change to try again. ({message})")));
-            }
-            if let Some(notice) = &open.notice {
+            under_logo(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(notice).color(Color32::from_rgb(180, 110, 0)));
+                    if page_button(ui, "Back", true).clicked() {
+                        action = Some("back");
+                    }
+                    let save =
+                        ui.add_enabled_ui(!open.status.saved, |ui| page_button(ui, "Save", false));
+                    if save
+                        .inner
+                        .on_hover_text("Record a version (Cmd+S)")
+                        .clicked()
+                    {
+                        action = Some("save");
+                    }
+                    let undo = ui.add_enabled_ui(can_undo, |ui| page_button(ui, "Undo", false));
+                    if undo.inner.on_hover_text("Cmd+Z").clicked() {
+                        action = Some("undo");
+                    }
+                    let redo = ui.add_enabled_ui(can_redo, |ui| page_button(ui, "Redo", false));
+                    if redo.inner.on_hover_text("Shift+Cmd+Z").clicked() {
+                        action = Some("redo");
+                    }
+                    if page_button(ui, "History", false).clicked() {
+                        action = Some("history");
+                    }
+                    // Filled while the help shows.
+                    let help = open.editor.show_help();
+                    if page_button(ui, "Help", *help).clicked() {
+                        *help = !*help;
+                    }
+                    let has_content = open.editor.has_content();
+                    let svg =
+                        ui.add_enabled_ui(has_content, |ui| page_button(ui, "Export SVG", false));
+                    if svg.inner.clicked() {
+                        action = Some("svg");
+                    }
+                    let drawio = ui
+                        .add_enabled_ui(has_content, |ui| page_button(ui, "Export draw.io", false));
+                    if drawio.inner.clicked() {
+                        action = Some("drawio");
+                    }
+                    if page_button(ui, "Edit Details", false).clicked() {
+                        action = Some("details");
+                    }
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.label(
+                            RichText::new(format!("{} diagram", meta.diagram_type.label()))
+                                .font(fonts::bold(16.0))
+                                .color(ui.visuals().strong_text_color()),
+                        );
+                    });
                 });
-            }
-            ui.separator();
-            open.editor.ui(ui);
+                if let Some(message) = &open.save_failed {
+                    ui.label(error_text(ui, &format!("Your last change couldn't be saved. Make another change to try again. ({message})")));
+                }
+                if let Some(notice) = &open.notice {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(notice).color(Color32::from_rgb(180, 110, 0)));
+                    });
+                }
+            });
+            let line = ui.separator();
+            // The palette, canvas, and properties fill the window to its right and bottom edges
+            // and meet the toolbar's line, past the page's margin, so no strip of the page shows
+            // around the canvas.
+            let mut rect = ui.available_rect_before_wrap();
+            rect.min.y = line.rect.center().y + 0.5;
+            rect.max += egui::vec2(PAGE_MARGIN, PAGE_MARGIN);
+            ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                ui.set_clip_rect(rect);
+                open.editor.ui(ui);
+            });
         }
         match action {
             Some("back") => self.go_back(),
@@ -700,27 +668,13 @@ impl App {
     // History
 
     pub fn history_page(&mut self, ui: &mut Ui, id: &DiagramId) {
-        let name = self
-            .list
-            .iter()
-            .find(|s| s.meta.id == *id)
-            .map(|s| s.meta.name.clone())
-            .or_else(|| self.open.as_ref().map(|o| o.record.meta.name.clone()))
-            .unwrap_or_default();
-        ui.horizontal(|ui| {
-            ui.heading(RichText::new(format!("History of {name}")).font(fonts::bold(24.0)));
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.button("Back").clicked() {
-                    self.go_back();
-                }
-            });
-        });
-        ui.add_space(6.0);
+        // The top bar shows the title and status.
+        if page_button(ui, "Back", true).clicked() {
+            self.go_back();
+        }
+        ui.add_space(8.0);
         self.outcome_ui(ui);
         let status = self.status_of(id);
-        if let Some(status) = status {
-            status_badge(ui, status);
-        }
         let versions = match self.store.list_versions(id) {
             Ok(v) => v,
             Err(e) => {
@@ -740,9 +694,7 @@ impl App {
                 .striped(true)
                 .spacing([24.0, 10.0])
                 .show(ui, |ui| {
-                    for header in ["Version", "Saved", "Description", ""] {
-                        ui.label(RichText::new(header).strong());
-                    }
+                    column_headers(ui, &["Version", "Saved", "Description", ""]);
                     ui.end_row();
                     for v in versions {
                         ui.horizontal(|ui| {
@@ -754,7 +706,7 @@ impl App {
                         ui.label(date(&v.saved_at));
                         ui.label(v.description.clone().unwrap_or_else(|| "–".into()));
                         ui.horizontal(|ui| {
-                            if !v.matches_current && ui.button("Revert").clicked() {
+                            if !v.matches_current && row_button(ui, "Revert").clicked() {
                                 let next = self.next_version(id);
                                 self.dialog = Some(Dialog::Revert {
                                     id: id.clone(),
@@ -765,7 +717,8 @@ impl App {
                                     description: format!("Reverted to v{}", v.version),
                                 });
                             }
-                            ui.menu_button("Export", |ui| {
+                            let export = row_button(ui, "Export");
+                            egui::Popup::menu(&export).show(|ui| {
                                 for format in
                                     [ExportFormat::Zip, ExportFormat::Svg, ExportFormat::Drawio]
                                 {
@@ -775,7 +728,7 @@ impl App {
                                     }
                                 }
                             });
-                            if ui.button("Delete").clicked() {
+                            if row_button(ui, "Delete").clicked() {
                                 self.dialog = Some(Dialog::DeleteVersion {
                                     id: id.clone(),
                                     version: v.version,
