@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- The macOS icon grid: an 824 px rounded square centred on a 1024 px canvas. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#ffffff" stroke="#d0d0d0" stroke-width="4"/>
+  <!-- The logo's two words, as in logo-light.svg: ARCH at 15px and Hiero at 17px bold, scaled. -->
+  <g font-family="Helvetica, Arial, sans-serif" fill="#000000" text-anchor="middle">
+    <text x="512" y="470" font-size="210">ARCH</text>
+    <text x="512" y="700" font-size="238" font-weight="bold">Hiero</text>
+  </g>
+</svg>

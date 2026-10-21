@@ -112,9 +112,14 @@ impl eframe::App for Shell {
 
 fn main() -> eframe::Result {
     env_logger::init();
+    // The window's and Dock's icon: the logo on a rounded square. The macOS bundle uses the
+    // same image, as AppIcon.icns.
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../assets/app-icon.png"))
+        .expect("the bundled app icon is a valid PNG");
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Arch Hiero")
+            .with_icon(icon)
             .with_inner_size([1400.0, 900.0])
             .with_min_inner_size([800.0, 520.0]),
         ..Default::default()
