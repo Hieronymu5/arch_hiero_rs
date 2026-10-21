@@ -287,10 +287,10 @@ pub static PALETTE: [KindInfo<PhysicalKind>; 9] = [
     figure_kind(K::User, "User"),
     figure_kind(K::Server, "Server"),
     figure_kind(K::Database, "Database"),
+    figure_kind(K::Storage, "Storage"),
     figure_kind(K::Firewall, "Firewall"),
     figure_kind(K::LoadBalancer, "Load Balancer"),
     figure_kind(K::Gateway, "Gateway"),
-    figure_kind(K::Storage, "Storage"),
     KindInfo {
         can_contain: &[K::Zone],
         padding: Some(0.0),
