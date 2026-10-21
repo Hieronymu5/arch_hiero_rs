@@ -35,12 +35,7 @@ output. Don't commit with a known failure, and never use `--no-verify`.
 Skip the checks only when the commit changes no Rust code or Cargo files (such as docs alone),
 and say you skipped them.
 
-## 3. Branch
-
-If you're on `main` and the user hasn't said to commit there, create a branch first, named after
-the change in kebab-case, such as `feat/edge-selection` or `fix/zoom-clamp`.
-
-## 4. Write the message
+## 3. Write the message
 
 ```
 <type>(<scope>): <subject>
@@ -99,7 +94,7 @@ multi-part commit.
 - `Refs: #123` or `Fixes: #123` when there's an issue.
 - End with any attribution trailer the session's instructions ask for.
 
-## 5. Commit
+## 4. Commit
 
 Pass the message through a heredoc, so the formatting survives:
 
