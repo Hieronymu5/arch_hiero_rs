@@ -109,6 +109,13 @@ pub fn page_button(ui: &mut Ui, text: &str, main: bool) -> egui::Response {
     accent_button(ui, text, main, egui::vec2(12.0, 5.0), 14.0)
 }
 
+/// A destructive page action, such as Delete: like an outlined [`page_button`] but in the error
+/// colour.
+pub fn danger_button(ui: &mut Ui, text: &str) -> egui::Response {
+    let color = palette(ui).error;
+    outlined_button(ui, text, color, false, egui::vec2(12.0, 5.0), 14.0)
+}
+
 /// A button in a row of the list, styled like the prototype's `.button-secondary` but at the
 /// padding of egui's buttons and smaller text.
 pub fn row_button(ui: &mut Ui, text: &str) -> egui::Response {
@@ -124,8 +131,20 @@ pub fn accent_button(
     padding: egui::Vec2,
     font_size: f32,
 ) -> egui::Response {
+    let accent = palette(ui).accent;
+    outlined_button(ui, text, accent, main, padding, font_size)
+}
+
+/// A button bordered in `accent`, and filled with it when it's the main action.
+fn outlined_button(
+    ui: &mut Ui,
+    text: &str,
+    accent: Color32,
+    main: bool,
+    padding: egui::Vec2,
+    font_size: f32,
+) -> egui::Response {
     let Palette {
-        accent,
         on_accent,
         text: text_color,
         ..

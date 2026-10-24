@@ -6,7 +6,7 @@ use hiero_core::history::validate_version_description;
 use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
 use hiero_editor::fonts;
 use hiero_editor::theme::{
-    CONTENT_INSET, field_label, form_style, page_button, palette, row_button,
+    CONTENT_INSET, danger_button, field_label, form_style, page_button, palette, row_button,
 };
 use hiero_store::Status;
 
@@ -810,12 +810,10 @@ impl App {
                     ui.label(format!("“{name}”, everything on it, and its history will be deleted. This can’t be undone."));
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        let cancel = ui.button("Cancel");
-                        cancel.request_focus();
-                        if cancel.clicked() {
+                        if page_button(ui, "Cancel", false).clicked() {
                             keep = false;
                         }
-                        if ui.button(RichText::new("Delete").color(ui.visuals().error_fg_color)).clicked() {
+                        if danger_button(ui, "Delete").clicked() {
                             let (id, name) = (id.clone(), name.clone());
                             next = Some(Box::new(move |app| app.delete(&id, &name)));
                             keep = false;
@@ -840,12 +838,12 @@ impl App {
                     let enter = ui.input(|i| i.key_pressed(Key::Enter));
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        if (ui.button("Save version").clicked() || enter) && valid.is_ok() {
+                        if (page_button(ui, "Save version", true).clicked() || enter) && valid.is_ok() {
                             let text = description.clone();
                             next = Some(Box::new(move |app| app.save_version(&text)));
                             keep = false;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if page_button(ui, "Cancel", false).clicked() {
                             keep = false;
                         }
                     });
@@ -869,11 +867,10 @@ impl App {
                     ui.add(egui::TextEdit::singleline(description).desired_width(f32::INFINITY));
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        let cancel = ui.button("Cancel");
-                        if cancel.clicked() {
+                        if page_button(ui, "Cancel", false).clicked() {
                             keep = false;
                         }
-                        if *unsaved && ui.button(format!("Save as v{number} first")).clicked() {
+                        if *unsaved && page_button(ui, &format!("Save as v{number} first"), false).clicked() {
                             let (id, version, save, text) =
                                 (id.clone(), *version, save_description.clone(), description.clone());
                             next = Some(Box::new(move |app| {
@@ -882,7 +879,7 @@ impl App {
                             }));
                             keep = false;
                         }
-                        if ui.button("Revert").clicked() {
+                        if page_button(ui, "Revert", true).clicked() {
                             let (id, version, text) = (id.clone(), *version, description.clone());
                             next = Some(Box::new(move |app| app.revert(&id, version, &text)));
                             keep = false;
@@ -894,12 +891,10 @@ impl App {
                     ui.label("This can’t be undone.");
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        let cancel = ui.button("Cancel");
-                        cancel.request_focus();
-                        if cancel.clicked() {
+                        if page_button(ui, "Cancel", false).clicked() {
                             keep = false;
                         }
-                        if ui.button(RichText::new("Delete").color(ui.visuals().error_fg_color)).clicked() {
+                        if danger_button(ui, "Delete").clicked() {
                             let (id, version) = (id.clone(), *version);
                             next = Some(Box::new(move |app| app.delete_version(&id, version)));
                             keep = false;
