@@ -226,6 +226,15 @@ const HANDLE_FILL: Color32 = Color32::WHITE;
 const HANDLE: f32 = 12.0;
 const CONNECT_RADIUS: f32 = 7.0;
 
+/// Whether the canvas shows its grid: one setting for every diagram, kept between runs.
+fn grid_id() -> Id {
+    Id::unique("hiero-editor.show-grid")
+}
+
+fn show_grid(ctx: &egui::Context) -> bool {
+    ctx.data_mut(|d| d.get_persisted(grid_id())).unwrap_or(true)
+}
+
 /// The diagram editor for diagram type `T`.
 pub struct Editor<T: DiagramView> {
     pub eng: Engine<T>,
@@ -613,7 +622,9 @@ impl<T: DiagramView> Editor<T> {
         let xf = self.view.transform(rect);
         let paper = xf.rect(Rect::new(0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT));
         painter.rect_filled(paper, 0.0, Color32::WHITE);
-        self.paint_grid(&painter, xf, rect);
+        if show_grid(ui.ctx()) {
+            self.paint_grid(&painter, xf, rect);
+        }
 
         // Input that changes the view.
         let (zoom_delta, scroll_delta, hover) = ui.input(|i| {
@@ -837,8 +848,8 @@ impl<T: DiagramView> Editor<T> {
 
     fn zoom_control(&mut self, ui: &mut Ui, rect: egui::Rect) {
         let area = egui::Rect::from_min_size(
-            rect.right_bottom() - Vec2::new(250.0, 40.0),
-            Vec2::new(240.0, 32.0),
+            rect.right_bottom() - Vec2::new(330.0, 40.0),
+            Vec2::new(320.0, 32.0),
         );
         ui.scope_builder(egui::UiBuilder::new().max_rect(area), |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
@@ -851,6 +862,11 @@ impl<T: DiagramView> Editor<T> {
                             .suffix("%");
                     if ui.add(slider).changed() {
                         self.view.zoom_around(percent / 100.0, rect.center(), rect);
+                    }
+                    ui.separator();
+                    let mut grid = show_grid(ui.ctx());
+                    if ui.checkbox(&mut grid, "Grid").changed() {
+                        ui.data_mut(|d| d.insert_persisted(grid_id(), grid));
                     }
                 });
             });
