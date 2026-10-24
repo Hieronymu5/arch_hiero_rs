@@ -1,0 +1,32 @@
+{
+  "create_diagram": {
+    "type": "conceptual",
+    "name": "Order Entry",
+    "description": "A user places an order through the web; Order Entry checks stock with Inventory, and a job copies orders into the Prometheus data lake."
+  },
+  "edit_diagram": [
+    { "op": "add_element", "ref": "orderEntry", "kind": "application", "label": "Order Entry",
+      "description": "Takes orders from users", "x": 40, "y": 360 },
+    { "op": "resize_element", "id": "orderEntry", "width": 420, "height": 180 },
+
+    { "op": "add_element", "ref": "user", "kind": "actor", "label": "User", "x": 40, "y": 40 },
+    { "op": "add_element", "ref": "prometheus", "kind": "application", "label": "Prometheus",
+      "description": "Data lake", "x": 260, "y": 40 },
+    { "op": "add_element", "ref": "job", "kind": "job", "label": "Data Lake Extract", "x": 280, "y": 220 },
+    { "op": "add_element", "ref": "ordersDb", "kind": "component", "label": "Orders DB",
+      "parent_id": "orderEntry", "x": 300, "y": 440, "props": { "componentType": "database" } },
+    { "op": "add_element", "ref": "export", "kind": "file", "label": "Orders CSV",
+      "parent_id": "orderEntry", "x": 160, "y": 440 },
+    { "op": "add_element", "ref": "inventory", "kind": "application", "label": "Inventory",
+      "description": "Tracks stock levels", "x": 140, "y": 620 },
+
+    { "op": "add_connection", "source_id": "user", "target_id": "orderEntry",
+      "props": { "label": "Place order", "mode": "manual", "connector": "Web", "manualOffset": 60 } },
+    { "op": "add_connection", "source_id": "orderEntry", "target_id": "inventory",
+      "props": { "label": "Check stock", "connector": "REST API", "manualOffset": 200 } },
+    { "op": "add_connection", "source_id": "job", "target_id": "ordersDb",
+      "props": { "label": "Pull orders", "bidirectional": true, "connector": "JDBC" } },
+    { "op": "add_connection", "source_id": "job", "target_id": "prometheus",
+      "props": { "label": "Load orders", "connector": "Ingest API" } }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "create_diagram": {
+    "type": "deployed-component",
+    "name": "Web Application Deployment",
+    "description": "Where each component of the web application is deployed, by network zone."
+  },
+  "edit_diagram": [
+    {"op": "add_element", "ref": "endUser", "kind": "layer", "label": "End User Zone", "props": {"characteristics": ["Untrusted", "Internet"]}},
+    {"op": "add_element", "ref": "perimeter", "kind": "layer", "label": "Perimeter Zone", "props": {"characteristics": ["Internet facing", "Behind firewall"]}},
+    {"op": "add_element", "ref": "business", "kind": "layer", "label": "Business Zone", "props": {"characteristics": ["Internal"]}},
+    {"op": "add_element", "ref": "restricted", "kind": "layer", "label": "Restricted Zone", "props": {"characteristics": ["Internal", "Sensitive data"]}},
+    {"op": "add_element", "kind": "component", "parent_id": "endUser", "label": "Angular SPA", "description": "Runs in the user’s browser", "props": {"protocols": ["HTTPS"], "techStack": ["angular", "typescript", "chrome"]}},
+    {"op": "add_element", "kind": "component", "parent_id": "perimeter", "label": "Angular Web Front End", "description": "Angular bundle\nOn an Apache HTTP Server\nReached by DNS name", "props": {"protocols": ["HTTPS", "DNS"], "techStack": ["angular", "apache-http", "linux"]}},
+    {"op": "add_element", "kind": "component", "parent_id": "business", "label": "Spring Boot Service", "description": "Business logic\nREST API", "props": {"protocols": ["REST", "JWT"], "techStack": ["springboot", "java", "linux"]}},
+    {"op": "add_element", "kind": "component", "parent_id": "business", "label": "Okta IDP", "description": "Third-party Okta service\nSign-in and tokens", "props": {"dependency": "external", "protocols": ["OIDC", "SAML"]}},
+    {"op": "add_element", "kind": "component", "parent_id": "restricted", "label": "MySQL Database", "description": "Application data", "props": {"protocols": ["JDBC"], "techStack": ["mysql", "linux"]}}
+  ]
+}

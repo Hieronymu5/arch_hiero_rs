@@ -1,0 +1,44 @@
+{
+  "create_diagram": {
+    "type": "physical",
+    "name": "3-Tier Web Application",
+    "description": "Apache HTTP reverse proxies, a Spring Boot back end, and MySQL, with failover across the H-EAST and H-WEST data centers."
+  },
+  "edit_diagram": [
+    [
+      {"op": "update_element", "id": "{Intranet}", "label": "H-EAST"},
+      {"op": "resize_element", "id": "{Perimeter}", "width": 600, "height": 320},
+      {"op": "resize_element", "id": "{Business}", "width": 600, "height": 320},
+      {"op": "resize_element", "id": "{Restricted}", "width": 600, "height": 320},
+      {"op": "add_element", "kind": "network", "label": "H-WEST", "x": 760, "y": 280}
+    ],
+    [
+      {"op": "add_element", "ref": "customer", "kind": "user", "label": "Customer", "parent_id": "{End User}", "x": 640, "y": 80},
+      {"op": "add_element", "ref": "eastWebLb", "kind": "load-balancer", "label": "Web Load Balancer", "parent_id": "{H-EAST/Perimeter}", "x": 280, "y": 340},
+      {"op": "add_element", "ref": "eastProxy", "kind": "server", "label": "HTTPD Proxy", "parent_id": "{H-EAST/Perimeter}", "x": 280, "y": 500, "props": {"serverType": "virtual-machine", "instanceCount": 2}},
+      {"op": "add_element", "ref": "eastAppLb", "kind": "load-balancer", "label": "App Load Balancer", "parent_id": "{H-EAST/Business}", "x": 280, "y": 660},
+      {"op": "add_element", "ref": "eastApp", "kind": "server", "label": "Spring Boot", "parent_id": "{H-EAST/Business}", "x": 280, "y": 820, "props": {"serverType": "virtual-machine", "instanceCount": 4}},
+      {"op": "add_element", "ref": "eastDb", "kind": "database", "label": "MySQL Primary", "parent_id": "{H-EAST/Restricted}", "x": 280, "y": 1000, "props": {"databaseType": "mysql"}},
+      {"op": "add_element", "ref": "eastReplica", "kind": "database", "label": "MySQL Replica", "parent_id": "{H-EAST/Restricted}", "x": 280, "y": 1140, "props": {"databaseType": "mysql"}},
+      {"op": "add_element", "ref": "westWebLb", "kind": "load-balancer", "label": "Web Load Balancer", "parent_id": "{H-WEST/Perimeter}", "x": 1000, "y": 340},
+      {"op": "add_element", "ref": "westProxy", "kind": "server", "label": "HTTPD Proxy", "parent_id": "{H-WEST/Perimeter}", "x": 1000, "y": 500, "props": {"serverType": "virtual-machine", "instanceCount": 2}},
+      {"op": "add_element", "ref": "westAppLb", "kind": "load-balancer", "label": "App Load Balancer", "parent_id": "{H-WEST/Business}", "x": 1000, "y": 660},
+      {"op": "add_element", "ref": "westApp", "kind": "server", "label": "Spring Boot", "parent_id": "{H-WEST/Business}", "x": 1000, "y": 820, "props": {"serverType": "virtual-machine", "instanceCount": 4}},
+      {"op": "add_element", "ref": "westDb", "kind": "database", "label": "MySQL Standby", "parent_id": "{H-WEST/Restricted}", "x": 1000, "y": 1000, "props": {"databaseType": "mysql"}},
+      {"op": "add_element", "ref": "westReplica", "kind": "database", "label": "MySQL Replica", "parent_id": "{H-WEST/Restricted}", "x": 1000, "y": 1140, "props": {"databaseType": "mysql"}},
+      {"op": "add_connection", "source_id": "customer", "target_id": "eastWebLb", "props": {"protocol": "HTTPS", "port": "443"}},
+      {"op": "add_connection", "source_id": "eastWebLb", "target_id": "eastProxy", "props": {"protocol": "HTTPS", "port": "443"}},
+      {"op": "add_connection", "source_id": "eastProxy", "target_id": "eastAppLb", "props": {"protocol": "HTTP", "port": "8080"}},
+      {"op": "add_connection", "source_id": "eastAppLb", "target_id": "eastApp", "props": {"protocol": "HTTP", "port": "8080"}},
+      {"op": "add_connection", "source_id": "eastApp", "target_id": "eastDb", "props": {"protocol": "JDBC", "port": "3306"}},
+      {"op": "add_connection", "source_id": "eastDb", "target_id": "eastReplica", "props": {"protocol": "Replication", "port": "3306"}},
+      {"op": "add_connection", "source_id": "customer", "target_id": "westWebLb", "props": {"protocol": "HTTPS", "port": "443"}},
+      {"op": "add_connection", "source_id": "westWebLb", "target_id": "westProxy", "props": {"protocol": "HTTPS", "port": "443"}},
+      {"op": "add_connection", "source_id": "westProxy", "target_id": "westAppLb", "props": {"protocol": "HTTP", "port": "8080"}},
+      {"op": "add_connection", "source_id": "westAppLb", "target_id": "westApp", "props": {"protocol": "HTTP", "port": "8080"}},
+      {"op": "add_connection", "source_id": "westApp", "target_id": "westDb", "props": {"protocol": "JDBC", "port": "3306"}},
+      {"op": "add_connection", "source_id": "westDb", "target_id": "westReplica", "props": {"protocol": "Replication", "port": "3306"}},
+      {"op": "add_connection", "source_id": "eastDb", "target_id": "westDb", "props": {"protocol": "Replication", "port": "3306"}}
+    ]
+  ]
+}
