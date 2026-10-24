@@ -102,8 +102,8 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 
 ## Arrows
 
-- Routing is the shared `route_connections` (facing sides, spread evenly). There's no manual
-  straightening.
+- Routing is the shared `route_connections` (facing sides, straight where they overlap, else
+  spread evenly). There's no manual straightening.
 - Every arrow has a **protocol** and a **port**, both required and at most 20 characters. They
   appear in a tag on the middle of the line ("HTTPS:443"). The tag is placed so it doesn't cover
   figure names.

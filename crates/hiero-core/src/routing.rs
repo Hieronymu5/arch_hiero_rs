@@ -53,6 +53,12 @@ pub struct Route {
 /// How far a straight arrow stays from the corners of the sides it joins.
 pub const STRAIGHT_MARGIN: f64 = 10.0;
 
+/// How close two straight arrows on one side may run, so their connector boxes don't overlap.
+pub const STRAIGHT_GAP: f64 = 40.0;
+
+/// How far an automatic straight arrow is shifted at a time to clear another one.
+const STRAIGHT_STEP: f64 = 10.0;
+
 /// Where a straight arrow can run between two elements, along their facing sides.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StraightRange {
@@ -108,10 +114,13 @@ fn point_on_side(rect: &Rect, side: Side, fraction: f64) -> Point {
 }
 
 /// Routes every arrow between the facing sides of its two elements. An arrow moved by hand
-/// runs straight at its chosen position, kept within `straight_range`. The other arrows meeting
-/// one side of an element are spread evenly along it at 1/(n+1), 2/(n+1), …, ordered by where
-/// their other end is, so they don't cross. Arrows whose elements are missing, or that connect
-/// an element to itself, aren't routed.
+/// runs straight at its chosen position, kept within `straight_range`. Every other arrow runs
+/// straight too when the sides overlap: in the middle of the overlap, or as near it as keeps it
+/// `STRAIGHT_GAP` from the other straight arrows on those sides. An arrow that can't run
+/// straight goes direct, between points spread evenly along the sides with the other automatic
+/// arrows meeting them, at 1/(n+1), 2/(n+1), …, ordered by where their other end is, so they
+/// don't cross. Arrows whose elements are missing, or that connect an element to itself, aren't
+/// routed.
 pub fn route_connections(
     rects: &HashMap<ElementId, Rect>,
     connections: &[ConnectionEnds],
@@ -125,8 +134,45 @@ pub fn route_connections(
         sort_key: f64,
     }
 
-    let mut attachments: Vec<Attachment> = Vec::new();
-    let mut manual: HashMap<ConnectionId, Route> = HashMap::new();
+    let mut routes: HashMap<ConnectionId, Route> = HashMap::new();
+    // Where straight arrows meet each side of each element.
+    let mut taken: HashMap<(ElementId, Side), Vec<f64>> = HashMap::new();
+    let keys_of = |c: &ConnectionEnds, side: Side| {
+        [
+            (c.source_id.clone(), side),
+            (c.target_id.clone(), side.opposite()),
+        ]
+    };
+    let mut run_straight = |taken: &mut HashMap<(ElementId, Side), Vec<f64>>,
+                            c: &ConnectionEnds,
+                            (source, target): (&Rect, &Rect),
+                            side: Side,
+                            at: f64,
+                            placed_by_hand: bool| {
+        for key in keys_of(c, side) {
+            taken.entry(key).or_default().push(at);
+        }
+        let to_side = side.opposite();
+        let point = |rect: &Rect, side: Side| match side {
+            Side::Right => Point::new(rect.right(), at),
+            Side::Left => Point::new(rect.x, at),
+            Side::Bottom => Point::new(at, rect.bottom()),
+            Side::Top => Point::new(at, rect.y),
+        };
+        routes.insert(
+            c.id.clone(),
+            Route {
+                from: point(source, side),
+                to: point(target, to_side),
+                from_side: side,
+                to_side,
+                placed_by_hand,
+            },
+        );
+    };
+
+    // Arrows moved by hand go first, so the automatic ones keep clear of them.
+    let mut automatic: Vec<(&ConnectionEnds, &Rect, &Rect)> = Vec::new();
     for c in connections {
         let (Some(source), Some(target)) = (rects.get(&c.source_id), rects.get(&c.target_id))
         else {
@@ -135,30 +181,35 @@ pub fn route_connections(
         if c.source_id == c.target_id {
             continue;
         }
-        let range = straight_range(source, target);
-        if let (Some(offset), Some(range)) = (c.manual_offset, range) {
+        if let (Some(offset), Some(range)) = (c.manual_offset, straight_range(source, target)) {
             let at = (range.source_start + offset)
                 .max(range.start)
                 .min(range.end);
-            let to_side = range.side.opposite();
-            let point = |rect: &Rect, side: Side| match side {
-                Side::Right => Point::new(rect.right(), at),
-                Side::Left => Point::new(rect.x, at),
-                Side::Bottom => Point::new(at, rect.bottom()),
-                Side::Top => Point::new(at, rect.y),
-            };
-            manual.insert(
-                c.id.clone(),
-                Route {
-                    from: point(source, range.side),
-                    to: point(target, to_side),
-                    from_side: range.side,
-                    to_side,
-                    placed_by_hand: true,
-                },
-            );
+            run_straight(&mut taken, c, (source, target), range.side, at, true);
             continue;
         }
+        automatic.push((c, source, target));
+    }
+
+    let mut attachments: Vec<Attachment> = Vec::new();
+    for &(c, source, target) in &automatic {
+        if let Some(range) = straight_range(source, target) {
+            let keys = keys_of(c, range.side);
+            let clear = |position: f64| {
+                keys.iter().all(|key| {
+                    taken.get(key).is_none_or(|others| {
+                        others
+                            .iter()
+                            .all(|other| (other - position).abs() >= STRAIGHT_GAP)
+                    })
+                })
+            };
+            if let Some(at) = straight_positions(range.start, range.end).find(|&p| clear(p)) {
+                run_straight(&mut taken, c, (source, target), range.side, at, false);
+            }
+        }
+        // Straight arrows are counted in the even spacing too, so direct arrows keep their
+        // order and stay clear of them.
         let from_side = facing_side(source, target);
         let to_side = from_side.opposite();
         let horizontal = !from_side.is_vertical();
@@ -215,17 +266,13 @@ pub fn route_connections(
         }
     }
 
-    let mut routes = HashMap::new();
-    for c in connections {
-        if let Some(route) = manual.get(&c.id) {
-            routes.insert(c.id.clone(), *route);
+    for (c, source, target) in automatic {
+        if routes.contains_key(&c.id) {
             continue;
         }
         let from = points.get(&(c.id.clone(), true));
         let to = points.get(&(c.id.clone(), false));
-        let (Some(from), Some(to), Some(source), Some(target)) =
-            (from, to, rects.get(&c.source_id), rects.get(&c.target_id))
-        else {
+        let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
         let from_side = facing_side(source, target);
@@ -241,6 +288,19 @@ pub fn route_connections(
         );
     }
     routes
+}
+
+/// Where an automatic straight arrow may run, best first: the middle of the range, then
+/// `STRAIGHT_STEP` either side of it, further and further out, to the ends of the range.
+fn straight_positions(start: f64, end: f64) -> impl Iterator<Item = f64> {
+    let middle = f64::midpoint(start, end);
+    let half = (end - start) / 2.0;
+    std::iter::once(middle).chain(
+        (1..)
+            .map(|n| f64::from(n) * STRAIGHT_STEP)
+            .take_while(move |&shift| shift <= half)
+            .flat_map(move |shift| [middle + shift, middle - shift]),
+    )
 }
 
 /// How far an arrow's text sits from where the arrow starts: along the line, and off its side.
@@ -479,6 +539,86 @@ mod tests {
         assert_eq!(route.to, Point::new(300.0, 70.0));
         let range = straight_range(&rects[&"a".into()], &rects[&"b".into()]).unwrap();
         assert_eq!((range.start, range.end), (50.0, 90.0));
+    }
+
+    fn boxes(list: &[(&str, Rect)]) -> HashMap<ElementId, Rect> {
+        list.iter().map(|(id, r)| ((*id).into(), *r)).collect()
+    }
+
+    fn box_at(x: f64, y: f64) -> Rect {
+        Rect::new(x, y, 200.0, 100.0)
+    }
+
+    #[test]
+    fn runs_automatic_arrows_straight_in_the_middle_of_the_overlap() {
+        // Side by side, the target 40 lower: their sides overlap from y 40 to 100.
+        let rects = boxes(&[
+            ("s", box_at(0.0, 0.0)),
+            ("t", box_at(400.0, 40.0)),
+            ("far", box_at(400.0, 600.0)),
+        ]);
+        let routes = route_connections(&rects, &[ends("a", "s", "t"), ends("b", "s", "far")]);
+        let a = routes[&ConnectionId::from("a")];
+        assert_eq!(
+            (a.from, a.to),
+            (Point::new(200.0, 70.0), Point::new(400.0, 70.0))
+        );
+        assert!(!a.placed_by_hand);
+        // No overlap: direct, between the middles of the sides.
+        let b = routes[&ConnectionId::from("b")];
+        assert_eq!(
+            (b.from, b.to),
+            (Point::new(100.0, 100.0), Point::new(500.0, 600.0))
+        );
+    }
+
+    #[test]
+    fn runs_each_arrow_to_a_wide_element_straight_from_the_element_above_it() {
+        let rects = boxes(&[
+            ("wide", Rect::new(0.0, 300.0, 500.0, 100.0)),
+            ("left", Rect::new(40.0, 0.0, 120.0, 100.0)),
+            ("right", Rect::new(260.0, 0.0, 200.0, 100.0)),
+        ]);
+        let routes = route_connections(
+            &rects,
+            &[ends("a", "left", "wide"), ends("b", "wide", "right")],
+        );
+        let a = routes[&ConnectionId::from("a")];
+        assert_eq!(
+            (a.from, a.to),
+            (Point::new(100.0, 100.0), Point::new(100.0, 300.0))
+        );
+        let b = routes[&ConnectionId::from("b")];
+        assert_eq!(
+            (b.from, b.to),
+            (Point::new(360.0, 300.0), Point::new(360.0, 100.0))
+        );
+    }
+
+    #[test]
+    fn goes_direct_when_there_is_no_room_to_run_straight() {
+        // Two arrows between the same elements, whose overlap (50–90) only fits one.
+        let rects = boxes(&[("s", box_at(0.0, 0.0)), ("t", box_at(400.0, 40.0))]);
+        let routes = route_connections(&rects, &[ends("a", "s", "t"), ends("b", "s", "t")]);
+        let a = routes[&ConnectionId::from("a")];
+        assert_eq!((a.from.y, a.to.y), (70.0, 70.0));
+        let b = routes[&ConnectionId::from("b")];
+        assert_ne!(b.from.y, b.to.y);
+    }
+
+    #[test]
+    fn keeps_automatic_arrows_clear_of_moved_ones() {
+        let rects = boxes(&[
+            ("s", box_at(0.0, 0.0)),
+            ("t", box_at(400.0, 40.0)),
+            ("t2", box_at(400.0, 0.0)),
+        ]);
+        let mut moved = ends("moved", "s", "t");
+        moved.manual_offset = Some(70.0);
+        let routes = route_connections(&rects, &[moved, ends("auto", "s", "t2")]);
+        // As near the middle (50) as keeps it 40 from the moved one.
+        let auto = routes[&ConnectionId::from("auto")];
+        assert_eq!((auto.from.y, auto.to.y), (30.0, 30.0));
     }
 
     #[test]

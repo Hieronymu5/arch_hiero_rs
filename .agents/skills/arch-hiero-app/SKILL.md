@@ -55,11 +55,11 @@ Give each new element a `ref`, such as `"orderEntry"`, and use it as an id in la
 
 ### How arrows attach
 
-An arrow joins the sides of its two elements that face each other. The arrows meeting one side of an element are spread evenly along it: one arrow meets the middle of the side, two meet it at a third and two thirds, and so on, ordered by where their other ends are, so they don't cross. An arrow is straight when its two ends line up.
+An arrow joins the sides of its two elements that face each other, and runs straight in the middle of where those sides overlap (less 10 pixels at each corner), or as near the middle as keeps it 40 pixels from other straight arrows on them. When the sides don't overlap, or there's no room, it goes direct, between points spread evenly along the sides: one arrow meets the middle of the side, two meet it at a third and two thirds, and so on, ordered by where their other ends are, so they don't cross.
 
-- **One arrow between two elements in a column:** give them the same centre, such as the same `x` for elements of the same width, and the arrow runs straight down the middle of both.
-- **Several elements above a wide one:** each arrow meets the wide element's side at its share of the side, not under the element it comes from, so it's drawn at an angle. On a conceptual diagram, pin it straight with `manualOffset` (below). On a physical diagram, give each element its own target, or accept the angle.
-- **`manualOffset` (conceptual arrows only)** runs an arrow straight at a position you choose: the arrow's x (for an arrow running up or down) or y (across) minus the source element's left (or top) edge. It's kept within where the two facing sides overlap, 10 pixels clear of their corners. For example, an actor at `x` 40, 120 wide, above an application at `x` 40, 420 wide: `"manualOffset": 60` runs the arrow down the actor's middle, at x 100. Set it to `null` to place the arrow automatically again.
+- **One arrow between two elements in a column:** make their sides overlap, and the arrow runs straight down the middle of the overlap. Give them the same centre to run it down the middle of both.
+- **Several elements above a wide one:** each arrow runs straight down from the middle of the element it comes from, as long as they're 40 pixels apart.
+- **`manualOffset` (conceptual arrows only)** pins an arrow straight at a position you choose, even close to another arrow: the arrow's x (for an arrow running up or down) or y (across) minus the source element's left (or top) edge. It's kept within where the two facing sides overlap, 10 pixels clear of their corners. For example, an actor at `x` 40, 120 wide, above an application at `x` 40, 420 wide: `"manualOffset": 60` runs the arrow down the actor's middle, at x 100. Set it to `null` to place the arrow automatically again.
 - **A user reaching several elements:** on a conceptual diagram, draw the actor again, with the same name, above each application it uses, so every arrow runs straight down. On a physical diagram, such as one user reaching two data centres, not every arrow can be straight, so centre the user between them.
 
 ## 3. Build

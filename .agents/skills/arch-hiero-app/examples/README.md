@@ -9,8 +9,8 @@ A user places an order in Order Entry through the web; Order Entry calls Invento
 Top to bottom: the user and the downstream systems, which take Order Entry's data (the job and Prometheus); the central application, Order Entry (x 40, 420 wide: 40–460); then the upstream system it gets data from, Inventory.
 
 - The job (160 wide) at x 280, Prometheus (200 wide) at x 260, and Orders DB inside Order Entry (120 wide) at x 300 share the centre x 360, so their arrows run straight without help. That keeps the job's arrow to the database clear of Order Entry's name and description, centred at x 250 in its header.
-- The user (120 wide) at x 40 has its centre at x 100, but its arrow would meet the middle of Order Entry's top, at x 250. `"manualOffset": 60` (100 − 40) runs it straight down from the user.
-- Inventory (200 wide) at x 140 has its centre at x 240. `"manualOffset": 200` (240 − 40, from Order Entry's left edge) runs Order Entry's arrow straight down into it.
+- The user (120 wide) at x 40 overlaps Order Entry from x 40 to 160, so its arrow runs straight down the user's middle, at x 100. The example pins it there with `"manualOffset": 60` (100 − 40), which gives the same line.
+- Inventory (200 wide) at x 140 overlaps Order Entry from x 140 to 340, so Order Entry's arrow runs straight down into its middle, at x 240. `"manualOffset": 200` (240 − 40, from Order Entry's left edge) pins it there.
 - Order Entry is resized to 180 tall, for its 60 header and the 80-tall figures with padding, before anything goes inside it.
 
 ## `physical-3-tier.json`

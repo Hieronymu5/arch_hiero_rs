@@ -105,7 +105,7 @@ impl Drawn for Conceptual {
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_conceptual::scene::scene(eng)
     }
-    const PROPS_DOC: &'static str = "Element props: actor {agent: bool}; application {cloudHosted: bool} and a description (≤ 500); component {componentType: \"database\" | \"storage\"}; file has none (a page in the data colour, held like an entity). Entities and files take arrows but don't start them. Arrow props: {label (≤ 100), mode: \"manual\" (dashed; omit for automated), bidirectional: bool, connector (≤ 20, e.g. \"API\"), transformation (≤ 40), manualOffset: number (runs it straight)}.";
+    const PROPS_DOC: &'static str = "Element props: actor {agent: bool}; application {cloudHosted: bool} and a description (≤ 500); component {componentType: \"database\" | \"storage\"}; file has none (a page in the data colour, held like an entity). Entities and files take arrows but don't start them. Arrow props: {label (≤ 100), mode: \"manual\" (dashed; omit for automated), bidirectional: bool, connector (≤ 20, e.g. \"API\"), transformation (≤ 40), manualOffset: number (pins it straight there; arrows run straight where their sides overlap anyway)}.";
 }
 
 impl Drawn for Physical {

@@ -46,14 +46,17 @@ padding around their children.
 - **Drawing:** drag from the round handle on the selected element to a valid target (see *Arrows
   to* in the table), or use *Add arrow to* in the properties panel.
 - **Routing (shared code):** an arrow runs between the sides of its two elements that face each
-  other. Arrows that meet the same side are spread evenly along it at positions 1/(n+1), and
-  sorted by where their other end is, so they don't cross. An arrow from an element to itself
-  isn't drawn.
+  other. Where those sides overlap, it runs straight in the middle of the overlap (less a 10 px
+  margin at each corner), or as near the middle as keeps it 40 px from other straight arrows on
+  those sides. When they don't overlap, or there's no room, it goes direct: arrows that meet the
+  same side are spread evenly along it at positions 1/(n+1), and sorted by where their other end
+  is, so they don't cross. An arrow from an element to itself isn't drawn.
 - **Straightening (conceptual only):** drag an arrow sideways, or select it and use the arrow
-  keys, to run it straight. Its position is stored as `manualOffset`, measured from the source's
+  keys, to pin it straight at a position. Its position is stored as `manualOffset`, measured from the source's
   top edge (left/right arrows) or left edge (top/bottom arrows), and kept within the range where
   the two facing sides overlap, less a 10 px margin. The **Straighten** button centres it in
-  that range. **Place automatically** clears `manualOffset`.
+  that range, even when that brings it close to another arrow. **Place automatically** clears
+  `manualOffset`.
 
 Arrow properties:
 
