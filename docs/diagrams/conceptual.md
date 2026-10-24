@@ -51,6 +51,9 @@ padding around their children.
   those sides. When they don't overlap, or there's no room, it goes direct: arrows that meet the
   same side are spread evenly along it at positions 1/(n+1), and sorted by where their other end
   is, so they don't cross. An arrow from an element to itself isn't drawn.
+- **Clouds:** an arrow to or from a cloud hosted application ends on the cloud's outline, not
+  its box, each end moved straight in so straight arrows stay straight. A connector box on an
+  arrow into a cloud sits 6 px inside it. The exports draw them the same way.
 - **Straightening (conceptual only):** drag an arrow sideways, or select it and use the arrow
   keys, to pin it straight at a position. Its position is stored as `manualOffset`, measured from the source's
   top edge (left/right arrows) or left edge (top/bottom arrows), and kept within the range where

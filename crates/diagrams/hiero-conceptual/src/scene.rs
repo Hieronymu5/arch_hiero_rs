@@ -5,10 +5,12 @@ use std::collections::HashMap;
 
 use hiero_core::color::readable_text;
 use hiero_core::engine::{Engine, Laid};
+use hiero_core::figures::cloud_edge_point;
+use hiero_core::geometry::{Point, Rect};
 use hiero_core::look::{ArrowLook, Look, LookElement, Shape, draw_diagram};
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
-    CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, Route, connector_placement, route_connections,
+    CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, Route, Side, connector_placement, route_connections,
     straight_range, transformation_placement,
 };
 use hiero_core::scene::Scene;
@@ -103,8 +105,43 @@ pub struct DrawnArrow {
     pub straightenable: bool,
 }
 
-/// Every arrow as a line between evenly spread points on its elements' facing sides.
-/// `moving` shows an arrow being slid at its in-progress offset.
+/// How far a connector box on an arrow into a cloud overlaps the cloud, in pixels.
+const CLOUD_CONNECTOR_INSET: f64 = 6.0;
+
+/// `point` moved `distance` pixels into the element whose `side` it's on.
+fn inward(point: Point, side: Side, distance: f64) -> Point {
+    match side {
+        Side::Top => Point::new(point.x, point.y + distance),
+        Side::Bottom => Point::new(point.x, point.y - distance),
+        Side::Left => Point::new(point.x + distance, point.y),
+        Side::Right => Point::new(point.x - distance, point.y),
+    }
+}
+
+/// Where an arrow end at `point`, on `side` of `element`, is drawn: on the cloud for an
+/// element hosted in the cloud, which is drawn inset by half its 2px line, else where it is.
+fn on_cloud(element: Option<&Laid<Conceptual>>, side: Side, point: Point) -> Point {
+    match element {
+        Some(e) if is_cloud(&e.el) => {
+            let Rect {
+                x,
+                y,
+                width,
+                height,
+            } = e.rect;
+            cloud_edge_point(
+                Rect::new(x + 1.0, y + 1.0, width - 2.0, height - 2.0),
+                side,
+                point,
+            )
+        }
+        _ => point,
+    }
+}
+
+/// Every arrow as a line between its elements' facing sides: straight where they overlap,
+/// otherwise between evenly spread points on them. An arrow to or from an application in the
+/// cloud ends on the cloud, not its box. `moving` shows an arrow being slid at its in-progress offset.
 pub fn drawn_arrows(
     eng: &Engine<Conceptual>,
     layout: &[Laid<Conceptual>],
@@ -125,17 +162,36 @@ pub fn drawn_arrows(
         })
         .collect();
     let routes = route_connections(&rects, &ends);
+    let by_id: HashMap<&ElementId, &Laid<Conceptual>> =
+        layout.iter().map(|e| (&e.el.id, e)).collect();
     let measure = eng.measure();
     eng.connections()
         .iter()
         .filter_map(|c| {
-            let route = *routes.get(&c.id)?;
+            let routed = *routes.get(&c.id)?;
+            let target = by_id.get(&c.target_id).copied();
+            let route = Route {
+                from: on_cloud(
+                    by_id.get(&c.source_id).copied(),
+                    routed.from_side,
+                    routed.from,
+                ),
+                to: on_cloud(target, routed.to_side, routed.to),
+                ..routed
+            };
             let props = &c.props;
+            // On a cloud the connector box sits a little way in, so its corners don't stand
+            // off the cloud's curves.
+            let connector_at = if target.is_some_and(|t| is_cloud(&t.el)) {
+                inward(route.to, route.to_side, CLOUD_CONNECTOR_INSET)
+            } else {
+                route.to
+            };
             let connector = props.connector.as_ref().map(|text| {
                 let width = measure.width(text, CONNECTOR_BOX_FONT_SIZE, Weight::SemiBold);
                 (
                     text.clone(),
-                    connector_placement(route.to, route.to_side, width),
+                    connector_placement(connector_at, route.to_side, width),
                 )
             });
             let to = connector.as_ref().map_or(route.to, |(_, p)| p.arrow_end);
@@ -244,6 +300,48 @@ mod tests {
         // The connector box in the connectors colour.
         assert!(svg.contains(r##"rx="3" fill="#cfd4da""##));
         assert!(svg.contains(">API</text>"));
+    }
+
+    #[test]
+    fn ends_arrows_on_the_cloud_with_connector_boxes_a_little_way_in() {
+        let elements = serde_json::from_value(serde_json::json!([
+            { "id": "u1", "kind": "actor", "label": "Rep", "x": 40, "y": 0 },
+            { "id": "a1", "kind": "application", "label": "CRM", "x": 0, "y": 200, "cloudHosted": true },
+            { "id": "a2", "kind": "application", "label": "ERP", "x": 0, "y": 400 },
+            { "id": "j1", "kind": "job", "label": "Sync", "x": 400, "y": 230 },
+        ]))
+        .unwrap();
+        let connections = serde_json::from_value(serde_json::json!([
+            { "id": "c1", "sourceId": "u1", "targetId": "a1" },
+            { "id": "c2", "sourceId": "a1", "targetId": "a2", "connector": "API" },
+            { "id": "c3", "sourceId": "j1", "targetId": "a1", "connector": "REST" },
+        ]))
+        .unwrap();
+        let e = Engine::<Conceptual>::new(elements, connections, DiagramColors::default())
+            .with_measure(&ESTIMATE);
+        let arrows = drawn_arrows(&e, e.layout(), None);
+        let arrow = |id: &str| arrows.iter().find(|a| a.id == id.into()).unwrap();
+        let cloud = e.laid(&"a1".into()).unwrap().rect;
+        assert_eq!(cloud, Rect::new(0.0, 200.0, 200.0, 100.0));
+
+        // The cloud's top dips about 16% of its 98px drawn height below the box's top.
+        let down = &arrow("c1").look;
+        assert_eq!(down.to.x, down.from.x);
+        assert!(down.to.y > 214.0 && down.to.y < 218.0, "{down:?}");
+        // From the bottom of the cloud, which touches its box in the middle.
+        let below = &arrow("c2").look;
+        assert_eq!(below.from.x, below.to.x);
+        assert!(below.from.y > 298.0 && below.from.y <= 300.0, "{below:?}");
+        // A connector box on an arrow into the cloud overlaps it by 6px.
+        let edge = cloud_edge_point(
+            Rect::new(1.0, 201.0, 198.0, 98.0),
+            Side::Right,
+            Point::new(200.0, 250.0),
+        );
+        let into = arrow("c3");
+        let (_, rect) = into.look.connector.clone().unwrap();
+        assert!((rect.x - (edge.x - 6.0)).abs() < 0.5, "{rect:?} {edge:?}");
+        assert_eq!(into.route.to.y, 250.0);
     }
 
     #[test]

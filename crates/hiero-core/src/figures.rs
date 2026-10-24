@@ -3,6 +3,7 @@
 //! `actor-figure.ts`, `component-figure.ts`, `cloud-shape.ts`, and `physical-figures.ts`.
 
 use crate::geometry::{Point, Rect, Size, fmt_num, round2};
+use crate::routing::Side;
 
 /// The actor's figure, in a 48 × 46 box: a head above a separate body. A person has a round
 /// head and half-circle shoulders; a bot a box head with an antenna above a box body.
@@ -89,6 +90,72 @@ pub fn cloud_path(rect: Rect) -> String {
         point(CLOUD_START.0, CLOUD_START.1),
         curves.join(" ")
     )
+}
+
+/// How many straight steps each of the outline's curves is traced in, to find where it is.
+const STEPS_PER_CURVE: u32 = 32;
+
+/// The cloud's outline traced as points, as fractions of its box, moved down by `CLOUD_DROP`.
+fn cloud_outline() -> Vec<Point> {
+    let mut points = Vec::new();
+    let (mut x0, mut y0) = CLOUD_START;
+    for [x1, y1, x2, y2, x3, y3] in CLOUD_CURVES {
+        for step in 0..=STEPS_PER_CURVE {
+            let t = f64::from(step) / f64::from(STEPS_PER_CURVE);
+            let u = 1.0 - t;
+            let bezier = |a: f64, b: f64, c: f64, d: f64| {
+                u * u * u * a + 3.0 * u * u * t * b + 3.0 * u * t * t * c + t * t * t * d
+            };
+            points.push(Point::new(
+                bezier(x0, x1, x2, x3),
+                bezier(y0, y1, y2, y3) + CLOUD_DROP,
+            ));
+        }
+        (x0, y0) = (x3, y3);
+    }
+    points
+}
+
+/// Where an arrow ending at `point`, on `side` of a cloud filling `rect`, meets the cloud: the
+/// point moved straight into the box until it reaches the outline, so the arrow touches the
+/// cloud rather than the box around it. A point beyond the cloud's ends stays where it is.
+pub fn cloud_edge_point(rect: Rect, side: Side, point: Point) -> Point {
+    let outline: Vec<Point> = cloud_outline()
+        .into_iter()
+        .map(|p| Point::new(rect.x + rect.width * p.x, rect.y + rect.height * p.y))
+        .collect();
+    // A top or bottom side moves the point down or up, along its x; a left or right side across.
+    let vertical = !side.is_vertical();
+    let across = if vertical { point.x } else { point.y };
+    let crossings: Vec<f64> = outline
+        .windows(2)
+        .filter_map(|pair| {
+            let (a, b) = (pair[0], pair[1]);
+            let ((a1, b1), (a2, b2)) = if vertical {
+                ((a.x, b.x), (a.y, b.y))
+            } else {
+                ((a.y, b.y), (a.x, b.x))
+            };
+            #[allow(
+                clippy::float_cmp,
+                reason = "a segment parallel to the line never crosses it"
+            )]
+            let parallel = a1 == b1;
+            (!parallel && (a1 - across) * (b1 - across) <= 0.0)
+                .then(|| a2 + (across - a1) / (b1 - a1) * (b2 - a2))
+        })
+        .collect();
+    // The crossing nearest the side the arrow comes from.
+    let edge = if matches!(side, Side::Top | Side::Left) {
+        crossings.into_iter().reduce(f64::min)
+    } else {
+        crossings.into_iter().reduce(f64::max)
+    };
+    match edge {
+        None => point,
+        Some(edge) if vertical => Point::new(point.x, edge),
+        Some(edge) => Point::new(edge, point.y),
+    }
 }
 
 /// A figure drawn for an element on a physical diagram, with its name underneath.
@@ -331,6 +398,31 @@ mod tests {
         let d = cloud_path(Rect::new(1.0, 1.0, 198.0, 98.0));
         assert!(d.starts_with("M50.5 30.4 C10.9 30.4 1 54.9 32.68 59.8"));
         assert!(d.ends_with(" Z"));
+    }
+
+    #[test]
+    fn cloud_edge_point_moves_top_and_bottom_ends_straight_to_the_cloud() {
+        let rect = Rect::new(10.0, 20.0, 200.0, 100.0);
+        // The cloud's top dips about 16% below the box's top in the middle.
+        let top = cloud_edge_point(rect, Side::Top, Point::new(110.0, 20.0));
+        assert_eq!(top.x, 110.0);
+        assert!((top.y - 35.7).abs() < 0.5, "{top:?}");
+        // Its bottom touches the box in the middle.
+        let bottom = cloud_edge_point(rect, Side::Bottom, Point::new(110.0, 120.0));
+        assert!((bottom.y - 119.6).abs() < 0.5, "{bottom:?}");
+    }
+
+    #[test]
+    fn cloud_edge_point_moves_left_and_right_ends_across_to_the_cloud() {
+        let rect = Rect::new(10.0, 20.0, 200.0, 100.0);
+        let left = cloud_edge_point(rect, Side::Left, Point::new(10.0, 70.0));
+        assert_eq!(left.y, 70.0);
+        assert!((left.x - 23.4).abs() < 0.5, "{left:?}");
+        let right = cloud_edge_point(rect, Side::Right, Point::new(210.0, 70.0));
+        assert!((right.x - 189.9).abs() < 0.5, "{right:?}");
+        // A point beyond the cloud's ends stays where it is.
+        let beyond = Point::new(12.0, 20.0);
+        assert_eq!(cloud_edge_point(rect, Side::Top, beyond), beyond);
     }
 
     #[test]
