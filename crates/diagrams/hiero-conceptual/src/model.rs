@@ -108,18 +108,20 @@ pub const DESCRIPTION_MAX: usize = 500;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillRole {
     Applications,
+    Components,
     Data,
     Processes,
     Connectors,
 }
 
 impl FillRole {
-    pub fn of(self, colors: &DiagramColors) -> &str {
+    pub fn of(self, colors: &DiagramColors) -> String {
         match self {
-            Self::Applications => &colors.applications,
-            Self::Data => &colors.data,
-            Self::Processes => &colors.processes,
-            Self::Connectors => &colors.connectors,
+            Self::Applications => colors.applications.clone(),
+            Self::Components => colors.components.clone(),
+            Self::Data => colors.data.clone(),
+            Self::Processes => colors.processes.clone(),
+            Self::Connectors => colors.connectors.clone(),
         }
     }
 }
@@ -200,7 +202,8 @@ impl ConceptualKind {
     /// Which colour fills it. Unset means white.
     pub const fn fill(self) -> Option<FillRole> {
         match self {
-            Self::Application | Self::Component => Some(FillRole::Applications),
+            Self::Application => Some(FillRole::Applications),
+            Self::Component => Some(FillRole::Components),
             Self::Process => Some(FillRole::Processes),
             Self::Job => Some(FillRole::Connectors),
             Self::Entity | Self::File => Some(FillRole::Data),

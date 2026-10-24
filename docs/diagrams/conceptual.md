@@ -1,6 +1,6 @@
 # Conceptual diagram
 
-**Type id:** `conceptual` · **Has arrows:** yes · **Custom colours:** yes (8)
+**Type id:** `conceptual` · **Has arrows:** yes · **Custom colours:** yes (9)
 **Rust crate:** `crates/diagrams/hiero-conceptual`
 **Prototype source:** `arch_hiero/src/app/diagrams/conceptual/`, `model/conceptual-diagram.ts`
 
@@ -74,7 +74,8 @@ Each diagram can override any of these. Only colours that differ from the defaul
 | Key | Default | Used for |
 |---|---|---|
 | `domains` | `#f5f5f5` | Domain fill |
-| `applications` | `#d0e6fb` | Applications, components, and people |
+| `applications` | `#d0e6fb` | Applications and people |
+| `components` | `#a1c6e9` | Components (a quarter of the way from the applications default to the processes one) |
 | `connectors` | `#cfd4da` | Connector and transformation boxes, jobs, and bots |
 | `data` | `#ffe599` | Entities, files, databases, and storage |
 | `processes` | `#1466b3` | Processes |

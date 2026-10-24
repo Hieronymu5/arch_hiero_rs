@@ -328,7 +328,7 @@ mod tests {
                 .elements
                 .is_empty()
         );
-        assert_eq!(ops(DiagramTypeId::Conceptual).default_colors().len(), 8);
+        assert_eq!(ops(DiagramTypeId::Conceptual).default_colors().len(), 9);
         assert_eq!(ops(DiagramTypeId::Physical).color_fields().len(), 12);
         assert!(
             ops(DiagramTypeId::DeployedComponent)

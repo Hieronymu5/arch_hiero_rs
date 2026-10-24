@@ -43,7 +43,7 @@ fn fill_of(
     }
     match element.el.kind.fill() {
         Some(role) => {
-            let fill = role.of(colors).to_owned();
+            let fill = role.of(colors);
             let text = readable_text(&fill).to_owned();
             (Some(fill), Some(text))
         }
@@ -244,6 +244,30 @@ mod tests {
         // The connector box in the connectors colour.
         assert!(svg.contains(r##"rx="3" fill="#cfd4da""##));
         assert!(svg.contains(">API</text>"));
+    }
+
+    #[test]
+    fn fills_a_component_in_its_own_colour_with_text_that_reads_on_it() {
+        let component = |colors| {
+            let mut e = Engine::<Conceptual>::new(Vec::new(), Vec::new(), colors)
+                .with_measure(&ESTIMATE)
+                .with_ids(|| "c1".into());
+            e.add_at_free_position(ConceptualKind::Component);
+            let laid = e.laid(&"c1".into()).unwrap().clone();
+            fill_of(&e, &laid)
+        };
+        // The default is light enough for dark text.
+        let (fill, text) = component(DiagramColors::default());
+        assert_eq!(fill.as_deref(), Some("#a1c6e9"));
+        assert_eq!(text.as_deref(), Some(hiero_core::color::DARK_TEXT));
+        // A dark one flips it to white.
+        let dark = DiagramColors {
+            components: "#0b3d91".into(),
+            ..DiagramColors::default()
+        };
+        let (fill, text) = component(dark);
+        assert_eq!(fill.as_deref(), Some("#0b3d91"));
+        assert_eq!(text.as_deref(), Some(hiero_core::color::LIGHT_TEXT));
     }
 
     #[test]

@@ -26,8 +26,10 @@ use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
 pub struct DiagramColors {
     /// Fill of domains.
     pub domains: String,
-    /// Fill of applications, components, and actors that are people.
+    /// Fill of applications and actors that are people.
     pub applications: String,
+    /// Fill of components: by default a quarter of the way from `applications` to `processes`.
+    pub components: String,
     /// Fill of connector and transformation boxes on arrows, of jobs, and of bots.
     pub connectors: String,
     /// Fill of entities and files, and of databases and storage.
@@ -47,6 +49,7 @@ impl Default for DiagramColors {
         Self {
             domains: "#f5f5f5".into(),
             applications: "#d0e6fb".into(),
+            components: "#a1c6e9".into(),
             connectors: "#cfd4da".into(),
             data: "#ffe599".into(),
             processes: "#1466b3".into(),
@@ -60,7 +63,8 @@ impl Default for DiagramColors {
 impl ColorScheme for DiagramColors {
     const FIELDS: &'static [(&'static str, &'static str)] = &[
         ("domains", "Domains"),
-        ("applications", "Applications, Components, and Actors"),
+        ("applications", "Applications and Actors"),
+        ("components", "Components"),
         ("connectors", "Connectors, Transformations, Jobs, and Bots"),
         ("data", "Entities, Files, Databases, and Storage"),
         ("processes", "Processes"),

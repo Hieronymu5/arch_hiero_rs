@@ -61,8 +61,15 @@ pub fn black_or_white(background: &str) -> &'static str {
 
 /// `hex` mixed with white, keeping `fraction` of it.
 pub fn tint(hex: &str, fraction: f64) -> String {
-    let [r, g, b] = channels(hex).map(|c| {
-        crate::geometry::js_round(f64::from(c) * fraction + 255.0 * (1.0 - fraction)) as u8
+    mix(hex, "#ffffff", fraction)
+}
+
+/// `a` mixed with `b`, keeping `fraction` of `a`.
+pub fn mix(a: &str, b: &str, fraction: f64) -> String {
+    let (a, b) = (channels(a), channels(b));
+    let [r, g, b] = [0, 1, 2].map(|i| {
+        crate::geometry::js_round(f64::from(a[i]) * fraction + f64::from(b[i]) * (1.0 - fraction))
+            as u8
     });
     format!("#{r:02x}{g:02x}{b:02x}")
 }
@@ -85,6 +92,13 @@ mod tests {
     #[test]
     fn tint_mixes_with_white() {
         assert_eq!(tint("#000000", 0.5), "#808080");
+    }
+
+    #[test]
+    fn mix_takes_the_share_of_each() {
+        // The default component colour: a quarter of the way from applications to processes.
+        assert_eq!(mix("#d0e6fb", "#1466b3", 0.75), "#a1c6e9");
+        assert_eq!(mix("#000000", "#ffffff", 1.0), "#000000");
     }
 
     #[test]
