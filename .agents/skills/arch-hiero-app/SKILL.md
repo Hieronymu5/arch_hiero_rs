@@ -1,5 +1,5 @@
 ---
-name: arch-hiero-diagrams
+name: arch-hiero-app
 description: Build architecture diagrams in Arch Hiero through its local MCP server (arch-hiero-mcp) and export them as SVG and draw.io. Use when the user asks for a conceptual, physical, or deployed component diagram made with Arch Hiero, or to lay out, tidy, or export one.
 argument-hint: "[the diagram to build, and where to save it]"
 ---
