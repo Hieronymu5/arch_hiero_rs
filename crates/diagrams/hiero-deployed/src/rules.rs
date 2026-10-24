@@ -469,6 +469,15 @@ impl DiagramType for DeployedComponent {
             .unwrap_or_default()
             .join(", ");
         validate_length("Characteristics", &characteristics, CHARACTERISTICS_MAX)?;
+        if let Some(unknown) = element
+            .props
+            .tech_stack
+            .iter()
+            .flatten()
+            .find(|id| tech_stack::find(id).is_none())
+        {
+            return Err(format!("“{unknown}” isn't a known technology."));
+        }
         let protocols = element.props.protocols.clone().unwrap_or_default();
         validate_length("Protocols", &protocols.join(", "), PROTOCOLS_MAX)?;
         if protocols.len() > MAX_PROTOCOLS {

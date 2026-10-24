@@ -20,7 +20,7 @@ The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__
 
 | Tool | Use |
 | --- | --- |
-| `list_diagram_types` | Each type's kinds of element, with their size, what they can contain and connect to, and what their `props` can be. Read it rather than guessing. The `arch-hiero://types/{type}` resource has the full rules. |
+| `list_diagram_types` | Each type's kinds of element, with what they can contain and connect to, what their `props` can be, and under `propValues` the values of props with a fixed list. Read it rather than guessing. The `arch-hiero://types/{type}` resource has the full rules. |
 | `list_diagrams`, `get_diagram` | Find a diagram, and read its elements, arrows, `revision`, and `layout`: each element's drawn `x`, `y`, `width`, and `height`. |
 | `create_diagram` | `name`, `type`, and an optional `description`. A diagram's type can't be changed later. |
 | `edit_diagram` | A batch of `ops` (below), applied with the type's rules, all or nothing. |
@@ -115,4 +115,4 @@ Start from the example closest to what you're building, in `examples/`.
 - Add components to a layer with `parent_id`, in order from left to right. Layers and components size themselves, so positions and `resize_element` only set the order.
 - Each line of a component's description is a one-line bullet, so keep lines short and use several.
 - `dependency` is `internal` (yellow) or `external` (red, such as a third-party identity provider), or omitted for a core component (green).
-- `protocols` are drawn across the top of a component, and `techStack` as logos along the bottom. The `techStack` ids, such as `springboot`, `angular`, and `mysql`, are in [tech-stack-ids.md](tech-stack-ids.md). An unknown id is accepted but draws no logo, so use only those.
+- `protocols` are drawn across the top of a component, and `techStack` as logos along the bottom. The `techStack` ids, such as `springboot`, `angular`, and `mysql`, are listed under `propValues.techStack` in `list_diagram_types`, grouped by category. An edit with any other id is refused.

@@ -254,7 +254,7 @@ impl HieroServer {
 #[tool_router]
 impl HieroServer {
     #[tool(
-        description = "Every diagram type, with its kinds of element (what each can contain and connect to), what its elements' and arrows' props can be, and its colours.",
+        description = "Every diagram type, with its kinds of element (what each can contain and connect to), what its elements' and arrows' props can be, the values of props with a fixed list (such as a deployed component's techStack ids), and its colours.",
         annotations(read_only_hint = true)
     )]
     pub async fn list_diagram_types(&self) -> ToolResult {
@@ -267,6 +267,7 @@ impl HieroServer {
                     "hasArrows": t.id().has_arrows(),
                     "kinds": t.palette(),
                     "props": t.props_doc(),
+                    "propValues": t.prop_values(),
                     "colors": t.color_fields().iter().map(|(k, l)| json!({"key": k, "label": l})).collect::<Vec<_>>(),
                     "spec": format!("arch-hiero://types/{}", t.id().as_str()),
                 })

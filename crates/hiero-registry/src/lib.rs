@@ -33,6 +33,16 @@ pub struct KindDescription {
     pub resizable: &'static str,
 }
 
+/// One of the values a prop can take, such as a technology for a deployed component's
+/// `techStack`.
+#[derive(Debug, Clone, Serialize)]
+pub struct PropValue {
+    pub id: &'static str,
+    pub label: &'static str,
+    /// What it's grouped under, such as "Database".
+    pub group: &'static str,
+}
+
 /// A diagram type, without its UI.
 pub trait TypeOps: Send + Sync {
     fn id(&self) -> DiagramTypeId;
@@ -63,6 +73,8 @@ pub trait TypeOps: Send + Sync {
     fn palette(&self) -> Vec<KindDescription>;
     /// What agents can put in an element's and an arrow's `props`.
     fn props_doc(&self) -> &'static str;
+    /// The values that props with a fixed list take, by prop name.
+    fn prop_values(&self) -> BTreeMap<&'static str, Vec<PropValue>>;
     /// Applies agent edits, in order, all or nothing.
     fn apply(&self, diagram: &StoredDiagram, ops: &[EditOp]) -> Result<EditOutcome, EditError>;
 
@@ -80,6 +92,10 @@ pub trait Drawn: DiagramType {
     fn scene(eng: &Engine<Self>) -> Scene;
     fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String;
     const PROPS_DOC: &'static str;
+    /// The values that props with a fixed list take, by prop name.
+    fn prop_values() -> BTreeMap<&'static str, Vec<PropValue>> {
+        BTreeMap::new()
+    }
 }
 
 impl Drawn for Conceptual {
@@ -109,7 +125,18 @@ impl Drawn for DeployedComponent {
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_deployed::scene::scene(eng)
     }
-    const PROPS_DOC: &'static str = "No arrows. Layer props: {characteristics: [string]} (joined ≤ 200). Component props: {protocols: [string] (≤ 5, joined ≤ 100), techStack: [tech id], dependency: \"internal\" | \"external\" (omit for a core component), instanceCount: 1-9999} and a description with one bullet per line (≤ 2000, ≤ 20 lines). Layers stack top to bottom and components sit side by side in them in order; positions only set the order.";
+    const PROPS_DOC: &'static str = "No arrows. Layer props: {characteristics: [string]} (joined ≤ 200). Component props: {protocols: [string] (≤ 5, joined ≤ 100), techStack: [id from propValues.techStack], dependency: \"internal\" | \"external\" (omit for a core component), instanceCount: 1-9999} and a description with one bullet per line (≤ 2000, ≤ 20 lines). Layers stack top to bottom and components sit side by side in them in order; positions only set the order.";
+    fn prop_values() -> BTreeMap<&'static str, Vec<PropValue>> {
+        let tech = hiero_deployed::tech_stack::TECH_STACK
+            .iter()
+            .map(|t| PropValue {
+                id: t.id,
+                label: t.label,
+                group: t.category.label(),
+            })
+            .collect();
+        BTreeMap::from([("techStack", tech)])
+    }
 }
 
 struct Entry<T>(PhantomData<fn() -> T>);
@@ -224,6 +251,10 @@ impl<T: Drawn> TypeOps for Entry<T> {
 
     fn props_doc(&self) -> &'static str {
         T::PROPS_DOC
+    }
+
+    fn prop_values(&self) -> BTreeMap<&'static str, Vec<PropValue>> {
+        T::prop_values()
     }
 
     fn apply(&self, diagram: &StoredDiagram, ops: &[EditOp]) -> Result<EditOutcome, EditError> {

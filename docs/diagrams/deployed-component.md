@@ -76,7 +76,7 @@ These fills are also used by physical zone colours, so the table lives in
 | Protocols and security, separated by commas | component | At most 100 characters, e.g. "HTTPS, JWT, XSRF". Stored as `string[]`. |
 | Description, a bullet on each line | component | At most 2000 characters |
 | Instance count | component | Integer ≥ 1 |
-| Tech stack | component | Checkboxes grouped by category (Cloud, Operating System, Database, Middleware, Frameworks, Languages, Browsers). Groups are collapsed until opened, and each group header shows how many are chosen. Stored as an array of tech ids. |
+| Tech stack | component | Checkboxes grouped by category (Cloud, Operating System, Database, Middleware, Frameworks, Languages, Browsers). Groups are collapsed until opened, and each group header shows how many are chosen. Stored as an array of tech ids. An id that isn't in the catalogue is refused. |
 
 ## Tech stack catalogue
 

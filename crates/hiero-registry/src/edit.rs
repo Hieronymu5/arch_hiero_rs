@@ -578,4 +578,25 @@ mod tests {
             Some(outcome.created["web"].clone())
         );
     }
+
+    #[test]
+    fn unknown_technologies_are_refused() {
+        let diagram = new_diagram(DiagramTypeId::DeployedComponent, "D", None);
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "web", "kind": "layer", "label": "Web"},
+            {"op": "add_element", "kind": "component", "label": "Portal", "parent_id": "web",
+             "props": {"techStack": ["springboot", "spring-boot"]}}
+        ]));
+        let error = ops(DiagramTypeId::DeployedComponent)
+            .apply(&diagram, &edits)
+            .unwrap_err();
+        assert_eq!(error.index, 1);
+        assert_eq!(error.message, "“spring-boot” isn't a known technology.");
+        let tech = &ops(DiagramTypeId::DeployedComponent).prop_values()["techStack"];
+        assert!(
+            tech.iter()
+                .any(|t| t.id == "springboot" && t.group == "Frameworks")
+        );
+        assert!(ops(DiagramTypeId::Conceptual).prop_values().is_empty());
+    }
 }

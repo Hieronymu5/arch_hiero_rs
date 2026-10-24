@@ -550,7 +550,7 @@ take an optional `expected_revision` that is checked as described in section 3.
 
 | Tool | Purpose | Annotations |
 |---|---|---|
-| `list_diagram_types` | Each type with its palette: kinds, which kinds each can contain or connect to, and the per-kind property schema | read-only |
+| `list_diagram_types` | Each type with its palette: kinds, which kinds each can contain or connect to, the per-kind property schema, and `propValues`, the values of props with a fixed list (a deployed component's `techStack` ids) | read-only |
 | `list_diagrams` | id, name, type, updated_at, Saved/Unsaved, latest version | read-only |
 | `get_diagram` | The full current diagram (elements + connections), with each element's laid-out `x/y/width/height` | read-only |
 | `create_diagram` | name, type, description. Physical diagrams get their starting zones. Records v1. | – |

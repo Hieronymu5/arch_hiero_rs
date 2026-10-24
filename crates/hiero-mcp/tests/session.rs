@@ -61,6 +61,10 @@ async fn an_agent_builds_versions_and_exports_a_physical_diagram() {
         Some(true)
     );
 
+    // The types list the technologies a deployed component can be built on.
+    let (ok, types) = call(&client, "list_diagram_types", json!({})).await;
+    assert!(ok && types.contains(r#""id": "springboot""#));
+
     // The seeds are there, and the type specs are resources.
     let (ok, list) = call(&client, "list_diagrams", json!({})).await;
     assert!(ok && list.contains("Enterprise Overview"));
