@@ -12,6 +12,7 @@ use hiero_editor::DiagramEditor;
 use hiero_store::{Record, Status, Store, StoreError, Summary};
 
 use crate::editors::editor_for;
+use crate::list_sort::ListSort;
 use crate::worker::{Event, Request, Worker};
 
 /// How long typing waits before it's saved.
@@ -103,6 +104,8 @@ pub struct App {
     pub page: Page,
     pub back: Vec<Page>,
     pub list: Vec<Summary>,
+    /// How the list is sorted, after a column's header is clicked; unset, it's by name.
+    pub list_sort: Option<ListSort>,
     pub outcome: Option<Outcome>,
     pub open: Option<OpenDiagram>,
     /// Each diagram's undo history, for as long as the app runs.
@@ -121,6 +124,7 @@ impl App {
             page: Page::List,
             back: Vec::new(),
             list: Vec::new(),
+            list_sort: None,
             outcome: None,
             open: None,
             undo: HashMap::new(),

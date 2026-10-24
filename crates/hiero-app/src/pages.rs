@@ -12,6 +12,7 @@ use hiero_store::Status;
 
 use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
 use crate::format::date;
+use crate::list_sort::{Column, ListSort};
 
 /// Something to do once a dialog closes.
 type Action = Box<dyn FnOnce(&mut App)>;
@@ -167,6 +168,25 @@ fn column_headers(ui: &mut Ui, headers: &[&str]) {
                 .color(ui.visuals().strong_text_color()),
         );
     }
+}
+
+/// A column's header that sorts the table when clicked, with an arrow after it when the
+/// table is sorted by it.
+fn sort_header(ui: &mut Ui, header: &str, sort: Option<ListSort>) -> egui::Response {
+    let size = egui::TextStyle::Body.resolve(ui.style()).size;
+    let text = match sort {
+        Some(sort) => format!("{header} {}", sort.arrow()),
+        None => header.to_owned(),
+    };
+    ui.add(
+        egui::Label::new(
+            RichText::new(text)
+                .font(fonts::bold(size))
+                .color(ui.visuals().strong_text_color()),
+        )
+        .sense(egui::Sense::click()),
+    )
+    .on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 /// The vertical gap between a table's rows, with a rule drawn across its middle.
@@ -375,10 +395,20 @@ impl App {
             ui.label("No diagrams have been added yet.");
             return;
         }
-        let rows = self.list.clone();
+        let mut rows = self.list.clone();
+        if let Some(sort) = self.list_sort {
+            sort.sort(&mut rows);
+        }
         egui::ScrollArea::vertical().show(ui, |ui| {
             ruled_grid(ui, "diagrams", 5, |ui, end_row| {
-                column_headers(ui, &["Name", "Type", "Last updated", "Status", ""]);
+                for (column, header) in Column::ALL {
+                    if sort_header(ui, header, self.list_sort.filter(|s| s.column == column))
+                        .clicked()
+                    {
+                        self.list_sort = Some(ListSort::clicked(self.list_sort, column));
+                    }
+                }
+                column_headers(ui, &[""]);
                 let size = egui::TextStyle::Body.resolve(ui.style()).size;
                 end_row(ui);
                 for row in rows {

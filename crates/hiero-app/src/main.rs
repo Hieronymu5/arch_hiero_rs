@@ -5,6 +5,7 @@ mod app;
 mod devtools;
 mod editors;
 mod format;
+mod list_sort;
 mod pages;
 mod worker;
 
