@@ -138,7 +138,15 @@ use ConceptualKind as K;
 /// The elements offered in a conceptual diagram's palette.
 pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     KindInfo {
-        connects_to: &[K::Application, K::Component, K::Domain, K::Job],
+        connects_to: &[
+            K::Application,
+            K::Component,
+            K::Domain,
+            K::Job,
+            K::Process,
+            K::Entity,
+            K::File,
+        ],
         layer: FIGURES,
         size: Some(Size::new(120.0, 80.0)),
         ..KindInfo::new(K::Actor, "Actor")
@@ -154,7 +162,14 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
         can_contain: &[K::Component, K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
         header: Some(60.0),
-        connects_to: &[K::Application, K::Component, K::Job],
+        connects_to: &[
+            K::Application,
+            K::Component,
+            K::Job,
+            K::Process,
+            K::Entity,
+            K::File,
+        ],
         layer: APPLICATIONS,
         resizable: Resizable::Both,
         size: Some(Size::new(200.0, 100.0)),
@@ -163,17 +178,32 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     KindInfo {
         can_contain: &[K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
-        connects_to: &[K::Application, K::Component, K::Job],
+        connects_to: &[
+            K::Application,
+            K::Component,
+            K::Job,
+            K::Process,
+            K::Entity,
+            K::File,
+        ],
         layer: COMPONENTS,
         ..KindInfo::new(K::Component, "Component")
     },
     KindInfo {
         layer: FIGURES,
+        connects_to: &[
+            K::Application,
+            K::Component,
+            K::Job,
+            K::Process,
+            K::Entity,
+            K::File,
+        ],
         size: Some(Size::new(140.0, 40.0)),
         ..KindInfo::new(K::Process, "Process")
     },
     KindInfo {
-        connects_to: &[K::Application, K::Component],
+        connects_to: &[K::Application, K::Component, K::Process, K::Entity, K::File],
         layer: FIGURES,
         size: Some(Size::new(160.0, 40.0)),
         ..KindInfo::new(K::Job, "Job")

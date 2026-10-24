@@ -540,14 +540,15 @@ mod tests {
         let edits = parse(json!([
             {"op": "add_element", "ref": "a", "kind": "actor", "label": "Customer"},
             {"op": "add_element", "ref": "p", "kind": "process", "label": "Billing"},
-            {"op": "add_connection", "source_id": "a", "target_id": "p"}
+            {"op": "add_connection", "source_id": "a", "target_id": "p"},
+            {"op": "add_connection", "source_id": "p", "target_id": "a"}
         ]));
         let error = ops(DiagramTypeId::Conceptual)
             .apply(&diagram, &edits)
             .unwrap_err();
         assert_eq!(
             error.message,
-            "an arrow can't go from “Customer” to “Billing”"
+            "an arrow can't go from “Billing” to “Customer”"
         );
     }
 

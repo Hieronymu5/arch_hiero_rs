@@ -323,14 +323,19 @@ mod tests {
     }
 
     #[test]
-    fn actors_connect_to_applications_but_not_processes() {
+    fn actors_connect_to_applications_and_processes_but_not_sections() {
         let mut e = engine();
         e.add_at_free_position(ConceptualKind::Actor);
         e.add_at_free_position(ConceptualKind::Application);
         e.add_at_free_position(ConceptualKind::Process);
+        e.add_at_free_position(ConceptualKind::Section);
         assert!(e.can_connect(&id("id1"), &id("id2")));
-        assert!(!e.can_connect(&id("id1"), &id("id3")));
+        assert!(e.can_connect(&id("id1"), &id("id3")));
+        assert!(!e.can_connect(&id("id1"), &id("id4")));
         assert!(!e.can_connect(&id("id2"), &id("id1")));
+        // A process starts arrows too, but not back to an actor.
+        assert!(e.can_connect(&id("id3"), &id("id2")));
+        assert!(!e.can_connect(&id("id3"), &id("id1")));
     }
 
     #[test]
@@ -359,10 +364,10 @@ mod tests {
         assert_eq!(e.element(&id("id4")).unwrap().parent_id, Some(id("id3")));
         let file = e.laid(&id("id4")).unwrap().clone();
         assert_eq!(file.rect.size(), FIGURE_SIZE);
-        // Read as a file, not "File (file)", and with no arrows.
+        // Read as a file, not "File (file)", and takes arrows but doesn't start them.
         assert_eq!(Conceptual::kind_description(&e, &file), "File");
         assert!(!e.can_connect(&id("id4"), &id("id1")));
-        assert!(!e.can_connect(&id("id1"), &id("id4")));
+        assert!(e.can_connect(&id("id1"), &id("id4")));
     }
 
     #[test]
