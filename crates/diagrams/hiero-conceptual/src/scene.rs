@@ -28,7 +28,9 @@ fn fill_of(
         return (None, Some(colors.section_names.clone()));
     }
     match figure {
-        Some(Figure::Database | Figure::Storage) => return (Some(colors.data.clone()), None),
+        Some(Figure::Database | Figure::Storage | Figure::File) => {
+            return (Some(colors.data.clone()), None);
+        }
         _ if element.is_region => {
             return (
                 Some(colors.domains.clone()),
@@ -61,6 +63,7 @@ pub fn look_of(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> LookElem
             Some(Figure::Person | Figure::Bot) => Shape::Actor,
             Some(Figure::Database) => Shape::Database,
             Some(Figure::Storage) => Shape::Storage,
+            Some(Figure::File) => Shape::File,
             None if is_cloud(&element.el) => Shape::Cloud,
             None => Shape::Box,
         }
@@ -241,5 +244,22 @@ mod tests {
         // The connector box in the connectors colour.
         assert!(svg.contains(r##"rx="3" fill="#cfd4da""##));
         assert!(svg.contains(">API</text>"));
+    }
+
+    #[test]
+    fn draws_a_file_as_a_page_with_a_folded_corner_in_the_data_colour() {
+        let mut e = Engine::<Conceptual>::new(Vec::new(), Vec::new(), DiagramColors::default())
+            .with_measure(&ESTIMATE)
+            .with_ids(|| "f1".into());
+        e.add_at_free_position(ConceptualKind::File);
+        let svg = scene_to_svg("Test", &scene(&e));
+        assert!(svg.contains(r##"fill="#ffe599""##));
+        assert!(svg.contains(r#"<path d="M17 1 H41 V45 H7 V11 Z"/>"#));
+        assert!(svg.contains(r#"<path d="M17 1 V11 H7 Z"/>"#));
+        assert!(svg.contains(r#"<line x1="20" y1="9" x2="34" y2="9"/>"#));
+        assert!(svg.contains(r#"<line x1="14" y1="37" x2="34" y2="37"/>"#));
+        assert!(svg.contains(">File</text>"));
+        let drawio = to_drawio(&e, "Test", None);
+        assert!(drawio.contains("stencil(pZTdbsMgDIWfhvsEt812"));
     }
 }

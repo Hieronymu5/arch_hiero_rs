@@ -30,7 +30,7 @@ pub struct DiagramColors {
     pub applications: String,
     /// Fill of connector and transformation boxes on arrows, of jobs, and of bots.
     pub connectors: String,
-    /// Fill of entities, and of databases and storage.
+    /// Fill of entities and files, and of databases and storage.
     pub data: String,
     /// Fill of processes.
     pub processes: String,
@@ -62,7 +62,7 @@ impl ColorScheme for DiagramColors {
         ("domains", "Domains"),
         ("applications", "Applications, Components, and Actors"),
         ("connectors", "Connectors, Transformations, Jobs, and Bots"),
-        ("data", "Entities, Databases, and Storage"),
+        ("data", "Entities, Files, Databases, and Storage"),
         ("processes", "Processes"),
         ("borders", "Borders"),
         ("lines", "Lines"),
@@ -114,6 +114,8 @@ pub enum Shape {
     Database,
     /// A stack of drives, with the name underneath.
     Storage,
+    /// A page with a folded corner, with the name underneath.
+    File,
     /// One of the physical diagram's figures, with the name underneath.
     Physical(PhysicalFigure),
 }
@@ -312,6 +314,17 @@ fn component_figure(shape: Shape, agent: bool) -> Vec<Node> {
             .iter()
             .map(|d| Node::rect(*d, component::DRIVE_CORNER, Paint::default()))
             .collect(),
+        Shape::File => {
+            [
+                Node::path(component::FILE_PAGE, Paint::default()),
+                Node::path(component::FILE_FOLD, Paint::default()),
+            ]
+            .into_iter()
+            .chain(component::FILE_LINES.iter().map(|&(x1, x2, y)| {
+                Node::line(Point::new(x1, y), Point::new(x2, y), Paint::default())
+            }))
+            .collect()
+        }
         _ => actor_figure(agent),
     }
 }
@@ -538,7 +551,7 @@ pub fn draw_element(
             ));
             nodes
         }
-        Shape::Actor | Shape::Database | Shape::Storage => {
+        Shape::Actor | Shape::Database | Shape::Storage | Shape::File => {
             let name = wrap_text(&element.label, text_width, FIGURE_NAME, measure);
             let content_height = 46.0 + 4.0 + name.len() as f64 * FIGURE_NAME.line_height;
             let top = if look.shape == Shape::Actor {

@@ -329,11 +329,12 @@ pub fn diagram_to_drawio(
         let geometry = rect_attributes(Rect::new(left, top, e.rect.width, e.rect.height));
         let look = &e.look;
         match look.shape {
-            Shape::Actor | Shape::Database | Shape::Storage => {
+            Shape::Actor | Shape::Database | Shape::Storage | Shape::File => {
                 let stencil = match look.shape {
                     Shape::Actor if look.agent => AGENT_STENCIL,
                     Shape::Actor => ACTOR_STENCIL,
                     Shape::Database => DATABASE_STENCIL,
+                    Shape::File => FILE_STENCIL,
                     _ => STORAGE_STENCIL,
                 };
                 let style = base_style(colors)

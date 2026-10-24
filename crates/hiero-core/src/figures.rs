@@ -37,6 +37,19 @@ pub mod component {
         Rect::new(4.0, 37.0, 40.0, 8.0),
     ];
     pub const DRIVE_CORNER: f64 = 2.0;
+    /// A file: an upright page with its upper-left corner folded down, as a triangle over the
+    /// cut corner, and five lines spread evenly down it, like lines of text.
+    pub const FILE_PAGE: &str = "M17 1 H41 V45 H7 V11 Z";
+    pub const FILE_FOLD: &str = "M17 1 V11 H7 Z";
+    /// Each line's start, end, and height. A line level with the fold, which reaches down to
+    /// 11, starts clear of it.
+    pub const FILE_LINES: [(f64, f64, f64); 5] = [
+        (20.0, 34.0, 9.0),
+        (14.0, 34.0, 16.0),
+        (14.0, 34.0, 23.0),
+        (14.0, 34.0, 30.0),
+        (14.0, 34.0, 37.0),
+    ];
     /// The size of a component drawn as a figure, with its name underneath.
     pub const FIGURE_SIZE: Size = Size::new(120.0, 80.0);
 }

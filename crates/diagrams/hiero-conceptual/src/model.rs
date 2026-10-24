@@ -1,5 +1,6 @@
 //! The conceptual diagram's kinds, element and arrow properties, and colours.
 
+use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::geometry::Size;
 use hiero_core::look::DiagramColors;
 use hiero_core::model::{ContainerLook, KindInfo, Resizable};
@@ -18,6 +19,7 @@ pub enum ConceptualKind {
     Process,
     Job,
     Entity,
+    File,
     Section,
 }
 
@@ -132,7 +134,7 @@ const FIGURES: i32 = 3;
 use ConceptualKind as K;
 
 /// The elements offered in a conceptual diagram's palette.
-pub static PALETTE: [KindInfo<ConceptualKind>; 8] = [
+pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     KindInfo {
         connects_to: &[K::Application, K::Component, K::Domain, K::Job],
         layer: FIGURES,
@@ -147,7 +149,7 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 8] = [
     },
     KindInfo {
         has_description: true,
-        can_contain: &[K::Component, K::Process, K::Entity],
+        can_contain: &[K::Component, K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
         header: Some(60.0),
         connects_to: &[K::Application, K::Component, K::Job],
@@ -157,7 +159,7 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 8] = [
         ..KindInfo::new(K::Application, "Application")
     },
     KindInfo {
-        can_contain: &[K::Process, K::Entity],
+        can_contain: &[K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
         connects_to: &[K::Application, K::Component, K::Job],
         layer: COMPONENTS,
@@ -179,6 +181,13 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 8] = [
         size: Some(Size::new(140.0, 40.0)),
         ..KindInfo::new(K::Entity, "Entity")
     },
+    // Data kept as a file, such as an export: placed as an entity is, but drawn as a page with
+    // its name underneath, sized as a component drawn as a figure.
+    KindInfo {
+        layer: FIGURES,
+        size: Some(FIGURE_SIZE),
+        ..KindInfo::new(K::File, "File")
+    },
     KindInfo {
         layer: FIGURES,
         resizable: Resizable::Width,
@@ -194,7 +203,7 @@ impl ConceptualKind {
             Self::Application | Self::Component => Some(FillRole::Applications),
             Self::Process => Some(FillRole::Processes),
             Self::Job => Some(FillRole::Connectors),
-            Self::Entity => Some(FillRole::Data),
+            Self::Entity | Self::File => Some(FillRole::Data),
             _ => None,
         }
     }

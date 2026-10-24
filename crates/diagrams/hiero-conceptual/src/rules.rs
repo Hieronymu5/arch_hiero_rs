@@ -1,4 +1,4 @@
-//! The conceptual diagram's rules: figures for actors and some components, and what screen
+//! The conceptual diagram's rules: figures for actors, files, and some components, and what screen
 //! readers hear about arrows.
 
 use hiero_core::engine::{DiagramType, El, Engine, Laid, validate_label, validate_length};
@@ -19,6 +19,7 @@ pub enum Figure {
     Bot,
     Database,
     Storage,
+    File,
 }
 
 /// The figure an element is drawn as, if any.
@@ -29,6 +30,9 @@ pub fn figure_of(element: &El<Conceptual>) -> Option<Figure> {
         } else {
             Figure::Person
         });
+    }
+    if element.kind == ConceptualKind::File {
+        return Some(Figure::File);
     }
     if element.kind.has_component_type() {
         return element.props.component_type.map(|t| match t {
@@ -131,7 +135,8 @@ impl DiagramType for Conceptual {
                 Some(Figure::Bot) => Some("bot"),
                 Some(Figure::Database) => Some("database"),
                 Some(Figure::Storage) => Some("storage"),
-                Some(Figure::Person) | None => None,
+                // A person or a file is what its kind always is.
+                Some(Figure::Person | Figure::File) | None => None,
             }
         };
         match variant {
@@ -341,6 +346,23 @@ mod tests {
         assert_eq!(e.element(&id("id2")).unwrap().parent_id, None);
         assert_eq!(e.laid(&id("id1")).unwrap().rect.size(), FIGURE_SIZE);
         assert_eq!(e.announcement, "Component set to database.");
+    }
+
+    #[test]
+    fn a_file_goes_into_an_application_or_component_as_an_entity_does() {
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Application, Point::new(200.0, 140.0));
+        e.palette_drop(ConceptualKind::File, Point::new(200.0, 160.0));
+        assert_eq!(e.element(&id("id2")).unwrap().parent_id, Some(id("id1")));
+        e.palette_drop(ConceptualKind::Component, Point::new(800.0, 400.0));
+        e.palette_drop(ConceptualKind::File, Point::new(800.0, 400.0));
+        assert_eq!(e.element(&id("id4")).unwrap().parent_id, Some(id("id3")));
+        let file = e.laid(&id("id4")).unwrap().clone();
+        assert_eq!(file.rect.size(), FIGURE_SIZE);
+        // Read as a file, not "File (file)", and with no arrows.
+        assert_eq!(Conceptual::kind_description(&e, &file), "File");
+        assert!(!e.can_connect(&id("id4"), &id("id1")));
+        assert!(!e.can_connect(&id("id1"), &id("id4")));
     }
 
     #[test]

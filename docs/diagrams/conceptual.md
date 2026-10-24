@@ -17,11 +17,12 @@ ones). Elements inside a container are always drawn on top of it.
 |---|---|---|---|---|---|---|---|
 | `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | application, component, domain, job | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. |
 | `domain` | Domain | 480×180 | domains | application | – | 0 | A filled `region` with its name as a header. Resizable. |
-| `application` | Application | 200×100 | applications | component, process, entity | application, component, job | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
-| `component` | Component | 160×60 (120×80 as a figure) | applications (data for database/storage) | process, entity | application, component, job | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
+| `application` | Application | 200×100 | applications | component, process, entity, file | application, component, job | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
+| `component` | Component | 160×60 (120×80 as a figure) | applications (data for database/storage) | process, entity, file | application, component, job | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
 | `process` | Process | 140×40 | processes (dark blue, light text) | – | – | 3 | |
 | `job` | Job | 160×40 | connectors | – | application, component | 3 | Something that runs on a schedule. |
 | `entity` | Entity | 140×40 | data | – | – | 3 | |
+| `file` | File | 120×80 | data | – | – | 3 | Data kept as a file, such as an export. Placed as an entity is, but drawn as a figure: an upright page with its upper-left corner folded down and five lines of text, with the name underneath. |
 | `section` | Section | 480×40 | – | – | – | 3 | A horizontal line with short end ticks and the name centred on it, in the *section names* colour. It names the part of the diagram below it. Resizes across only, from handles on its two ends. |
 
 Containers grow to fit what they hold: a 40 px header (60 for an application) and 20 px of
@@ -75,7 +76,7 @@ Each diagram can override any of these. Only colours that differ from the defaul
 | `domains` | `#f5f5f5` | Domain fill |
 | `applications` | `#d0e6fb` | Applications, components, and people |
 | `connectors` | `#cfd4da` | Connector and transformation boxes, jobs, and bots |
-| `data` | `#ffe599` | Entities, databases, and storage |
+| `data` | `#ffe599` | Entities, files, databases, and storage |
 | `processes` | `#1466b3` | Processes |
 | `borders` | `#1e1e1e` | Element, figure, and arrow-box borders |
 | `lines` | `#0066cc` | Arrow lines and heads |
@@ -89,6 +90,7 @@ Text on a fill is black or white, whichever has more contrast (WCAG). This uses
 - **Actor:** a person, or a bot. Physical diagrams use the same person for users.
 - **Database cylinder:** physical diagrams use it too.
 - **Storage stack**
+- **File:** a page with a folded corner and lines of text.
 - **Cloud outline:** draw.io's cloud shape, moved down 5% so it touches the bottom edge, with
   text inset 16%.
 
@@ -100,14 +102,14 @@ Everything else (palette, select, multi-select, move, snap, resize, delete, pan 
 shared editor engine described in [the plan](../implementation-plan.md#shared-editor-engine).
 
 - Dropping an application on a domain puts it inside the domain. Dropping a component on an
-  application puts it inside the application. Dropping a process or entity on an application or
-  component puts it inside that.
+  application puts it inside the application. Dropping a process, entity, or file on an
+  application or component puts it inside that.
 - An application or component that holds elements shows its name and description at the top.
 
 ## Export
 
 - **SVG:** uses the shared scene. Each element maps to an `ExportLook`: box, cloud, container,
-  section, actor, database, or storage.
+  section, actor, database, storage, or file.
 - **draw.io:** uses the shared writer. Containers become draw.io containers and arrows become
   attached connectors. Connector and transformation boxes become labelled cells. The heading
   (diagram name and description) goes in the top-left corner.
