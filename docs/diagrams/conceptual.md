@@ -15,12 +15,12 @@ ones). Elements inside a container are always drawn on top of it.
 
 | Kind | Label | Default size | Fill colour | Can contain | Arrows to | Layer | Notes |
 |---|---|---|---|---|---|---|---|
-| `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | application, component, domain, job, process, entity, file | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. |
+| `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | actor, application, component, domain, job, process, entity, file | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. |
 | `domain` | Domain | 480×180 | domains | application | – | 0 | A filled `region` with its name as a header. Resizable. |
-| `application` | Application | 200×100 | applications | component, process, entity, file | application, component, job, process, entity, file | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
-| `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file | application, component, job, process, entity, file | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
-| `process` | Process | 140×40 | processes (dark blue, light text) | – | application, component, job, process, entity, file | 3 | |
-| `job` | Job | 160×40 | connectors | – | application, component, process, entity, file | 3 | Something that runs on a schedule. |
+| `application` | Application | 200×100 | applications | component, process, entity, file | actor, application, component, job, process, entity, file | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
+| `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file | actor, application, component, job, process, entity, file | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
+| `process` | Process | 140×40 | processes (dark blue, light text) | – | actor, application, component, job, process, entity, file | 3 | |
+| `job` | Job | 160×40 | connectors | – | actor, application, component, process, entity, file | 3 | Something that runs on a schedule. |
 | `entity` | Entity | 140×40 | data | – | – | 3 | |
 | `file` | File | 120×80 | data | – | – | 3 | Data kept as a file, such as an export. Placed as an entity is, but drawn as a figure: an upright page with its upper-left corner folded down and five lines of text, with the name underneath. |
 | `section` | Section | 480×40 | – | – | – | 3 | A horizontal line with short end ticks and the name centred on it, in the *section names* colour. It names the part of the diagram below it. Resizes across only, from handles on its two ends. |

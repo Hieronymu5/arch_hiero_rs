@@ -323,19 +323,29 @@ mod tests {
     }
 
     #[test]
-    fn actors_connect_to_applications_and_processes_but_not_sections() {
+    fn actors_connect_to_applications_processes_and_actors_but_not_sections() {
         let mut e = engine();
         e.add_at_free_position(ConceptualKind::Actor);
         e.add_at_free_position(ConceptualKind::Application);
         e.add_at_free_position(ConceptualKind::Process);
         e.add_at_free_position(ConceptualKind::Section);
+        e.add_at_free_position(ConceptualKind::Actor);
+        e.add_at_free_position(ConceptualKind::Job);
+        e.add_at_free_position(ConceptualKind::Entity);
         assert!(e.can_connect(&id("id1"), &id("id2")));
         assert!(e.can_connect(&id("id1"), &id("id3")));
         assert!(!e.can_connect(&id("id1"), &id("id4")));
-        assert!(!e.can_connect(&id("id2"), &id("id1")));
-        // A process starts arrows too, but not back to an actor.
+        // A person who hands work to an assistant.
+        assert!(e.can_connect(&id("id1"), &id("id5")));
+        // A process starts arrows too, and applications, processes, and jobs point to actors,
+        // such as a system that sends someone a report.
         assert!(e.can_connect(&id("id3"), &id("id2")));
-        assert!(!e.can_connect(&id("id3"), &id("id1")));
+        assert!(e.can_connect(&id("id2"), &id("id1")));
+        assert!(e.can_connect(&id("id3"), &id("id1")));
+        assert!(e.can_connect(&id("id6"), &id("id1")));
+        // Data and sections don't.
+        assert!(!e.can_connect(&id("id7"), &id("id1")));
+        assert!(!e.can_connect(&id("id4"), &id("id1")));
     }
 
     #[test]

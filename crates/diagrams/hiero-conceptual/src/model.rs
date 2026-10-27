@@ -138,7 +138,9 @@ use ConceptualKind as K;
 /// The elements offered in a conceptual diagram's palette.
 pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     KindInfo {
+        // Other actors too, such as a person who hands work to an assistant.
         connects_to: &[
+            K::Actor,
             K::Application,
             K::Component,
             K::Domain,
@@ -162,7 +164,9 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
         can_contain: &[K::Component, K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
         header: Some(60.0),
+        // Actors too, such as a person a system sends a report to.
         connects_to: &[
+            K::Actor,
             K::Application,
             K::Component,
             K::Job,
@@ -178,7 +182,9 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     KindInfo {
         can_contain: &[K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
+        // Actors too, such as a person a system sends a report to.
         connects_to: &[
+            K::Actor,
             K::Application,
             K::Component,
             K::Job,
@@ -191,7 +197,9 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     },
     KindInfo {
         layer: FIGURES,
+        // Actors too, such as a person a system sends a report to.
         connects_to: &[
+            K::Actor,
             K::Application,
             K::Component,
             K::Job,
@@ -203,7 +211,14 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
         ..KindInfo::new(K::Process, "Process")
     },
     KindInfo {
-        connects_to: &[K::Application, K::Component, K::Process, K::Entity, K::File],
+        connects_to: &[
+            K::Actor,
+            K::Application,
+            K::Component,
+            K::Process,
+            K::Entity,
+            K::File,
+        ],
         layer: FIGURES,
         size: Some(Size::new(160.0, 40.0)),
         ..KindInfo::new(K::Job, "Job")
