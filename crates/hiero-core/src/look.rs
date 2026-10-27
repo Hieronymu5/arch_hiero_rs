@@ -233,6 +233,35 @@ pub fn figure_name_bottom(
     area.y + figure.size().height + FIGURE_NAME_GAP + lines as f64 * FIGURE_NAME.line_height
 }
 
+/// How far below the top of its area an actor's figure sits: where it's centred with a name on
+/// one line. It stays there when the name takes two, which go below the area.
+const ACTOR_FIGURE_TOP: f64 = 5.0;
+
+/// Where a conceptual figure, such as an actor's person, starts. A database, storage, or file
+/// sits at the top of its area, so an arrow from above touches it.
+fn component_figure_top(y: f64, shape: Shape) -> f64 {
+    if shape == Shape::Actor {
+        y + ACTOR_FIGURE_TOP
+    } else {
+        y
+    }
+}
+
+/// Where the name under a conceptual figure, such as an actor's, ends: the figure, the gap,
+/// then the name's lines. A long name ends below the area.
+pub fn component_name_bottom(
+    area: Rect,
+    label: &str,
+    shape: Shape,
+    measure: &dyn MeasureText,
+) -> f64 {
+    let lines = wrap_text(label, area.width - PADDING_X * 2.0, FIGURE_NAME, measure).len();
+    component_figure_top(area.y, shape)
+        + actor::HEIGHT
+        + FIGURE_NAME_GAP
+        + lines as f64 * FIGURE_NAME.line_height
+}
+
 /// Text lines anchored at `x`, the first line's box starting at `top`.
 pub fn text_lines(
     lines: &[String],
@@ -556,13 +585,9 @@ pub fn draw_element(
             nodes
         }
         Shape::Actor | Shape::Database | Shape::Storage | Shape::File => {
+            // The figure stays put and the name grows down, below the area when it takes two lines.
             let name = wrap_text(&element.label, text_width, FIGURE_NAME, measure);
-            let content_height = 46.0 + 4.0 + name.len() as f64 * FIGURE_NAME.line_height;
-            let top = if look.shape == Shape::Actor {
-                y + (height - content_height) / 2.0
-            } else {
-                y
-            };
+            let top = component_figure_top(y, look.shape);
             let mut nodes = vec![Node::group(
                 Some(Point::new(
                     round2(center_x - actor::WIDTH / 2.0),
@@ -578,7 +603,7 @@ pub fn draw_element(
             nodes.extend(text_lines(
                 &name,
                 center_x,
-                top + 50.0,
+                top + actor::HEIGHT + FIGURE_NAME_GAP,
                 FIGURE_NAME,
                 Anchor::Middle,
             ));
@@ -937,6 +962,33 @@ mod tests {
         assert!(svg.contains(r#"marker-end="url(#return-arrowhead)""#));
         assert!(svg.contains(r##"stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">Orders</text>"##));
         assert!(svg.contains(">Map</text>"));
+    }
+
+    #[test]
+    fn actors_stay_put_when_their_name_takes_two_lines() {
+        let area = Rect::new(40.0, 40.0, 120.0, 80.0);
+        let svg_of = |label: &str| {
+            let mut e = element(Shape::Actor, area);
+            e.label = label.into();
+            let scene = draw_diagram(&[e], &[], &EstimateText, &DiagramColors::default());
+            scene_to_svg("t", &scene)
+        };
+        // The figure starts 5px down the area, whatever the name's length.
+        for label in ["Rep", "Customer Service Representative"] {
+            assert!(
+                svg_of(label).contains(r#"<g transform="translate(76 45)""#),
+                "{label}"
+            );
+        }
+        // A name on one line ends inside the area, one on two lines below it.
+        let bottom = |label| component_name_bottom(area, label, Shape::Actor, &EstimateText);
+        assert_eq!(bottom("Rep"), 115.0);
+        assert_eq!(bottom("Customer Service Representative"), 135.0);
+        // A database sits at the very top.
+        assert_eq!(
+            component_name_bottom(area, "Orders", Shape::Database, &EstimateText),
+            110.0
+        );
     }
 
     #[test]

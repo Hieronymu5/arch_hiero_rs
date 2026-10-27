@@ -7,14 +7,14 @@ use hiero_core::color::readable_text;
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::figures::cloud_edge_point;
 use hiero_core::geometry::{Point, Rect};
-use hiero_core::look::{ArrowLook, Look, LookElement, Shape, draw_diagram};
+use hiero_core::look::{ArrowLook, Look, LookElement, Shape, component_name_bottom, draw_diagram};
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
     CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, Route, Side, connector_placement, route_connections,
     straight_range, transformation_placement,
 };
 use hiero_core::scene::Scene;
-use hiero_core::text::Weight;
+use hiero_core::text::{MeasureText, Weight};
 
 use crate::model::{Conceptual, ConceptualKind};
 use crate::rules::{Figure, figure_of, is_cloud};
@@ -53,22 +53,32 @@ fn fill_of(
     }
 }
 
+/// The shape of an element's figure, such as an actor for a person or a bot, if it's drawn as
+/// one. A region or section is drawn as itself instead.
+fn figure_shape(element: &Laid<Conceptual>) -> Option<Shape> {
+    if element.is_region || element.el.kind == ConceptualKind::Section {
+        return None;
+    }
+    match figure_of(&element.el)? {
+        Figure::Person | Figure::Bot => Some(Shape::Actor),
+        Figure::Database => Some(Shape::Database),
+        Figure::Storage => Some(Shape::Storage),
+        Figure::File => Some(Shape::File),
+    }
+}
+
 /// How an element looks.
 pub fn look_of(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> LookElement {
-    let figure = figure_of(&element.el);
     let shape = if element.is_region {
         Shape::Container
     } else if element.el.kind == ConceptualKind::Section {
         Shape::Section
     } else {
-        match figure {
-            Some(Figure::Person | Figure::Bot) => Shape::Actor,
-            Some(Figure::Database) => Shape::Database,
-            Some(Figure::Storage) => Shape::Storage,
-            Some(Figure::File) => Shape::File,
-            None if is_cloud(&element.el) => Shape::Cloud,
-            None => Shape::Box,
-        }
+        figure_shape(element).unwrap_or(if is_cloud(&element.el) {
+            Shape::Cloud
+        } else {
+            Shape::Box
+        })
     };
     let (fill, text_color) = fill_of(eng, element);
     LookElement {
@@ -105,6 +115,9 @@ pub struct DrawnArrow {
     pub straightenable: bool,
 }
 
+/// How far under a figure's name an arrow at its bottom ends, so it almost touches it.
+const NAME_CLEARANCE: f64 = 2.0;
+
 /// How far a connector box on an arrow into a cloud overlaps the cloud, in pixels.
 const CLOUD_CONNECTOR_INSET: f64 = 6.0;
 
@@ -134,6 +147,24 @@ fn on_cloud(element: Option<&Laid<Conceptual>>, side: Side, point: Point) -> Poi
                 side,
                 point,
             )
+        }
+        _ => point,
+    }
+}
+
+/// Where an arrow end at `point`, on `side` of `element`, is drawn: at a figure's bottom, just
+/// under its name when the name reaches below the area, such as on two lines, so the line is
+/// shortened rather than crossing the name.
+fn clear_of_name(
+    element: Option<&Laid<Conceptual>>,
+    side: Side,
+    point: Point,
+    measure: &dyn MeasureText,
+) -> Point {
+    match element.and_then(|e| figure_shape(e).map(|shape| (e, shape))) {
+        Some((e, shape)) if side == Side::Bottom => {
+            let name_bottom = component_name_bottom(e.rect, &e.el.label, shape, measure);
+            Point::new(point.x, point.y.max(name_bottom + NAME_CLEARANCE))
         }
         _ => point,
     }
@@ -169,14 +200,15 @@ pub fn drawn_arrows(
         .iter()
         .filter_map(|c| {
             let routed = *routes.get(&c.id)?;
+            let source = by_id.get(&c.source_id).copied();
             let target = by_id.get(&c.target_id).copied();
+            // One at a figure's bottom ends under its name, which may reach below the area.
+            let end = |element, side, point| {
+                clear_of_name(element, side, on_cloud(element, side, point), measure)
+            };
             let route = Route {
-                from: on_cloud(
-                    by_id.get(&c.source_id).copied(),
-                    routed.from_side,
-                    routed.from,
-                ),
-                to: on_cloud(target, routed.to_side, routed.to),
+                from: end(source, routed.from_side, routed.from),
+                to: end(target, routed.to_side, routed.to),
                 ..routed
             };
             let props = &c.props;
@@ -342,6 +374,41 @@ mod tests {
         let (_, rect) = into.look.connector.clone().unwrap();
         assert!((rect.x - (edge.x - 6.0)).abs() < 0.5, "{rect:?} {edge:?}");
         assert_eq!(into.route.to.y, 250.0);
+    }
+
+    #[test]
+    fn ends_arrows_from_below_a_figure_under_its_name() {
+        let elements = serde_json::from_value(serde_json::json!([
+            { "id": "u1", "kind": "actor", "label": "Rep", "x": 40, "y": 0 },
+            { "id": "u2", "kind": "actor", "label": "Customer Service Representative", "x": 400, "y": 0 },
+            { "id": "a1", "kind": "application", "label": "CRM", "x": 0, "y": 200 },
+            { "id": "a2", "kind": "application", "label": "ERP", "x": 360, "y": 200 },
+        ]))
+        .unwrap();
+        let connections = serde_json::from_value(serde_json::json!([
+            { "id": "c1", "sourceId": "u1", "targetId": "a1" },
+            { "id": "c2", "sourceId": "u2", "targetId": "a2" },
+        ]))
+        .unwrap();
+        let e = Engine::<Conceptual>::new(elements, connections, DiagramColors::default())
+            .with_measure(&ESTIMATE);
+        let arrows = drawn_arrows(&e, e.layout(), None);
+        let arrow = |id: &str| &arrows.iter().find(|a| a.id == id.into()).unwrap().look;
+        let actor = |id: &str| e.laid(&id.into()).unwrap().rect;
+
+        // A name on one line fits in the area, so the arrow starts at its bottom.
+        let short = actor("u1");
+        assert_eq!(arrow("c1").from.y, short.y + short.height);
+        // One on two lines reaches below it, so the arrow starts just under the name.
+        let long = actor("u2");
+        let name_bottom = component_name_bottom(
+            long,
+            "Customer Service Representative",
+            Shape::Actor,
+            &ESTIMATE,
+        );
+        assert!(name_bottom > long.y + long.height);
+        assert_eq!(arrow("c2").from.y, name_bottom + NAME_CLEARANCE);
     }
 
     #[test]

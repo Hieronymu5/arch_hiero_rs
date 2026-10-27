@@ -28,8 +28,12 @@ const BOX_FILL: &str = "#ffffff";
 /// Where the drawing starts in draw.io, so it isn't against the edge of the page.
 pub const ORIGIN: f64 = 40.0;
 const RETURN_ARROW_HEIGHT: f64 = 6.0;
-const ACTOR_NAME_BOTTOM: f64 = 5.0;
-const COMPONENT_NAME_BOTTOM: f64 = 10.0;
+/// Space above an actor's name: the figure, a little way down the area, and the gap under it,
+/// so the name sits under the figure and a second line goes below the first.
+const ACTOR_NAME_TOP: f64 = 55.0;
+/// Space above a database's, storage's, or file's name. Their figures sit at the top of the
+/// area, so the name sits right under the figure.
+const COMPONENT_NAME_TOP: f64 = 50.0;
 const SECTION_NAME_GAP: &str = "&nbsp;&nbsp;";
 
 /// The heading's text sizes and line heights, and the gap below it.
@@ -341,13 +345,13 @@ pub fn diagram_to_drawio(
                     .set("shape", format!("stencil({stencil})"))
                     .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
                     .set("align", "center")
-                    .set("verticalAlign", "bottom")
+                    .set("verticalAlign", "top")
                     .num(
-                        "spacingBottom",
+                        "spacingTop",
                         if look.shape == Shape::Actor {
-                            ACTOR_NAME_BOTTOM
+                            ACTOR_NAME_TOP
                         } else {
-                            COMPONENT_NAME_BOTTOM
+                            COMPONENT_NAME_TOP
                         },
                     )
                     .set("fontStyle", 1)
@@ -817,6 +821,23 @@ mod tests {
                 || xml.contains(r#"id="d" value="d &amp; co""#)
         );
         assert!(xml.contains(r#"x="40" y="108" width="480" height="180""#));
+    }
+
+    #[test]
+    fn figure_names_grow_down_from_under_the_figure() {
+        let elements = vec![
+            element("u", None, Shape::Actor, Rect::new(40.0, 40.0, 120.0, 80.0)),
+            element(
+                "d",
+                None,
+                Shape::Database,
+                Rect::new(200.0, 40.0, 120.0, 80.0),
+            ),
+        ];
+        let xml = diagram_to_drawio("T", &elements, &[], None, &DiagramColors::default());
+        assert!(xml.contains("verticalAlign=top;spacingTop=55;"), "{xml}");
+        assert!(xml.contains("verticalAlign=top;spacingTop=50;"), "{xml}");
+        assert!(!xml.contains("verticalAlign=bottom"));
     }
 
     #[test]
