@@ -22,8 +22,9 @@ use crate::tech_stack;
 
 type DEngine = Engine<DeployedComponent>;
 
-fn is_known_technology(id: &str) -> bool {
-    tech_stack::find(id).is_some()
+/// Where a technology comes in the catalogue, if it's in it.
+fn technology_position(id: &str) -> Option<usize> {
+    tech_stack::TECH_STACK.iter().position(|item| item.id == id)
 }
 type DLaid = Laid<DeployedComponent>;
 
@@ -209,7 +210,7 @@ impl DiagramType for DeployedComponent {
                 Field {
                     key: "techStack",
                     rule: FieldRule::Ids {
-                        known: is_known_technology,
+                        position: technology_position,
                         noun: "technology",
                     },
                 },
@@ -498,12 +499,16 @@ impl DiagramType for DeployedComponent {
             with.props.instance_count = None;
         }
         with.props.protocols = cleaned_list(with.props.protocols);
-        // Each technology once, in the order first chosen.
+        // Each technology once, in the catalogue's order. Unknown ones stay, for the checks to
+        // refuse.
         with.props.tech_stack = cleaned_list(with.props.tech_stack).map(|ids| {
             let mut seen = std::collections::BTreeSet::new();
-            ids.into_iter()
+            let mut ids: Vec<String> = ids
+                .into_iter()
                 .filter(|id| seen.insert(id.clone()))
-                .collect()
+                .collect();
+            ids.sort_by_key(|id| technology_position(id).unwrap_or(usize::MAX));
+            ids
         });
         if parent_id == selected.parent_id {
             eng.replace(id, |_| with);

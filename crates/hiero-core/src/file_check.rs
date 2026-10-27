@@ -50,9 +50,10 @@ pub enum FieldRule {
         max: usize,
         max_items: Option<usize>,
     },
-    /// A list of ids, each listed once and each one `known` accepts, as a `noun`.
+    /// A list of ids, each one `position` places (as a `noun`), listed once, and in the order of
+    /// their positions, so each set of ids has one spelling.
     Ids {
-        known: fn(&str) -> bool,
+        position: fn(&str) -> Option<usize>,
         noun: &'static str,
     },
 }
@@ -309,15 +310,22 @@ fn field(object: &Object, field: &Field) -> Result<(), String> {
                 return Err(too_long(name, max));
             }
         }
-        FieldRule::Ids { known, noun } => {
+        FieldRule::Ids { position, noun } => {
             let mut seen = BTreeSet::new();
+            let mut previous: Option<(&str, usize)> = None;
             for id in text_list(key, value)? {
-                if !known(id) {
+                let Some(at) = position(id) else {
                     return Err(format!("“{id}” isn’t a known {noun}."));
-                }
+                };
                 if !seen.insert(id) {
                     return Err(format!("“{id}” is listed twice."));
                 }
+                if let Some((before, before_at)) = previous
+                    && at < before_at
+                {
+                    return Err(format!("“{id}” must come before “{before}”."));
+                }
+                previous = Some((id, at));
             }
         }
     }

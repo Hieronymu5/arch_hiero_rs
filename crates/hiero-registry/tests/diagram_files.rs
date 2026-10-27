@@ -387,6 +387,10 @@ fn elements_on_their_own() {
         "“Portal”: “aws” is listed twice."
     );
     assert_eq!(
+        refused(d(), set(portal, "techStack", json!(["angular", "aws"]))),
+        "“Portal”: “aws” must come before “angular”."
+    );
+    assert_eq!(
         refused(d(), set(portal, "dependency", json!("core"))),
         "“Portal”: “dependency” must be one of: internal, external."
     );
@@ -558,7 +562,7 @@ fn edited_diagrams_export_valid_files() {
              "props": {"characteristics": [" ", "PCI DSS "]}},
             {"op": "add_element", "kind": "component", "label": "API", "parent_id": "l",
              "description": "", "props": {"instanceCount": 1, "protocols": ["", "HTTPS"],
-             "techStack": ["java", "java"]}}
+             "techStack": ["java", "docker", "java"]}}
         ]),
     );
     for diagram in [conceptual, physical, deployed] {
