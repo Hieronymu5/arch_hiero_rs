@@ -2,7 +2,7 @@
 
 use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Dir, Engine, Laid, validate_length};
-use hiero_core::geometry::Point;
+use hiero_core::geometry::{Point, Rect};
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
 use hiero_editor::theme::page_button;
@@ -15,7 +15,7 @@ use crate::model::{
     DESCRIPTION_MAX, TRANSFORMATION_MAX,
 };
 use crate::rules::{arrow_title, normalized_arrow};
-use crate::scene::{drawn_arrows, scene_of};
+use crate::scene::{drawn_arrows, drawn_rect, scene_of};
 
 impl DiagramView for Conceptual {
     const HELP: &'static str = crate::HELP;
@@ -48,6 +48,10 @@ impl DiagramView for Conceptual {
                     .collect(),
             })
             .collect()
+    }
+
+    fn drawn_rect(eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
+        drawn_rect(eng, element)
     }
 
     fn element_properties(ui: &mut Ui, cx: &mut PropsCx<'_, Self>, element: &Laid<Self>) {

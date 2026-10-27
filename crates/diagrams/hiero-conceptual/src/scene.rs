@@ -131,6 +131,22 @@ fn inward(point: Point, side: Side, distance: f64) -> Point {
     }
 }
 
+/// The area an element is drawn in: a figure's, such as an actor's, reaches down to the end of
+/// its name, which goes below its area on two lines.
+pub fn drawn_rect(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> Rect {
+    let rect = element.rect;
+    match figure_shape(element) {
+        Some(shape) => {
+            let bottom = component_name_bottom(rect, &element.el.label, shape, eng.measure());
+            Rect {
+                height: rect.height.max(bottom - rect.y),
+                ..rect
+            }
+        }
+        None => rect,
+    }
+}
+
 /// Where an arrow end at `point`, on `side` of `element`, is drawn: on the cloud for an
 /// element hosted in the cloud, which is drawn inset by half its 2px line, else where it is.
 fn on_cloud(element: Option<&Laid<Conceptual>>, side: Side, point: Point) -> Point {
@@ -374,6 +390,32 @@ mod tests {
         let (_, rect) = into.look.connector.clone().unwrap();
         assert!((rect.x - (edge.x - 6.0)).abs() < 0.5, "{rect:?} {edge:?}");
         assert_eq!(into.route.to.y, 250.0);
+    }
+
+    #[test]
+    fn draws_a_figure_down_to_the_end_of_its_name() {
+        let elements = serde_json::from_value(serde_json::json!([
+            { "id": "u1", "kind": "actor", "label": "Rep", "x": 40, "y": 0 },
+            { "id": "u2", "kind": "actor", "label": "Customer Service Representative", "x": 400, "y": 0 },
+            { "id": "a1", "kind": "application", "label": "Customer Relationship Management Suite", "x": 0, "y": 200 },
+        ]))
+        .unwrap();
+        let e = Engine::<Conceptual>::new(elements, vec![], DiagramColors::default())
+            .with_measure(&ESTIMATE);
+        let laid = |id: &str| e.laid(&id.into()).unwrap();
+
+        // A name on one line fits in the area.
+        assert_eq!(drawn_rect(&e, laid("u1")), laid("u1").rect);
+        // One on two lines reaches below it, and so does what's drawn.
+        let long = laid("u2");
+        let drawn = drawn_rect(&e, long);
+        assert!(drawn.height > long.rect.height);
+        assert_eq!(
+            drawn.bottom(),
+            component_name_bottom(long.rect, &long.el.label, Shape::Actor, &ESTIMATE)
+        );
+        // An application's name wraps inside its box.
+        assert_eq!(drawn_rect(&e, laid("a1")), laid("a1").rect);
     }
 
     #[test]

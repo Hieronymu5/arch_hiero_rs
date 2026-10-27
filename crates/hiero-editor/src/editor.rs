@@ -51,6 +51,12 @@ pub trait DiagramView: DiagramType {
         Vec::new()
     }
 
+    /// The area an element is drawn in, for its selection outline and for picking it with the
+    /// pointer. A figure's reaches down to the end of its name, which may go below its area.
+    fn drawn_rect(_eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
+        element.rect
+    }
+
     /// The type's fields for the selected element.
     fn element_properties(ui: &mut Ui, cx: &mut PropsCx<'_, Self>, element: &Laid<Self>);
 
@@ -562,12 +568,14 @@ impl<T: DiagramView> Editor<T> {
     }
 
     /// The element under a world point: figures and boxes over the containers they're in.
-    fn element_at(layout: &[Laid<T>], p: Point) -> Option<&Laid<T>> {
+    fn element_at(eng: &Engine<T>, p: Point) -> Option<&Laid<T>> {
+        let layout = eng.layout();
+        let hit = |e: &&Laid<T>| T::drawn_rect(eng, e).contains_point(p);
         layout
             .iter()
             .rev()
-            .find(|e| !e.is_container && e.rect.contains_point(p))
-            .or_else(|| layout.iter().rev().find(|e| e.rect.contains_point(p)))
+            .find(|e| !e.is_container && hit(e))
+            .or_else(|| layout.iter().rev().find(hit))
     }
 
     fn connect_handle(&self, xf: &Transform, element: &Laid<T>) -> Pos2 {
@@ -738,7 +746,7 @@ impl<T: DiagramView> Editor<T> {
             if !selected && !is_focused {
                 continue;
             }
-            let r = xf.rect(element.rect).expand(3.0);
+            let r = xf.rect(T::drawn_rect(&self.eng, element)).expand(3.0);
             if selected {
                 painter.rect_stroke(
                     r,
@@ -928,7 +936,7 @@ impl<T: DiagramView> Editor<T> {
                 Drag::Connect { .. } => CursorIcon::Crosshair,
                 Drag::Slide { .. } => CursorIcon::ResizeVertical,
                 Drag::None => {
-                    if Self::element_at(self.eng.layout(), world).is_some() {
+                    if Self::element_at(&self.eng, world).is_some() {
                         CursorIcon::PointingHand
                     } else {
                         CursorIcon::Default
@@ -985,7 +993,7 @@ impl<T: DiagramView> Editor<T> {
             return;
         }
         // Elements.
-        if let Some(element) = Self::element_at(self.eng.layout(), world).cloned() {
+        if let Some(element) = Self::element_at(&self.eng, world).cloned() {
             let id = element.id().clone();
             self.focus = Focus::Element(id.clone());
             self.selection_before_focus = None;
