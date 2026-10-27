@@ -10,9 +10,11 @@ mod pages;
 mod worker;
 
 use app::{App, Page};
+use hiero_editor::theme::Accent;
 use hiero_store::Store;
 
 const THEME_KEY: &str = "theme";
+const ACCENT_KEY: &str = "accent";
 
 fn theme_from(text: Option<String>) -> egui::ThemePreference {
     match text.as_deref() {
@@ -43,6 +45,13 @@ impl Shell {
         hiero_editor::theme::install_text_colors(&cc.egui_ctx);
         let theme = theme_from(cc.storage.and_then(|s| s.get_string(THEME_KEY)));
         cc.egui_ctx.set_theme(theme);
+        // Applied before the first frame, as the theme is. An unknown name gives the default.
+        let accent = cc
+            .storage
+            .and_then(|s| s.get_string(ACCENT_KEY))
+            .and_then(|key| Accent::from_key(&key))
+            .unwrap_or_default();
+        hiero_editor::theme::set_accent(&cc.egui_ctx, accent);
         let path = std::env::var_os("ARCH_HIERO_DB")
             .map(std::path::PathBuf::from)
             .or_else(hiero_store::default_path);
@@ -53,7 +62,7 @@ impl Shell {
             let mut store = Store::open(&path)?;
             store.seed_if_empty()?;
             let worker = worker::Worker::start(path.clone(), cc.egui_ctx.clone())?;
-            Ok::<_, hiero_store::StoreError>(App::new(store, worker, theme))
+            Ok::<_, hiero_store::StoreError>(App::new(store, worker, theme, accent))
         })();
         match started {
             Ok(app) => Self::Running(Box::new(app), devtools::DevTools::from_env()),
@@ -69,6 +78,7 @@ impl eframe::App for Shell {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         if let Self::Running(app, _) = self {
             storage.set_string(THEME_KEY, theme_name(app.theme).to_owned());
+            storage.set_string(ACCENT_KEY, app.accent.key());
         }
     }
 

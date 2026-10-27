@@ -9,6 +9,7 @@ use hiero_core::history::{DiagramSnapshot, UndoStack};
 use hiero_core::model::{DiagramId, DiagramTypeId};
 use hiero_core::stored::StoredDiagram;
 use hiero_editor::DiagramEditor;
+use hiero_editor::theme::Accent;
 use hiero_store::{Record, Status, Store, StoreError, Summary};
 
 use crate::editors::editor_for;
@@ -114,10 +115,11 @@ pub struct App {
     pub form: DetailsForm,
     pub save_due: Option<Instant>,
     pub theme: egui::ThemePreference,
+    pub accent: Accent,
 }
 
 impl App {
-    pub fn new(store: Store, worker: Worker, theme: egui::ThemePreference) -> Self {
+    pub fn new(store: Store, worker: Worker, theme: egui::ThemePreference, accent: Accent) -> Self {
         let mut app = Self {
             store,
             worker,
@@ -132,6 +134,7 @@ impl App {
             form: DetailsForm::default(),
             save_due: None,
             theme,
+            accent,
         };
         app.refresh_list();
         app

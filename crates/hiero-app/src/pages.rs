@@ -6,7 +6,8 @@ use hiero_core::history::validate_version_description;
 use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
 use hiero_editor::fonts;
 use hiero_editor::theme::{
-    CONTENT_INSET, danger_button, field_label, form_style, page_button, palette, row_button,
+    Accent, CONTENT_INSET, danger_button, field_label, form_style, page_button, palette,
+    row_button, set_accent,
 };
 use hiero_store::Status;
 
@@ -82,6 +83,224 @@ fn theme_picker(ui: &mut Ui, current: egui::ThemePreference) -> Option<egui::The
         }
     }
     chosen
+}
+
+/// The accent colour picker beside the theme picker: a button showing the colour in use that
+/// drops down a 4 × 4 grid of colour squares, as radio buttons. Clicking a square picks it and
+/// closes the grid; the arrow keys pick as they move, and Escape, Enter, a click elsewhere, or
+/// moving focus away closes it. Returns the colour picked, if any.
+fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
+    const CELL: f32 = 32.0;
+    const GAP: f32 = 6.0;
+    const COLUMNS: usize = 4;
+    let colors = palette(ui);
+    let label = format!("Accent colour: {}", current.label());
+    // 6px of padding, the colour, 4px, the arrow, and 6px, inside a 1px border; as tall as the
+    // theme picker.
+    let (rect, toggle) = ui.allocate_exact_size(egui::vec2(48.0, 34.0), egui::Sense::click());
+    let toggle = toggle
+        .on_hover_text(&label)
+        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    toggle.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+    let popup_id = egui::Popup::default_response_id(&toggle);
+    let was_open = egui::Popup::is_id_open(ui.ctx(), popup_id);
+
+    let painter = ui.painter();
+    painter.rect_stroke(
+        rect,
+        egui::CornerRadius::same(6),
+        egui::Stroke::new(1.0, colors.input_border),
+        egui::StrokeKind::Inside,
+    );
+    // The colour in use, in this theme's shade.
+    let dot = egui::pos2(rect.left() + 17.0, rect.center().y);
+    painter.circle_filled(dot, 10.0, colors.accent);
+    painter.circle_stroke(
+        dot,
+        9.5,
+        egui::Stroke::new(1.0, Color32::from_black_alpha(51)),
+    );
+    let arrow = if toggle.hovered() {
+        colors.text
+    } else {
+        colors.text_muted
+    };
+    let corner = egui::pos2(rect.right() - 17.0, rect.center().y - 3.0);
+    painter.add(egui::Shape::line(
+        vec![
+            corner + egui::vec2(1.0, 1.0),
+            corner + egui::vec2(5.0, 5.0),
+            corner + egui::vec2(9.0, 1.0),
+        ],
+        egui::Stroke::new(1.5, arrow),
+    ));
+    if toggle.has_focus() {
+        painter.rect_stroke(
+            rect.expand(2.0),
+            egui::CornerRadius::same(8),
+            egui::Stroke::new(2.0, colors.accent),
+            egui::StrokeKind::Outside,
+        );
+    }
+
+    let swatch_id = |i: usize| popup_id.with(("accent", i));
+    let mut chosen = None;
+    let mut close = false;
+    let shown = egui::Popup::from_toggle_button_response(&toggle)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .align(egui::RectAlign::BOTTOM_END)
+        .gap(6.0)
+        .accessible_name("Accent colour")
+        .frame(
+            egui::Frame::new()
+                .fill(colors.surface)
+                .stroke(egui::Stroke::new(1.0, colors.border))
+                .corner_radius(6)
+                .inner_margin(8)
+                .shadow(ui.visuals().popup_shadow),
+        )
+        .show(|ui| {
+            #[expect(clippy::cast_precision_loss, reason = "four cells")]
+            let side = COLUMNS as f32 * CELL + (COLUMNS - 1) as f32 * GAP;
+            let (grid, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
+            let mut moved = None;
+            for (i, accent) in Accent::ALL.into_iter().enumerate() {
+                #[expect(clippy::cast_precision_loss, reason = "four rows and columns")]
+                let at = egui::vec2((i % COLUMNS) as f32, (i / COLUMNS) as f32) * (CELL + GAP);
+                let cell = egui::Rect::from_min_size(grid.min + at, egui::vec2(CELL, CELL));
+                let response = ui
+                    .interact(cell, swatch_id(i), egui::Sense::click())
+                    .on_hover_text(accent.label())
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let selected = accent == current;
+                response.widget_info(|| {
+                    egui::WidgetInfo::selected(
+                        egui::Role::RadioButton,
+                        true,
+                        selected,
+                        accent.label(),
+                    )
+                });
+                // Focus goes to the colour in use as the grid opens, so the arrow keys move
+                // from it.
+                if !was_open && selected {
+                    response.request_focus();
+                }
+                if response.has_focus() {
+                    ui.memory_mut(|m| {
+                        m.set_focus_lock_filter(
+                            swatch_id(i),
+                            egui::EventFilter {
+                                horizontal_arrows: true,
+                                vertical_arrows: true,
+                                ..Default::default()
+                            },
+                        );
+                    });
+                    let (forward, back, enter) = ui.input_mut(|input| {
+                        let mut pressed = |key| input.consume_key(Modifiers::NONE, key);
+                        (
+                            pressed(Key::ArrowRight) | pressed(Key::ArrowDown),
+                            pressed(Key::ArrowLeft) | pressed(Key::ArrowUp),
+                            pressed(Key::Enter),
+                        )
+                    });
+                    // As in a group of radio buttons, the arrow keys go round the colours in
+                    // order, picking each.
+                    let count = Accent::ALL.len();
+                    if forward {
+                        moved = Some((i + 1) % count);
+                    } else if back {
+                        moved = Some((i + count - 1) % count);
+                    }
+                    close |= enter;
+                }
+                if response.clicked() {
+                    chosen = Some(accent);
+                    close = true;
+                }
+                paint_swatch(ui, cell, accent, selected, response.has_focus());
+            }
+            if let Some(i) = moved {
+                chosen = Some(Accent::ALL[i]);
+                ui.memory_mut(|m| m.request_focus(swatch_id(i)));
+            }
+        });
+    if shown.is_some() {
+        // Escape closes the grid on its own, and Tab moving focus out of it closes it too.
+        let escaped = ui.input(|i| i.key_pressed(Key::Escape));
+        let focus = ui.memory(egui::Memory::focused);
+        let left = focus.is_some_and(|f| f != toggle.id && !(0..16).any(|i| swatch_id(i) == f));
+        if close || escaped {
+            toggle.request_focus();
+        }
+        if close || left {
+            egui::Popup::close_id(ui.ctx(), popup_id);
+        }
+    }
+    chosen
+}
+
+/// A square of the accent picker: the colour's light theme shade in its top-left half and its
+/// dark theme shade in the bottom-right, ringed in the text colour when it's the one in use.
+fn paint_swatch(ui: &Ui, cell: egui::Rect, accent: Accent, selected: bool, focused: bool) {
+    let colors = palette(ui);
+    let painter = ui.painter();
+    if selected {
+        painter.rect_stroke(
+            cell,
+            egui::CornerRadius::same(4),
+            egui::Stroke::new(2.0, colors.text),
+            egui::StrokeKind::Outside,
+        );
+    }
+    if focused {
+        painter.rect_stroke(
+            cell.expand(3.0),
+            egui::CornerRadius::same(6),
+            egui::Stroke::new(2.0, colors.accent),
+            egui::StrokeKind::Outside,
+        );
+    }
+    let swatch = egui::Rect::from_center_size(cell.center(), egui::vec2(24.0, 24.0));
+    let mut outline = Vec::new();
+    egui::epaint::tessellator::path::rounded_rectangle(
+        &mut outline,
+        egui::epaint::RoundedRect::new(swatch, 4.0),
+    );
+    // Split along the diagonal from the top-right corner to the bottom-left.
+    let diagonal = swatch.left() + swatch.top() + swatch.width();
+    let (light, dark) = accent.shades();
+    for (half, color) in [(-1.0, light), (1.0, dark)] {
+        let points = clip_to_half(&outline, |p| half * (p.x + p.y - diagonal));
+        painter.add(egui::Shape::convex_polygon(
+            points,
+            color,
+            egui::Stroke::NONE,
+        ));
+    }
+    painter.rect_stroke(
+        swatch,
+        egui::CornerRadius::same(4),
+        egui::Stroke::new(1.0, Color32::from_black_alpha(51)),
+        egui::StrokeKind::Inside,
+    );
+}
+
+/// The part of a convex polygon where `side` is zero or more.
+fn clip_to_half(polygon: &[egui::Pos2], side: impl Fn(egui::Pos2) -> f32) -> Vec<egui::Pos2> {
+    let mut clipped = Vec::new();
+    for (i, &a) in polygon.iter().enumerate() {
+        let b = polygon[(i + 1) % polygon.len()];
+        let (sa, sb) = (side(a), side(b));
+        if sa >= 0.0 {
+            clipped.push(a);
+        }
+        if (sa >= 0.0) != (sb >= 0.0) {
+            clipped.push(a + (b - a) * (sa / (sa - sb)));
+        }
+    }
+    clipped
 }
 
 /// Paints a theme's 18px icon, drawn on the prototype's 24-unit grid with 2-unit lines.
@@ -340,7 +559,12 @@ impl App {
                         });
                     });
                 }
+                // The theme picker, then the accent colour picker, at the end of the bar.
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if let Some(accent) = accent_picker(ui, self.accent) {
+                        self.accent = accent;
+                        set_accent(ui.ctx(), accent);
+                    }
                     if let Some(theme) = theme_picker(ui, self.theme) {
                         self.theme = theme;
                         ui.ctx().set_theme(theme);
@@ -961,5 +1185,161 @@ impl App {
         } else if undo {
             self.undo();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput};
+    use hiero_editor::theme::Accent;
+
+    use super::accent_picker;
+
+    /// The accent picker in a window, driven by input a frame at a time.
+    struct Window {
+        ctx: egui::Context,
+        accent: Accent,
+        toggle: Id,
+    }
+
+    impl Window {
+        /// Tabs to the picker's button.
+        fn new() -> Self {
+            let mut w = Self {
+                ctx: egui::Context::default(),
+                accent: Accent::default(),
+                toggle: Id::NULL,
+            };
+            w.frame(vec![]);
+            w.key(Key::Tab);
+            w.toggle = w.focused().unwrap();
+            w
+        }
+
+        fn frame(&mut self, events: Vec<Event>) {
+            let input = RawInput {
+                events,
+                ..RawInput::default()
+            };
+            let (current, mut picked) = (self.accent, None);
+            self.ctx
+                .run_ui(input, |ui| picked = accent_picker(ui, current))
+                .textures_delta
+                .clear();
+            if let Some(accent) = picked {
+                self.accent = accent;
+            }
+        }
+
+        fn key(&mut self, key: Key) {
+            let press = |pressed| Event::Key {
+                key,
+                physical_key: None,
+                pressed,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            };
+            self.frame(vec![press(true)]);
+            self.frame(vec![press(false)]);
+            self.frame(vec![]);
+        }
+
+        fn click(&mut self, id: Id) {
+            let pos: Pos2 = self.ctx.read_response(id).unwrap().rect.center();
+            let press = |pressed| Event::PointerButton {
+                pos,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            self.frame(vec![Event::PointerMoved(pos)]);
+            self.frame(vec![press(true)]);
+            self.frame(vec![press(false)]);
+            self.frame(vec![]);
+        }
+
+        fn popup(&self) -> Id {
+            egui::Popup::default_response_id(&self.ctx.read_response(self.toggle).unwrap())
+        }
+
+        fn swatch(&self, accent: Accent) -> Id {
+            let i = Accent::ALL.iter().position(|a| *a == accent).unwrap();
+            self.popup().with(("accent", i))
+        }
+
+        fn is_open(&self) -> bool {
+            egui::Popup::is_id_open(&self.ctx, self.popup())
+        }
+
+        fn focused(&self) -> Option<Id> {
+            self.ctx.memory(egui::Memory::focused)
+        }
+    }
+
+    #[test]
+    fn opens_on_the_colour_in_use_and_picks_a_clicked_one() {
+        let mut w = Window::new();
+        assert!(!w.is_open());
+        w.click(w.toggle);
+        assert!(w.is_open());
+        // Focus goes to the colour in use, so the arrow keys move from it.
+        assert_eq!(w.focused(), Some(w.swatch(Accent::Blue)));
+
+        w.click(w.swatch(Accent::Pine));
+        assert_eq!(w.accent, Accent::Pine);
+        assert!(!w.is_open());
+        assert_eq!(w.focused(), Some(w.toggle));
+    }
+
+    #[test]
+    fn stays_open_while_the_arrow_keys_pick_and_closes_on_escape() {
+        let mut w = Window::new();
+        w.click(w.toggle);
+        w.key(Key::ArrowRight);
+        assert_eq!(w.accent, Accent::Navy);
+        assert!(w.is_open());
+        assert_eq!(w.focused(), Some(w.swatch(Accent::Navy)));
+        // Going back past the first colour goes round to the last.
+        w.key(Key::ArrowLeft);
+        w.key(Key::ArrowUp);
+        assert_eq!(w.accent, Accent::Rose);
+
+        w.key(Key::Escape);
+        assert!(!w.is_open());
+        assert_eq!(w.focused(), Some(w.toggle));
+        assert_eq!(w.accent, Accent::Rose);
+    }
+
+    #[test]
+    fn closes_on_enter_or_a_click_elsewhere() {
+        let mut w = Window::new();
+        w.click(w.toggle);
+        w.key(Key::Enter);
+        assert!(!w.is_open());
+        assert_eq!(w.focused(), Some(w.toggle));
+
+        w.click(w.toggle);
+        assert!(w.is_open());
+        let far = Pos2::new(700.0, 500.0);
+        for pressed in [true, false] {
+            w.frame(vec![Event::PointerButton {
+                pos: far,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            }]);
+        }
+        w.frame(vec![]);
+        assert!(!w.is_open());
+        assert_eq!(w.accent, Accent::Blue);
+    }
+
+    #[test]
+    fn stores_accents_by_name() {
+        assert_eq!(Accent::Tangerine.key(), "tangerine");
+        for accent in Accent::ALL {
+            assert_eq!(Accent::from_key(&accent.key()), Some(accent));
+        }
+        assert_eq!(Accent::from_key("red"), None);
     }
 }

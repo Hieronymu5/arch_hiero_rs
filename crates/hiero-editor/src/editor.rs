@@ -16,7 +16,7 @@ use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent};
 
 use crate::paint::{PaintCache, Transform, color, paint_scene, world_line};
-use crate::theme::{element_button, page_button};
+use crate::theme::{element_button, page_button, selection_color};
 use crate::view::{View, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
 
@@ -236,8 +236,8 @@ struct PaletteDrag(usize);
 /// How far the pointer moves, in canvas pixels, before a press on empty canvas draws a box.
 const SELECT_THRESHOLD: f64 = 3.0;
 
-/// The colours of the editor's own marks, over the white paper whatever the theme.
-const SELECTION: Color32 = Color32::from_rgb(37, 99, 235);
+/// The colours of the editor's own marks, over the white paper whatever the theme. The selection
+/// is in the accent colour.
 const HANDLE_FILL: Color32 = Color32::WHITE;
 /// The size of handles on screen, whatever the zoom.
 const HANDLE: f32 = 12.0;
@@ -736,6 +736,7 @@ impl<T: DiagramView> Editor<T> {
         ui: &Ui,
     ) {
         let focused = response.has_focus();
+        let selection = selection_color(ui.ctx());
         // Selected arrow.
         let lines = T::arrow_lines(&self.eng, layout, self.slide());
         if let Some(selected) = &self.eng.selected_connection
@@ -743,13 +744,13 @@ impl<T: DiagramView> Editor<T> {
         {
             painter.line_segment(
                 [xf.pos(line.from), xf.pos(line.to)],
-                Stroke::new(6.0, SELECTION.gamma_multiply(0.45)),
+                Stroke::new(6.0, selection.gamma_multiply(0.45)),
             );
             for b in &line.boxes {
                 painter.rect_stroke(
                     xf.rect(*b).expand(2.0),
                     3.0,
-                    Stroke::new(2.0, SELECTION),
+                    Stroke::new(2.0, selection),
                     egui::StrokeKind::Outside,
                 );
             }
@@ -765,7 +766,7 @@ impl<T: DiagramView> Editor<T> {
                 painter.rect_stroke(
                     r,
                     4.0,
-                    Stroke::new(2.0, SELECTION),
+                    Stroke::new(2.0, selection),
                     egui::StrokeKind::Outside,
                 );
             }
@@ -799,20 +800,20 @@ impl<T: DiagramView> Editor<T> {
                 painter.rect_stroke(
                     r,
                     2.0,
-                    Stroke::new(if focused_handle { 3.0 } else { 1.5 }, SELECTION),
+                    Stroke::new(if focused_handle { 3.0 } else { 1.5 }, selection),
                     egui::StrokeKind::Inside,
                 );
             }
             if T::ID.has_arrows() && Engine::<T>::can_connect_from(element) {
                 let c = self.connect_handle(&xf, element);
-                painter.circle(c, CONNECT_RADIUS, HANDLE_FILL, Stroke::new(2.0, SELECTION));
+                painter.circle(c, CONNECT_RADIUS, HANDLE_FILL, Stroke::new(2.0, selection));
                 painter.line_segment(
                     [c - Vec2::new(3.0, 0.0), c + Vec2::new(3.0, 0.0)],
-                    Stroke::new(1.5, SELECTION),
+                    Stroke::new(1.5, selection),
                 );
                 painter.line_segment(
                     [c - Vec2::new(0.0, 3.0), c + Vec2::new(0.0, 3.0)],
-                    Stroke::new(1.5, SELECTION),
+                    Stroke::new(1.5, selection),
                 );
             }
         }
@@ -824,7 +825,7 @@ impl<T: DiagramView> Editor<T> {
                 painter,
                 xf,
                 &[from, *pointer],
-                Stroke::new(2.0, SELECTION),
+                Stroke::new(2.0, selection),
                 true,
             );
             if let Some(target) = self.eng.connect_target_at(source, *pointer)
@@ -833,7 +834,7 @@ impl<T: DiagramView> Editor<T> {
                 painter.rect_stroke(
                     xf.rect(t.rect).expand(3.0),
                     4.0,
-                    Stroke::new(2.0, SELECTION),
+                    Stroke::new(2.0, selection),
                     egui::StrokeKind::Outside,
                 );
             }
@@ -841,7 +842,7 @@ impl<T: DiagramView> Editor<T> {
         // The selection box.
         if let Some(area) = self.select_area() {
             let r = xf.rect(area);
-            painter.rect_filled(r, 0.0, SELECTION.gamma_multiply(0.1));
+            painter.rect_filled(r, 0.0, selection.gamma_multiply(0.1));
             let corners = [
                 r.left_top(),
                 r.right_top(),
@@ -851,7 +852,7 @@ impl<T: DiagramView> Editor<T> {
             ];
             painter.extend(egui::Shape::dashed_line(
                 &corners,
-                Stroke::new(1.0, SELECTION),
+                Stroke::new(1.0, selection),
                 4.0,
                 3.0,
             ));
@@ -872,7 +873,7 @@ impl<T: DiagramView> Editor<T> {
             painter.rect_stroke(
                 xf.rect(ghost),
                 4.0,
-                Stroke::new(1.5, SELECTION),
+                Stroke::new(1.5, selection),
                 egui::StrokeKind::Middle,
             );
             painter.text(
@@ -880,7 +881,7 @@ impl<T: DiagramView> Editor<T> {
                 Align2::CENTER_CENTER,
                 kind.label,
                 egui::FontId::proportional(13.0 * xf.zoom.max(0.6)),
-                SELECTION,
+                selection,
             );
         }
         let _ = color;

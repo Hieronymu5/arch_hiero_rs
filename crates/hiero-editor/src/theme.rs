@@ -44,9 +44,192 @@ pub const LIGHT: Palette = Palette {
     surface: Color32::WHITE,
 };
 
-/// The palette of the theme `ui` is drawn in.
+/// The app's primary colour, for buttons, links, focus rings, and the editor's selection, chosen
+/// beside the theme picker. Each has a shade for the light theme and one for the dark, which pass
+/// WCAG AA, 4.5:1, against the backgrounds and as a button's fill under the theme's
+/// `on_accent` text. None is red, which reads as an error.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Accent {
+    #[default]
+    Blue,
+    Navy,
+    Denim,
+    Indigo,
+    Pine,
+    Forest,
+    Slate,
+    Graphite,
+    Gold,
+    Bronze,
+    Copper,
+    Brown,
+    Chestnut,
+    Amber,
+    Tangerine,
+    Rose,
+}
+
+impl Accent {
+    /// Every accent in the order offered, four to a row in the picker: blues, greens and greys,
+    /// yellow and browns, then reddish brown, oranges, and pink.
+    pub const ALL: [Self; 16] = [
+        Self::Blue,
+        Self::Navy,
+        Self::Denim,
+        Self::Indigo,
+        Self::Pine,
+        Self::Forest,
+        Self::Slate,
+        Self::Graphite,
+        Self::Gold,
+        Self::Bronze,
+        Self::Copper,
+        Self::Brown,
+        Self::Chestnut,
+        Self::Amber,
+        Self::Tangerine,
+        Self::Rose,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Blue => "Blue",
+            Self::Navy => "Navy",
+            Self::Denim => "Denim",
+            Self::Indigo => "Indigo",
+            Self::Pine => "Pine",
+            Self::Forest => "Forest",
+            Self::Slate => "Slate",
+            Self::Graphite => "Graphite",
+            Self::Gold => "Gold",
+            Self::Bronze => "Bronze",
+            Self::Copper => "Copper",
+            Self::Brown => "Brown",
+            Self::Chestnut => "Chestnut",
+            Self::Amber => "Amber",
+            Self::Tangerine => "Tangerine",
+            Self::Rose => "Rose",
+        }
+    }
+
+    /// The accent's name as it's stored, such as "pine".
+    pub fn key(self) -> String {
+        self.label().to_lowercase()
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|a| a.key() == key)
+    }
+
+    /// Its light theme's shade and its dark theme's.
+    pub const fn shades(self) -> (Color32, Color32) {
+        match self {
+            Self::Blue => (
+                Color32::from_rgb(0x0b, 0x5c, 0xad),
+                Color32::from_rgb(0x6c, 0xb2, 0xff),
+            ),
+            Self::Navy => (
+                Color32::from_rgb(0x22, 0x40, 0x7a),
+                Color32::from_rgb(0x93, 0xb3, 0xee),
+            ),
+            Self::Denim => (
+                Color32::from_rgb(0x42, 0x69, 0xae),
+                Color32::from_rgb(0x9f, 0xb5, 0xdb),
+            ),
+            Self::Indigo => (
+                Color32::from_rgb(0x39, 0x49, 0xab),
+                Color32::from_rgb(0x9f, 0xa8, 0xff),
+            ),
+            Self::Pine => (
+                Color32::from_rgb(0x0f, 0x61, 0x52),
+                Color32::from_rgb(0x6c, 0xcf, 0xae),
+            ),
+            Self::Forest => (
+                Color32::from_rgb(0x34, 0x79, 0x40),
+                Color32::from_rgb(0x77, 0xc5, 0x84),
+            ),
+            Self::Slate => (
+                Color32::from_rgb(0x4a, 0x5b, 0x74),
+                Color32::from_rgb(0xa7, 0xb6, 0xcc),
+            ),
+            Self::Graphite => (
+                Color32::from_rgb(0x4b, 0x55, 0x63),
+                Color32::from_rgb(0xc0, 0xc7, 0xd1),
+            ),
+            Self::Gold => (
+                Color32::from_rgb(0x7f, 0x62, 0x00),
+                Color32::from_rgb(0xf0, 0xc6, 0x4a),
+            ),
+            Self::Bronze => (
+                Color32::from_rgb(0x81, 0x67, 0x31),
+                Color32::from_rgb(0xcd, 0xb1, 0x7a),
+            ),
+            Self::Copper => (
+                Color32::from_rgb(0x9e, 0x44, 0x20),
+                Color32::from_rgb(0xf2, 0xa2, 0x83),
+            ),
+            Self::Brown => (
+                Color32::from_rgb(0x7a, 0x4e, 0x2d),
+                Color32::from_rgb(0xd4, 0xa5, 0x7e),
+            ),
+            Self::Chestnut => (
+                Color32::from_rgb(0xa6, 0x54, 0x3f),
+                Color32::from_rgb(0xdd, 0xa7, 0x9a),
+            ),
+            Self::Amber => (
+                Color32::from_rgb(0xb0, 0x4f, 0x00),
+                Color32::from_rgb(0xfb, 0xa9, 0x5a),
+            ),
+            Self::Tangerine => (
+                Color32::from_rgb(0xb3, 0x4a, 0x00),
+                Color32::from_rgb(0xfb, 0x9e, 0x5b),
+            ),
+            Self::Rose => (
+                Color32::from_rgb(0xa8, 0x32, 0x5e),
+                Color32::from_rgb(0xf7, 0xa1, 0xc1),
+            ),
+        }
+    }
+}
+
+fn accent_id() -> egui::Id {
+    egui::Id::unique("hiero-editor.accent")
+}
+
+/// The accent colour in use.
+pub fn accent(ctx: &egui::Context) -> Accent {
+    ctx.data(|d| d.get_temp(accent_id())).unwrap_or_default()
+}
+
+/// Uses `accent` from now on, for the palette and for egui's links in each theme.
+pub fn set_accent(ctx: &egui::Context, accent: Accent) {
+    ctx.data_mut(|d| d.insert_temp(accent_id(), accent));
+    let (light, dark) = accent.shades();
+    for (theme, color) in [(egui::Theme::Light, light), (egui::Theme::Dark, dark)] {
+        ctx.style_mut_of(theme, |style| style.visuals.hyperlink_color = color);
+    }
+}
+
+/// The colour of the editor's selection, in the accent's light shade, as the paper is always
+/// white.
+pub fn selection_color(ctx: &egui::Context) -> Color32 {
+    accent(ctx).shades().0
+}
+
+/// The palette of the theme `ui` is drawn in, with the accent in use.
 pub fn palette(ui: &Ui) -> Palette {
-    if ui.visuals().dark_mode { DARK } else { LIGHT }
+    let (light, dark) = accent(ui.ctx()).shades();
+    if ui.visuals().dark_mode {
+        Palette {
+            accent: dark,
+            ..DARK
+        }
+    } else {
+        Palette {
+            accent: light,
+            ..LIGHT
+        }
+    }
 }
 
 /// Gives labels, headings, and buttons the prototype's text colours in each theme, in place of
