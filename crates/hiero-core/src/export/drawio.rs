@@ -494,13 +494,18 @@ pub fn diagram_to_drawio(
                 )
             }
             Shape::Box | Shape::Cloud => {
+                // A bold name, with any description under it in a smaller regular font, keeping
+                // its line breaks.
                 let name = format!("<b>{}</b>", escape_xml(&e.label));
-                let label = match e.description.as_deref().filter(|d| !d.is_empty()) {
-                    Some(d) => format!(
+                let description = e.description.as_deref().map(str::trim).unwrap_or_default();
+                let label = if description.is_empty() {
+                    name
+                } else {
+                    let lines: Vec<String> = description.lines().map(escape_xml).collect();
+                    format!(
                         r#"{name}<br><span style="font-size: 13px">{}</span>"#,
-                        escape_xml(d)
-                    ),
-                    None => name,
+                        lines.join("<br>")
+                    )
                 };
                 let inset = round2(e.rect.width * CLOUD_TEXT_INSET);
                 let mut style = base_style(colors);
@@ -821,6 +826,25 @@ mod tests {
                 || xml.contains(r#"id="d" value="d &amp; co""#)
         );
         assert!(xml.contains(r#"x="40" y="108" width="480" height="180""#));
+    }
+
+    #[test]
+    fn keeps_the_line_breaks_in_a_description() {
+        let mut crm = element("a", None, Shape::Box, Rect::new(40.0, 40.0, 200.0, 100.0));
+        crm.description = Some("Leads\nAccounts & more\n".into());
+        let xml = diagram_to_drawio("T", &[crm], &[], None, &DiagramColors::default());
+        // Escaped once for the HTML and once more for the XML attribute.
+        assert!(
+            xml.contains(
+                "&lt;span style=&quot;font-size: 13px&quot;&gt;Leads&lt;br&gt;Accounts &amp;amp; more&lt;/span&gt;"
+            ),
+            "{xml}"
+        );
+        // A description of only a line break shows nothing.
+        let mut blank = element("b", None, Shape::Box, Rect::new(40.0, 40.0, 200.0, 100.0));
+        blank.description = Some("\n".into());
+        let xml = diagram_to_drawio("T", &[blank], &[], None, &DiagramColors::default());
+        assert!(xml.contains(r#"id="b" value="&lt;b&gt;b &amp;amp; co&lt;/b&gt;""#));
     }
 
     #[test]

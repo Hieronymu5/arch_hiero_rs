@@ -186,7 +186,8 @@ impl TextStyle {
 }
 
 /// Splits text into lines no wider than `width`, breaking between words (and inside a word
-/// that's too long on its own). Text beyond `max_lines` is cut, ending the last line with "…".
+/// that's too long on its own), and at each line break in it. Text beyond `max_lines` is cut,
+/// ending the last line with "…".
 pub fn wrap_text(
     text: &str,
     width: f64,
@@ -194,6 +195,30 @@ pub fn wrap_text(
     measure: &dyn MeasureText,
 ) -> Vec<String> {
     let fits = |line: &str| measure.width(line, style.size, style.weight) <= width;
+    let lines: Vec<String> = text
+        .trim()
+        .lines()
+        .flat_map(|paragraph| wrap_paragraph(paragraph, &fits))
+        .collect();
+    if lines.len() <= style.max_lines {
+        return lines;
+    }
+    let mut kept: Vec<String> = lines.into_iter().take(style.max_lines).collect();
+    if let Some(last) = kept.last_mut() {
+        let mut chars: Vec<char> = last.chars().collect();
+        while !chars.is_empty() && !fits(&format!("{}…", chars.iter().collect::<String>())) {
+            chars.pop();
+            while chars.last().is_some_and(|c| c.is_whitespace()) {
+                chars.pop();
+            }
+        }
+        *last = format!("{}…", chars.iter().collect::<String>());
+    }
+    kept
+}
+
+/// Splits text with no line breaks into lines that fit. An empty one is an empty line.
+fn wrap_paragraph(text: &str, fits: &dyn Fn(&str) -> bool) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut line = String::new();
     for word in text.split_whitespace() {
@@ -220,24 +245,10 @@ pub fn wrap_text(
         }
         line = rest.into_iter().collect();
     }
-    if !line.is_empty() {
+    if !line.is_empty() || lines.is_empty() {
         lines.push(line);
     }
-    if lines.len() <= style.max_lines {
-        return lines;
-    }
-    let mut kept: Vec<String> = lines.into_iter().take(style.max_lines).collect();
-    if let Some(last) = kept.last_mut() {
-        let mut chars: Vec<char> = last.chars().collect();
-        while !chars.is_empty() && !fits(&format!("{}…", chars.iter().collect::<String>())) {
-            chars.pop();
-            while chars.last().is_some_and(|c| c.is_whitespace()) {
-                chars.pop();
-            }
-        }
-        *last = format!("{}…", chars.iter().collect::<String>());
-    }
-    kept
+    lines
 }
 
 /// Truncates `text` with "…" so it fits in `width`, as the deployed component exports do.
@@ -280,6 +291,19 @@ mod tests {
         let lines = wrap_text("one two three four five six", 40.0, STYLE, &EstimateText);
         assert_eq!(lines.len(), 2);
         assert!(lines[1].ends_with('…'));
+    }
+
+    #[test]
+    fn starts_a_new_line_at_each_line_break_keeping_empty_lines() {
+        let lines = wrap_text(
+            "one\ntwo three\r\n\nfour",
+            90.0,
+            STYLE.with_max_lines(4),
+            &EstimateText,
+        );
+        assert_eq!(lines, vec!["one", "two three", "", "four"]);
+        assert!(wrap_text("\n", 90.0, STYLE, &EstimateText).is_empty());
+        assert!(wrap_text("", 90.0, STYLE, &EstimateText).is_empty());
     }
 
     #[test]

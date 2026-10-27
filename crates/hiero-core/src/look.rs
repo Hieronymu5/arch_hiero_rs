@@ -947,6 +947,17 @@ mod tests {
     }
 
     #[test]
+    fn descriptions_keep_their_line_breaks() {
+        let mut e = element(Shape::Box, Rect::new(40.0, 40.0, 200.0, 140.0));
+        e.description = Some("Leads\nAccounts".into());
+        let scene = draw_diagram(&[e], &[], &EstimateText, &DiagramColors::default());
+        let svg = scene_to_svg("t", &scene);
+        // Each line of the description on a line of its own, though both would fit on one.
+        assert!(svg.contains(r#"font-size="13" font-weight="400">Leads</text>"#));
+        assert!(svg.contains(r#"font-size="13" font-weight="400">Accounts</text>"#));
+    }
+
+    #[test]
     fn arrows_get_heads_labels_and_boxes() {
         let arrows = [ArrowLook {
             from: Point::new(100.0, 50.0),

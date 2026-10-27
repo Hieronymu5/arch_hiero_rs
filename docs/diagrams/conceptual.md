@@ -33,7 +33,7 @@ padding around their children.
 | Field | Applies to | Rule |
 |---|---|---|
 | Name | all | Required, at most 100 characters |
-| Description | application | At most 500 characters, shown under the name |
+| Description | application | At most 500 characters, shown under the name, each line break starting a new line (also in the exports) |
 | Bot | actor | Checkbox, stored as `agent: true` |
 | Cloud hosted | application | Checkbox. The application is drawn as a cloud with its text inside. |
 | Type | component | Radio: Default / Database / Storage, stored as `componentType` (unset means Default) |
