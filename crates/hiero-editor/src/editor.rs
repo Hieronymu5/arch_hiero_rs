@@ -184,9 +184,17 @@ pub struct Change {
 /// What the pointer is doing on the canvas.
 enum Drag {
     None,
+    /// Scrolling the canvas with the right button.
     Pan {
         scroll: Vec2,
         pointer: Pos2,
+    },
+    /// A selection box drawn from empty canvas, adding to `base` when Shift, Ctrl, or Cmd was
+    /// held.
+    Select {
+        start: Point,
+        end: Point,
+        base: Vec<ElementId>,
     },
     Move {
         id: ElementId,
@@ -224,6 +232,9 @@ enum Focus {
 /// A palette item being dragged onto the canvas.
 #[derive(Debug, Clone, Copy)]
 struct PaletteDrag(usize);
+
+/// How far the pointer moves, in canvas pixels, before a press on empty canvas draws a box.
+const SELECT_THRESHOLD: f64 = 3.0;
 
 /// The colours of the editor's own marks, over the white paper whatever the theme.
 const SELECTION: Color32 = Color32::from_rgb(37, 99, 235);
@@ -672,7 +683,10 @@ impl<T: DiagramView> Editor<T> {
 
         // Paint the diagram.
         let xf = self.view.transform(rect);
-        let dragging = !matches!(self.drag, Drag::None | Drag::Pan { .. });
+        let dragging = !matches!(
+            self.drag,
+            Drag::None | Drag::Pan { .. } | Drag::Select { .. }
+        );
         let displayed = self.displayed().into_owned();
         let scene = if dragging {
             T::scene(&self.eng, &displayed, self.slide())
@@ -824,6 +838,24 @@ impl<T: DiagramView> Editor<T> {
                 );
             }
         }
+        // The selection box.
+        if let Some(area) = self.select_area() {
+            let r = xf.rect(area);
+            painter.rect_filled(r, 0.0, SELECTION.gamma_multiply(0.1));
+            let corners = [
+                r.left_top(),
+                r.right_top(),
+                r.right_bottom(),
+                r.left_bottom(),
+                r.left_top(),
+            ];
+            painter.extend(egui::Shape::dashed_line(
+                &corners,
+                Stroke::new(1.0, SELECTION),
+                4.0,
+                3.0,
+            ));
+        }
         // A palette item being dragged over the canvas.
         if let Some(payload) = response.dnd_hover_payload::<PaletteDrag>()
             && let Some(p) = ui.input(|i| i.pointer.hover_pos())
@@ -905,12 +937,14 @@ impl<T: DiagramView> Editor<T> {
                 .map_or(Focus::Canvas, Focus::Element);
             return;
         }
-        let (pressed, down, released, pos, modifiers) = ui.input(|i| {
+        let (pressed, right_pressed, down, released, pos, modifiers) = ui.input(|i| {
+            let p = &i.pointer;
             (
-                i.pointer.primary_pressed(),
-                i.pointer.primary_down(),
-                i.pointer.primary_released(),
-                i.pointer.interact_pos(),
+                p.primary_pressed(),
+                p.secondary_pressed(),
+                p.primary_down() || p.secondary_down(),
+                p.primary_released() || p.secondary_released(),
+                p.interact_pos(),
                 i.modifiers,
             )
         });
@@ -918,7 +952,14 @@ impl<T: DiagramView> Editor<T> {
             return;
         };
         let world = xf.world(pos);
-        if pressed && response.hovered() {
+        if right_pressed && response.hovered() {
+            // The right button scrolls from anywhere, over elements and arrows too.
+            response.request_focus();
+            self.drag = Drag::Pan {
+                scroll: self.view.scroll,
+                pointer: pos,
+            };
+        } else if pressed && response.hovered() {
             response.request_focus();
             self.press(pos, world, modifiers, xf);
         } else if down {
@@ -933,7 +974,7 @@ impl<T: DiagramView> Editor<T> {
                 Drag::Pan { .. } => CursorIcon::Grabbing,
                 Drag::Move { .. } => CursorIcon::Move,
                 Drag::Resize { .. } => CursorIcon::ResizeNwSe,
-                Drag::Connect { .. } => CursorIcon::Crosshair,
+                Drag::Select { .. } | Drag::Connect { .. } => CursorIcon::Crosshair,
                 Drag::Slide { .. } => CursorIcon::ResizeVertical,
                 Drag::None => {
                     if Self::element_at(&self.eng, world).is_some() {
@@ -1014,13 +1055,54 @@ impl<T: DiagramView> Editor<T> {
             };
             return;
         }
-        // Empty canvas: clear the selection, and pan.
-        self.eng.clear_selection();
-        self.focus = Focus::Canvas;
-        self.drag = Drag::Pan {
-            scroll: self.view.scroll,
-            pointer: pos,
+        // Empty canvas: clear the selection, unless Shift, Ctrl, or Cmd is held, and draw a
+        // selection box.
+        let base = if modifiers.shift || modifiers.command || modifiers.ctrl {
+            self.eng.selection.clone()
+        } else {
+            self.eng.clear_selection();
+            Vec::new()
         };
+        self.focus = Focus::Canvas;
+        self.selection_before_focus = None;
+        self.drag = Drag::Select {
+            start: world,
+            end: world,
+            base,
+        };
+    }
+
+    /// The selection box being drawn, once the pointer has moved far enough to draw one.
+    fn select_area(&self) -> Option<Rect> {
+        let Drag::Select { start, end, .. } = &self.drag else {
+            return None;
+        };
+        let area = Rect::new(
+            start.x.min(end.x),
+            start.y.min(end.y),
+            (end.x - start.x).abs(),
+            (end.y - start.y).abs(),
+        );
+        (area.width.max(area.height) >= SELECT_THRESHOLD).then_some(area)
+    }
+
+    /// Selects the elements wholly inside the box, after those already selected in `base`.
+    fn select_inside(&mut self, area: Rect, base: Vec<ElementId>) {
+        let inside: Vec<ElementId> = self
+            .eng
+            .layout()
+            .iter()
+            .filter(|e| area.contains_rect(&T::drawn_rect(&self.eng, e)))
+            .map(|e| e.id().clone())
+            .filter(|id| !base.contains(id))
+            .collect();
+        self.eng.clear_selection();
+        self.eng.selection = base.into_iter().chain(inside).collect();
+        let count = self.eng.selection.len();
+        self.eng.announcement = format!(
+            "{count} {} selected.",
+            if count == 1 { "element" } else { "elements" }
+        );
     }
 
     fn drag_to(&mut self, pos: Pos2, world: Point, rect: egui::Rect) {
@@ -1030,6 +1112,7 @@ impl<T: DiagramView> Editor<T> {
                 self.view.scroll = *scroll + (pos - *pointer);
                 self.view.clamp(rect);
             }
+            Drag::Select { end, .. } => *end = world,
             Drag::Move {
                 id,
                 grab,
@@ -1088,8 +1171,14 @@ impl<T: DiagramView> Editor<T> {
     }
 
     fn release(&mut self, world: Point) {
+        let area = self.select_area();
         let drag = std::mem::replace(&mut self.drag, Drag::None);
         match drag {
+            Drag::Select { base, .. } => {
+                if let Some(area) = area {
+                    self.select_inside(area, base);
+                }
+            }
             Drag::Move {
                 id,
                 group,

@@ -229,3 +229,145 @@ impl DiagramView for Conceptual {
 
 /// Keeps the arrow type in scope for callers that build arrows by hand.
 pub type Arrow = ConceptualArrow;
+
+#[cfg(test)]
+mod tests {
+    use egui::{Event, Id, Modifiers, PointerButton, Pos2, RawInput, Vec2};
+    use hiero_core::engine::Engine;
+    use hiero_core::geometry::Point;
+    use hiero_core::look::DiagramColors;
+    use hiero_core::model::ElementId;
+    use hiero_core::text::EstimateText;
+    use hiero_editor::Editor;
+    use hiero_editor::view::View;
+
+    use crate::Conceptual;
+
+    static ESTIMATE: EstimateText = EstimateText;
+
+    /// An editor in a window, driven by pointer events a frame at a time.
+    struct Window {
+        ctx: egui::Context,
+        editor: Editor<Conceptual>,
+        salt: Id,
+    }
+
+    impl Window {
+        fn new() -> Self {
+            let elements = serde_json::from_value(serde_json::json!([
+                { "id": "u1", "kind": "actor", "label": "Rep", "x": 40, "y": 40 },
+                { "id": "u2", "kind": "actor", "label": "Agent", "x": 240, "y": 40 },
+                { "id": "a1", "kind": "application", "label": "CRM", "x": 40, "y": 300 },
+            ]))
+            .unwrap();
+            let eng = Engine::<Conceptual>::new(elements, vec![], DiagramColors::default())
+                .with_measure(&ESTIMATE);
+            let salt = Id::unique("test");
+            let mut window = Self {
+                ctx: egui::Context::default(),
+                editor: Editor::new(eng, salt),
+                salt,
+            };
+            window.frame(vec![], Modifiers::NONE);
+            window
+        }
+
+        fn frame(&mut self, events: Vec<Event>, modifiers: Modifiers) {
+            let input = RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    Pos2::ZERO,
+                    Vec2::new(1600.0, 1000.0),
+                )),
+                events: [Event::ModifiersChanged(modifiers)]
+                    .into_iter()
+                    .chain(events)
+                    .collect(),
+                ..RawInput::default()
+            };
+            let editor = &mut self.editor;
+            // Nothing draws the output, so its new textures are let go.
+            self.ctx
+                .run_ui(input, |ui| editor.ui(ui))
+                .textures_delta
+                .clear();
+        }
+
+        /// Where a canvas point is on screen, with the canvas scrolled by `scroll`.
+        fn screen(&self, p: Point, scroll: Vec2) -> Pos2 {
+            let canvas = self
+                .ctx
+                .read_response(self.salt.with("canvas"))
+                .unwrap()
+                .rect;
+            View {
+                scroll,
+                ..View::default()
+            }
+            .transform(canvas)
+            .pos(p)
+        }
+
+        fn drag(&mut self, from: Pos2, to: Pos2, button: PointerButton, modifiers: Modifiers) {
+            let press = |pos, pressed| Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                modifiers,
+            };
+            self.frame(vec![Event::PointerMoved(from)], modifiers);
+            self.frame(vec![press(from, true)], modifiers);
+            for t in [0.25, 0.5, 0.75, 1.0] {
+                self.frame(vec![Event::PointerMoved(from + (to - from) * t)], modifiers);
+            }
+            self.frame(vec![press(to, false)], modifiers);
+            self.frame(vec![], Modifiers::NONE);
+        }
+
+        fn selection(&self) -> Vec<&str> {
+            let mut ids: Vec<&str> = self
+                .editor
+                .eng
+                .selection
+                .iter()
+                .map(ElementId::as_str)
+                .collect();
+            ids.sort_unstable();
+            ids
+        }
+    }
+
+    #[test]
+    fn dragging_empty_canvas_selects_what_the_box_holds() {
+        let mut w = Window::new();
+        let at = |w: &Window, x, y| w.screen(Point::new(x, y), Vec2::ZERO);
+        // Both actors, but not the application below them.
+        let (from, to) = (at(&w, 20.0, 20.0), at(&w, 400.0, 160.0));
+        w.drag(from, to, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.selection(), ["u1", "u2"]);
+        // With Shift, the application is added to them.
+        let (from, to) = (at(&w, 20.0, 280.0), at(&w, 400.0, 500.0));
+        w.drag(from, to, PointerButton::Primary, Modifiers::SHIFT);
+        assert_eq!(w.selection(), ["a1", "u1", "u2"]);
+        // Without, a box around only part of an element selects nothing.
+        let (from, to) = (at(&w, 20.0, 20.0), at(&w, 100.0, 100.0));
+        w.drag(from, to, PointerButton::Primary, Modifiers::NONE);
+        assert!(w.selection().is_empty());
+    }
+
+    #[test]
+    fn dragging_with_the_right_button_scrolls_over_elements() {
+        let mut w = Window::new();
+        let u1 = w.editor.eng.laid(&"u1".into()).unwrap().rect;
+        let u2 = w.editor.eng.laid(&"u2".into()).unwrap().rect;
+        let from = w.screen(u1.center(), Vec2::ZERO);
+        let pan = Vec2::new(-100.0, -50.0);
+        w.drag(from, from + pan, PointerButton::Secondary, Modifiers::NONE);
+        // Starting on the actor neither selected nor moved it.
+        assert!(w.selection().is_empty());
+        assert_eq!(w.editor.eng.laid(&"u1".into()).unwrap().rect, u1);
+        // The canvas moved with the pointer: the other actor is where it's now drawn.
+        let click = w.screen(u2.center(), pan);
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.selection(), ["u2"]);
+    }
+}
