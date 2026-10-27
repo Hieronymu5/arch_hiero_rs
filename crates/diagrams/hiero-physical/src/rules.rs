@@ -8,6 +8,7 @@ use hiero_core::engine::{
     validate_label, validate_length,
 };
 use hiero_core::figures::figure_rect;
+use hiero_core::file_check::{Field, FieldRule};
 use hiero_core::geometry::{GRID, Point, Rect, Size, max_of, min_of};
 use hiero_core::layout::{
     CONTAINER_HEADER, ContainerRect, MIN_CONTAINER_SIZE, clamp_into, distribute, fit_container,
@@ -479,6 +480,71 @@ impl DiagramType for Physical {
     type Props = PhysicalProps;
     type Arrow = PhysicalArrow;
     type Colors = PhysicalColors;
+
+    const ARROW_FIELDS: &'static [Field] = &[
+        Field {
+            key: "protocol",
+            rule: FieldRule::RequiredText {
+                name: "Protocol",
+                max: PROTOCOL_MAX,
+                blank: "Enter a protocol.",
+            },
+        },
+        Field {
+            key: "port",
+            rule: FieldRule::RequiredText {
+                name: "Port",
+                max: PORT_MAX,
+                blank: "Enter a port.",
+            },
+        },
+    ];
+
+    fn file_fields(kind: PhysicalKind) -> &'static [Field] {
+        const INSTANCES: Field = Field {
+            key: "instanceCount",
+            rule: FieldRule::Count {
+                max: MAX_INSTANCE_COUNT,
+            },
+        };
+        match kind {
+            PhysicalKind::Database => &[
+                Field {
+                    key: "databaseType",
+                    rule: FieldRule::OneOf {
+                        values: &[
+                            "postgresql",
+                            "mysql",
+                            "oracle",
+                            "mongodb",
+                            "mssql",
+                            "cassandra",
+                        ],
+                        default: None,
+                    },
+                },
+                INSTANCES,
+            ],
+            PhysicalKind::Server => &[
+                Field {
+                    key: "serverType",
+                    rule: FieldRule::OneOf {
+                        values: &["virtual-machine", "container"],
+                        default: Some("physical"),
+                    },
+                },
+                INSTANCES,
+            ],
+            PhysicalKind::Zone => &[Field {
+                key: "zoneColor",
+                rule: FieldRule::OneOf {
+                    values: &["red", "yellow", "green"],
+                    default: Some("blue"),
+                },
+            }],
+            _ => &[],
+        }
+    }
 
     fn palette() -> &'static [KindInfo<PhysicalKind>] {
         &PALETTE

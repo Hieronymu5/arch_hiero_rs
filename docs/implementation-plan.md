@@ -378,8 +378,10 @@ principle 5, and every new field would need a migration.
   Diagrams have hundreds of rows at most, so a full rewrite is simpler and safer than diffing.
   If profiling says otherwise, switch to diffing.
 - **Import** (`.zip`) upserts by id: an existing diagram is replaced completely, and fields
-  missing from the file are cleared. The timestamps are set fresh, as in the prototype. Any
-  `createdBy`/`updatedBy` in prototype files is ignored. If the existing diagram has a
+  missing from the file are cleared. The timestamps are set fresh, as in the prototype. A file
+  must follow every rule in `hiero_core::file_check`, the same rules the prototype applies
+  (its `import-file-sync.md`); otherwise the import is refused with the first rule it breaks,
+  such as "“Web”: “agent” isn’t a field a Server has." If the existing diagram has a
   different type, the import is refused: "“CRM” is a conceptual diagram, but the file holds a
   physical diagram."
 - **Seed:** on the first run (an empty `diagrams` table), insert the prototype's sample

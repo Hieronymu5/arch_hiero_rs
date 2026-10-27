@@ -103,6 +103,17 @@ pub static PALETTE: [KindInfo<DeployedKind>; 2] = [
     },
 ];
 
+/// A list as stored: its items trimmed, without blank ones, and unset when that leaves none.
+pub fn cleaned_list(items: Option<Vec<String>>) -> Option<Vec<String>> {
+    let items: Vec<String> = items?
+        .iter()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect();
+    (!items.is_empty()).then_some(items)
+}
+
 /// A comma-separated list, such as "HTTPS, JWT", as its items, or unset when it's empty.
 pub fn list_from(text: &str) -> Option<Vec<String>> {
     let items: Vec<String> = text

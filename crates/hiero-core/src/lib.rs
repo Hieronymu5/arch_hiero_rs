@@ -6,6 +6,7 @@ pub mod engine;
 pub mod export;
 pub mod figures;
 pub mod file;
+pub mod file_check;
 pub mod geometry;
 pub mod history;
 pub mod layout;

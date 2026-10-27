@@ -71,7 +71,7 @@ impl DiagramView for Conceptual {
                 |t| validate_length("Description", t, DESCRIPTION_MAX),
             )
         {
-            with.description = Some(description);
+            with.description = Some(description).filter(|d| !d.trim().is_empty());
             field = Some("description");
         }
         if kind.can_be_agent() && widgets::checkbox(ui, &mut with.props.agent, "Bot").changed() {

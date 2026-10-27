@@ -5,6 +5,7 @@ use hiero_core::engine::{
     Created, DiagramType, Dir, El, Engine, Laid, Placement, list_labels, validate_label,
     validate_length,
 };
+use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::geometry::{CANVAS_WIDTH, Point, Size};
 use hiero_core::model::{DiagramTypeId, Element, ElementId, KindInfo, NoColors, NoProps};
 
@@ -14,12 +15,16 @@ use crate::layout::{
 };
 use crate::model::{
     CHARACTERISTICS_MAX, DESCRIPTION_MAX, DeployedComponent, DeployedKind, DeployedProps,
-    MAX_DESCRIPTION_ROWS, MAX_INSTANCE_COUNT, MAX_PROTOCOLS, PALETTE, PROTOCOLS_MAX,
+    MAX_DESCRIPTION_ROWS, MAX_INSTANCE_COUNT, MAX_PROTOCOLS, PALETTE, PROTOCOLS_MAX, cleaned_list,
     component_colors,
 };
 use crate::tech_stack;
 
 type DEngine = Engine<DeployedComponent>;
+
+fn is_known_technology(id: &str) -> bool {
+    tech_stack::find(id).is_some()
+}
 type DLaid = Laid<DeployedComponent>;
 
 fn new_element(eng: &mut DEngine, kind: DeployedKind, label: &str) -> El<DeployedComponent> {
@@ -170,6 +175,54 @@ impl DiagramType for DeployedComponent {
     type Props = DeployedProps;
     type Arrow = NoProps;
     type Colors = NoColors;
+
+    const DESCRIPTION: DescriptionRule = DescriptionRule {
+        max: DESCRIPTION_MAX,
+        max_lines: Some(MAX_DESCRIPTION_ROWS),
+    };
+
+    fn file_fields(kind: DeployedKind) -> &'static [Field] {
+        match kind {
+            DeployedKind::Layer => &[Field {
+                key: "characteristics",
+                rule: FieldRule::List {
+                    name: "Characteristics",
+                    max: CHARACTERISTICS_MAX,
+                    max_items: None,
+                },
+            }],
+            DeployedKind::Component => &[
+                Field {
+                    key: "instanceCount",
+                    rule: FieldRule::Count {
+                        max: MAX_INSTANCE_COUNT,
+                    },
+                },
+                Field {
+                    key: "protocols",
+                    rule: FieldRule::List {
+                        name: "Protocols",
+                        max: PROTOCOLS_MAX,
+                        max_items: Some(MAX_PROTOCOLS),
+                    },
+                },
+                Field {
+                    key: "techStack",
+                    rule: FieldRule::Ids {
+                        known: is_known_technology,
+                        noun: "technology",
+                    },
+                },
+                Field {
+                    key: "dependency",
+                    rule: FieldRule::OneOf {
+                        values: &["internal", "external"],
+                        default: None,
+                    },
+                },
+            ],
+        }
+    }
 
     fn palette() -> &'static [KindInfo<DeployedKind>] {
         &PALETTE
@@ -432,7 +485,7 @@ impl DiagramType for DeployedComponent {
         };
         if is_layer(&selected) {
             let label = with.label.clone();
-            let characteristics = with.props.characteristics.clone().filter(|c| !c.is_empty());
+            let characteristics = cleaned_list(with.props.characteristics.clone());
             eng.replace(id, |mut layer| {
                 layer.label = label;
                 layer.props.characteristics = characteristics;
@@ -444,7 +497,14 @@ impl DiagramType for DeployedComponent {
         if with.props.instance_count == Some(1) {
             with.props.instance_count = None;
         }
-        with.props.protocols = with.props.protocols.filter(|p| !p.is_empty());
+        with.props.protocols = cleaned_list(with.props.protocols);
+        // Each technology once, in the order first chosen.
+        with.props.tech_stack = cleaned_list(with.props.tech_stack).map(|ids| {
+            let mut seen = std::collections::BTreeSet::new();
+            ids.into_iter()
+                .filter(|id| seen.insert(id.clone()))
+                .collect()
+        });
         if parent_id == selected.parent_id {
             eng.replace(id, |_| with);
         } else {

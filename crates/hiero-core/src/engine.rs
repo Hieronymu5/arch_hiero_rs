@@ -12,6 +12,7 @@ use std::hash::Hash;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use crate::file_check::{DescriptionRule, Field};
 use crate::geometry::{CANVAS_HEIGHT, CANVAS_WIDTH, GRID, Point, Rect, Size, fmt_num, snap};
 use crate::layout::{
     CANVAS, CANVAS_AREA, ContainerRect, MIN_CONTAINER_SIZE, MIN_ELEMENT_SIZE, child_placement_area,
@@ -213,6 +214,26 @@ pub trait DiagramType: Sized + 'static {
         + Sync
         + 'static;
     type Colors: ColorScheme;
+
+    /// The fields an arrow can have, in the order a diagram file checks them.
+    const ARROW_FIELDS: &'static [Field] = &[];
+    /// How long the description of a kind with one can be.
+    const DESCRIPTION: DescriptionRule = DescriptionRule {
+        max: 0,
+        max_lines: None,
+    };
+
+    /// The fields an element of `kind` can have beyond the common ones, in the order a diagram
+    /// file checks them.
+    fn file_fields(_kind: Self::Kind) -> &'static [Field] {
+        &[]
+    }
+
+    /// An arrow's properties as stored, with each value in its one canonical form, such as
+    /// blank text left out.
+    fn normalized_arrow(arrow: Self::Arrow) -> Self::Arrow {
+        arrow
+    }
 
     /// The elements offered in the palette, in order.
     fn palette() -> &'static [KindInfo<Self::Kind>];
@@ -1413,6 +1434,7 @@ impl<T: DiagramType> Engine<T> {
 
     /// Changes an arrow's properties.
     pub fn set_connection_props(&mut self, id: &ConnectionId, props: T::Arrow) {
+        let props = T::normalized_arrow(props);
         if self.connection(id).is_none_or(|c| c.props == props) {
             return;
         }

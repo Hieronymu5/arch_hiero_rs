@@ -11,6 +11,8 @@ use hiero_conceptual::Conceptual;
 use hiero_core::engine::{DiagramType, Engine};
 use hiero_core::export::drawio::Heading;
 use hiero_core::export::svg::scene_to_svg;
+use hiero_core::file::{DiagramFileError, diagram_from_json, read_zip_json};
+use hiero_core::file_check;
 use hiero_core::geometry::Rect;
 use hiero_core::model::{ColorScheme, DiagramTypeId, ElementId, Resizable};
 use hiero_core::scene::Scene;
@@ -18,6 +20,7 @@ use hiero_core::stored::{ContentError, StoredContent, StoredDiagram};
 use hiero_deployed::DeployedComponent;
 use hiero_physical::Physical;
 use serde::Serialize;
+use serde_json::{Map, Value};
 
 pub use edit::{EditError, EditOp, EditOutcome};
 
@@ -59,6 +62,9 @@ pub trait TypeOps: Send + Sync {
     fn new_content(&self) -> StoredContent;
     /// Checks that content can be opened as this type, and that every element and arrow is valid.
     fn validate(&self, content: &StoredContent) -> Result<(), ContentError>;
+    /// Checks a file's diagram object of this type, from its description on, returning the
+    /// message for the first rule it breaks (see `hiero_core::file_check`).
+    fn check_file_diagram(&self, diagram: &Map<String, Value>) -> Result<(), String>;
     /// The content as the type arranges it, such as zones filling their networks.
     fn arranged(
         &self,
@@ -205,6 +211,10 @@ impl<T: Drawn> TypeOps for Entry<T> {
         Ok(())
     }
 
+    fn check_file_diagram(&self, diagram: &Map<String, Value>) -> Result<(), String> {
+        file_check::check_diagram::<T>(diagram)
+    }
+
     fn arranged(
         &self,
         content: &StoredContent,
@@ -287,6 +297,25 @@ pub fn ops(id: DiagramTypeId) -> &'static dyn TypeOps {
         DiagramTypeId::DeployedComponent => &DEPLOYED,
         DiagramTypeId::Physical => &PHYSICAL,
     }
+}
+
+/// The diagram in a parsed diagram file, if the file follows every rule in
+/// `hiero_core::file_check`. Otherwise, the message for the first rule it breaks.
+pub fn diagram_from_file(file: &Value) -> Result<StoredDiagram, DiagramFileError> {
+    let (diagram, diagram_type) = file_check::check_file(file).map_err(DiagramFileError)?;
+    let ops = ops(diagram_type);
+    ops.check_file_diagram(diagram).map_err(DiagramFileError)?;
+    let stored = diagram_from_json(&file["diagram"])?;
+    // The file's rules include the type's own, so this only guards against the two drifting
+    // apart and letting in a diagram the editor can't open.
+    ops.validate(&stored.content)
+        .map_err(|e| DiagramFileError(e.0))?;
+    Ok(stored)
+}
+
+/// The diagram in a `.zip` diagram file, checked as `diagram_from_file` checks it.
+pub fn read_diagram_file(bytes: &[u8]) -> Result<StoredDiagram, DiagramFileError> {
+    diagram_from_file(&read_zip_json(bytes)?)
 }
 
 /// A new diagram of `diagram_type`, with what it starts with.

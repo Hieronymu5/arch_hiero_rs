@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use hiero_core::file::{diagram_from_zip, diagram_to_json, diagram_to_zip};
+use hiero_core::file::{diagram_to_json, diagram_to_zip};
 use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
 use hiero_registry::{EditOp, ops, types};
 use hiero_store::{Store, StoreError};
@@ -568,7 +568,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Imports a .zip diagram file: it replaces the diagram with the same id (which must be the same type), or is added as a new diagram."
+        description = "Imports a .zip diagram file: it replaces the diagram with the same id (which must be the same type), or is added as a new diagram. A file that breaks a rule is refused with the first problem, such as a field an element's kind doesn't have."
     )]
     pub async fn import_diagram(&self, Parameters(p): Parameters<ImportParams>) -> ToolResult {
         let path = PathBuf::from(&p.path);
@@ -580,17 +580,11 @@ impl HieroServer {
         }
         let diagram = match std::fs::read(&path)
             .map_err(|e| e.to_string())
-            .and_then(|b| diagram_from_zip(&b).map_err(|e| e.0))
+            .and_then(|b| hiero_registry::read_diagram_file(&b).map_err(|e| e.0))
         {
             Ok(d) => d,
             Err(m) => return Ok(failure(m)),
         };
-        if ops(diagram.meta.diagram_type)
-            .validate(&diagram.content)
-            .is_err()
-        {
-            return Ok(failure("The diagram in the file is incomplete or damaged."));
-        }
         Ok(match self.with_store(|s| s.import(&diagram)) {
             Ok(i) => text(format!(
                 "{} “{}” ({}).",

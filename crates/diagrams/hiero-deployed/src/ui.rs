@@ -128,7 +128,7 @@ impl DiagramView for DeployedComponent {
                 Ok(())
             },
         ) {
-            with.description = Some(text);
+            with.description = Some(text).filter(|d| !d.trim().is_empty());
             field = Some("description");
         }
         let count = element

@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::time::{Duration, Instant};
 
-use hiero_core::file::{diagram_from_zip, diagram_to_zip, file_name};
+use hiero_core::file::{diagram_to_zip, file_name};
 use hiero_core::history::{DiagramSnapshot, UndoStack};
 use hiero_core::model::{DiagramId, DiagramTypeId};
 use hiero_core::stored::StoredDiagram;
@@ -497,13 +497,7 @@ impl App {
             .map_or_else(String::new, |f| f.to_string_lossy().into_owned());
         let result = std::fs::read(&path)
             .map_err(|e| e.to_string())
-            .and_then(|bytes| diagram_from_zip(&bytes).map_err(|e| e.0))
-            .and_then(|diagram| {
-                hiero_registry::ops(diagram.meta.diagram_type)
-                    .validate(&diagram.content)
-                    .map_err(|_| "The diagram in the file is incomplete or damaged.".to_owned())?;
-                Ok(diagram)
-            });
+            .and_then(|bytes| hiero_registry::read_diagram_file(&bytes).map_err(|e| e.0));
         let diagram = match result {
             Ok(d) => d,
             Err(reason) => {

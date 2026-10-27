@@ -8,6 +8,7 @@ use std::io::{Cursor, Read, Write};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
+use crate::file_check::colors_key;
 use crate::model::{DiagramId, DiagramMeta, DiagramTypeId};
 use crate::stored::{StoredConnection, StoredContent, StoredDiagram, StoredElement};
 
@@ -32,14 +33,6 @@ impl std::error::Error for DiagramFileError {}
 
 fn err(message: &str) -> DiagramFileError {
     DiagramFileError(message.to_owned())
-}
-
-/// The key a type's colours are kept under in the file: physical diagrams use their own.
-fn colors_key(diagram_type: DiagramTypeId) -> &'static str {
-    match diagram_type {
-        DiagramTypeId::Physical => "physicalColors",
-        _ => "colors",
-    }
 }
 
 #[derive(Serialize)]
@@ -147,31 +140,23 @@ fn local_zip_time() -> Option<zip::DateTime> {
     .ok()
 }
 
-/// The diagram in a zip made by `diagram_to_zip`, or by the prototype.
-pub fn diagram_from_zip(bytes: &[u8]) -> Result<StoredDiagram, DiagramFileError> {
+/// The parsed JSON of a diagram file's `diagram.json` (checks 1 to 3 of `file_check`).
+/// `file_check` then decides whether it's a diagram that can be imported.
+pub fn read_zip_json(bytes: &[u8]) -> Result<Value, DiagramFileError> {
     let mut archive =
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| err("The file isn’t a zip file."))?;
-    let names: Vec<String> = archive
-        .file_names()
-        .map(|name| name.map(std::borrow::Cow::into_owned))
-        .collect::<Result<_, _>>()
-        .map_err(|_| err("The zip file is damaged."))?;
-    // Its own entry, or any one JSON file, in case it was zipped again by hand.
-    let name = names
-        .iter()
-        .find(|n| n.as_str() == DIAGRAM_FILE_ENTRY)
-        .or_else(|| names.iter().find(|n| n.to_lowercase().ends_with(".json")))
-        .ok_or_else(|| err("The zip file has no diagram in it."))?
-        .clone();
-    let mut entry = archive.by_name(&name).map_err(|error| match error {
-        zip::result::ZipError::UnsupportedArchive(message) if message.contains("assword") => {
-            err("The zip file is encrypted.")
-        }
-        zip::result::ZipError::UnsupportedArchive(_) => {
-            err("The zip file uses a compression method that isn’t supported.")
-        }
-        _ => err("The zip file is damaged."),
-    })?;
+    let mut entry = archive
+        .by_name(DIAGRAM_FILE_ENTRY)
+        .map_err(|error| match error {
+            zip::result::ZipError::FileNotFound => err("The zip file has no diagram.json in it."),
+            zip::result::ZipError::UnsupportedArchive(message) if message.contains("assword") => {
+                err("The zip file is encrypted.")
+            }
+            zip::result::ZipError::UnsupportedArchive(_) => {
+                err("The zip file uses a compression method that isn’t supported.")
+            }
+            _ => err("The zip file is damaged."),
+        })?;
     if entry.encrypted() {
         return Err(err("The zip file is encrypted."));
     }
@@ -179,32 +164,11 @@ pub fn diagram_from_zip(bytes: &[u8]) -> Result<StoredDiagram, DiagramFileError>
     entry
         .read_to_end(&mut data)
         .map_err(|_| err("The zip file is damaged."))?;
-    let parsed: Value = serde_json::from_slice(&data)
-        .map_err(|_| err("The diagram in the zip file isn’t valid JSON."))?;
-    diagram_from_file_json(&parsed)
+    serde_json::from_slice(&data).map_err(|_| err("The diagram in the zip file isn’t valid JSON."))
 }
 
-/// The diagram in a parsed file, checked to be one this app can open.
-pub fn diagram_from_file_json(file: &Value) -> Result<StoredDiagram, DiagramFileError> {
-    let object = file
-        .as_object()
-        .filter(|o| o.get("format").and_then(Value::as_str) == Some(DIAGRAM_FILE_FORMAT))
-        .ok_or_else(|| err("The file isn’t an ArchHiero diagram."))?;
-    match object.get("version").and_then(Value::as_f64) {
-        Some(version) if version <= DIAGRAM_FILE_VERSION as f64 => {}
-        _ => {
-            return Err(err(
-                "The diagram was saved by a newer version of ArchHiero. Update it and try again.",
-            ));
-        }
-    }
-    let diagram = object
-        .get("diagram")
-        .ok_or_else(|| err("The diagram in the file is incomplete or damaged."))?;
-    diagram_from_json(diagram)
-}
-
-/// A diagram from the JSON object a file's `diagram` key holds, as a version snapshot is.
+/// A diagram from the JSON object a file's `diagram` key holds, as a version snapshot is. It
+/// only converts: a file to import is checked by `file_check` first.
 pub fn diagram_from_json(diagram: &Value) -> Result<StoredDiagram, DiagramFileError> {
     let damaged = || err("The diagram in the file is incomplete or damaged.");
     let d = diagram.as_object().ok_or_else(damaged)?;
@@ -298,28 +262,34 @@ mod tests {
     use serde_json::json;
 
     fn sample() -> StoredDiagram {
-        let file = json!({
-            "format": "arch-hiero-diagram",
-            "version": 1,
-            "diagram": {
-                "id": "d1", "name": "Infra", "type": "physical",
-                "physicalColors": {"servers": "#00ff00"},
-                "elements": [
-                    {"id": "n", "kind": "network", "label": "Intranet", "x": 40, "y": 300},
-                    {"id": "s", "kind": "server", "label": "Web", "parentId": "n",
-                     "serverType": "container", "x": 60, "y": 360}
-                ],
-                "connections": [{"id": "c", "sourceId": "s", "targetId": "n",
-                                 "protocol": "HTTPS", "port": "443"}],
-                "createdAt": "2026-10-01T09:00:00.000Z", "createdBy": "hiero",
-                "updatedAt": "2026-10-01T09:00:00.000Z", "updatedBy": "hiero"
-            }
-        });
-        diagram_from_file_json(&file).unwrap()
+        diagram_from_json(&json!({
+            "id": "d1", "name": "Infra", "type": "physical",
+            "physicalColors": {"servers": "#00ff00"},
+            "elements": [
+                {"id": "n", "kind": "network", "label": "Intranet", "x": 40, "y": 300},
+                {"id": "s", "kind": "server", "label": "Web", "parentId": "n",
+                 "serverType": "container", "x": 60, "y": 360}
+            ],
+            "connections": [{"id": "c", "sourceId": "s", "targetId": "n",
+                             "protocol": "HTTPS", "port": "443"}],
+            "createdAt": "2026-10-01T09:00:00.000Z",
+            "updatedAt": "2026-10-01T09:00:00.000Z"
+        }))
+        .unwrap()
+    }
+
+    fn zip_of(name: &str, data: &[u8]) -> Vec<u8> {
+        let mut out = Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(&mut out);
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(data).unwrap();
+        zip.finish().unwrap();
+        out.into_inner()
     }
 
     #[test]
-    fn reads_prototype_files() {
+    fn reads_diagrams() {
         let d = sample();
         assert_eq!(d.meta.diagram_type, DiagramTypeId::Physical);
         assert_eq!(d.colors.get("servers").map(String::as_str), Some("#00ff00"));
@@ -330,34 +300,22 @@ mod tests {
     #[test]
     fn zips_round_trip() {
         let d = sample();
-        let back = diagram_from_zip(&diagram_to_zip(&d)).unwrap();
-        assert_eq!(back, d);
+        let file = read_zip_json(&diagram_to_zip(&d)).unwrap();
+        assert_eq!(file["format"], json!(DIAGRAM_FILE_FORMAT));
+        assert_eq!(diagram_from_json(&file["diagram"]).unwrap(), d);
     }
 
     #[test]
-    fn rejects_other_files() {
+    fn reads_only_diagram_json() {
+        let message = |bytes: &[u8]| read_zip_json(bytes).unwrap_err().0;
+        assert_eq!(message(b"not a zip"), "The file isn’t a zip file.");
         assert_eq!(
-            diagram_from_zip(b"not a zip").unwrap_err().0,
-            "The file isn’t a zip file."
+            message(&zip_of("other.json", b"{}")),
+            "The zip file has no diagram.json in it."
         );
-        let wrong = json!({"format": "something-else", "version": 1, "diagram": {}});
         assert_eq!(
-            diagram_from_file_json(&wrong).unwrap_err().0,
-            "The file isn’t an ArchHiero diagram."
-        );
-        let newer = json!({"format": "arch-hiero-diagram", "version": 2, "diagram": {}});
-        assert!(
-            diagram_from_file_json(&newer)
-                .unwrap_err()
-                .0
-                .contains("newer version")
-        );
-        let damaged = json!({"format": "arch-hiero-diagram", "version": 1,
-                             "diagram": {"id": "d", "name": "x", "type": "conceptual",
-                                         "elements": [{"id": "e"}]}});
-        assert_eq!(
-            diagram_from_file_json(&damaged).unwrap_err().0,
-            "The diagram in the file is incomplete or damaged."
+            message(&zip_of(DIAGRAM_FILE_ENTRY, b"{nope")),
+            "The diagram in the zip file isn’t valid JSON."
         );
     }
 
@@ -367,7 +325,6 @@ mod tests {
         d.meta.diagram_type = DiagramTypeId::DeployedComponent;
         let json: Value = serde_json::from_str(&diagram_file_json(&d)).unwrap();
         assert!(json["diagram"].get("connections").is_none());
-        assert!(json["diagram"].get("colors").is_some());
     }
 
     #[test]

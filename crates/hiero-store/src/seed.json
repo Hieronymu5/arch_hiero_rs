@@ -45,9 +45,7 @@
       }
     ],
     "createdAt": "2026-10-01T09:00:00.000Z",
-    "createdBy": "hiero",
-    "updatedAt": "2026-10-01T09:00:00.000Z",
-    "updatedBy": "hiero"
+    "updatedAt": "2026-10-01T09:00:00.000Z"
   },
   {
     "id": "d1a6a000-0000-4000-8000-000000000002",
@@ -55,9 +53,7 @@
     "type": "deployed-component",
     "elements": [],
     "createdAt": "2026-10-01T09:00:00.000Z",
-    "createdBy": "hiero",
-    "updatedAt": "2026-10-01T09:00:00.000Z",
-    "updatedBy": "hiero"
+    "updatedAt": "2026-10-01T09:00:00.000Z"
   },
   {
     "id": "d1a6a000-0000-4000-8000-000000000003",
@@ -66,8 +62,6 @@
     "elements": [],
     "connections": [],
     "createdAt": "2026-10-01T09:00:00.000Z",
-    "createdBy": "hiero",
-    "updatedAt": "2026-10-01T09:00:00.000Z",
-    "updatedBy": "hiero"
+    "updatedAt": "2026-10-01T09:00:00.000Z"
   }
 ]

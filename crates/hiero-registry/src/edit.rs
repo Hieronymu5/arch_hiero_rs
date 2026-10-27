@@ -378,7 +378,7 @@ impl<T: DiagramType> Batch<'_, T> {
                     T::info(current.kind).label.to_lowercase()
                 ));
             }
-            with.description = Some(description);
+            with.description = Some(description).filter(|d| !d.trim().is_empty());
         }
         if let Some(props) = props {
             with.props = merge_props(&current.props, props)?;

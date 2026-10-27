@@ -3,6 +3,7 @@
 
 use hiero_core::engine::{DiagramType, El, Engine, Laid, validate_label, validate_length};
 use hiero_core::figures::component::FIGURE_SIZE;
+use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::geometry::Size;
 use hiero_core::look::DiagramColors;
 use hiero_core::model::{DiagramTypeId, ElementId, KindInfo};
@@ -108,6 +109,74 @@ impl DiagramType for Conceptual {
     type Props = ConceptualProps;
     type Arrow = ConceptualArrow;
     type Colors = DiagramColors;
+
+    const ARROW_FIELDS: &'static [Field] = &[
+        Field {
+            key: "mode",
+            rule: FieldRule::OneOf {
+                values: &["manual"],
+                default: Some("automated"),
+            },
+        },
+        Field {
+            key: "bidirectional",
+            rule: FieldRule::True,
+        },
+        Field {
+            key: "label",
+            rule: FieldRule::Text {
+                name: "Text",
+                max: ARROW_LABEL_MAX,
+            },
+        },
+        Field {
+            key: "connector",
+            rule: FieldRule::Text {
+                name: "Connector",
+                max: CONNECTOR_MAX,
+            },
+        },
+        Field {
+            key: "transformation",
+            rule: FieldRule::Text {
+                name: "Transformation",
+                max: TRANSFORMATION_MAX,
+            },
+        },
+        Field {
+            key: "manualOffset",
+            rule: FieldRule::Number,
+        },
+    ];
+    const DESCRIPTION: DescriptionRule = DescriptionRule {
+        max: DESCRIPTION_MAX,
+        max_lines: None,
+    };
+
+    fn file_fields(kind: ConceptualKind) -> &'static [Field] {
+        match kind {
+            ConceptualKind::Actor => &[Field {
+                key: "agent",
+                rule: FieldRule::True,
+            }],
+            ConceptualKind::Component => &[Field {
+                key: "componentType",
+                rule: FieldRule::OneOf {
+                    values: &["database", "storage"],
+                    default: Some("default"),
+                },
+            }],
+            ConceptualKind::Application => &[Field {
+                key: "cloudHosted",
+                rule: FieldRule::True,
+            }],
+            _ => &[],
+        }
+    }
+
+    fn normalized_arrow(arrow: ConceptualArrow) -> ConceptualArrow {
+        normalized_arrow(arrow)
+    }
 
     fn palette() -> &'static [KindInfo<ConceptualKind>] {
         &PALETTE
