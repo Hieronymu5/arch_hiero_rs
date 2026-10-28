@@ -193,7 +193,7 @@ pub fn default_path() -> Option<PathBuf> {
         .map(|dirs| dirs.data_dir().join("arch-hiero.sqlite3"))
 }
 
-/// The prototype's sample diagrams, added to an empty database on first use.
+/// The sample diagrams, one of each type, added to an empty database on first use.
 pub fn seed_diagrams() -> Vec<StoredDiagram> {
     let seed: Value = serde_json::from_str(include_str!("seed.json")).expect("the seed is JSON");
     seed.as_array()
@@ -937,9 +937,9 @@ mod tests {
         assert_eq!(
             names,
             [
-                "Customer Portal Deployment",
-                "Enterprise Overview",
-                "Primary Data Center"
+                "ARCH Hiero MCP Capabilities",
+                "Standard 3 -Tier Application",
+                "Website Example - Active - Active"
             ]
         );
     }

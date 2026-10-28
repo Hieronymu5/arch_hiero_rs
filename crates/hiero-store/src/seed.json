@@ -1,67 +1,803 @@
 [
   {
-    "id": "d1a6a000-0000-4000-8000-000000000001",
-    "name": "Enterprise Overview",
+    "id": "01f93d16-5581-4cb9-a7db-6449f0e9dfe7",
+    "name": "ARCH Hiero MCP Capabilities",
     "type": "conceptual",
+    "description": "Teaching an Agent to create Diagrams",
     "elements": [
       {
-        "id": "e1000000-0000-4000-8000-000000000001",
-        "kind": "domain",
-        "label": "Customer Relationship",
-        "x": 40,
-        "y": 40
-      },
-      {
-        "id": "e1000000-0000-4000-8000-000000000002",
-        "kind": "application",
-        "label": "Customer Portal",
-        "description": "Self-service website where customers manage their accounts",
-        "parentId": "e1000000-0000-4000-8000-000000000001",
+        "id": "f3920dc9-d1b9-40a0-ad6d-770ad2bab5af",
+        "kind": "actor",
+        "label": "Software Engineer",
         "x": 60,
         "y": 80
       },
       {
-        "id": "e1000000-0000-4000-8000-000000000004",
+        "description": "Agentic Coding Tool",
+        "id": "aad929cb-d85d-49c4-ad0a-584a56f36f55",
         "kind": "application",
-        "label": "CRM",
-        "description": "Tracks customer interactions and sales pipeline",
-        "parentId": "e1000000-0000-4000-8000-000000000001",
-        "x": 280,
+        "label": "Claude Code",
+        "x": 20,
+        "y": 240
+      },
+      {
+        "id": "c4cd693f-b6bb-4cc6-ab0d-4f112b9053da",
+        "kind": "section",
+        "label": "Phase I",
+        "x": 20,
+        "y": 0
+      },
+      {
+        "cloudHosted": true,
+        "description": "[Angular]\nDiagram Tool",
+        "id": "a0e39f87-c93e-4ae6-9f59-8860c46f7d1d",
+        "kind": "application",
+        "label": "ARCH Hiero",
+        "x": 300,
+        "y": 240
+      },
+      {
+        "id": "c057cf9d-b0dd-41f6-a528-e73562456793",
+        "kind": "actor",
+        "label": "Software Engineer",
+        "x": 340,
         "y": 80
       },
       {
-        "id": "e1000000-0000-4000-8000-000000000003",
+        "id": "f2bfa99b-a1d2-46d0-8482-ab19543f6e81",
+        "kind": "section",
+        "label": "Phase II",
+        "x": 540,
+        "y": 0
+      },
+      {
+        "id": "5fc9c224-c7fb-4c43-b1ff-56a835fc2834",
         "kind": "actor",
-        "label": "Customer",
+        "label": "Software Engineer",
         "x": 580,
-        "y": 100
+        "y": 80
+      },
+      {
+        "description": "Agentic Coding Tool",
+        "id": "c64f0c2b-bb75-4982-9918-024a408944bb",
+        "kind": "application",
+        "label": "Claude Code",
+        "x": 540,
+        "y": 240
+      },
+      {
+        "description": "[RUST]",
+        "id": "61d351e8-0115-4f28-96cf-057d691fe8fd",
+        "kind": "application",
+        "label": "ARCH Hiero",
+        "x": 820,
+        "y": 240
+      },
+      {
+        "id": "9b02b45f-c932-48fd-b6e5-c558538d4558",
+        "kind": "actor",
+        "label": "Software Engineer",
+        "x": 860,
+        "y": 80
+      },
+      {
+        "id": "eb808210-4fc8-40ae-b4bf-5477c330c07e",
+        "kind": "section",
+        "label": "Phase III",
+        "x": 20,
+        "y": 400
+      },
+      {
+        "id": "c644269f-f979-4889-a42d-296c24b59500",
+        "kind": "actor",
+        "label": "Software Engineer",
+        "x": 60,
+        "y": 460
+      },
+      {
+        "description": "Agentic Coding Tool",
+        "id": "8d6a2b3a-1e45-4a40-a6bd-95752ae96e2e",
+        "kind": "application",
+        "label": "Claude Code",
+        "x": 20,
+        "y": 620
+      },
+      {
+        "description": "[RUST]",
+        "id": "eb1a7b06-8348-4aac-a3ab-eb733a68a878",
+        "kind": "application",
+        "label": "ARCH Hiero",
+        "x": 300,
+        "y": 620
+      },
+      {
+        "agent": true,
+        "id": "c837105d-b9b7-4537-b536-5189a1fb8efa",
+        "kind": "actor",
+        "label": "Claude Code",
+        "x": 340,
+        "y": 460
+      },
+      {
+        "id": "4b873f33-e5ef-4450-ae04-8cb2f15a7177",
+        "kind": "actor",
+        "label": "Software Engineer",
+        "x": 580,
+        "y": 460
+      },
+      {
+        "id": "52927f2a-7c61-4a48-b418-77649656bc15",
+        "kind": "section",
+        "label": "Phase IV",
+        "x": 540,
+        "y": 400
+      },
+      {
+        "description": "Agentic Coding Tool",
+        "id": "4eba31ab-dfce-4c52-b6ea-fd6b51593e8c",
+        "kind": "application",
+        "label": "Claude Code",
+        "x": 540,
+        "y": 620
+      },
+      {
+        "cloudHosted": true,
+        "description": "[Angular]\nDiagram Tool",
+        "id": "a4370faf-a457-43ff-9dd6-4b9182a38659",
+        "kind": "application",
+        "label": "ARCH Hiero",
+        "x": 820,
+        "y": 620
+      },
+      {
+        "agent": true,
+        "id": "e9d3bb3c-85b8-4e97-bf37-895197e8ac2f",
+        "kind": "actor",
+        "label": "Claude Code",
+        "x": 860,
+        "y": 460
       }
     ],
     "connections": [
       {
-        "id": "c1000000-0000-4000-8000-000000000001",
-        "sourceId": "e1000000-0000-4000-8000-000000000002",
-        "targetId": "e1000000-0000-4000-8000-000000000004"
+        "connector": "Prompt",
+        "id": "c1e91972-4329-4ee5-a682-8f250f3bfa9f",
+        "label": "Create Diagram Tool",
+        "mode": "manual",
+        "sourceId": "f3920dc9-d1b9-40a0-ad6d-770ad2bab5af",
+        "targetId": "aad929cb-d85d-49c4-ad0a-584a56f36f55"
+      },
+      {
+        "connector": "Web",
+        "id": "e4272718-20f5-443e-bd32-3856240d7d51",
+        "label": "Create Diagram",
+        "mode": "manual",
+        "sourceId": "c057cf9d-b0dd-41f6-a528-e73562456793",
+        "targetId": "a0e39f87-c93e-4ae6-9f59-8860c46f7d1d"
+      },
+      {
+        "id": "2ad075fb-d56e-4b4c-99d6-0a5c5317df08",
+        "label": "Build",
+        "sourceId": "aad929cb-d85d-49c4-ad0a-584a56f36f55",
+        "targetId": "a0e39f87-c93e-4ae6-9f59-8860c46f7d1d"
+      },
+      {
+        "connector": "Prompt",
+        "id": "d2d41de6-001d-4d70-81a6-cbd6c8a2c729",
+        "label": "Create Diagram Tool in Rust",
+        "mode": "manual",
+        "sourceId": "5fc9c224-c7fb-4c43-b1ff-56a835fc2834",
+        "targetId": "c64f0c2b-bb75-4982-9918-024a408944bb"
+      },
+      {
+        "connector": "UI",
+        "id": "ca0c96e0-d463-487d-ac0d-0372e4e87971",
+        "sourceId": "9b02b45f-c932-48fd-b6e5-c558538d4558",
+        "targetId": "61d351e8-0115-4f28-96cf-057d691fe8fd"
+      },
+      {
+        "connector": "Prompt",
+        "id": "d6b24888-e2b6-4f46-846b-235ae227aa93",
+        "label": "Add MCP",
+        "mode": "manual",
+        "sourceId": "c644269f-f979-4889-a42d-296c24b59500",
+        "targetId": "8d6a2b3a-1e45-4a40-a6bd-95752ae96e2e"
+      },
+      {
+        "connector": "MCP",
+        "id": "84a5483f-60bd-4522-a4bd-fa18836febc1",
+        "label": "Add/Edit Diagram",
+        "sourceId": "c837105d-b9b7-4537-b536-5189a1fb8efa",
+        "targetId": "eb1a7b06-8348-4aac-a3ab-eb733a68a878"
+      },
+      {
+        "id": "13814caf-8082-4bb0-8e97-a5f474268e23",
+        "label": "Add MCP",
+        "sourceId": "8d6a2b3a-1e45-4a40-a6bd-95752ae96e2e",
+        "targetId": "eb1a7b06-8348-4aac-a3ab-eb733a68a878"
+      },
+      {
+        "connector": "Prompt",
+        "id": "a2ddad1c-c646-4a47-b431-7edf490af496",
+        "label": "Add WebMCP",
+        "mode": "manual",
+        "sourceId": "4b873f33-e5ef-4450-ae04-8cb2f15a7177",
+        "targetId": "4eba31ab-dfce-4c52-b6ea-fd6b51593e8c"
+      },
+      {
+        "id": "6ee26004-760a-4816-bc68-7c3d5076524d",
+        "label": "Add MCP",
+        "sourceId": "4eba31ab-dfce-4c52-b6ea-fd6b51593e8c",
+        "targetId": "a4370faf-a457-43ff-9dd6-4b9182a38659"
+      },
+      {
+        "id": "6d812bf7-4814-428d-9f42-371a5eb76ad0",
+        "label": "Build",
+        "sourceId": "c64f0c2b-bb75-4982-9918-024a408944bb",
+        "targetId": "61d351e8-0115-4f28-96cf-057d691fe8fd"
+      },
+      {
+        "connector": "WebMCP",
+        "id": "4f91dfc7-0d77-4fde-9ce0-96b6cebb15ca",
+        "sourceId": "e9d3bb3c-85b8-4e97-bf37-895197e8ac2f",
+        "targetId": "a4370faf-a457-43ff-9dd6-4b9182a38659",
+        "transformation": "Playwright"
+      },
+      {
+        "connector": "Prompt",
+        "id": "6fbeef04-dc47-4337-a1f7-38fb497bff1d",
+        "label": "Create Diagram",
+        "mode": "manual",
+        "sourceId": "4b873f33-e5ef-4450-ae04-8cb2f15a7177",
+        "targetId": "e9d3bb3c-85b8-4e97-bf37-895197e8ac2f"
+      },
+      {
+        "connector": "Prompt",
+        "id": "ab15e506-4860-4c60-8532-8556b657a63d",
+        "label": "Create Diagram",
+        "mode": "manual",
+        "sourceId": "c644269f-f979-4889-a42d-296c24b59500",
+        "targetId": "c837105d-b9b7-4537-b536-5189a1fb8efa"
       }
     ],
-    "createdAt": "2026-10-01T09:00:00.000Z",
-    "updatedAt": "2026-10-01T09:00:00.000Z"
+    "createdAt": "2026-10-27T17:34:56.895Z",
+    "updatedAt": "2026-10-28T17:17:42.088Z"
   },
   {
     "id": "d1a6a000-0000-4000-8000-000000000002",
-    "name": "Customer Portal Deployment",
+    "name": "Standard 3 -Tier Application",
     "type": "deployed-component",
-    "elements": [],
+    "description": "3 Tier Application",
+    "elements": [
+      {
+        "characteristics": [
+          "DNS",
+          "VPN"
+        ],
+        "height": 260,
+        "id": "d924159a-004f-40de-8f55-8a3a6ddb36e5",
+        "kind": "layer",
+        "label": "End User DMZ",
+        "width": 860,
+        "x": 20,
+        "y": 20
+      },
+      {
+        "description": "Diagram Creation\nExport Diagram\nUpload Diagram\nEdit Diagram",
+        "height": 190,
+        "id": "9f816c5c-65d8-4647-a417-01db37aa8554",
+        "kind": "component",
+        "label": "Angular Web Application",
+        "parentId": "d924159a-004f-40de-8f55-8a3a6ddb36e5",
+        "techStack": [
+          "javascript",
+          "chrome",
+          "edge",
+          "firefox",
+          "safari"
+        ],
+        "width": 260,
+        "x": 40,
+        "y": 70
+      },
+      {
+        "dependency": "external",
+        "description": "Human Verification",
+        "height": 190,
+        "id": "86192260-e723-42e7-8c01-0e63d5550604",
+        "kind": "component",
+        "label": "Global Traffic Manager",
+        "parentId": "d9fbfe3c-ff42-4767-9943-2b974ee71b92",
+        "protocols": [
+          "HTTPS"
+        ],
+        "width": 260,
+        "x": 40,
+        "y": 350
+      },
+      {
+        "characteristics": [
+          "Global Traffic Management"
+        ],
+        "height": 260,
+        "id": "d9fbfe3c-ff42-4767-9943-2b974ee71b92",
+        "kind": "layer",
+        "label": "Cloudflare",
+        "width": 860,
+        "x": 20,
+        "y": 300
+      },
+      {
+        "characteristics": [
+          "Load Balanced"
+        ],
+        "height": 260,
+        "id": "de815b0f-5997-411f-9d41-6f858b3a7506",
+        "kind": "layer",
+        "label": "Perimiter",
+        "width": 860,
+        "x": 20,
+        "y": 580
+      },
+      {
+        "description": "Host Static Files",
+        "height": 190,
+        "id": "7ee2c6c5-d1f9-497b-bf37-ae7e51d840f3",
+        "instanceCount": "4+",
+        "kind": "component",
+        "label": "HTTP Server",
+        "parentId": "de815b0f-5997-411f-9d41-6f858b3a7506",
+        "protocols": [
+          "HTTPS",
+          "Reverse Proxy"
+        ],
+        "techStack": [
+          "linux",
+          "redhat",
+          "apache-http",
+          "javascript"
+        ],
+        "width": 260,
+        "x": 40,
+        "y": 630
+      },
+      {
+        "height": 250,
+        "id": "9bb62847-d0d4-43d6-ab6e-2566a0abecbd",
+        "kind": "layer",
+        "label": "Application Tier",
+        "width": 860,
+        "x": 20,
+        "y": 860
+      },
+      {
+        "description": "CRUD Operations for Diagrams",
+        "height": 190,
+        "id": "02105d17-8ed4-4aac-ba54-8bb7123955d8",
+        "instanceCount": "50-100",
+        "kind": "component",
+        "label": "Backend Application",
+        "parentId": "9bb62847-d0d4-43d6-ab6e-2566a0abecbd",
+        "protocols": [
+          "HTTPS"
+        ],
+        "techStack": [
+          "aws",
+          "linux",
+          "redhat",
+          "kubernetes",
+          "springboot",
+          "java"
+        ],
+        "width": 260,
+        "x": 40,
+        "y": 900
+      },
+      {
+        "height": 250,
+        "id": "97178b8e-6161-4628-aa8d-a18da8f74caa",
+        "kind": "layer",
+        "label": "Restricted",
+        "width": 860,
+        "x": 20,
+        "y": 1130
+      },
+      {
+        "dependency": "internal",
+        "description": "Diagrams\nDiagram History",
+        "height": 190,
+        "id": "a42408c4-9568-430c-b691-51af0c125385",
+        "instanceCount": 5,
+        "kind": "component",
+        "label": "Database",
+        "parentId": "97178b8e-6161-4628-aa8d-a18da8f74caa",
+        "protocols": [
+          "TCP"
+        ],
+        "techStack": [
+          "aws",
+          "alpine",
+          "mongodb"
+        ],
+        "width": 260,
+        "x": 40,
+        "y": 1170
+      }
+    ],
     "createdAt": "2026-10-01T09:00:00.000Z",
-    "updatedAt": "2026-10-01T09:00:00.000Z"
+    "updatedAt": "2026-10-28T17:41:28.549Z"
   },
   {
     "id": "d1a6a000-0000-4000-8000-000000000003",
-    "name": "Primary Data Center",
+    "name": "Website Example - Active - Active",
     "type": "physical",
-    "elements": [],
-    "connections": [],
+    "description": "Example of an Active - Active Web Application with a Reverse Proxy Spring Boot Application with Database Relplication.",
+    "elements": [
+      {
+        "height": 1020,
+        "id": "891caa51-e6c1-4611-8bf3-39b87d9d4722",
+        "kind": "network",
+        "label": "NORTH",
+        "width": 420,
+        "x": 20,
+        "y": 380
+      },
+      {
+        "height": 420,
+        "id": "5ea8f423-0869-4f4e-b80f-97e327b18a5d",
+        "kind": "zone",
+        "label": "Perimeter",
+        "parentId": "891caa51-e6c1-4611-8bf3-39b87d9d4722",
+        "width": 420,
+        "x": 20,
+        "y": 420
+      },
+      {
+        "height": 300,
+        "id": "f252c303-b37d-4d81-9273-a50f9b2bc83c",
+        "kind": "zone",
+        "label": "Business",
+        "parentId": "891caa51-e6c1-4611-8bf3-39b87d9d4722",
+        "width": 420,
+        "x": 20,
+        "y": 840
+      },
+      {
+        "height": 260,
+        "id": "8aa1db04-43a4-445b-98b5-ba3a1661abdc",
+        "kind": "zone",
+        "label": "Restricted",
+        "parentId": "891caa51-e6c1-4611-8bf3-39b87d9d4722",
+        "width": 420,
+        "x": 20,
+        "y": 1140
+      },
+      {
+        "height": 1020,
+        "id": "0dd51059-a93b-4294-896a-3d132e2c1897",
+        "kind": "network",
+        "label": "SOUTH",
+        "width": 420,
+        "x": 440,
+        "y": 380
+      },
+      {
+        "height": 420,
+        "id": "ece1c77a-be3b-45e5-a25a-7caa46eaa44b",
+        "kind": "zone",
+        "label": "Perimeter",
+        "parentId": "0dd51059-a93b-4294-896a-3d132e2c1897",
+        "width": 420,
+        "x": 440,
+        "y": 420
+      },
+      {
+        "height": 300,
+        "id": "e47cd309-bfb6-461c-8e4b-309d2100137c",
+        "kind": "zone",
+        "label": "Business",
+        "parentId": "0dd51059-a93b-4294-896a-3d132e2c1897",
+        "width": 420,
+        "x": 440,
+        "y": 840
+      },
+      {
+        "height": 260,
+        "id": "376efe6d-1ed1-40ec-b66b-0e097814510a",
+        "kind": "zone",
+        "label": "Restricted",
+        "parentId": "0dd51059-a93b-4294-896a-3d132e2c1897",
+        "width": 420,
+        "x": 440,
+        "y": 1140
+      },
+      {
+        "height": 180,
+        "id": "e28f54b3-3164-4e66-8ea6-50cebf43d338",
+        "kind": "zone",
+        "label": "End User Zone",
+        "width": 840,
+        "x": 20,
+        "y": 20,
+        "zoneColor": "green"
+      },
+      {
+        "id": "ba62f793-549e-4d38-8ae7-917e6f2454b8",
+        "kind": "user",
+        "label": "User",
+        "parentId": "e28f54b3-3164-4e66-8ea6-50cebf43d338",
+        "x": 380,
+        "y": 60
+      },
+      {
+        "id": "c0c14e3e-06a5-45fd-bf60-91bd32f5682c",
+        "kind": "load-balancer",
+        "label": "GTM",
+        "parentId": "4d26af39-28f9-45cc-81cc-bdec5133f690",
+        "x": 380,
+        "y": 240
+      },
+      {
+        "height": 180,
+        "id": "4d26af39-28f9-45cc-81cc-bdec5133f690",
+        "kind": "zone",
+        "label": "Cloudflare",
+        "width": 840,
+        "x": 20,
+        "y": 200,
+        "zoneColor": "yellow"
+      },
+      {
+        "id": "e40e9438-0eaf-41e4-b49a-4838832f0521",
+        "instanceCount": 10,
+        "kind": "server",
+        "label": "HTTP Server",
+        "x": 160,
+        "y": 680
+      },
+      {
+        "id": "00310b73-326a-4d36-97d2-c6216de537d8",
+        "instanceCount": 10,
+        "kind": "server",
+        "label": "HTTP Server",
+        "x": 600,
+        "y": 680
+      },
+      {
+        "id": "e7a45bda-baaa-48d4-900a-c2119850546c",
+        "kind": "load-balancer",
+        "label": "Load Balancer",
+        "parentId": "5ea8f423-0869-4f4e-b80f-97e327b18a5d",
+        "x": 160,
+        "y": 520
+      },
+      {
+        "id": "d1bea4c3-d38e-4636-a5f3-216f3b63eb16",
+        "kind": "load-balancer",
+        "label": "Load Balancer",
+        "parentId": "ece1c77a-be3b-45e5-a25a-7caa46eaa44b",
+        "x": 600,
+        "y": 520
+      },
+      {
+        "id": "028b45f6-3d75-4029-bead-4fc4639d4f02",
+        "kind": "firewall",
+        "label": "Firewall",
+        "x": 160,
+        "y": 380
+      },
+      {
+        "id": "0957bfea-ae8e-467b-b7e6-d37dc529b326",
+        "kind": "firewall",
+        "label": "Firewall",
+        "x": 600,
+        "y": 380
+      },
+      {
+        "id": "2f1ebed0-3fed-472a-989b-677601ad33b7",
+        "instanceCount": "50+",
+        "kind": "server",
+        "label": "Spring Boot",
+        "parentId": "f252c303-b37d-4d81-9273-a50f9b2bc83c",
+        "serverType": "container",
+        "x": 160,
+        "y": 960
+      },
+      {
+        "id": "395bdd2a-5c9f-4a95-9b66-0a0dd009cd3c",
+        "instanceCount": "50+",
+        "kind": "server",
+        "label": "Spring Boot",
+        "parentId": "e47cd309-bfb6-461c-8e4b-309d2100137c",
+        "serverType": "container",
+        "x": 600,
+        "y": 960
+      },
+      {
+        "id": "4663b107-4130-427a-a3a1-2e235b9bfc6b",
+        "kind": "firewall",
+        "label": "Firewall",
+        "x": 160,
+        "y": 820
+      },
+      {
+        "id": "761a6401-6c9a-4ea7-bece-d5ac038ff687",
+        "kind": "firewall",
+        "label": "Firewall",
+        "x": 600,
+        "y": 820
+      },
+      {
+        "databaseType": "mysql",
+        "id": "7621533e-8929-419b-84a7-22675fab66f4",
+        "instanceCount": 3,
+        "kind": "database",
+        "label": "MySQL",
+        "parentId": "8aa1db04-43a4-445b-98b5-ba3a1661abdc",
+        "x": 160,
+        "y": 1260
+      },
+      {
+        "id": "555e0803-85f0-4c3b-aa56-4dfc75fdc0c9",
+        "kind": "firewall",
+        "label": "Firewall",
+        "x": 160,
+        "y": 1120
+      },
+      {
+        "id": "16a36d4c-f94d-438b-ab97-11c9420bcd1e",
+        "kind": "firewall",
+        "label": "Firewall",
+        "x": 600,
+        "y": 1120
+      },
+      {
+        "databaseType": "mysql",
+        "id": "440afb48-ad1c-49ea-bf51-b751c49708d3",
+        "instanceCount": 3,
+        "kind": "database",
+        "label": "MySQL",
+        "parentId": "376efe6d-1ed1-40ec-b66b-0e097814510a",
+        "x": 600,
+        "y": 1260
+      }
+    ],
+    "connections": [
+      {
+        "id": "12f53766-6e8a-4130-85a1-ae3262bfd6e9",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "ba62f793-549e-4d38-8ae7-917e6f2454b8",
+        "targetId": "c0c14e3e-06a5-45fd-bf60-91bd32f5682c"
+      },
+      {
+        "id": "00c596f3-3ba7-4c94-9ac3-4441e7500b8e",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "c0c14e3e-06a5-45fd-bf60-91bd32f5682c",
+        "targetId": "028b45f6-3d75-4029-bead-4fc4639d4f02"
+      },
+      {
+        "id": "0a98c958-9ba7-4dd6-b8fd-9795bc25199b",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "c0c14e3e-06a5-45fd-bf60-91bd32f5682c",
+        "targetId": "0957bfea-ae8e-467b-b7e6-d37dc529b326"
+      },
+      {
+        "id": "23ec3b2c-059e-4765-ad0f-82d0b19a00c5",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "0957bfea-ae8e-467b-b7e6-d37dc529b326",
+        "targetId": "d1bea4c3-d38e-4636-a5f3-216f3b63eb16"
+      },
+      {
+        "id": "be398dec-62dc-40b7-834c-48ad0de23c73",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "028b45f6-3d75-4029-bead-4fc4639d4f02",
+        "targetId": "e7a45bda-baaa-48d4-900a-c2119850546c"
+      },
+      {
+        "id": "b4a80823-4bd1-4f08-b1a3-caafee4cf87e",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "e7a45bda-baaa-48d4-900a-c2119850546c",
+        "targetId": "e40e9438-0eaf-41e4-b49a-4838832f0521"
+      },
+      {
+        "id": "c2a66b22-af27-46c5-b566-15970b6f7afb",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "d1bea4c3-d38e-4636-a5f3-216f3b63eb16",
+        "targetId": "00310b73-326a-4d36-97d2-c6216de537d8"
+      },
+      {
+        "id": "00f41770-d4a3-49d5-b832-d4b3520b4dab",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "e40e9438-0eaf-41e4-b49a-4838832f0521",
+        "targetId": "4663b107-4130-427a-a3a1-2e235b9bfc6b"
+      },
+      {
+        "id": "fa880fd1-b69d-49b7-8ac6-e9c38e2086b3",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "00310b73-326a-4d36-97d2-c6216de537d8",
+        "targetId": "761a6401-6c9a-4ea7-bece-d5ac038ff687"
+      },
+      {
+        "id": "a998ef06-7b78-485b-9b4f-f2673fd97d61",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "761a6401-6c9a-4ea7-bece-d5ac038ff687",
+        "targetId": "395bdd2a-5c9f-4a95-9b66-0a0dd009cd3c"
+      },
+      {
+        "id": "98683c3b-71d8-4901-ab48-3d5096cb3682",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "4663b107-4130-427a-a3a1-2e235b9bfc6b",
+        "targetId": "2f1ebed0-3fed-472a-989b-677601ad33b7"
+      },
+      {
+        "id": "ea6b1fc5-5354-45da-916f-f02314d2ec25",
+        "port": "3306",
+        "protocol": "TCP",
+        "sourceId": "2f1ebed0-3fed-472a-989b-677601ad33b7",
+        "targetId": "555e0803-85f0-4c3b-aa56-4dfc75fdc0c9"
+      },
+      {
+        "id": "00820035-a6d9-4b67-ae09-caa34c9a1833",
+        "port": "3306",
+        "protocol": "TCP",
+        "sourceId": "555e0803-85f0-4c3b-aa56-4dfc75fdc0c9",
+        "targetId": "7621533e-8929-419b-84a7-22675fab66f4"
+      },
+      {
+        "id": "cc9fb3ac-30ee-4751-9179-bcb96fcae46d",
+        "port": "3306",
+        "protocol": "TCP",
+        "sourceId": "395bdd2a-5c9f-4a95-9b66-0a0dd009cd3c",
+        "targetId": "16a36d4c-f94d-438b-ab97-11c9420bcd1e"
+      },
+      {
+        "id": "29fbcdd6-8233-4538-ac21-d3a92cf5d513",
+        "port": "3306",
+        "protocol": "TCP",
+        "sourceId": "16a36d4c-f94d-438b-ab97-11c9420bcd1e",
+        "targetId": "440afb48-ad1c-49ea-bf51-b751c49708d3"
+      },
+      {
+        "id": "7fbddc6c-7cb3-4682-b312-64376027ac9e",
+        "port": "3306",
+        "protocol": "TCP",
+        "sourceId": "7621533e-8929-419b-84a7-22675fab66f4",
+        "targetId": "440afb48-ad1c-49ea-bf51-b751c49708d3"
+      },
+      {
+        "id": "8f06a8a7-97b3-495b-a5bc-1859caeceacc",
+        "port": "3306",
+        "protocol": "TCP",
+        "sourceId": "440afb48-ad1c-49ea-bf51-b751c49708d3",
+        "targetId": "7621533e-8929-419b-84a7-22675fab66f4"
+      },
+      {
+        "id": "37151042-afce-428a-8cc6-2ed240b0f7d4",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "2f1ebed0-3fed-472a-989b-677601ad33b7",
+        "targetId": "395bdd2a-5c9f-4a95-9b66-0a0dd009cd3c"
+      },
+      {
+        "id": "aa4f7abf-7717-4d8a-825d-6de948ec7a53",
+        "port": "443",
+        "protocol": "HTTPS",
+        "sourceId": "395bdd2a-5c9f-4a95-9b66-0a0dd009cd3c",
+        "targetId": "2f1ebed0-3fed-472a-989b-677601ad33b7"
+      }
+    ],
     "createdAt": "2026-10-01T09:00:00.000Z",
-    "updatedAt": "2026-10-01T09:00:00.000Z"
+    "updatedAt": "2026-10-28T17:18:59.598Z"
   }
 ]

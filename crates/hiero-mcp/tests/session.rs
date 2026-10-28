@@ -67,7 +67,7 @@ async fn an_agent_builds_versions_and_exports_a_physical_diagram() {
 
     // The seeds are there, and the type specs are resources.
     let (ok, list) = call(&client, "list_diagrams", json!({})).await;
-    assert!(ok && list.contains("Enterprise Overview"));
+    assert!(ok && list.contains("ARCH Hiero MCP Capabilities"));
     let spec = client
         .read_resource(ReadResourceRequestParams::new(
             "arch-hiero://types/physical",
