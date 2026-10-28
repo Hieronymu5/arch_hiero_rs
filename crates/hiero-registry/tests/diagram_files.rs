@@ -324,6 +324,16 @@ fn elements_on_their_own() {
         ),
         "“CRM”: Description must be 500 characters or fewer."
     );
+    // An element's description may be empty.
+    for empty in ["", "  "] {
+        let mut file = c();
+        set("/diagram/elements/2", "description", json!(empty))(&mut file);
+        diagram_from_file(&file).unwrap_or_else(|e| panic!("{e}"));
+    }
+    assert_eq!(
+        refused(c(), set("/diagram/elements/2", "description", json!(null))),
+        "“CRM”: “description” must be text."
+    );
 
     let p = physical;
     let web = "/diagram/elements/3";

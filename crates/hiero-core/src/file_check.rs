@@ -4,7 +4,8 @@
 //! numbers in the comments below are its checks.
 //!
 //! Every optional value has one form: it's left out rather than written empty, `false`, or
-//! as its default, so the same diagram never has two files (or two content hashes).
+//! as its default, so the same diagram never has two files (or two content hashes). An
+//! element's description is the exception: it may be empty.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -204,14 +205,12 @@ fn size(object: &Object, key: &str) -> Result<(), String> {
     }
 }
 
-/// An optional description: non-blank, and within `max` characters and `max_lines` lines.
+/// An optional description: text, which may be empty, within `max` characters and `max_lines`
+/// lines.
 fn description(object: &Object, max: usize, max_lines: Option<usize>) -> Result<(), String> {
     let Some(value) = object.get("description") else {
         return Ok(());
     };
-    if is_empty(value) {
-        return Err(left_out("description"));
-    }
     let text = value
         .as_str()
         .ok_or_else(|| must_be("description", "text"))?;

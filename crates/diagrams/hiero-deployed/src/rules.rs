@@ -33,7 +33,7 @@ fn new_element(eng: &mut DEngine, kind: DeployedKind, label: &str) -> El<Deploye
         id: ElementId(eng.new_id()),
         kind,
         label: label.to_owned(),
-        description: (kind == DeployedKind::Component).then(String::new),
+        description: None,
         parent_id: None,
         props: DeployedProps::default(),
         width: None,

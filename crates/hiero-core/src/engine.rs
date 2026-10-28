@@ -867,7 +867,7 @@ impl<T: DiagramType> Engine<T> {
             id: ElementId(self.new_id()),
             kind: kind.kind,
             label: kind.label.to_owned(),
-            description: kind.has_description.then(String::new),
+            description: None,
             parent_id: placement.parent_id,
             props: T::Props::default(),
             width: None,
