@@ -468,7 +468,14 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
     if let Some(key) = first_unknown(diagram, allowed) {
         return Err(at(format!("“{key}” isn’t a field a diagram has.")));
     }
+    check_content::<T>(elements, connections)
+}
 
+/// Checks a diagram's elements and arrows (checks 16 to 32), as in a file or on the clipboard.
+pub fn check_content<T: DiagramType>(
+    elements: &[Value],
+    connections: &[Value],
+) -> Result<(), String> {
     // 16 to 23. Each element on its own.
     let kinds: Vec<(String, &'static KindInfo<T::Kind>)> = T::palette()
         .iter()

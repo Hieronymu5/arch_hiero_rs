@@ -250,6 +250,8 @@ mod tests {
         ctx: egui::Context,
         editor: Editor<Conceptual>,
         salt: Id,
+        /// The text last put on the system clipboard.
+        copied: Option<String>,
     }
 
     impl Window {
@@ -267,6 +269,7 @@ mod tests {
                 ctx: egui::Context::default(),
                 editor: Editor::new(eng, salt),
                 salt,
+                copied: None,
             };
             window.frame(vec![], Modifiers::NONE);
             window
@@ -286,10 +289,13 @@ mod tests {
             };
             let editor = &mut self.editor;
             // Nothing draws the output, so its new textures are let go.
-            self.ctx
-                .run_ui(input, |ui| editor.ui(ui))
-                .textures_delta
-                .clear();
+            let mut output = self.ctx.run_ui(input, |ui| editor.ui(ui));
+            output.textures_delta.clear();
+            for command in output.platform_output.commands {
+                if let egui::OutputCommand::CopyText(text) = command {
+                    self.copied = Some(text);
+                }
+            }
         }
 
         /// Where a canvas point is on screen, with the canvas scrolled by `scroll`.
@@ -369,5 +375,35 @@ mod tests {
         let click = w.screen(u2.center(), pan);
         w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
         assert_eq!(w.selection(), ["u2"]);
+    }
+
+    #[test]
+    fn cut_and_paste_go_through_the_system_clipboard() {
+        use hiero_editor::DiagramEditor;
+
+        let mut w = Window::new();
+        let rep = ElementId::from("u1");
+        w.editor.eng.select(&rep);
+        w.frame(vec![Event::Cut], Modifiers::NONE);
+        let text = w.copied.clone().expect("cutting copies");
+        assert!(w.editor.eng.element(&rep).is_none());
+        assert_eq!(w.editor.take_changes().len(), 1);
+
+        w.frame(vec![Event::Paste(text)], Modifiers::NONE);
+        assert_eq!(w.editor.take_changes().len(), 1);
+        let pasted = w
+            .editor
+            .eng
+            .selected()
+            .expect("the pasted actor is selected");
+        assert_eq!((pasted.el.label.as_str(), pasted.rect.x), ("Rep", 40.0));
+
+        // Other text isn't pasted, and the app is told why.
+        w.frame(vec![Event::Paste("Hello".into())], Modifiers::NONE);
+        assert!(w.editor.take_changes().is_empty());
+        assert_eq!(
+            w.editor.take_notice().as_deref(),
+            Some("The clipboard doesn’t hold diagram elements.")
+        );
     }
 }

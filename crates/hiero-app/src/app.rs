@@ -218,6 +218,9 @@ impl App {
         let Some(open) = &mut self.open else {
             return;
         };
+        if let Some(notice) = open.editor.take_notice() {
+            open.notice = Some(notice);
+        }
         let changes = open.editor.take_changes();
         if changes.is_empty() {
             return;

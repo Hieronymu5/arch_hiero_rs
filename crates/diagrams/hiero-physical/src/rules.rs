@@ -1165,6 +1165,57 @@ mod tests {
         );
     }
 
+    fn zone_labels(e: &PEngine, network: &str) -> Vec<String> {
+        stacked_in(e, &id(network))
+            .iter()
+            .map(|z| z.el.label.clone())
+            .collect()
+    }
+
+    #[test]
+    fn a_pasted_zone_joins_the_stack_under_its_original() {
+        let mut e = engine();
+        e.select(&id("id3"));
+        let clip = e.copy_selection().unwrap();
+        e.paste(&clip);
+        assert_eq!(
+            zone_labels(&e, "id2"),
+            ["Perimeter", "Perimeter", "Business", "Restricted"]
+        );
+        // Cut and pasted, a zone goes back into its network. The zone under it has moved up
+        // into its place, so it goes under that one.
+        e.select(&id("id4"));
+        let clip = e.cut_selection().unwrap();
+        assert_eq!(
+            zone_labels(&e, "id2"),
+            ["Perimeter", "Perimeter", "Restricted"]
+        );
+        e.paste(&clip);
+        assert_eq!(
+            zone_labels(&e, "id2"),
+            ["Perimeter", "Perimeter", "Restricted", "Business"]
+        );
+    }
+
+    #[test]
+    fn a_pasted_network_brings_its_zones_and_arrows() {
+        let mut e = engine();
+        e.palette_drop(PhysicalKind::Server, Point::new(200.0, 400.0));
+        let first = e.selection[0].clone();
+        e.palette_drop(PhysicalKind::Server, Point::new(400.0, 400.0));
+        let second = e.selection[0].clone();
+        e.add_connection(&first, &second);
+        e.select(&id("id2"));
+        let clip = e.copy_selection().unwrap();
+        e.paste(&clip);
+        let network = e.selection[0].clone();
+        assert_eq!(
+            zone_labels(&e, network.as_str()),
+            ["Perimeter", "Business", "Restricted"]
+        );
+        assert_eq!(e.connections().len(), 2);
+    }
+
     #[test]
     fn servers_stay_within_their_zone_and_step_into_the_next() {
         let mut e = engine();

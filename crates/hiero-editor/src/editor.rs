@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use egui::{Align2, Color32, CursorIcon, Id, Key, Pos2, RichText, Sense, Stroke, Ui, Vec2};
+use hiero_core::clipboard::Clip;
 use hiero_core::engine::{
     Conn, Corner, DiagramType, Dir, El, Engine, Laid, Placement, validate_label,
 };
@@ -264,6 +265,8 @@ pub struct Editor<T: DiagramView> {
     outbox: Vec<Change>,
     pub show_help: bool,
     focus_name: bool,
+    /// A message for the app to show, such as why the clipboard couldn't be pasted.
+    notice: Option<String>,
     salt: Id,
 }
 
@@ -290,6 +293,7 @@ impl<T: DiagramView> Editor<T> {
             outbox: Vec::new(),
             show_help: false,
             focus_name: false,
+            notice: None,
             salt,
         }
     }
@@ -666,6 +670,10 @@ impl<T: DiagramView> Editor<T> {
         let xf = self.view.transform(rect);
 
         self.pointer_input(ui, &response, xf, rect);
+        // Text fields cut, copy, and paste their own text.
+        if response.has_focus() || ui.memory(|m| m.focused().is_none()) {
+            self.clipboard_input(ui);
+        }
         if response.has_focus() {
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(
@@ -1342,6 +1350,44 @@ impl<T: DiagramView> Editor<T> {
         }
     }
 
+    /// Cut, copy, and paste (Cmd or Ctrl and X, C, and V): the selected elements, with
+    /// everything they hold and the arrows between them, as text on the system clipboard.
+    fn clipboard_input(&mut self, ui: &Ui) {
+        let events = ui.input(|i| i.events.clone());
+        for event in events {
+            match event {
+                egui::Event::Copy => match self.eng.copy_selection() {
+                    Some(clip) => ui.ctx().copy_text(clip.to_text()),
+                    None => self.eng.announcement = "Select elements to copy them.".into(),
+                },
+                egui::Event::Cut => {
+                    let mut clip = None;
+                    self.act(None, |eng| clip = eng.cut_selection());
+                    match clip {
+                        Some(clip) => ui.ctx().copy_text(clip.to_text()),
+                        None => self.eng.announcement = "Select elements to cut them.".into(),
+                    }
+                    if !self.eng.element_exists_focus(&self.focus) {
+                        self.focus = Focus::Canvas;
+                    }
+                }
+                egui::Event::Paste(text) => match Clip::<T>::from_text(&text) {
+                    Ok(clip) => {
+                        self.act(None, |eng| eng.paste(&clip));
+                        if let Some(first) = self.eng.selection.first() {
+                            self.focus = Focus::Element(first.clone());
+                        }
+                    }
+                    Err(message) => {
+                        self.eng.announcement.clone_from(&message);
+                        self.notice = Some(message);
+                    }
+                },
+                _ => {}
+            }
+        }
+    }
+
     fn focused_element(&self) -> Option<Laid<T>> {
         match &self.focus {
             Focus::Element(id) | Focus::Handle(id, _) => self.eng.laid(id).cloned(),
@@ -1399,6 +1445,8 @@ pub trait DiagramEditor {
     fn show_help(&mut self) -> &mut bool;
     fn announcement(&self) -> &str;
     fn set_announcement(&mut self, text: String);
+    /// A message to show, such as why the clipboard couldn't be pasted. Taken once.
+    fn take_notice(&mut self) -> Option<String>;
     /// Selects the first element named `label`, such as for checking the editor.
     fn select_by_label(&mut self, label: &str);
 }
@@ -1442,6 +1490,10 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn set_announcement(&mut self, text: String) {
         self.eng.announcement = text;
+    }
+
+    fn take_notice(&mut self) -> Option<String> {
+        self.notice.take()
     }
 
     fn select_by_label(&mut self, label: &str) {

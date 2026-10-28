@@ -1,6 +1,7 @@
 //! UI-free core of Arch Hiero: the diagram model, layout and routing rules, the drawing scene,
 //! the SVG and draw.io exports, the diagram file format, and version history.
 
+pub mod clipboard;
 pub mod color;
 pub mod engine;
 pub mod export;

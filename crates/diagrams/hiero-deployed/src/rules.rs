@@ -659,6 +659,32 @@ mod tests {
     }
 
     #[test]
+    fn pasted_components_go_after_the_original_and_layers_bring_theirs() {
+        let mut e = engine();
+        e.add_at_free_position(DeployedKind::Component);
+        rename(&mut e, "id1", "A");
+        e.add_at_free_position(DeployedKind::Component);
+        rename(&mut e, "id3", "B");
+        e.select(&id("id1"));
+        let clip = e.copy_selection().unwrap();
+        e.paste(&clip);
+        assert_eq!(labels_in(&e, "id2"), ["A", "A", "B"]);
+
+        e.select(&id("id2"));
+        let text = e.copy_selection().unwrap().to_text();
+        assert!(!text.contains("connections"));
+        let clip = hiero_core::clipboard::Clip::<DeployedComponent>::from_text(&text).unwrap();
+        e.paste(&clip);
+        let layers: Vec<ElementId> = layers_in_order(e.elements())
+            .into_iter()
+            .map(|l| l.id)
+            .collect();
+        assert_eq!(layers.len(), 2);
+        assert_eq!(layers[0], id("id2"));
+        assert_eq!(labels_in(&e, layers[1].as_str()), ["A", "A", "B"]);
+    }
+
+    #[test]
     fn tech_stack_keeps_catalogue_order() {
         let mut e = engine();
         e.add_at_free_position(DeployedKind::Component);
