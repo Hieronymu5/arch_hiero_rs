@@ -38,7 +38,8 @@ This type has no free placement. Everything is **arranged** automatically:
 3. **Description:** one bullet per non-empty line, in 1 or 2 columns.
 4. **Footer:** 40 px, with a divider over it.
    - Tech-stack logos: 24 px boxes holding an 18 px logo, with 6 px gaps. Only as many as fit.
-   - The instance count, in an oval against the right edge, only when it's more than 1.
+   - The instance count, in an oval against the right edge, only when it's more than 1. A
+     count can also be a minimum, shown as "50+", or a range, shown as "50–100" (new in Rust).
 
 **Layer anatomy:** a characteristics bar straddling the top edge (only when the layer has
 characteristics), then the layer name.
@@ -75,7 +76,7 @@ These fills are also used by physical zone colours, so the table lives in
 | Type | component | Core Component / Internal Dependency / External Dependency |
 | Protocols and security, separated by commas | component | At most 100 characters, e.g. "HTTPS, JWT, XSRF". Stored as `string[]`. |
 | Description, a bullet on each line | component | At most 2000 characters |
-| Instance count | component | Integer ≥ 1 |
+| Instance count | component | A whole number from 1 to 9999, a minimum such as `50+`, or a range such as `50-100` (first number smaller). Unset means 1. |
 | Tech stack | component | Checkboxes grouped by category (Cloud, Operating System, Database, Middleware, Frameworks, Languages, Browsers). Groups are collapsed until opened, and each group header shows how many are chosen. Stored as an array of tech ids. An id that isn't in the catalogue is refused. |
 
 ## Tech stack catalogue
@@ -119,6 +120,7 @@ Text is fitted with `fit_text`, which truncates with an ellipsis.
 // component props
 { "description": "Line 1\nLine 2", "protocols": ["HTTPS", "JWT"],
   "techStack": ["java", "docker"], "dependency": "external", "instanceCount": 3 }
+{ "instanceCount": "50+" }  { "instanceCount": "50-100" }  // a minimum or a range is text
 ```
 
 There are no connections. The prototype leaves the `connections` key unset for this type; the

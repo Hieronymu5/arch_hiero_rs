@@ -131,7 +131,7 @@ impl Drawn for DeployedComponent {
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_deployed::scene::scene(eng)
     }
-    const PROPS_DOC: &'static str = "No arrows. Layer props: {characteristics: [string]} (joined ≤ 200). Component props: {protocols: [string] (≤ 5, joined ≤ 100), techStack: [id from propValues.techStack], dependency: \"internal\" | \"external\" (omit for a core component), instanceCount: 1-9999} and a description with one bullet per line (≤ 2000, ≤ 20 lines). Layers stack top to bottom and components sit side by side in them in order; positions only set the order.";
+    const PROPS_DOC: &'static str = "No arrows. Layer props: {characteristics: [string]} (joined ≤ 200). Component props: {protocols: [string] (≤ 5, joined ≤ 100), techStack: [id from propValues.techStack], dependency: \"internal\" | \"external\" (omit for a core component), instanceCount: 1-9999, or text for a minimum \"50+\" or a range \"50-100\"} and a description with one bullet per line (≤ 2000, ≤ 20 lines). Layers stack top to bottom and components sit side by side in them in order; positions only set the order.";
     fn prop_values() -> BTreeMap<&'static str, Vec<PropValue>> {
         let tech = hiero_deployed::tech_stack::TECH_STACK
             .iter()

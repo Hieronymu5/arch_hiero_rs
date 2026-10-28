@@ -1,6 +1,7 @@
 //! The deployed component diagram's rules: layers stacked from top to bottom, components side
 //! by side in them, moved by swapping places.
 
+use hiero_core::count::InstanceCount;
 use hiero_core::engine::{
     Created, DiagramType, Dir, El, Engine, Laid, Placement, list_labels, validate_label,
     validate_length,
@@ -195,7 +196,7 @@ impl DiagramType for DeployedComponent {
             DeployedKind::Component => &[
                 Field {
                     key: "instanceCount",
-                    rule: FieldRule::Count {
+                    rule: FieldRule::CountOrRange {
                         max: MAX_INSTANCE_COUNT,
                     },
                 },
@@ -464,9 +465,8 @@ impl DiagramType for DeployedComponent {
                 let labels: Vec<String> = tech.iter().map(|t| t.label.to_owned()).collect();
                 parts.push(format!("built with {}", list_labels(&labels)));
             }
-            let count = el.props.instance_count.unwrap_or(1);
-            if count > 1 {
-                parts.push(format!("{count} instances"));
+            if let Some(count) = el.props.instance_count.filter(|c| !c.is_one()) {
+                parts.push(count.describe("instance"));
             }
         }
         parts.retain(|p| !p.is_empty());
@@ -495,7 +495,7 @@ impl DiagramType for DeployedComponent {
             return;
         }
         with.props.characteristics = None;
-        if with.props.instance_count == Some(1) {
+        if with.props.instance_count.is_some_and(InstanceCount::is_one) {
             with.props.instance_count = None;
         }
         with.props.protocols = cleaned_list(with.props.protocols);
@@ -554,9 +554,9 @@ impl DiagramType for DeployedComponent {
             return Err(format!("Use {MAX_DESCRIPTION_ROWS} lines or fewer."));
         }
         match element.props.instance_count {
-            Some(n) if n == 0 || n > MAX_INSTANCE_COUNT => Err(format!(
-                "Enter a whole number from 1 to {MAX_INSTANCE_COUNT}."
-            )),
+            Some(count) if !count.is_within(MAX_INSTANCE_COUNT) => {
+                Err(InstanceCount::hint(MAX_INSTANCE_COUNT))
+            }
             _ => Ok(()),
         }
     }
@@ -705,14 +705,14 @@ mod tests {
         e.add_at_free_position(DeployedKind::Component);
         e.replace(&id("id1"), |mut c| {
             c.props.protocols = Some(vec!["HTTPS".into(), "JWT".into()]);
-            c.props.instance_count = Some(3);
+            c.props.instance_count = Some(InstanceCount::Between(50, 100));
             c.description = Some("Serves pages\nCaches".into());
             c
         });
         let laid = e.laid(&id("id1")).unwrap().clone();
         assert_eq!(
             e.accessible_label(&laid),
-            "Component, Core Component, 1 of 1 in Layer, protocols HTTPS and JWT, description: Serves pages; Caches, 3 instances"
+            "Component, Core Component, 1 of 1 in Layer, protocols HTTPS and JWT, description: Serves pages; Caches, 50 to 100 instances"
         );
     }
 }

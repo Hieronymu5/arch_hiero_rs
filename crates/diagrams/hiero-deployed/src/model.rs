@@ -1,6 +1,7 @@
 //! The deployed component diagram's kinds and element properties. It has no arrows and no
 //! custom colours.
 
+use hiero_core::count::InstanceCount;
 use hiero_core::model::KindInfo;
 use hiero_core::palette::{
     CORE_COMPONENT, ComponentColors, EXTERNAL_DEPENDENCY, INTERNAL_DEPENDENCY,
@@ -61,9 +62,10 @@ pub struct DeployedProps {
     pub tech_stack: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dependency: Option<Dependency>,
-    /// How many instances run. Unset means one.
+    /// How many instances run, or a minimum such as "50+" or a range such as "50-100". Unset
+    /// means one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub instance_count: Option<u32>,
+    pub instance_count: Option<InstanceCount>,
 }
 
 /// The most instances a component can have, bullets in a description, and protocols.

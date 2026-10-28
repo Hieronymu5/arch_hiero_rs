@@ -183,7 +183,7 @@ fn component_cells(
         local,
         el.description.as_deref(),
         tech.len(),
-        el.props.instance_count.unwrap_or(1),
+        el.props.instance_count,
     );
     let mut cells = vec![
         vertex(
@@ -389,6 +389,7 @@ pub fn to_drawio(
 mod tests {
     use super::*;
     use crate::model::DeployedKind;
+    use hiero_core::count::InstanceCount;
     use hiero_core::model::NoColors;
     use hiero_core::text::EstimateText;
 
@@ -403,7 +404,7 @@ mod tests {
         e.replace(&id, |mut c| {
             c.props.protocols = Some(vec!["HTTPS".into()]);
             c.props.tech_stack = Some(vec!["aws".into()]);
-            c.props.instance_count = Some(2);
+            c.props.instance_count = Some(InstanceCount::Between(2, 4));
             c.description = Some("One\nTwo".into());
             c
         });
@@ -412,6 +413,6 @@ mod tests {
         assert!(xml.contains(&format!("{id}-protocol-0")));
         assert!(xml.contains("data:image/png,"));
         assert!(xml.contains("&lt;li style"));
-        assert!(xml.contains(&format!(r#"id="{id}-instances" value="2""#)));
+        assert!(xml.contains(&format!(r#"id="{id}-instances" value="2–4""#)));
     }
 }

@@ -383,6 +383,15 @@ fn elements_on_their_own() {
 
     let d = deployed;
     let portal = "/diagram/elements/1";
+    for range in ["50+", "50-100"] {
+        let mut file = d();
+        set(portal, "instanceCount", json!(range))(&mut file);
+        diagram_from_file(&file).unwrap_or_else(|e| panic!("{e}"));
+    }
+    assert_eq!(
+        refused(d(), set(portal, "instanceCount", json!("100-50"))),
+        "“Portal”: Enter a whole number from 1 to 9999, or a range such as 50+ or 50-100."
+    );
     assert_eq!(
         refused(d(), set(portal, "description", json!("a\n".repeat(20)))),
         "“Portal”: Use 20 lines or fewer."

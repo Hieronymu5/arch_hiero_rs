@@ -4,6 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use hiero_core::count::InstanceCount;
 use hiero_core::engine::El;
 use hiero_core::geometry::{GRID, Point, Rect, Size};
 use hiero_core::model::ElementId;
@@ -135,21 +136,29 @@ pub struct ComponentParts {
     pub instances: Option<(String, Rect)>,
 }
 
+/// A component's instance count as its oval shows it: "3", "50+", or "50–100".
+pub fn instance_text(count: InstanceCount) -> String {
+    match count {
+        InstanceCount::Between(low, high) => format!("{low}–{high}"),
+        _ => count.to_string(),
+    }
+}
+
 /// Where each part of a component goes in `rect`.
 pub fn component_parts(
     rect: Rect,
     description: Option<&str>,
     logo_count: usize,
-    instance_count: u32,
+    instance_count: Option<InstanceCount>,
 ) -> ComponentParts {
     let name_top = rect.y + bar_inside();
     let name_divider_y = name_top + NAME;
     let footer_divider_y = rect.y + rect.height - FOOTER;
     let columns = bullet_columns(&description_rows(description));
     let column_width = (rect.width - INSET * 2.0) / columns.len() as f64;
-    let text = instance_count.to_string();
-    let width = badge_width(&text);
-    let instances = (instance_count > 1).then(|| {
+    let instances = instance_count.filter(|c| !c.is_one()).map(|count| {
+        let text = instance_text(count);
+        let width = badge_width(&text);
         (
             text,
             Rect::new(
@@ -464,12 +473,22 @@ mod tests {
 
     #[test]
     fn logos_stop_short_of_the_count() {
-        let parts = component_parts(Rect::new(0.0, 0.0, 260.0, 190.0), None, 20, 3);
+        let rect = Rect::new(0.0, 0.0, 260.0, 190.0);
+        let parts = component_parts(rect, None, 20, Some(InstanceCount::Exactly(3)));
         let (text, badge) = parts.instances.unwrap();
         assert_eq!(text, "3");
         assert_eq!(badge, Rect::new(224.0, 158.0, 24.0, 24.0));
         // (218 - 12 + 6) / 30 = 7 logos.
         assert_eq!(parts.logos.len(), 7);
+        // A range widens the oval, leaving room for fewer logos.
+        let parts = component_parts(rect, None, 20, Some(InstanceCount::Between(50, 100)));
+        let (text, badge) = parts.instances.unwrap();
+        assert_eq!(text, "50–100");
+        assert!(badge.width > 24.0);
+        assert!(parts.logos.len() < 7);
+        // One is no oval at all.
+        let parts = component_parts(rect, None, 0, Some(InstanceCount::Exactly(1)));
+        assert_eq!(parts.instances, None);
     }
 
     #[test]

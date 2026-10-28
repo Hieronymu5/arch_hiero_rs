@@ -131,8 +131,12 @@ fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText
     let el = &component.el;
     let color = component_colors(el.props.dependency);
     let tech = tech_stack::items(el.props.tech_stack.as_deref().unwrap_or_default());
-    let count = el.props.instance_count.unwrap_or(1);
-    let parts = component_parts(r, el.description.as_deref(), tech.len(), count);
+    let parts = component_parts(
+        r,
+        el.description.as_deref(),
+        tech.len(),
+        el.props.instance_count,
+    );
     let divider = |y: f64| {
         Node::line(
             Point::new(r.x, y),
@@ -277,6 +281,7 @@ pub fn scene(eng: &Engine<DeployedComponent>) -> Scene {
 mod tests {
     use super::*;
     use crate::model::DeployedKind;
+    use hiero_core::count::InstanceCount;
     use hiero_core::export::svg::scene_to_svg;
     use hiero_core::model::NoColors;
     use hiero_core::text::EstimateText;
@@ -292,7 +297,7 @@ mod tests {
         e.replace(&id, |mut c| {
             c.props.protocols = Some(vec!["HTTPS".into(), "JWT".into()]);
             c.props.tech_stack = Some(vec!["aws".into()]);
-            c.props.instance_count = Some(2);
+            c.props.instance_count = Some(InstanceCount::AtLeast(50));
             c.description = Some("Serves pages".into());
             c
         });
@@ -302,7 +307,7 @@ mod tests {
         assert!(svg.contains(">HTTPS</text>"));
         assert!(svg.contains(r#"href="data:image/png;base64,"#));
         assert!(svg.contains(">Serves pages</text>"));
-        assert!(svg.contains(">2</text>"));
+        assert!(svg.contains(">50+</text>"));
         // Cropped to include the protocol bar raised over the component's top.
         assert!(svg.contains(r#"viewBox="0 0 900 290""#));
     }
