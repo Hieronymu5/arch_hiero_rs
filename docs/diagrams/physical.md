@@ -112,6 +112,8 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
   - a database: `TCP` on the database type's port
   - storage: `TCP 445` (SMB)
   - anything else: `HTTPS 443`
+- Changing a database's type moves the arrows to it that use the old type's port to the new
+  type's port. Arrows given another port keep it (new in Rust).
 - Removing an element removes its arrows.
 
 ## Colours

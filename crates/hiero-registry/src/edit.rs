@@ -260,6 +260,7 @@ impl<T: DiagramType> Batch<'_, T> {
                     Some("") => Some(None),
                     Some(p) => Some(Some(self.element_id(p)?)),
                 };
+                let arrows_before = self.eng.connections().to_vec();
                 self.update(
                     &id,
                     label.clone(),
@@ -267,10 +268,33 @@ impl<T: DiagramType> Batch<'_, T> {
                     parent,
                     props.as_ref(),
                 )?;
-                Ok(format!(
-                    "Updated “{}”.",
-                    self.eng.label_of(&id).unwrap_or_default()
-                ))
+                // The type's rules may change arrows with it, such as a database's port.
+                let changed: Vec<String> = self
+                    .eng
+                    .connections()
+                    .iter()
+                    .filter(|c| {
+                        arrows_before
+                            .iter()
+                            .any(|b| b.id == c.id && b.props != c.props)
+                    })
+                    .map(|c| {
+                        format!(
+                            "{} ({})",
+                            self.eng.arrow_name(&c.source_id, &c.target_id),
+                            c.id
+                        )
+                    })
+                    .collect();
+                let label = self.eng.label_of(&id).unwrap_or_default();
+                Ok(if changed.is_empty() {
+                    format!("Updated “{label}”.")
+                } else {
+                    format!(
+                        "Updated “{label}”, and with it {}.",
+                        hiero_core::engine::list_labels(&changed)
+                    )
+                })
             }
             EditOp::MoveElement { id, x, y } => {
                 let id = self.element_id(id)?;
@@ -493,6 +517,26 @@ mod tests {
             .iter()
             .find(|e| e.label == "Orders");
         assert_eq!(orders.unwrap().props["instanceCount"], json!("2-4"));
+
+        // Changing the database's type moves the arrow on its port, and says so.
+        let orders = orders.unwrap().id.0.clone();
+        let mut diagram = diagram.clone();
+        diagram.content = outcome.content.clone();
+        let edits = parse(json!([
+            {"op": "update_element", "id": orders, "props": {"databaseType": "mysql"}}
+        ]));
+        let outcome = ops(DiagramTypeId::Physical)
+            .apply(&diagram, &edits)
+            .unwrap();
+        let arrow = &outcome.content.connections[0];
+        assert_eq!(arrow.props["port"], json!("3306"));
+        assert_eq!(
+            outcome.messages,
+            [format!(
+                "Updated “Orders”, and with it Arrow from Web to Orders ({}).",
+                arrow.id
+            )]
+        );
     }
 
     #[test]

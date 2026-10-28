@@ -419,6 +419,38 @@ fn starting_stack(
         .collect()
 }
 
+/// Moves the arrows to a database that use port `old`, its old type's, to `new`. Arrows given
+/// another port keep it.
+fn follow_database_port(eng: &mut PEngine, id: &ElementId, old: &str, new: &str) {
+    let mut moved = 0;
+    let connections = eng
+        .connections()
+        .iter()
+        .cloned()
+        .map(|mut c| {
+            if c.target_id == *id && c.props.port == old {
+                c.props.port = new.to_owned();
+                moved += 1;
+            }
+            c
+        })
+        .collect();
+    if moved == 0 {
+        return;
+    }
+    eng.set_connections(connections);
+    let said = if moved == 1 {
+        format!("Its arrow now uses port {new}.")
+    } else {
+        format!("Its {moved} arrows now use port {new}.")
+    };
+    eng.announcement = if eng.announcement.is_empty() {
+        said
+    } else {
+        format!("{} {said}", eng.announcement)
+    };
+}
+
 /// A position, with the size too when it isn't the kind's default.
 fn stored_rect(element: &mut El<Physical>, rect: Rect, default: Size) {
     element.x = rect.x;
@@ -997,13 +1029,18 @@ impl DiagramType for Physical {
         figure_of(&element.el).map_or(element.rect, |f| figure_rect(element.rect, f))
     }
 
-    /// Clears settings the element's kind doesn't have.
+    /// Clears settings the element's kind doesn't have. A database that changes type moves the
+    /// arrows to it that use its old type's port to the new type's.
     fn apply_element(
         eng: &mut PEngine,
         id: &ElementId,
         mut with: El<Physical>,
         parent_id: Option<ElementId>,
     ) {
+        let old_port = eng
+            .element(id)
+            .filter(|e| e.kind.has_database_type())
+            .map(|e| database_of(e).unwrap_or(GENERIC_DATABASE).port);
         let kind = with.kind;
         if !kind.has_server_type() {
             with.props.server_type = None;
@@ -1021,7 +1058,15 @@ impl DiagramType for Physical {
             with.props.zone_color = None;
         }
         with.description = None;
+        let new_port = kind
+            .has_database_type()
+            .then(|| database_of(&with).unwrap_or(GENERIC_DATABASE).port);
         eng.apply_changes(id, with, parent_id);
+        if let (Some(old), Some(new)) = (old_port, new_port)
+            && old != new
+        {
+            follow_database_port(eng, id, old, new);
+        }
     }
 
     fn validate_element(element: &El<Physical>) -> Result<(), String> {
@@ -1227,6 +1272,50 @@ mod tests {
         }
         let moved = e.element(server.id()).unwrap();
         assert_eq!(moved.parent_id, Some(id("id4")), "stepped into Business");
+    }
+
+    #[test]
+    fn arrows_to_a_database_follow_its_types_port() {
+        let mut e = engine();
+        let mut add = |kind| {
+            e.select(&id("id3"));
+            e.add_at_free_position(kind);
+            e.selection[0].clone()
+        };
+        let (web, worker, db) = (
+            add(PhysicalKind::Server),
+            add(PhysicalKind::Server),
+            add(PhysicalKind::Database),
+        );
+        e.add_connection(&web, &db);
+        let custom = e.add_connection(&worker, &db).unwrap();
+        let mut props = e.connection(&custom).unwrap().props.clone();
+        props.port = "6000".into();
+        e.set_connection_props(&custom, props);
+        e.add_connection(&db, &web);
+        let ports = |e: &PEngine| -> Vec<String> {
+            e.connections()
+                .iter()
+                .map(|c| c.props.port.clone())
+                .collect()
+        };
+        assert_eq!(ports(&e), ["5432", "6000", "443"]);
+
+        let mut with = e.element(&db).unwrap().clone();
+        with.props.database_type = Some(crate::model::DatabaseType::Mysql);
+        Physical::apply_element(&mut e, &db, with.clone(), Some(id("id3")));
+        // Only the arrow to it on its old default moves; one given its own port, and one from
+        // it, keep theirs.
+        assert_eq!(ports(&e), ["3306", "6000", "443"]);
+        assert!(
+            e.announcement.ends_with("Its arrow now uses port 3306."),
+            "{}",
+            e.announcement
+        );
+
+        with.props.database_type = None;
+        Physical::apply_element(&mut e, &db, with, Some(id("id3")));
+        assert_eq!(ports(&e), ["5432", "6000", "443"]);
     }
 
     #[test]
