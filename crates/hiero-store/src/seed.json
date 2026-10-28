@@ -440,7 +440,7 @@
         "label": "NORTH",
         "width": 420,
         "x": 20,
-        "y": 380
+        "y": 420
       },
       {
         "height": 420,
@@ -450,7 +450,7 @@
         "parentId": "891caa51-e6c1-4611-8bf3-39b87d9d4722",
         "width": 420,
         "x": 20,
-        "y": 420
+        "y": 460
       },
       {
         "height": 300,
@@ -460,7 +460,7 @@
         "parentId": "891caa51-e6c1-4611-8bf3-39b87d9d4722",
         "width": 420,
         "x": 20,
-        "y": 840
+        "y": 880
       },
       {
         "height": 260,
@@ -470,7 +470,7 @@
         "parentId": "891caa51-e6c1-4611-8bf3-39b87d9d4722",
         "width": 420,
         "x": 20,
-        "y": 1140
+        "y": 1180
       },
       {
         "height": 1020,
@@ -479,7 +479,7 @@
         "label": "SOUTH",
         "width": 420,
         "x": 440,
-        "y": 380
+        "y": 420
       },
       {
         "height": 420,
@@ -489,7 +489,7 @@
         "parentId": "0dd51059-a93b-4294-896a-3d132e2c1897",
         "width": 420,
         "x": 440,
-        "y": 420
+        "y": 460
       },
       {
         "height": 300,
@@ -499,7 +499,7 @@
         "parentId": "0dd51059-a93b-4294-896a-3d132e2c1897",
         "width": 420,
         "x": 440,
-        "y": 840
+        "y": 880
       },
       {
         "height": 260,
@@ -509,7 +509,7 @@
         "parentId": "0dd51059-a93b-4294-896a-3d132e2c1897",
         "width": 420,
         "x": 440,
-        "y": 1140
+        "y": 1180
       },
       {
         "height": 180,
@@ -535,7 +535,7 @@
         "label": "GTM",
         "parentId": "4d26af39-28f9-45cc-81cc-bdec5133f690",
         "x": 380,
-        "y": 240
+        "y": 260
       },
       {
         "height": 180,
@@ -544,7 +544,7 @@
         "label": "Cloudflare",
         "width": 840,
         "x": 20,
-        "y": 200,
+        "y": 220,
         "zoneColor": "yellow"
       },
       {
@@ -553,7 +553,7 @@
         "kind": "server",
         "label": "HTTP Server",
         "x": 160,
-        "y": 680
+        "y": 720
       },
       {
         "id": "00310b73-326a-4d36-97d2-c6216de537d8",
@@ -561,7 +561,7 @@
         "kind": "server",
         "label": "HTTP Server",
         "x": 600,
-        "y": 680
+        "y": 720
       },
       {
         "id": "e7a45bda-baaa-48d4-900a-c2119850546c",
@@ -569,7 +569,7 @@
         "label": "Load Balancer",
         "parentId": "5ea8f423-0869-4f4e-b80f-97e327b18a5d",
         "x": 160,
-        "y": 520
+        "y": 560
       },
       {
         "id": "d1bea4c3-d38e-4636-a5f3-216f3b63eb16",
@@ -577,21 +577,21 @@
         "label": "Load Balancer",
         "parentId": "ece1c77a-be3b-45e5-a25a-7caa46eaa44b",
         "x": 600,
-        "y": 520
+        "y": 560
       },
       {
         "id": "028b45f6-3d75-4029-bead-4fc4639d4f02",
         "kind": "firewall",
         "label": "Firewall",
         "x": 160,
-        "y": 380
+        "y": 420
       },
       {
         "id": "0957bfea-ae8e-467b-b7e6-d37dc529b326",
         "kind": "firewall",
         "label": "Firewall",
         "x": 600,
-        "y": 380
+        "y": 420
       },
       {
         "id": "2f1ebed0-3fed-472a-989b-677601ad33b7",
@@ -601,7 +601,7 @@
         "parentId": "f252c303-b37d-4d81-9273-a50f9b2bc83c",
         "serverType": "container",
         "x": 160,
-        "y": 960
+        "y": 1000
       },
       {
         "id": "395bdd2a-5c9f-4a95-9b66-0a0dd009cd3c",
@@ -611,21 +611,21 @@
         "parentId": "e47cd309-bfb6-461c-8e4b-309d2100137c",
         "serverType": "container",
         "x": 600,
-        "y": 960
+        "y": 1000
       },
       {
         "id": "4663b107-4130-427a-a3a1-2e235b9bfc6b",
         "kind": "firewall",
         "label": "Firewall",
         "x": 160,
-        "y": 820
+        "y": 860
       },
       {
         "id": "761a6401-6c9a-4ea7-bece-d5ac038ff687",
         "kind": "firewall",
         "label": "Firewall",
         "x": 600,
-        "y": 820
+        "y": 860
       },
       {
         "databaseType": "mysql",
@@ -635,21 +635,21 @@
         "label": "MySQL",
         "parentId": "8aa1db04-43a4-445b-98b5-ba3a1661abdc",
         "x": 160,
-        "y": 1260
+        "y": 1300
       },
       {
         "id": "555e0803-85f0-4c3b-aa56-4dfc75fdc0c9",
         "kind": "firewall",
         "label": "Firewall",
         "x": 160,
-        "y": 1120
+        "y": 1160
       },
       {
         "id": "16a36d4c-f94d-438b-ab97-11c9420bcd1e",
         "kind": "firewall",
         "label": "Firewall",
         "x": 600,
-        "y": 1120
+        "y": 1160
       },
       {
         "databaseType": "mysql",
@@ -659,7 +659,7 @@
         "label": "MySQL",
         "parentId": "376efe6d-1ed1-40ec-b66b-0e097814510a",
         "x": 600,
-        "y": 1260
+        "y": 1300
       }
     ],
     "connections": [
@@ -797,7 +797,7 @@
         "targetId": "2f1ebed0-3fed-472a-989b-677601ad33b7"
       }
     ],
-    "createdAt": "2026-10-01T09:00:00.000Z",
-    "updatedAt": "2026-10-28T17:18:59.598Z"
+    "createdAt": "2026-10-28T19:19:42.417Z",
+    "updatedAt": "2026-10-28T23:24:33.952Z"
   }
 ]
