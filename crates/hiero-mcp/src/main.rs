@@ -39,8 +39,7 @@ fn database_path() -> Result<std::path::PathBuf, String> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = database_path()?;
-    let mut store = hiero_store::Store::open(&path)?;
-    store.seed_if_empty()?;
+    let store = hiero_store::Store::open(&path)?;
     eprintln!("arch-hiero-mcp: using {}", path.display());
     let service = server::HieroServer::new(store)
         .serve(rmcp::transport::stdio())

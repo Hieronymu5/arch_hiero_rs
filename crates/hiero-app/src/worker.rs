@@ -29,6 +29,10 @@ pub enum Request {
         diagram: StoredDiagram,
         reply: Sender<Result<Imported, StoreError>>,
     },
+    /// Adds the sample diagrams, when there are none yet.
+    LoadSamples {
+        reply: Sender<Result<usize, StoreError>>,
+    },
     /// Saves the current record now, then records it as a version.
     SaveVersion {
         diagram: StoredDiagram,
@@ -183,6 +187,9 @@ fn handle(
                 remember(known, &i.record);
             }
             let _ = reply.send(result);
+        }
+        Request::LoadSamples { reply } => {
+            let _ = reply.send(store.load_samples());
         }
         Request::SaveVersion {
             diagram,

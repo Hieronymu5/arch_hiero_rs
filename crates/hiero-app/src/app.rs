@@ -487,6 +487,20 @@ impl App {
     }
 
     /// Asks for a zip and imports it, over the diagram with its id or as a new one.
+    /// Adds the sample diagrams, which the list offers while it's empty.
+    pub fn load_samples(&mut self) {
+        self.outcome = Some(
+            match self.worker.call(|reply| Request::LoadSamples { reply }) {
+                Ok(n) => Outcome::ok(format!(
+                    "Loaded {n} sample {}.",
+                    if n == 1 { "diagram" } else { "diagrams" }
+                )),
+                Err(e) => Outcome::error(format!("The sample diagrams couldn’t be loaded. {e}")),
+            },
+        );
+        self.refresh_list();
+    }
+
     pub fn import(&mut self) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Diagram", &["zip"])

@@ -59,8 +59,7 @@ impl Shell {
             return Self::Failed("There's no folder to keep the diagrams in.".into());
         };
         let started = (|| {
-            let mut store = Store::open(&path)?;
-            store.seed_if_empty()?;
+            let store = Store::open(&path)?;
             let worker = worker::Worker::start(path.clone(), cc.egui_ctx.clone())?;
             Ok::<_, hiero_store::StoreError>(App::new(store, worker, theme, accent))
         })();

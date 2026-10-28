@@ -612,6 +612,10 @@ impl App {
             if page_button(ui, "Import Diagram", false).clicked() {
                 self.import();
             }
+            // Only while there are none, so the samples aren't added twice.
+            if self.list.is_empty() && page_button(ui, "Load Samples", false).clicked() {
+                self.load_samples();
+            }
         });
         ui.add_space(8.0);
         self.outcome_ui(ui);

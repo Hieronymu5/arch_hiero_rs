@@ -385,8 +385,9 @@ principle 5, and every new field would need a migration.
   such as "“Web”: “agent” isn’t a field a Server has." If the existing diagram has a
   different type, the import is refused: "“CRM” is a conceptual diagram, but the file holds a
   physical diagram."
-- **Seed:** on the first run (an empty `diagrams` table), insert the prototype's sample
-  diagrams from an embedded copy of `diagrams.json`, each with version 1.
+- **Samples:** the database starts empty. While the `diagrams` table is empty, the diagram list
+  offers Load Samples, which inserts the sample diagrams from the embedded `seed.json`, each
+  with version 1. Neither the app nor the MCP server adds them on its own.
 - **One database, two processes.** The GUI and the MCP server (section 5) open the same file.
   WAL mode lets them read concurrently, and `busy_timeout` queues writes.
   - Every write passes the `revision` it read. `UPDATE … WHERE id = ? AND revision = ?`

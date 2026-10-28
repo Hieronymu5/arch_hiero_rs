@@ -25,7 +25,8 @@ cargo run -p hiero-app --release
 ```
 
 The database lives in `~/Library/Application Support/ArchHiero/arch-hiero.sqlite3` on macOS
-(set `ARCH_HIERO_DB` to use another). On first run it's filled with sample diagrams.
+(set `ARCH_HIERO_DB` to use another). It starts empty; while there are no diagrams, the list
+offers to load samples, one of each type.
 
 ## Agents (MCP)
 

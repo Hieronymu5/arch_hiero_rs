@@ -65,9 +65,9 @@ async fn an_agent_builds_versions_and_exports_a_physical_diagram() {
     let (ok, types) = call(&client, "list_diagram_types", json!({})).await;
     assert!(ok && types.contains(r#""id": "springboot""#));
 
-    // The seeds are there, and the type specs are resources.
+    // A new database starts with no diagrams, and the type specs are resources.
     let (ok, list) = call(&client, "list_diagrams", json!({})).await;
-    assert!(ok && list.contains("ARCH Hiero MCP Capabilities"));
+    assert!(ok && list.trim() == "[]", "{list}");
     let spec = client
         .read_resource(ReadResourceRequestParams::new(
             "arch-hiero://types/physical",

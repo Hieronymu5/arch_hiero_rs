@@ -193,7 +193,7 @@ pub fn default_path() -> Option<PathBuf> {
         .map(|dirs| dirs.data_dir().join("arch-hiero.sqlite3"))
 }
 
-/// The sample diagrams, one of each type, added to an empty database on first use.
+/// The sample diagrams, one of each type, which the diagram list offers while it's empty.
 pub fn seed_diagrams() -> Vec<StoredDiagram> {
     let seed: Value = serde_json::from_str(include_str!("seed.json")).expect("the seed is JSON");
     seed.as_array()
@@ -265,8 +265,9 @@ impl Store {
             .query_row("PRAGMA data_version", [], |row| row.get(0))?)
     }
 
-    /// Adds the sample diagrams when there are no diagrams yet. Returns how many were added.
-    pub fn seed_if_empty(&mut self) -> Result<usize> {
+    /// Adds the sample diagrams when there are no diagrams yet, so they're never added twice.
+    /// Returns how many were added.
+    pub fn load_samples(&mut self) -> Result<usize> {
         let count: i64 = self
             .conn
             .query_row("SELECT COUNT(*) FROM diagrams", [], |r| r.get(0))?;
@@ -924,10 +925,10 @@ mod tests {
     }
 
     #[test]
-    fn seeds_once() {
+    fn samples_load_once() {
         let mut store = Store::open_in_memory().unwrap();
-        assert_eq!(store.seed_if_empty().unwrap(), 3);
-        assert_eq!(store.seed_if_empty().unwrap(), 0);
+        assert_eq!(store.load_samples().unwrap(), 3);
+        assert_eq!(store.load_samples().unwrap(), 0);
         let names: Vec<String> = store
             .list()
             .unwrap()
