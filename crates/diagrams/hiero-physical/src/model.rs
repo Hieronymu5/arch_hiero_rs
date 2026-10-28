@@ -1,5 +1,6 @@
 //! The physical diagram's kinds, element and arrow properties, and colours.
 
+use hiero_core::count::InstanceCount;
 use hiero_core::figures::PhysicalFigure;
 use hiero_core::geometry::Size;
 use hiero_core::model::{ColorScheme, KindInfo};
@@ -158,9 +159,9 @@ pub struct PhysicalProps {
     pub database_type: Option<DatabaseType>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_type: Option<ServerType>,
-    /// How many run, such as a database's nodes. Unset means one.
+    /// How many run, such as a database's nodes, or a range such as "50-100". Unset means one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub instance_count: Option<u32>,
+    pub instance_count: Option<InstanceCount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zone_color: Option<ZoneColor>,
 }

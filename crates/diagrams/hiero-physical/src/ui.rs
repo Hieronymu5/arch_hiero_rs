@@ -1,6 +1,7 @@
 //! The physical diagram's properties panel and its place in the shared editor.
 
 use egui::Ui;
+use hiero_core::count::InstanceCount;
 use hiero_core::engine::{Conn, DiagramType, Engine, Laid};
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
@@ -15,17 +16,12 @@ use crate::rules::{is_stacked, stack_holder_of};
 use crate::scene::{drawn_arrows, scene_of};
 
 /// Reads an instance count: empty is one; otherwise a whole number from 1 to 9999.
-fn parse_count(text: &str) -> Result<Option<u32>, String> {
-    let text = text.trim();
-    if text.is_empty() {
+/// A count as typed, such as "3", "50+", or "50-100". Empty means one.
+fn parse_count(text: &str) -> Result<Option<InstanceCount>, String> {
+    if text.trim().is_empty() {
         return Ok(None);
     }
-    match text.parse::<u32>() {
-        Ok(n) if (1..=MAX_INSTANCE_COUNT).contains(&n) => Ok(Some(n)),
-        _ => Err(format!(
-            "Enter a whole number from 1 to {MAX_INSTANCE_COUNT}."
-        )),
-    }
+    InstanceCount::parse(text, MAX_INSTANCE_COUNT).map(Some)
 }
 
 impl DiagramView for Physical {
@@ -110,7 +106,7 @@ impl DiagramView for Physical {
                 .el
                 .props
                 .instance_count
-                .map(|n| n.to_string())
+                .map(|c| c.to_string())
                 .unwrap_or_default();
             if let Some(text) = text_field(
                 ui,

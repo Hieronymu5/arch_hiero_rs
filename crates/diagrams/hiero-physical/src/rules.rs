@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use hiero_core::count::InstanceCount;
 use hiero_core::engine::{
     Created, DiagramType, Dir, El, Engine, Laid, Placement, ResizeLimits, descendant_ids,
     validate_label, validate_length,
@@ -42,13 +43,10 @@ pub fn figure_of(element: &El<Physical>) -> Option<hiero_core::figures::Physical
     element.kind.figure()
 }
 
-/// How many of an element run: one unless its kind counts them.
-pub fn instance_count_of(element: &El<Physical>) -> u32 {
-    if element.kind.instances().is_some() {
-        element.props.instance_count.unwrap_or(1)
-    } else {
-        1
-    }
+/// How many of an element run, when its kind counts them and it's more than one.
+pub fn instance_count_of(element: &El<Physical>) -> Option<InstanceCount> {
+    element.kind.instances()?;
+    element.props.instance_count.filter(|c| !c.is_one())
 }
 
 /// Which database an element is, when it's a database with a type set.
@@ -503,7 +501,7 @@ impl DiagramType for Physical {
     fn file_fields(kind: PhysicalKind) -> &'static [Field] {
         const INSTANCES: Field = Field {
             key: "instanceCount",
-            rule: FieldRule::Count {
+            rule: FieldRule::CountOrRange {
                 max: MAX_INSTANCE_COUNT,
             },
         };
@@ -936,11 +934,10 @@ impl DiagramType for Physical {
         if let Some(database) = database_of(&element.el) {
             parts.push(database.label.to_owned());
         }
-        let count = instance_count_of(&element.el);
-        if count > 1
-            && let Some((_, noun)) = element.el.kind.instances()
+        if let (Some(count), Some((_, noun))) =
+            (instance_count_of(&element.el), element.el.kind.instances())
         {
-            parts.push(format!("{count} {noun}s"));
+            parts.push(count.describe(noun));
         }
         for c in eng.connections() {
             let tag = c.props.tag();
@@ -1014,7 +1011,7 @@ impl DiagramType for Physical {
         if kind.instances().is_none() {
             with.props.instance_count = None;
         }
-        if with.props.instance_count == Some(1) {
+        if with.props.instance_count.is_some_and(InstanceCount::is_one) {
             with.props.instance_count = None;
         }
         if !kind.has_database_type() {
@@ -1030,9 +1027,9 @@ impl DiagramType for Physical {
     fn validate_element(element: &El<Physical>) -> Result<(), String> {
         validate_label(&element.label)?;
         match element.props.instance_count {
-            Some(n) if n == 0 || n > MAX_INSTANCE_COUNT => Err(format!(
-                "Enter a whole number from 1 to {MAX_INSTANCE_COUNT}."
-            )),
+            Some(count) if !count.is_within(MAX_INSTANCE_COUNT) => {
+                Err(InstanceCount::hint(MAX_INSTANCE_COUNT))
+            }
             _ => Ok(()),
         }
     }
@@ -1291,9 +1288,17 @@ mod tests {
         let e = engine();
         let mut server = e.elements()[0].clone();
         server.kind = PhysicalKind::Server;
-        server.props.instance_count = Some(0);
+        server.props.instance_count = Some(InstanceCount::Exactly(0));
         assert!(Physical::validate_element(&server).is_err());
-        server.props.instance_count = Some(3);
-        assert!(Physical::validate_element(&server).is_ok());
+        server.props.instance_count = Some(InstanceCount::Between(100, 50));
+        assert!(Physical::validate_element(&server).is_err());
+        for ok in [
+            InstanceCount::Exactly(3),
+            InstanceCount::AtLeast(50),
+            InstanceCount::Between(50, 100),
+        ] {
+            server.props.instance_count = Some(ok);
+            assert!(Physical::validate_element(&server).is_ok());
+        }
     }
 }

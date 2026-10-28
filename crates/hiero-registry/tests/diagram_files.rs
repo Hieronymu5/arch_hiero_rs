@@ -351,6 +351,27 @@ fn elements_on_their_own() {
             "“Web”: Enter a whole number from 1 to 9999."
         );
     }
+    // A minimum or a range is text, in one spelling.
+    for range in ["50+", "50-100"] {
+        let mut file = p();
+        set(web, "instanceCount", json!(range))(&mut file);
+        diagram_from_file(&file).unwrap_or_else(|e| panic!("{e}"));
+    }
+    assert_eq!(
+        refused(p(), set(web, "instanceCount", json!("3"))),
+        "“Web”: “instanceCount” must be a number."
+    );
+    assert_eq!(
+        refused(p(), set(web, "instanceCount", json!("50 - 100"))),
+        "“Web”: “instanceCount” must be written as 50-100."
+    );
+    for bad in ["lots", "100-50", "0+", "50-10000"] {
+        assert_eq!(
+            refused(p(), set(web, "instanceCount", json!(bad))),
+            "“Web”: Enter a whole number from 1 to 9999, or a range such as 50+ or 50-100.",
+            "{bad}"
+        );
+    }
     assert_eq!(
         refused(p(), set("/diagram/elements/2", "zoneColor", json!("blue"))),
         "“DMZ”: “zoneColor” must be left out when it’s empty or the default."

@@ -13,6 +13,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::color::is_hex_color;
+use crate::count::InstanceCount;
 use crate::engine::DiagramType;
 use crate::model::{ColorScheme, DiagramTypeId, KindInfo};
 
@@ -34,6 +35,9 @@ pub enum FieldRule {
     },
     /// A whole number from 2 to `max`: one is the default.
     Count { max: u32 },
+    /// A count as `Count` is, or text for a minimum such as "50+" or a range such as "50-100",
+    /// of whole numbers from 1 to `max`.
+    CountOrRange { max: u32 },
     /// A finite number.
     Number,
     /// Non-blank text of at most `max` characters, called `name` in messages.
@@ -273,7 +277,17 @@ fn field(object: &Object, field: &Field) -> Result<(), String> {
                 return Err(one_of(key, values));
             }
         }
-        FieldRule::Count { max } => {
+        FieldRule::CountOrRange { max } if value.is_string() => {
+            let text = value.as_str().unwrap_or_default();
+            let count = InstanceCount::parse(text, max)?;
+            if matches!(count, InstanceCount::Exactly(_)) {
+                return Err(must_be(key, "a number"));
+            }
+            if count.to_string() != text {
+                return Err(format!("“{key}” must be written as {count}."));
+            }
+        }
+        FieldRule::Count { max } | FieldRule::CountOrRange { max } => {
             let n = value.as_f64().ok_or_else(|| must_be(key, "a number"))?;
             if (n - 1.0).abs() < f64::EPSILON {
                 return Err(left_out(key));

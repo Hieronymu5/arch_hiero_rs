@@ -31,7 +31,8 @@ networks (`onTop`).
 Every figure kind (user through storage) can have arrows to every other figure kind.
 
 **Instances:** when a server's instance count or a database's node count is more than 1, it's
-shown as "×3" to the right of the figure, level with its middle.
+shown as "×3" to the right of the figure, level with its middle. A count can also be a minimum,
+shown as "×50+", or a range, shown as "×50–100" (new in Rust).
 
 **Database types:**
 
@@ -93,9 +94,9 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 |---|---|---|
 | Name | all | Required, at most 100 characters |
 | Server type | server | Select: (Physical) / Virtual Machine / Container |
-| Instance count | server | Integer ≥ 1. Unset means 1. |
+| Instance count | server | A whole number from 1 to 9999, a minimum such as `50+`, or a range such as `50-100` (first number smaller). Unset means 1. |
 | Database type | database | Select: (Database (DB)) / the table above |
-| Node count | database | Integer ≥ 1 |
+| Node count | database | As instance count |
 | Color | zone outside a network | Select: (Blue) / Red / Yellow / Green |
 | Parent | figures that can be held | A select of the zones |
 | Arrows list and Add arrow to | figure kinds | Same as conceptual |
@@ -142,6 +143,7 @@ arrow colours as the editor.
 // element props
 { "serverType": "virtual-machine", "instanceCount": 3 }   // server
 { "databaseType": "postgresql", "instanceCount": 2 }      // database
+{ "instanceCount": "50+" }  { "instanceCount": "50-100" }  // a minimum or a range is text
 { "zoneColor": "red" }                                    // zone
 // connection props
 { "protocol": "HTTPS", "port": "443" }

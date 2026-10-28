@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use hiero_core::color::{black_or_white, readable_text};
+use hiero_core::count::InstanceCount;
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::geometry::Point;
 use hiero_core::look::{
@@ -88,14 +89,15 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
         let database = kind
             .has_database_type()
             .then(|| database_of(&element.el).unwrap_or(GENERIC_DATABASE));
-        let count = instance_count_of(&element.el);
         Look {
             detail_color: Some(black_or_white(&fill).to_owned()),
             // The name, and the instance count, in the labels' colour with no background.
             text_color: Some(colors.labels.clone()),
             on_top: true,
             figure_text: database.map(|d| d.abbreviation.to_owned()),
-            figure_badge: (figure.is_some() && count > 1).then(|| format!("×{count}")),
+            figure_badge: figure
+                .and(instance_count_of(&element.el))
+                .map(InstanceCount::badge),
             fill: Some(fill),
             ..Look::new(figure.map_or(Shape::Box, Shape::Physical))
         }

@@ -3,6 +3,7 @@
 
 pub mod clipboard;
 pub mod color;
+pub mod count;
 pub mod engine;
 pub mod export;
 pub mod figures;

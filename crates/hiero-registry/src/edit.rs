@@ -465,7 +465,7 @@ mod tests {
             {"op": "add_element", "ref": "web", "kind": "server", "label": "Web", "parent_id": zone,
              "props": {"serverType": "container", "instanceCount": 3}},
             {"op": "add_element", "ref": "db", "kind": "database", "label": "Orders", "parent_id": zone,
-             "props": {"databaseType": "postgresql"}},
+             "props": {"databaseType": "postgresql", "instanceCount": "2 - 4"}},
             {"op": "add_connection", "source_id": "web", "target_id": "db"}
         ]));
         let outcome = ops(DiagramTypeId::Physical)
@@ -486,6 +486,13 @@ mod tests {
             Some(zone.as_str())
         );
         assert_eq!(web.props["instanceCount"], json!(3));
+        // A range is stored in its one spelling.
+        let orders = outcome
+            .content
+            .elements
+            .iter()
+            .find(|e| e.label == "Orders");
+        assert_eq!(orders.unwrap().props["instanceCount"], json!("2-4"));
     }
 
     #[test]
