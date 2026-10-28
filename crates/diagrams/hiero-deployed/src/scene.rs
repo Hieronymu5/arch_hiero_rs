@@ -16,7 +16,7 @@ use crate::model::{DeployedComponent, LAYER_PADDING, colors, component_colors};
 use crate::tech_stack;
 
 const BAR_TEXT: (f64, Weight) = (11.0, Weight::Bold);
-const LAYER_NAME: (f64, Weight) = (20.0, Weight::Bold);
+const LAYER_NAME: (f64, Weight) = (16.0, Weight::Bold);
 const COMPONENT_NAME: (f64, Weight) = (16.0, Weight::Bold);
 const BULLET_TEXT: (f64, Weight) = (13.0, Weight::Regular);
 /// How far a bullet's text sits from its column's left edge, after the dot.

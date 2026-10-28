@@ -156,7 +156,7 @@ fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point) -> Vec<String> {
     cells.push(vertex(
         &format!("{id}-name"),
         &escape_xml(&layer.el.label),
-        &text_style(20.0, true, "left").build(),
+        &text_style(16.0, true, "left").build(),
         id,
         Rect::new(
             LAYER_PADDING,
