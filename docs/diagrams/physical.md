@@ -31,8 +31,9 @@ networks (`onTop`).
 Every figure kind (user through storage) can have arrows to every other figure kind.
 
 **Instances:** when a server's instance count or a database's node count is more than 1, it's
-shown as "×3" to the right of the figure, level with its middle. A count can also be a minimum,
-shown as "×50+", or a range, shown as "×50–100" (new in Rust).
+shown in a small black box with white text at the figure's top-right corner: "3", "50+",
+or "50-100". A count can also be a minimum or a range (new in Rust; the prototype shows "×3" to
+the right of the figure).
 
 **Database types:**
 

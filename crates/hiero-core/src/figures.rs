@@ -177,12 +177,6 @@ pub const FIGURE_HEIGHT: f64 = 40.0;
 /// The gap between a figure and its name.
 pub const FIGURE_NAME_GAP: f64 = 4.0;
 
-/// Text beside a figure, such as "×3": its gap, font size, weight, line height, and inset.
-pub const FIGURE_BADGE_GAP: f64 = 4.0;
-pub const FIGURE_BADGE_FONT_SIZE: f64 = 14.0;
-pub const FIGURE_BADGE_LINE_HEIGHT: f64 = 18.0;
-pub const FIGURE_BADGE_INSET: f64 = 2.0;
-
 /// A line segment in a figure's own coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Seg {

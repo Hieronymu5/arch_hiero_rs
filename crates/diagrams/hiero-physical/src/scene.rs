@@ -5,12 +5,11 @@
 use std::collections::HashMap;
 
 use hiero_core::color::{black_or_white, readable_text};
-use hiero_core::count::InstanceCount;
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::geometry::Point;
 use hiero_core::look::{
     ArrowLook, ArrowTag, DiagramColors, Look, LookElement, NameAt, Shape, draw_diagram,
-    figure_name_bottom,
+    figure_badge_rect, figure_name_bottom,
 };
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
@@ -89,15 +88,29 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
         let database = kind
             .has_database_type()
             .then(|| database_of(&element.el).unwrap_or(GENERIC_DATABASE));
+        // The instance count in a black box at the figure's top-right corner.
+        let badge = figure
+            .zip(instance_count_of(&element.el))
+            .map(|(figure, count)| {
+                let label = count.to_string();
+                let width = eng
+                    .measure()
+                    .width(&label, CONNECTOR_BOX_FONT_SIZE, Weight::SemiBold);
+                ArrowTag {
+                    rect: figure_badge_rect(element.rect, figure, width),
+                    label,
+                    fill: "#000000".into(),
+                    text_color: "#ffffff".into(),
+                    border: None,
+                }
+            });
         Look {
             detail_color: Some(black_or_white(&fill).to_owned()),
-            // The name, and the instance count, in the labels' colour with no background.
+            // The name in the labels' colour with no background.
             text_color: Some(colors.labels.clone()),
             on_top: true,
             figure_text: database.map(|d| d.abbreviation.to_owned()),
-            figure_badge: figure
-                .and(instance_count_of(&element.el))
-                .map(InstanceCount::badge),
+            figure_badge: badge,
             fill: Some(fill),
             ..Look::new(figure.map_or(Shape::Box, Shape::Physical))
         }
@@ -273,5 +286,37 @@ mod tests {
         assert!(svg.contains(r##"fill="none" stroke="#333333" stroke-width="2""##));
         // The database's abbreviation.
         assert!(svg.contains(">DB</text>"));
+    }
+
+    #[test]
+    fn instance_counts_are_boxes_on_the_figure() {
+        let mut e =
+            Engine::<Physical>::new_diagram(PhysicalColors::default()).with_measure(&ESTIMATE);
+        let zone = e.elements()[2].id.clone();
+        e.select(&zone);
+        e.add_at_free_position(PhysicalKind::Server);
+        let server = e.selection[0].clone();
+        e.replace(&server, |mut el| {
+            el.props.instance_count = Some(hiero_core::count::InstanceCount::Between(50, 100));
+            el
+        });
+        let laid = e.laid(&server).unwrap().clone();
+        let look = look_of(&e, &laid);
+        let badge = look.look.figure_badge.expect("a count over one has a box");
+        assert_eq!(badge.label, "50-100");
+        // At the figure's top-right corner, black with white text.
+        let figure = hiero_core::figures::figure_rect(laid.rect, figure_of(&laid.el).unwrap());
+        assert_eq!(
+            badge.rect.x,
+            figure.right() + hiero_core::look::FIGURE_BADGE_GAP
+        );
+        assert_eq!(badge.rect.center().y, figure.y);
+        assert_eq!(
+            (badge.fill.as_str(), badge.text_color.as_str()),
+            ("#000000", "#ffffff")
+        );
+        let svg = scene_to_svg("Infra", &scene(&e));
+        assert!(svg.contains(">50-100</text>"));
+        assert!(!svg.contains('×'));
     }
 }

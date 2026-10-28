@@ -6,10 +6,7 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use crate::color::readable_text;
-use crate::figures::{
-    CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_BADGE_FONT_SIZE, FIGURE_BADGE_GAP,
-    FIGURE_BADGE_LINE_HEIGHT, FIGURE_NAME_GAP, PhysicalFigure, database,
-};
+use crate::figures::{CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, database};
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
 use crate::model::{ConnectionId, ElementId};
@@ -720,35 +717,39 @@ pub fn diagram_to_drawio(
             ));
         }
     }
-    // Over the arrows, so they don't move to make room.
+    // Over the arrows, so they don't move to make room. A box on the figure, as an arrow's tag.
     for e in elements {
-        let (Some(badge), Shape::Physical(figure)) = (&e.look.figure_badge, e.look.shape) else {
+        let (Some(badge), Shape::Physical(_)) = (&e.look.figure_badge, e.look.shape) else {
             continue;
         };
         let (left, top, parent) = place(e);
-        let size = figure.size();
-        let style = Style::new()
-            .set("text", "")
-            .set("html", 1)
-            .set("align", "left")
-            .set("verticalAlign", "middle")
-            .set("fillColor", "none")
-            .set("strokeColor", "none")
-            .set("fontColor", e.look.text_color.as_deref().unwrap_or(TEXT))
+        let mut style = rounded(Style::new().set("html", 1))
+            .set("arcSize", 6)
+            .set("whiteSpace", "nowrap")
+            .set("spacing", 0);
+        style = match &badge.border {
+            Some(b) => style
+                .set("strokeColor", b)
+                .num("strokeWidth", ARROW_TAG_BORDER_WIDTH),
+            None => style.set("strokeColor", "none"),
+        };
+        let style = style
+            .set("fillColor", &badge.fill)
+            .set("fontColor", &badge.text_color)
             .set("fontStyle", 1)
-            .num("fontSize", FIGURE_BADGE_FONT_SIZE)
-            .set("spacing", 0)
-            .set("pointerEvents", 0);
+            .num("fontSize", CONNECTOR_BOX_FONT_SIZE)
+            .set("resizable", 0)
+            .set("connectable", 0);
         cells.push(cell(
             &format!("{}-badge", e.id),
-            &escape_xml(badge),
+            &escape_xml(&badge.label),
             &style.build(),
             &parent,
             &rect_attributes(Rect::new(
-                left + (e.rect.width + size.width) / 2.0 + FIGURE_BADGE_GAP,
-                top + (size.height - FIGURE_BADGE_LINE_HEIGHT) / 2.0,
-                48.0,
-                FIGURE_BADGE_LINE_HEIGHT,
+                left + badge.rect.x - e.rect.x,
+                top + badge.rect.y - e.rect.y,
+                badge.rect.width,
+                badge.rect.height,
             )),
         ));
     }

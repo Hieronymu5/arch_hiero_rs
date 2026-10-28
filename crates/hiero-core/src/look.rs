@@ -6,15 +6,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::color::readable_text;
 use crate::figures::{
-    self, CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_BADGE_FONT_SIZE, FIGURE_BADGE_GAP,
-    FIGURE_BADGE_INSET, FIGURE_BADGE_LINE_HEIGHT, FIGURE_NAME_GAP, PhysicalFigure, actor,
-    cloud_path, component,
+    self, CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, actor, cloud_path,
+    component, figure_rect,
 };
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::model::{ColorScheme, ElementId};
 use crate::routing::{
-    ARROW_TAG_BORDER_WIDTH, Align, CONNECTOR_BOX_FONT_SIZE, connector_text_position,
-    label_placement, label_text_position, return_arrow_placement,
+    ARROW_TAG_BORDER_WIDTH, Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT,
+    connector_text_position, label_placement, label_text_position, return_arrow_placement,
 };
 use crate::scene::{Anchor, Marker, Node, Paint, Scene};
 use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
@@ -90,12 +89,6 @@ pub const CONTAINER_NAME: TextStyle = TextStyle::new(20.0, Weight::Bold, 26.0, 1
 pub const CORNER_NAME: TextStyle = TextStyle::new(16.0, Weight::Bold, 21.0, 1);
 pub const DESCRIPTION: TextStyle = TextStyle::new(13.0, Weight::Regular, 17.0, 3);
 pub const SECTION_NAME: TextStyle = CONTAINER_NAME;
-const BADGE: TextStyle = TextStyle::new(
-    FIGURE_BADGE_FONT_SIZE,
-    Weight::Bold,
-    FIGURE_BADGE_LINE_HEIGHT,
-    1,
-);
 /// The gap between a section's name and its line on either side.
 pub const SECTION_GAP: f64 = 8.0;
 /// The width of a section's lines, as thick as a container's border.
@@ -160,8 +153,8 @@ pub struct Look {
     pub detail_color: Option<String>,
     /// Text on a physical figure, such as a database's "PSQL".
     pub figure_text: Option<String>,
-    /// Text beside a physical figure, such as "×3".
-    pub figure_badge: Option<String>,
+    /// A box on the middle of a physical figure, such as a server's instance count.
+    pub figure_badge: Option<ArrowTag>,
 }
 
 impl Look {
@@ -197,7 +190,8 @@ pub struct LookElement {
     pub rect: Rect,
 }
 
-/// A box of text on an arrow, in its own colours, such as a protocol and port.
+/// A box of text in its own colours, such as an arrow's protocol and port or a figure's
+/// instance count.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArrowTag {
     pub label: String,
@@ -485,26 +479,45 @@ fn figure_text(figure: PhysicalFigure, text: Option<&String>, color: &str) -> Ve
     }]
 }
 
-/// An element's figure badge, such as "×3", to the right of its figure, level with its middle,
-/// with no background, as the names under figures.
-fn figure_badge(element: &LookElement) -> Vec<Node> {
-    let (Some(badge), Shape::Physical(figure)) = (&element.look.figure_badge, element.look.shape)
-    else {
-        return Vec::new();
-    };
-    let size = figure.size();
-    let left = element.rect.x + (element.rect.width + size.width) / 2.0 + FIGURE_BADGE_GAP;
-    let top = element.rect.y + (size.height - BADGE.line_height) / 2.0;
-    colored(
-        text_lines(
-            std::slice::from_ref(badge),
-            left + FIGURE_BADGE_INSET,
-            top,
-            BADGE,
-            Anchor::Start,
-        ),
-        element.look.text_color.as_ref(),
+/// A figure's badge: the room left and right of its text, its narrowest, and the gap between
+/// the figure's right edge and it.
+pub const FIGURE_BADGE_PADDING_X: f64 = 3.0;
+pub const FIGURE_BADGE_MIN_WIDTH: f64 = 20.0;
+pub const FIGURE_BADGE_GAP: f64 = 4.0;
+
+/// Where a box of text `text_width` wide goes on a physical figure in `area`: just right of its
+/// top-right corner, across its top edge, as tall as an arrow's tag.
+pub fn figure_badge_rect(area: Rect, figure: PhysicalFigure, text_width: f64) -> Rect {
+    let width = FIGURE_BADGE_MIN_WIDTH.max(text_width.ceil() + FIGURE_BADGE_PADDING_X * 2.0);
+    let figure = figure_rect(area, figure);
+    Rect::new(
+        round2(figure.right() + FIGURE_BADGE_GAP),
+        round2(figure.y - CONNECTOR_BOX_HEIGHT / 2.0),
+        width,
+        CONNECTOR_BOX_HEIGHT,
     )
+}
+
+/// A box of text with its label centred, as an arrow's tag.
+fn tag_nodes(tag: &ArrowTag) -> [Node; 2] {
+    let paint = match &tag.border {
+        Some(border) => {
+            Paint::fill_stroke(tag.fill.clone(), border.clone(), ARROW_TAG_BORDER_WIDTH)
+        }
+        None => Paint::fill(tag.fill.clone()),
+    };
+    [
+        Node::rect(tag.rect, 3.0, paint),
+        Node::Text {
+            at: connector_text_position(&tag.rect),
+            anchor: Anchor::Middle,
+            size: CONNECTOR_BOX_FONT_SIZE,
+            weight: Weight::SemiBold,
+            text: tag.label.clone(),
+            fill: Some(tag.text_color.clone()),
+            halo: None,
+        },
+    ]
 }
 
 /// The nodes that draw one element.
@@ -844,7 +857,9 @@ pub fn draw_arrows(
     }
     // Over the arrows, so they don't move to make room.
     for e in elements {
-        nodes.extend(figure_badge(e));
+        if let (Some(badge), Shape::Physical(_)) = (&e.look.figure_badge, e.look.shape) {
+            nodes.extend(tag_nodes(badge));
+        }
     }
     let connector_text = readable_text(&colors.connectors);
     for (label, rect) in arrows
@@ -869,23 +884,7 @@ pub fn draw_arrows(
         });
     }
     for tag in arrows.iter().filter_map(|a| a.tag.as_ref()) {
-        let text = connector_text_position(&tag.rect);
-        let paint = match &tag.border {
-            Some(border) => {
-                Paint::fill_stroke(tag.fill.clone(), border.clone(), ARROW_TAG_BORDER_WIDTH)
-            }
-            None => Paint::fill(tag.fill.clone()),
-        };
-        nodes.push(Node::rect(tag.rect, 3.0, paint));
-        nodes.push(Node::Text {
-            at: text,
-            anchor: Anchor::Middle,
-            size: CONNECTOR_BOX_FONT_SIZE,
-            weight: Weight::SemiBold,
-            text: tag.label.clone(),
-            fill: Some(tag.text_color.clone()),
-            halo: None,
-        });
+        nodes.extend(tag_nodes(tag));
     }
     for a in arrows {
         let Some(label) = a.label.as_ref().filter(|l| !l.is_empty()) else {
@@ -1010,7 +1009,6 @@ mod tests {
         );
         e.label = "Orders".into();
         e.look.figure_text = Some("PSQL".into());
-        e.look.figure_badge = Some("×3".into());
         let scene = draw_diagram(
             std::slice::from_ref(&e),
             &[],
@@ -1020,8 +1018,7 @@ mod tests {
         let svg = scene_to_svg("t", &scene);
         assert!(svg.contains(r#"<g transform="translate(76 40)""#));
         assert!(svg.contains(">PSQL</text>"));
-        assert!(svg.contains(">×3</text>"));
-        // The figure is drawn in its group; there's no box behind the name or the badge.
+        // The figure is drawn in its group; there's no box behind the name.
         assert!(!scene.nodes.iter().any(|n| matches!(n, Node::Rect { .. })));
     }
 }

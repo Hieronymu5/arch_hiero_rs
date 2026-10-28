@@ -62,15 +62,6 @@ impl InstanceCount {
         self == Self::Exactly(1)
     }
 
-    /// Such as "×3", "×50+", or "×50–100", drawn beside a figure.
-    pub fn badge(self) -> String {
-        match self {
-            Self::Exactly(n) => format!("×{n}"),
-            Self::AtLeast(n) => format!("×{n}+"),
-            Self::Between(low, high) => format!("×{low}–{high}"),
-        }
-    }
-
     /// Such as "3 instances", "50 or more instances", or "50 to 100 instances".
     pub fn describe(self, noun: &str) -> String {
         let plural = |n: u32| if n == 1 { "" } else { "s" };
@@ -173,7 +164,6 @@ mod tests {
 
     #[test]
     fn counts_are_drawn_and_read_out() {
-        assert_eq!(InstanceCount::Between(50, 100).badge(), "×50–100");
         assert_eq!(
             InstanceCount::AtLeast(50).describe("instance"),
             "50 or more instances"
