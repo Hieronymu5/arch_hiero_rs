@@ -208,7 +208,10 @@ pub struct ArrowLook {
     pub to: Point,
     pub dashed: bool,
     pub label: Option<String>,
+    /// A small return arrow drawn beside the line, as a conceptual arrow that goes both ways.
     pub bidirectional: bool,
+    /// A full head at each end, as two arrows in opposite directions drawn on one line.
+    pub two_heads: bool,
     /// A box between the arrow and its target, such as "API". The arrow ends at it.
     pub connector: Option<(String, Rect)>,
     /// A box on the middle of the line, such as "Map fields".
@@ -838,12 +841,24 @@ pub fn draw_arrows(
 ) -> Vec<Node> {
     let mut nodes: Vec<Node> = Vec::new();
     for a in arrows {
-        nodes.push(Node::Line {
-            from: Point::new(round2(a.from.x), round2(a.from.y)),
-            to: Point::new(round2(a.to.x), round2(a.to.y)),
-            paint: Paint::stroke(colors.lines.clone(), 2.0).dashed(a.dashed.then_some((8.0, 4.0))),
+        let paint = Paint::stroke(colors.lines.clone(), 2.0).dashed(a.dashed.then_some((8.0, 4.0)));
+        let line = |from: Point, to: Point| Node::Line {
+            from: Point::new(round2(from.x), round2(from.y)),
+            to: Point::new(round2(to.x), round2(to.y)),
+            paint: paint.clone(),
             marker: Some(Marker::Arrowhead),
-        });
+        };
+        if a.two_heads {
+            // Two halves from the middle, each with its head.
+            let middle = Point::new(
+                f64::midpoint(a.from.x, a.to.x),
+                f64::midpoint(a.from.y, a.to.y),
+            );
+            nodes.push(line(middle, a.to));
+            nodes.push(line(middle, a.from));
+        } else {
+            nodes.push(line(a.from, a.to));
+        }
     }
     for a in arrows.iter().filter(|a| a.bidirectional) {
         if let Some((from, to)) = return_arrow_placement(a.from, a.to) {
@@ -972,6 +987,22 @@ mod tests {
         assert!(svg.contains(r#"marker-end="url(#return-arrowhead)""#));
         assert!(svg.contains(r##"stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">Orders</text>"##));
         assert!(svg.contains(">Map</text>"));
+    }
+
+    #[test]
+    fn two_headed_arrows_have_a_full_head_at_each_end() {
+        let arrows = [ArrowLook {
+            from: Point::new(100.0, 50.0),
+            to: Point::new(300.0, 50.0),
+            two_heads: true,
+            ..ArrowLook::default()
+        }];
+        let scene = draw_diagram(&[], &arrows, &EstimateText, &DiagramColors::default());
+        let svg = scene_to_svg("t", &scene);
+        assert!(svg.contains(r#"<line x1="200" y1="50" x2="300" y2="50""#));
+        assert!(svg.contains(r#"<line x1="200" y1="50" x2="100" y2="50""#));
+        assert_eq!(svg.matches(r#"marker-end="url(#arrowhead)""#).count(), 2);
+        assert!(!svg.contains("url(#return-arrowhead)"));
     }
 
     #[test]

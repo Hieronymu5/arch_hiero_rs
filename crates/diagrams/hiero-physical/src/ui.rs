@@ -40,13 +40,17 @@ impl DiagramView for Physical {
         layout: &[Laid<Self>],
         _slide: Option<(&ConnectionId, f64)>,
     ) -> Vec<ArrowLine> {
+        // An arrow drawn on the line of the one back the other way selects with that line.
         drawn_arrows(eng, layout)
             .into_iter()
-            .map(|a| ArrowLine {
-                id: a.id,
-                from: a.look.from,
-                to: a.look.to,
-                boxes: a.look.tag.iter().map(|t| t.rect).collect(),
+            .flat_map(|a| {
+                let line = |id| ArrowLine {
+                    id,
+                    from: a.look.from,
+                    to: a.look.to,
+                    boxes: a.look.tag.iter().map(|t| t.rect).collect(),
+                };
+                std::iter::once(line(a.id.clone())).chain(a.reverse.clone().map(line))
             })
             .collect()
     }

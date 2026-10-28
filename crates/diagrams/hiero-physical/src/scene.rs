@@ -131,13 +131,35 @@ pub struct DrawnArrow {
     pub id: ConnectionId,
     pub source_id: ElementId,
     pub target_id: ElementId,
+    /// The arrow back the other way, when this line draws it too.
+    pub reverse: Option<ConnectionId>,
     pub look: ArrowLook,
     pub route: Route,
 }
 
+/// For each arrow drawn as part of an earlier one, that one: an arrow back the other way over
+/// the same protocol and port shares its line, which then points both ways.
+fn reverses(eng: &Engine<Physical>) -> HashMap<ConnectionId, ConnectionId> {
+    let mut drawn_by = HashMap::new();
+    let connections = eng.connections();
+    for (i, c) in connections.iter().enumerate() {
+        let earlier = connections[..i].iter().find(|d| {
+            d.source_id == c.target_id
+                && d.target_id == c.source_id
+                && d.props == c.props
+                && !drawn_by.contains_key(&d.id)
+        });
+        if let Some(d) = earlier {
+            drawn_by.insert(c.id.clone(), d.id.clone());
+        }
+    }
+    drawn_by
+}
+
 /// Every arrow between evenly spread points on its elements' figures, with its protocol and
 /// port in a box on the middle of the line. An end at a figure's bottom moves down to just
-/// under its name.
+/// under its name. Two arrows between the same elements in opposite directions, over the same
+/// protocol and port, are drawn as one line pointing both ways.
 pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<DrawnArrow> {
     let rects: HashMap<ElementId, _> = layout
         .iter()
@@ -150,9 +172,13 @@ pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<Dr
         .collect();
     let by_id: HashMap<&ElementId, &Laid<Physical>> =
         layout.iter().map(|e| (&e.el.id, e)).collect();
+    let drawn_by = reverses(eng);
+    let reverse_of: HashMap<&ConnectionId, &ConnectionId> =
+        drawn_by.iter().map(|(c, d)| (d, c)).collect();
     let ends: Vec<ConnectionEnds> = eng
         .connections()
         .iter()
+        .filter(|c| !drawn_by.contains_key(&c.id))
         .map(|c| ConnectionEnds {
             id: c.id.clone(),
             source_id: c.source_id.clone(),
@@ -197,6 +223,7 @@ pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<Dr
                     border: Some(colors.lines.clone()),
                 }
             });
+            let reverse = reverse_of.get(&c.id).map(|r| (*r).clone());
             Some(DrawnArrow {
                 id: c.id.clone(),
                 source_id: c.source_id.clone(),
@@ -205,8 +232,10 @@ pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<Dr
                     from,
                     to,
                     tag,
+                    two_heads: reverse.is_some(),
                     ..ArrowLook::default()
                 },
+                reverse,
                 route,
             })
         })
@@ -286,6 +315,42 @@ mod tests {
         assert!(svg.contains(r##"fill="none" stroke="#333333" stroke-width="2""##));
         // The database's abbreviation.
         assert!(svg.contains(">DB</text>"));
+    }
+
+    #[test]
+    fn arrows_back_and_forth_over_one_port_share_a_line() {
+        let mut e =
+            Engine::<Physical>::new_diagram(PhysicalColors::default()).with_measure(&ESTIMATE);
+        let zone = e.elements()[2].id.clone();
+        let mut add = || {
+            e.select(&zone);
+            e.add_at_free_position(PhysicalKind::Server);
+            e.selection[0].clone()
+        };
+        let (a, b) = (add(), add());
+        let there = e.add_connection(&a, &b).unwrap();
+        let back = e.add_connection(&b, &a).unwrap();
+        let drawn = drawn_arrows(&e, e.layout());
+        assert_eq!(drawn.len(), 1);
+        assert_eq!(drawn[0].id, there);
+        assert_eq!(drawn[0].reverse, Some(back.clone()));
+        assert!(drawn[0].look.two_heads && !drawn[0].look.bidirectional);
+        // In draw.io, one edge with a head at each end.
+        let xml = to_drawio(&e, "Infra", None);
+        assert_eq!(xml.matches("startArrow=block").count(), 1);
+        assert!(!xml.contains("-return\""));
+
+        // Over another port, they're two arrows again.
+        let mut props = e.connection(&back).unwrap().props.clone();
+        props.port = "8443".into();
+        e.set_connection_props(&back, props);
+        let drawn = drawn_arrows(&e, e.layout());
+        assert_eq!(drawn.len(), 2);
+        assert!(
+            drawn
+                .iter()
+                .all(|d| !d.look.two_heads && d.reverse.is_none())
+        );
     }
 
     #[test]

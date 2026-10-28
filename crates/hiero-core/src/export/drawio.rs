@@ -579,6 +579,9 @@ pub fn diagram_to_drawio(
         if a.dashed {
             style = style.set("dashed", 1).set("dashPattern", "4 2 4 2");
         }
+        if a.two_heads {
+            style = style.set("startArrow", "block").set("startFill", 1);
+        }
         let exit = constraint(a.from, source.rect);
         let entry = constraint(a.to, a.connector.as_ref().map_or(target.rect, |(_, r)| *r));
         let connector_id = format!("{}-connector", arrow.id);

@@ -264,6 +264,7 @@ pub fn drawn_arrows(
                     dashed: props.is_manual(),
                     label: props.label.clone(),
                     bidirectional: props.bidirectional,
+                    two_heads: false,
                     connector: connector.map(|(text, p)| (text, p.rect)),
                     transformation,
                     tag: None,

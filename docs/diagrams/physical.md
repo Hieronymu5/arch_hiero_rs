@@ -115,6 +115,10 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
   - anything else: `HTTPS 443`
 - Changing a database's type moves the arrows to it that use the old type's port to the new
   type's port. Arrows given another port keep it (new in Rust).
+- Two arrows between the same elements in opposite directions, with the same protocol and port,
+  are drawn as one line with a head at each end and one tag. Each is still its own arrow:
+  clicking the line selects the first, and the other is selected from either element's list of
+  arrows. Changing one's protocol or port draws them apart again (new in Rust).
 - Removing an element removes its arrows.
 
 ## Colours
