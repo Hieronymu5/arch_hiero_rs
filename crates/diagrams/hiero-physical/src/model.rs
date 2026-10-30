@@ -164,6 +164,13 @@ pub struct PhysicalProps {
     pub instance_count: Option<InstanceCount>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zone_color: Option<ZoneColor>,
+    /// A zone behind a firewall: each arrow into it from outside shows one on its edge.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub firewall: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
 }
 
 /// What travels along an arrow and the port it's sent to, such as HTTPS on 443.
@@ -376,6 +383,10 @@ impl PhysicalKind {
     }
 
     pub const fn has_zone_color(self) -> bool {
+        matches!(self, Self::Zone)
+    }
+
+    pub const fn has_firewall(self) -> bool {
         matches!(self, Self::Zone)
     }
 

@@ -6,10 +6,11 @@ use std::collections::HashMap;
 
 use hiero_core::color::{black_or_white, readable_text};
 use hiero_core::engine::{Engine, Laid};
-use hiero_core::geometry::Point;
+use hiero_core::figures::PhysicalFigure;
+use hiero_core::geometry::{Point, Rect};
 use hiero_core::look::{
     ArrowLook, ArrowTag, DiagramColors, Look, LookElement, NameAt, Shape, draw_diagram,
-    figure_badge_rect, figure_name_bottom,
+    draw_element, figure_badge_rect, figure_name_bottom,
 };
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
@@ -196,7 +197,8 @@ pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<Dr
         ),
         None => point,
     };
-    eng.connections()
+    let mut arrows: Vec<DrawnArrow> = eng
+        .connections()
         .iter()
         .filter_map(|c| {
             let route = *routes.get(&c.id)?;
@@ -239,6 +241,155 @@ pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<Dr
                 route,
             })
         })
+        .collect();
+    clear_tags(eng, layout, &mut arrows);
+    arrows
+}
+
+/// Whether `id` is `zone` or inside it.
+fn within(eng: &Engine<Physical>, id: &ElementId, zone: &ElementId) -> bool {
+    let mut current = Some(id);
+    while let Some(id) = current {
+        if id == zone {
+            return true;
+        }
+        current = eng.element(id).and_then(|e| e.parent_id.as_ref());
+    }
+    false
+}
+
+/// Where the line from `outside` to `inside` enters `rect`.
+fn entry_point(rect: Rect, outside: Point, inside: Point) -> Option<Point> {
+    if rect.contains_point(outside) || !rect.contains_point(inside) {
+        return None;
+    }
+    let (dx, dy) = (inside.x - outside.x, inside.y - outside.y);
+    // The latest of the times the line passes each pair of edges' lines going in.
+    let enter = |from: f64, d: f64, low: f64, high: f64| {
+        if d == 0.0 {
+            0.0
+        } else {
+            ((low - from) / d).min((high - from) / d)
+        }
+    };
+    let t = enter(outside.x, dx, rect.x, rect.right())
+        .max(enter(outside.y, dy, rect.y, rect.bottom()))
+        .clamp(0.0, 1.0);
+    Some(Point::new(outside.x + dx * t, outside.y + dy * t))
+}
+
+/// Where arrows cross into zones that have a firewall: each arrow from outside such a zone,
+/// including a line that points both ways, at the point it enters. A line from one such zone
+/// into another crosses both at the same point.
+fn firewall_points(
+    eng: &Engine<Physical>,
+    layout: &[Laid<Physical>],
+    arrows: &[DrawnArrow],
+) -> Vec<(ConnectionId, Point)> {
+    let mut points = Vec::new();
+    for zone in layout
+        .iter()
+        .filter(|z| z.el.kind.has_firewall() && z.el.props.firewall)
+    {
+        let zone_id = &zone.el.id;
+        for arrow in arrows {
+            let source_in = within(eng, &arrow.source_id, zone_id);
+            let target_in = within(eng, &arrow.target_id, zone_id);
+            let ends = match (source_in, target_in) {
+                (false, true) => Some((arrow.look.from, arrow.look.to)),
+                (true, false) if arrow.reverse.is_some() => Some((arrow.look.to, arrow.look.from)),
+                _ => None,
+            };
+            if let Some(at) =
+                ends.and_then(|(outside, inside)| entry_point(zone.rect, outside, inside))
+            {
+                points.push((arrow.id.clone(), at));
+            }
+        }
+    }
+    points
+}
+
+/// The area of a zone's firewall centred on `at`.
+fn firewall_rect(at: Point) -> Rect {
+    let size = PhysicalFigure::Firewall.size();
+    Rect::new(
+        at.x - size.width / 2.0,
+        at.y - size.height / 2.0,
+        size.width,
+        size.height,
+    )
+}
+
+/// Moves an arrow's protocol and port off a zone's firewall that would hide them, to the middle
+/// of the longest stretch of the line between its ends and its firewalls.
+fn clear_tags(eng: &Engine<Physical>, layout: &[Laid<Physical>], arrows: &mut [DrawnArrow]) {
+    let points = firewall_points(eng, layout, arrows);
+    for arrow in arrows.iter_mut() {
+        let on_line: Vec<Point> = points
+            .iter()
+            .filter(|(id, _)| *id == arrow.id)
+            .map(|(_, p)| *p)
+            .collect();
+        let (from, to) = (arrow.look.from, arrow.look.to);
+        let Some(tag) = arrow.look.tag.as_mut() else {
+            continue;
+        };
+        if !on_line
+            .iter()
+            .any(|p| firewall_rect(*p).overlaps(&tag.rect))
+        {
+            continue;
+        }
+        let length = from.distance(to);
+        if length == 0.0 {
+            continue;
+        }
+        let mut stops: Vec<f64> = on_line.iter().map(|p| from.distance(*p) / length).collect();
+        stops.extend([0.0, 1.0]);
+        stops.sort_by(f64::total_cmp);
+        let (a, b) = stops
+            .windows(2)
+            .map(|w| (w[0], w[1]))
+            .max_by(|x, y| (x.1 - x.0).total_cmp(&(y.1 - y.0)))
+            .expect("a line has a start and an end");
+        let middle = (a + b) / 2.0;
+        let center = tag.rect.center();
+        tag.rect.x += from.x + (to.x - from.x) * middle - center.x;
+        tag.rect.y += from.y + (to.y - from.y) * middle - center.y;
+    }
+}
+
+/// The firewalls on the edges of zones that have one, where arrows come in
+/// ([`firewall_points`]), one at each point. They aren't elements, so they can't be selected;
+/// they come and go with the zone's Firewall property.
+pub fn edge_firewalls(
+    eng: &Engine<Physical>,
+    layout: &[Laid<Physical>],
+    arrows: &[DrawnArrow],
+) -> Vec<LookElement> {
+    let fill = PhysicalKind::Firewall.fill().of(eng.colors()).to_owned();
+    let mut points: Vec<(ConnectionId, Point)> = Vec::new();
+    for (id, at) in firewall_points(eng, layout, arrows) {
+        if !points.iter().any(|(_, p)| p.distance(at) < 1.0) {
+            points.push((id, at));
+        }
+    }
+    points
+        .into_iter()
+        .map(|(id, at)| LookElement {
+            id: ElementId::from(format!("{id}-firewall-{}-{}", at.x.round(), at.y.round())),
+            parent_id: None,
+            label: String::new(),
+            description: None,
+            look: Look {
+                detail_color: Some(black_or_white(&fill).to_owned()),
+                fill: Some(fill.clone()),
+                on_top: true,
+                ..Look::new(Shape::Physical(PhysicalFigure::Firewall))
+            },
+            rect: firewall_rect(at),
+        })
         .collect()
 }
 
@@ -251,14 +402,28 @@ pub fn base_colors(eng: &Engine<Physical>) -> DiagramColors {
     }
 }
 
-/// The diagram drawn from `layout`.
+/// The diagram drawn from `layout`. Zones' firewalls go over the arrows that pass them.
 pub fn scene_of(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Scene {
     let elements: Vec<LookElement> = layout.iter().map(|e| look_of(eng, e)).collect();
-    let arrows: Vec<ArrowLook> = drawn_arrows(eng, layout)
-        .into_iter()
-        .map(|a| a.look)
-        .collect();
-    draw_diagram(&elements, &arrows, eng.measure(), &base_colors(eng))
+    let drawn = drawn_arrows(eng, layout);
+    let firewalls = edge_firewalls(eng, layout, &drawn);
+    let arrows: Vec<ArrowLook> = drawn.into_iter().map(|a| a.look).collect();
+    let colors = base_colors(eng);
+    let mut scene = draw_diagram(&elements, &arrows, eng.measure(), &colors);
+    for firewall in &firewalls {
+        scene
+            .nodes
+            .extend(draw_element(firewall, eng.measure(), &colors));
+        let (b, r) = (scene.bounds, firewall.rect);
+        let (x, y) = (b.x.min(r.x), b.y.min(r.y));
+        scene.bounds = Rect::new(
+            x,
+            y,
+            b.right().max(r.right()) - x,
+            b.bottom().max(r.bottom()) - y,
+        );
+    }
+    scene
 }
 
 pub fn scene(eng: &Engine<Physical>) -> Scene {
@@ -271,8 +436,10 @@ pub fn to_drawio(
     title: &str,
     heading: Option<&hiero_core::export::drawio::Heading>,
 ) -> String {
-    let elements: Vec<LookElement> = eng.layout().iter().map(|e| look_of(eng, e)).collect();
-    let arrows: Vec<hiero_core::export::drawio::DrawioArrow> = drawn_arrows(eng, eng.layout())
+    let mut elements: Vec<LookElement> = eng.layout().iter().map(|e| look_of(eng, e)).collect();
+    let drawn = drawn_arrows(eng, eng.layout());
+    elements.extend(edge_firewalls(eng, eng.layout(), &drawn));
+    let arrows: Vec<hiero_core::export::drawio::DrawioArrow> = drawn
         .into_iter()
         .map(|a| hiero_core::export::drawio::DrawioArrow {
             id: a.id,
@@ -398,5 +565,86 @@ mod tests {
             "{svg}"
         );
         assert!(!svg.contains('×'));
+    }
+
+    #[test]
+    fn a_zone_with_a_firewall_shows_one_where_each_arrow_comes_in() {
+        let mut e =
+            Engine::<Physical>::new_diagram(PhysicalColors::default()).with_measure(&ESTIMATE);
+        let zone = |e: &Engine<Physical>, label: &str| {
+            e.elements()
+                .iter()
+                .find(|z| z.label == label)
+                .unwrap()
+                .id
+                .clone()
+        };
+        let (end_user, business) = (zone(&e, "End User"), zone(&e, "Business"));
+        let add = |e: &mut Engine<Physical>, zone: &ElementId, kind| {
+            e.select(zone);
+            e.add_at_free_position(kind);
+            e.selection[0].clone()
+        };
+        let user = add(&mut e, &end_user, PhysicalKind::User);
+        let server = add(&mut e, &business, PhysicalKind::Server);
+        let other = add(&mut e, &business, PhysicalKind::Server);
+        let incoming = e.add_connection(&user, &server).unwrap();
+        e.add_connection(&server, &other).unwrap();
+        let outgoing = e.add_connection(&other, &user).unwrap();
+        let firewalls = |e: &Engine<Physical>| {
+            let drawn = drawn_arrows(e, e.layout());
+            (edge_firewalls(e, e.layout(), &drawn), drawn)
+        };
+        // Without the flag there are none.
+        assert!(firewalls(&e).0.is_empty());
+        let plain = scene_to_svg("Infra", &scene(&e));
+
+        e.replace(&business, |mut z| {
+            z.props.firewall = true;
+            z
+        });
+        // Only the arrow from outside gets one, not the one inside or the one going out.
+        let (walls, drawn) = firewalls(&e);
+        assert_eq!(walls.len(), 1);
+        assert!(walls[0].id.to_string().starts_with(&incoming.to_string()));
+        // Centred on the zone's edge, on the arrow's line.
+        let rect = e.laid(&business).unwrap().rect;
+        let arrow = drawn
+            .iter()
+            .find(|a| a.id == incoming)
+            .unwrap()
+            .look
+            .clone();
+        let at = walls[0].rect.center();
+        assert!((at.y - rect.y).abs() < 1e-6, "{at:?} on {rect:?}");
+        let cross = (arrow.to.x - arrow.from.x) * (at.y - arrow.from.y)
+            - (arrow.to.y - arrow.from.y) * (at.x - arrow.from.x);
+        assert!(cross.abs() < 1e-6);
+        // Drawn in the SVG and the draw.io file.
+        assert!(scene_to_svg("Infra", &scene(&e)).len() > plain.len());
+        assert!(to_drawio(&e, "Infra", None).contains(&walls[0].id.to_string()));
+
+        // The arrow going out, drawn both ways, now comes in too.
+        let props = e.connection(&outgoing).unwrap().props.clone();
+        let back = e.add_connection(&user, &other).unwrap();
+        e.set_connection_props(&back, props);
+        assert_eq!(firewalls(&e).0.len(), 2);
+
+        // A line both ways between two such zones that touch crosses both at one point, so it
+        // gets one firewall.
+        let perimeter = zone(&e, "Perimeter");
+        e.replace(&perimeter, |mut z| {
+            z.props.firewall = true;
+            z
+        });
+        let front = add(&mut e, &perimeter, PhysicalKind::Server);
+        e.add_connection(&front, &server).unwrap();
+        e.add_connection(&server, &front).unwrap();
+        let (walls, drawn) = firewalls(&e);
+        assert_eq!(walls.len(), 3);
+        // No protocol and port is hidden under a firewall.
+        for tag in drawn.iter().filter_map(|a| a.look.tag.as_ref()) {
+            assert!(walls.iter().all(|w| !w.rect.overlaps(&tag.rect)), "{tag:?}");
+        }
     }
 }

@@ -5,7 +5,7 @@ use hiero_core::count::InstanceCount;
 use hiero_core::engine::{Conn, DiagramType, Engine, Laid};
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
-use hiero_editor::widgets::{select, text_field};
+use hiero_editor::widgets::{checkbox, select, text_field};
 use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
 use crate::model::{
@@ -141,6 +141,9 @@ impl DiagramView for Physical {
                 with.props.zone_color = v;
                 field = Some("zone-color");
             }
+        }
+        if kind.has_firewall() && checkbox(ui, &mut with.props.firewall, "Firewall").changed() {
+            field = Some("firewall");
         }
         // A zone in a network stays in one.
         let required = stack_holder_of(cx.eng, element).is_some();

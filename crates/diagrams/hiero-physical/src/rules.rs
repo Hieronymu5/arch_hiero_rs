@@ -565,13 +565,19 @@ impl DiagramType for Physical {
                 },
                 INSTANCES,
             ],
-            PhysicalKind::Zone => &[Field {
-                key: "zoneColor",
-                rule: FieldRule::OneOf {
-                    values: &["red", "yellow", "green"],
-                    default: Some("blue"),
+            PhysicalKind::Zone => &[
+                Field {
+                    key: "zoneColor",
+                    rule: FieldRule::OneOf {
+                        values: &["red", "yellow", "green"],
+                        default: Some("blue"),
+                    },
                 },
-            }],
+                Field {
+                    key: "firewall",
+                    rule: FieldRule::True,
+                },
+            ],
             _ => &[],
         }
     }
@@ -1056,6 +1062,9 @@ impl DiagramType for Physical {
         }
         if !kind.has_zone_color() {
             with.props.zone_color = None;
+        }
+        if !kind.has_firewall() {
+            with.props.firewall = false;
         }
         with.description = None;
         let new_port = kind

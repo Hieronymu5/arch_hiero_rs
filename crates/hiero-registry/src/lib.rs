@@ -121,7 +121,7 @@ impl Drawn for Physical {
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_physical::scene::scene(eng)
     }
-    const PROPS_DOC: &'static str = "Element props: server {serverType: \"virtual-machine\" | \"container\" (omit for physical), instanceCount: 1-9999, or text for a minimum \"50+\" or a range \"50-100\"}; database {databaseType: \"postgresql\" | \"mysql\" | \"oracle\" | \"mongodb\" | \"mssql\" | \"cassandra\", instanceCount (the node count, as for a server)}; zone outside a network {zoneColor: \"red\" | \"yellow\" | \"green\" (omit for blue)}. Zones go in networks and fill them; users, servers, databases, load balancers, gateways, and storage go in zones; firewalls stand on their own. Arrow props: {protocol (required, ≤ 20), port (required, ≤ 20)}; a new arrow starts with the target's usual protocol and port.";
+    const PROPS_DOC: &'static str = "Element props: server {serverType: \"virtual-machine\" | \"container\" (omit for physical), instanceCount: 1-9999, or text for a minimum \"50+\" or a range \"50-100\"}; database {databaseType: \"postgresql\" | \"mysql\" | \"oracle\" | \"mongodb\" | \"mssql\" | \"cassandra\", instanceCount (the node count, as for a server)}; zone {firewall: true (omit for none): each arrow from outside the zone shows a firewall where it crosses the zone's edge; and, outside a network, zoneColor: \"red\" | \"yellow\" | \"green\" (omit for blue)}. Zones go in networks and fill them; users, servers, databases, load balancers, gateways, and storage go in zones; firewalls stand on their own. Arrow props: {protocol (required, ≤ 20), port (required, ≤ 20)}; a new arrow starts with the target's usual protocol and port.";
 }
 
 impl Drawn for DeployedComponent {

@@ -21,6 +21,10 @@ impl Point {
     pub const fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
+
+    pub fn distance(self, other: Self) -> f64 {
+        (other.x - self.x).hypot(other.y - self.y)
+    }
 }
 
 /// A size in pixels.

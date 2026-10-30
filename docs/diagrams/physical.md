@@ -88,6 +88,11 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
    edge between two zones or two networks, and doesn't move with them. A legacy firewall saved
    with a parent is drawn on its own.
 9. **Removing** a network's last zone removes the network too.
+10. **Zone firewalls:** a zone with **Firewall** ticked shows a firewall figure on its edge where
+    each arrow from outside the zone enters it, centred on the line and drawn over it. An arrow
+    drawn both ways counts as coming in. Arrows within the zone or going out don't get one. These
+    firewalls aren't elements: they can't be selected or moved, and follow the arrows. They're in
+    the SVG and draw.io exports too. (Not in the prototype.)
 
 ## Element properties
 
@@ -99,6 +104,7 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 | Database type | database | Select: (Database (DB)) / the table above |
 | Node count | database | As instance count |
 | Color | zone outside a network | Select: (Blue) / Red / Yellow / Green |
+| Firewall | zone | Checkbox: a firewall where each arrow comes in (rule 10) |
 | Parent | figures that can be held | A select of the zones |
 | Arrows list and Add arrow to | figure kinds | Same as conceptual |
 
@@ -151,12 +157,12 @@ arrow colours as the editor.
 { "serverType": "virtual-machine", "instanceCount": 3 }   // server
 { "databaseType": "postgresql", "instanceCount": 2 }      // database
 { "instanceCount": "50+" }  { "instanceCount": "50-100" }  // a minimum or a range is text
-{ "zoneColor": "red" }                                    // zone
+{ "zoneColor": "red", "firewall": true }                  // zone
 // connection props
 { "protocol": "HTTPS", "port": "443" }
 ```
 
-Rust shape: `Element<PhysicalKind, PhysicalProps>`, a fieldless kind enum with `PhysicalProps { database_type, server_type, instance_count, zone_color }` flattened beside it, and arrows as `Connection<PhysicalArrow { protocol, port }>`.
+Rust shape: `Element<PhysicalKind, PhysicalProps>`, a fieldless kind enum with `PhysicalProps { database_type, server_type, instance_count, zone_color, firewall }` flattened beside it, and arrows as `Connection<PhysicalArrow { protocol, port }>`.
 
 ## Parity checklist
 
@@ -166,6 +172,7 @@ Rust shape: `Element<PhysicalKind, PhysicalProps>`, a fieldless kind enum with `
 - [x] Figures confined to a zone's room. Arrow keys cross zone edges.
 - [x] Firewall stands alone. Removing the last zone removes the network.
 - [x] Zone colours outside networks
+- [x] Zone firewalls on incoming arrows (beyond the prototype)
 - [x] Arrows with protocol and port tags and the default rules
 - [x] 12 custom colours
 - [ ] SVG and draw.io export that match the prototype — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*
