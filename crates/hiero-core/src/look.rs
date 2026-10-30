@@ -483,26 +483,27 @@ fn figure_text(figure: PhysicalFigure, text: Option<&String>, color: &str) -> Ve
 }
 
 /// A figure's badge: the room left and right of its text, its narrowest, and the gap between
-/// the figure's right edge and it.
-pub const FIGURE_BADGE_PADDING_X: f64 = 3.0;
+/// the figure's right edge and it. Its ends are round, so one digit makes a circle.
+pub const FIGURE_BADGE_PADDING_X: f64 = 6.0;
 pub const FIGURE_BADGE_MIN_WIDTH: f64 = 20.0;
 pub const FIGURE_BADGE_GAP: f64 = 4.0;
 
 /// Where a box of text `text_width` wide goes on a physical figure in `area`: just right of its
-/// top-right corner, across its top edge, as tall as an arrow's tag.
+/// bottom-right corner, level with its bottom edge so it stays clear of the name, as tall as an
+/// arrow's tag.
 pub fn figure_badge_rect(area: Rect, figure: PhysicalFigure, text_width: f64) -> Rect {
     let width = FIGURE_BADGE_MIN_WIDTH.max(text_width.ceil() + FIGURE_BADGE_PADDING_X * 2.0);
     let figure = figure_rect(area, figure);
     Rect::new(
         round2(figure.right() + FIGURE_BADGE_GAP),
-        round2(figure.y - CONNECTOR_BOX_HEIGHT / 2.0),
+        round2(figure.bottom() - CONNECTOR_BOX_HEIGHT),
         width,
         CONNECTOR_BOX_HEIGHT,
     )
 }
 
-/// A box of text with its label centred, as an arrow's tag.
-fn tag_nodes(tag: &ArrowTag) -> [Node; 2] {
+/// A box of text with its label centred, as an arrow's tag, with corners of `radius`.
+fn tag_nodes(tag: &ArrowTag, radius: f64) -> [Node; 2] {
     let paint = match &tag.border {
         Some(border) => {
             Paint::fill_stroke(tag.fill.clone(), border.clone(), ARROW_TAG_BORDER_WIDTH)
@@ -510,7 +511,7 @@ fn tag_nodes(tag: &ArrowTag) -> [Node; 2] {
         None => Paint::fill(tag.fill.clone()),
     };
     [
-        Node::rect(tag.rect, 3.0, paint),
+        Node::rect(tag.rect, radius, paint),
         Node::Text {
             at: connector_text_position(&tag.rect),
             anchor: Anchor::Middle,
@@ -873,7 +874,7 @@ pub fn draw_arrows(
     // Over the arrows, so they don't move to make room.
     for e in elements {
         if let (Some(badge), Shape::Physical(_)) = (&e.look.figure_badge, e.look.shape) {
-            nodes.extend(tag_nodes(badge));
+            nodes.extend(tag_nodes(badge, badge.rect.height / 2.0));
         }
     }
     let connector_text = readable_text(&colors.connectors);
@@ -899,7 +900,7 @@ pub fn draw_arrows(
         });
     }
     for tag in arrows.iter().filter_map(|a| a.tag.as_ref()) {
-        nodes.extend(tag_nodes(tag));
+        nodes.extend(tag_nodes(tag, 3.0));
     }
     for a in arrows {
         let Some(label) = a.label.as_ref().filter(|l| !l.is_empty()) else {

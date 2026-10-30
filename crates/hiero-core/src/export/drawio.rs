@@ -720,14 +720,15 @@ pub fn diagram_to_drawio(
             ));
         }
     }
-    // Over the arrows, so they don't move to make room. A box on the figure, as an arrow's tag.
+    // Over the arrows, so they don't move to make room. A box on the figure, as an arrow's tag
+    // but with round ends.
     for e in elements {
         let (Some(badge), Shape::Physical(_)) = (&e.look.figure_badge, e.look.shape) else {
             continue;
         };
         let (left, top, parent) = place(e);
         let mut style = rounded(Style::new().set("html", 1))
-            .set("arcSize", 6)
+            .set("arcSize", 50)
             .set("whiteSpace", "nowrap")
             .set("spacing", 0);
         style = match &badge.border {

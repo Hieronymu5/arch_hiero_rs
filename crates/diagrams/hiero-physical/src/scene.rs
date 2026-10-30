@@ -88,7 +88,7 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
         let database = kind
             .has_database_type()
             .then(|| database_of(&element.el).unwrap_or(GENERIC_DATABASE));
-        // The instance count in a black box at the figure's top-right corner.
+        // The instance count in a black box beside the figure's bottom-right corner.
         let badge = figure
             .zip(instance_count_of(&element.el))
             .map(|(figure, count)| {
@@ -369,19 +369,34 @@ mod tests {
         let look = look_of(&e, &laid);
         let badge = look.look.figure_badge.expect("a count over one has a box");
         assert_eq!(badge.label, "50-100");
-        // At the figure's top-right corner, black with white text.
+        // Beside the figure's bottom-right corner, black with white text.
         let figure = hiero_core::figures::figure_rect(laid.rect, figure_of(&laid.el).unwrap());
         assert_eq!(
             badge.rect.x,
             figure.right() + hiero_core::look::FIGURE_BADGE_GAP
         );
-        assert_eq!(badge.rect.center().y, figure.y);
+        assert_eq!(badge.rect.bottom(), figure.bottom());
         assert_eq!(
             (badge.fill.as_str(), badge.text_color.as_str()),
             ("#000000", "#ffffff")
         );
         let svg = scene_to_svg("Infra", &scene(&e));
         assert!(svg.contains(">50-100</text>"));
+        // Its ends are round, so a single digit is a circle.
+        e.replace(&server, |mut el| {
+            el.props.instance_count = Some(hiero_core::count::InstanceCount::Exactly(3));
+            el
+        });
+        let badge = look_of(&e, &e.laid(&server).unwrap().clone())
+            .look
+            .figure_badge
+            .unwrap();
+        assert_eq!(badge.rect.width, badge.rect.height);
+        let svg = scene_to_svg("Infra", &scene(&e));
+        assert!(
+            svg.contains(&format!(r#"rx="{}""#, badge.rect.height / 2.0)),
+            "{svg}"
+        );
         assert!(!svg.contains('×'));
     }
 }
