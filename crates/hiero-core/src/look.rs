@@ -393,14 +393,21 @@ pub fn physical_figure(figure: PhysicalFigure, detail: &str) -> Vec<Node> {
                 server::LINES.iter().map(line).collect(),
             ),
         ],
-        PhysicalFigure::Firewall => vec![
-            Node::rect(firewall::BODY, 0.0, Paint::default()),
-            Node::group(
-                None,
-                Paint::stroke(detail, firewall::MORTAR_WIDTH),
-                firewall::mortar().iter().map(line).collect(),
-            ),
-        ],
+        PhysicalFigure::Firewall | PhysicalFigure::LowFirewall => {
+            let rows = if figure == PhysicalFigure::Firewall {
+                firewall::ROWS
+            } else {
+                firewall::LOW_ROWS
+            };
+            vec![
+                Node::rect(firewall::body(rows), 0.0, Paint::default()),
+                Node::group(
+                    None,
+                    Paint::stroke(detail, firewall::MORTAR_WIDTH),
+                    firewall::mortar(rows).iter().map(line).collect(),
+                ),
+            ]
+        }
         PhysicalFigure::LoadBalancer => {
             let mut dots = vec![circle(load_balancer::INPUT, load_balancer::DOT_RADIUS)];
             dots.extend(

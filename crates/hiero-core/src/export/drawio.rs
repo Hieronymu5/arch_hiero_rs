@@ -255,6 +255,7 @@ fn physical_stencil(figure: PhysicalFigure, detail: Option<&str>) -> &'static st
         PhysicalFigure::Server => pick(SERVER_STENCIL_BLACK, SERVER_STENCIL_WHITE),
         PhysicalFigure::DatabaseCylinder => PHYSICAL_DATABASE_STENCIL,
         PhysicalFigure::Firewall => pick(FIREWALL_STENCIL_BLACK, FIREWALL_STENCIL_WHITE),
+        PhysicalFigure::LowFirewall => pick(LOW_FIREWALL_STENCIL_BLACK, LOW_FIREWALL_STENCIL_WHITE),
         PhysicalFigure::LoadBalancer => {
             pick(LOAD_BALANCER_STENCIL_BLACK, LOAD_BALANCER_STENCIL_WHITE)
         }

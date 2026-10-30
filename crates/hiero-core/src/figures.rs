@@ -165,6 +165,8 @@ pub enum PhysicalFigure {
     Server,
     DatabaseCylinder,
     Firewall,
+    /// A firewall two bricks tall instead of four, as on a zone's edge.
+    LowFirewall,
     LoadBalancer,
     Gateway,
     StorageArray,
@@ -216,34 +218,42 @@ pub mod firewall {
     use super::Seg;
     use crate::geometry::{Point, Rect};
     pub const WIDTH: f64 = 58.0;
-    pub const BODY: Rect = Rect::new(1.0, 1.0, 56.0, 38.0);
     pub const MORTAR_WIDTH: f64 = 1.5;
-    const ROWS: usize = 4;
+    /// A firewall's rows of bricks, and a low one's.
+    pub const ROWS: usize = 4;
+    pub const LOW_ROWS: usize = 2;
+    const ROW_HEIGHT: f64 = 9.5;
     const PER_ROW: usize = 4;
+
+    /// The wall, `rows` bricks tall, inside a 1-pixel margin.
+    pub const fn body(rows: usize) -> Rect {
+        Rect::new(1.0, 1.0, 56.0, ROW_HEIGHT * rows as f64)
+    }
 
     /// The mortar between the bricks: the lines between rows, then the joints in each row.
     /// Every other row starts with a half brick.
-    pub fn mortar() -> Vec<Seg> {
-        let row_height = BODY.height / ROWS as f64;
-        let brick = BODY.width / PER_ROW as f64;
-        let mut lines: Vec<Seg> = (0..ROWS - 1)
+    pub fn mortar(rows: usize) -> Vec<Seg> {
+        let wall = body(rows);
+        let row_height = ROW_HEIGHT;
+        let brick = wall.width / PER_ROW as f64;
+        let mut lines: Vec<Seg> = (0..rows - 1)
             .map(|i| {
-                let y = BODY.y + row_height * (i as f64 + 1.0);
+                let y = wall.y + row_height * (i as f64 + 1.0);
                 Seg {
-                    from: Point::new(BODY.x, y),
-                    to: Point::new(BODY.x + BODY.width, y),
+                    from: Point::new(wall.x, y),
+                    to: Point::new(wall.x + wall.width, y),
                 }
             })
             .collect();
-        for row in 0..ROWS {
-            let y1 = BODY.y + row_height * row as f64;
+        for row in 0..rows {
+            let y1 = wall.y + row_height * row as f64;
             let (offset, joints) = if row % 2 == 1 {
                 (brick / 2.0, PER_ROW)
             } else {
                 (brick, PER_ROW - 1)
             };
             for j in 0..joints {
-                let x = BODY.x + offset + brick * j as f64;
+                let x = wall.x + offset + brick * j as f64;
                 lines.push(Seg {
                     from: Point::new(x, y1),
                     to: Point::new(x, y1 + row_height),
@@ -365,10 +375,14 @@ impl PhysicalFigure {
             Self::User | Self::VirtualMachine | Self::LoadBalancer => 40.0,
             Self::Server => server::WIDTH,
             Self::DatabaseCylinder | Self::StorageArray => 48.0,
-            Self::Firewall | Self::Gateway => 58.0,
+            Self::Firewall | Self::LowFirewall | Self::Gateway => 58.0,
             Self::ContainerStack => container_stack::WIDTH,
         };
-        Size::new(width, FIGURE_HEIGHT)
+        let height = match self {
+            Self::LowFirewall => firewall::body(firewall::LOW_ROWS).height + 2.0,
+            _ => FIGURE_HEIGHT,
+        };
+        Size::new(width, height)
     }
 }
 
@@ -422,7 +436,11 @@ mod tests {
     #[test]
     fn firewall_mortar_has_staggered_joints() {
         // 3 row lines, then 3 + 4 + 3 + 4 joints.
-        assert_eq!(firewall::mortar().len(), 3 + 14);
+        assert_eq!(firewall::mortar(firewall::ROWS).len(), 3 + 14);
+        assert_eq!(firewall::body(firewall::ROWS).bottom(), FIGURE_HEIGHT - 1.0);
+        // A low one: 1 row line, then 3 + 4 joints, in a figure half as tall.
+        assert_eq!(firewall::mortar(firewall::LOW_ROWS).len(), 1 + 7);
+        assert_eq!(PhysicalFigure::LowFirewall.size().height, 21.0);
     }
 
     #[test]

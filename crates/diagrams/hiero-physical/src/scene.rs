@@ -310,9 +310,9 @@ fn firewall_points(
     points
 }
 
-/// The area of a zone's firewall centred on `at`.
+/// The area of a zone's firewall, two bricks tall, centred on `at`.
 fn firewall_rect(at: Point) -> Rect {
-    let size = PhysicalFigure::Firewall.size();
+    let size = PhysicalFigure::LowFirewall.size();
     Rect::new(
         at.x - size.width / 2.0,
         at.y - size.height / 2.0,
@@ -386,7 +386,7 @@ pub fn edge_firewalls(
                 detail_color: Some(black_or_white(&fill).to_owned()),
                 fill: Some(fill.clone()),
                 on_top: true,
-                ..Look::new(Shape::Physical(PhysicalFigure::Firewall))
+                ..Look::new(Shape::Physical(PhysicalFigure::LowFirewall))
             },
             rect: firewall_rect(at),
         })
@@ -622,7 +622,20 @@ mod tests {
         assert!(cross.abs() < 1e-6);
         // Drawn in the SVG and the draw.io file.
         assert!(scene_to_svg("Infra", &scene(&e)).len() > plain.len());
-        assert!(to_drawio(&e, "Infra", None).contains(&walls[0].id.to_string()));
+        // Two bricks tall, rather than a firewall element's four, in draw.io too.
+        assert_eq!(
+            walls[0].look.shape,
+            Shape::Physical(PhysicalFigure::LowFirewall)
+        );
+        assert_eq!(walls[0].rect.height, 21.0);
+        let xml = to_drawio(&e, "Infra", None);
+        assert!(xml.contains(&walls[0].id.to_string()));
+        let cell = xml
+            .lines()
+            .skip_while(|l| !l.contains(&walls[0].id.to_string()))
+            .nth(1)
+            .unwrap();
+        assert!(cell.contains(r#"width="58" height="21""#), "{cell}");
 
         // The arrow going out, drawn both ways, now comes in too.
         let props = e.connection(&outgoing).unwrap().props.clone();

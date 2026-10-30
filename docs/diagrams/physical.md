@@ -89,10 +89,11 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
    with a parent is drawn on its own.
 9. **Removing** a network's last zone removes the network too.
 10. **Zone firewalls:** a zone with **Firewall** ticked shows a firewall figure on its edge where
-    each arrow from outside the zone enters it, centred on the line and drawn over it. An arrow
-    drawn both ways counts as coming in. Arrows within the zone or going out don't get one. These
-    firewalls aren't elements: they can't be selected or moved, and follow the arrows. They're in
-    the SVG and draw.io exports too. (Not in the prototype.)
+    each arrow from outside the zone enters it, centred on the line and drawn over it. It's two
+    bricks tall, half a Firewall element's height, and has no name. An arrow drawn both ways
+    counts as coming in. Arrows within the zone or going out don't get one. These firewalls
+    aren't elements: they can't be selected or moved, and follow the arrows. They're in the SVG
+    and draw.io exports too. (Not in the prototype.)
 
 ## Element properties
 
