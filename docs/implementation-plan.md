@@ -283,7 +283,13 @@ type up automatically.
 Library: `rusqlite` 0.40 with the `bundled` feature (so there's no system SQLite version drift),
 and `rusqlite_migration` 2.6 for migrations. The database is at
 `directories::ProjectDirs("", "", "ArchHiero").data_dir()/arch-hiero.sqlite3`, which is
-`~/Library/Application Support/ArchHiero/` on macOS. Connection settings:
+`~/Library/Application Support/ArchHiero/` on macOS. That's the default: the diagram list's
+Database menu switches to another file, opens an existing one, or creates a new one, and lists
+up to eight recent databases (missing ones greyed out). The database in use and the recent ones
+are kept in `locations.json` in the platform's config directory (`hiero_store::locations`), so
+the app reopens the last one; if it's gone, the app falls back to the default and says so.
+Opening refuses a file that isn't SQLite or that holds tables but no `diagrams` table, so
+another app's database isn't changed. Connection settings:
 `PRAGMA journal_mode=WAL; foreign_keys=ON; busy_timeout=5000`.
 
 ### Schema (migration 1)
@@ -530,8 +536,10 @@ server, while the user watches the changes appear in the GUI.
 - It's built with the official Rust SDK, **`rmcp` 3.6** (`server`, `transport-io`, `macros`),
   on tokio. Tool input schemas are generated with `schemars` from the same serde types the app
   uses, so they can't drift.
-- It opens the **same SQLite database** as the GUI (section 3), and `--db <path>` overrides the
-  location for tests. Edits go through `hiero-registry`, which runs each diagram type's own
+- It opens the **same SQLite database** as the GUI (section 3): the one the app last used,
+  read from `locations.json` when the server starts. `--db <path>` (or `ARCH_HIERO_DB`)
+  overrides it for tests. A server that's already running keeps its database when the app
+  switches, so restart it after switching. Edits go through `hiero-registry`, which runs each diagram type's own
   rules (`arrange`, `created`, `can_connect`, `remove`, …). An agent therefore can't produce a
   layout the editor wouldn't: zones still fill their network, layers still stack, and arrows
   still respect `connects_to`.

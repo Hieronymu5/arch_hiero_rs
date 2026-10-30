@@ -2,6 +2,7 @@
 //! outside the app.
 
 use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use hiero_core::file::{diagram_to_zip, file_name};
@@ -10,11 +11,15 @@ use hiero_core::model::{DiagramId, DiagramTypeId};
 use hiero_core::stored::StoredDiagram;
 use hiero_editor::DiagramEditor;
 use hiero_editor::theme::Accent;
+use hiero_store::locations::Locations;
 use hiero_store::{Record, Status, Store, StoreError, Summary};
 
 use crate::editors::editor_for;
 use crate::list_sort::ListSort;
 use crate::worker::{Event, Request, Worker};
+
+/// The file extensions offered when opening or creating a database.
+const DATABASE_EXTENSIONS: [&str; 3] = ["sqlite3", "sqlite", "db"];
 
 /// How long typing waits before it's saved.
 const TYPING_DELAY: Duration = Duration::from_millis(300);
@@ -99,6 +104,28 @@ pub struct DetailsForm {
     pub error: Option<String>,
 }
 
+/// The database in use and the ones used before it.
+pub struct Databases {
+    pub path: PathBuf,
+    pub locations: Locations,
+    /// Unset when `ARCH_HIERO_DB` chose the database, so a test run leaves the user's list alone.
+    pub remember: bool,
+    /// The undo histories of diagrams in the databases used earlier in this run. Sample diagrams
+    /// have the same ids in every database, so each keeps its own.
+    undo_elsewhere: HashMap<PathBuf, HashMap<DiagramId, UndoStack<DiagramSnapshot>>>,
+}
+
+impl Databases {
+    pub fn new(path: PathBuf, locations: Locations, remember: bool) -> Self {
+        Self {
+            path,
+            locations,
+            remember,
+            undo_elsewhere: HashMap::new(),
+        }
+    }
+}
+
 pub struct App {
     pub store: Store,
     pub worker: Worker,
@@ -116,10 +143,17 @@ pub struct App {
     pub save_due: Option<Instant>,
     pub theme: egui::ThemePreference,
     pub accent: Accent,
+    pub databases: Databases,
 }
 
 impl App {
-    pub fn new(store: Store, worker: Worker, theme: egui::ThemePreference, accent: Accent) -> Self {
+    pub fn new(
+        store: Store,
+        worker: Worker,
+        theme: egui::ThemePreference,
+        accent: Accent,
+        databases: Databases,
+    ) -> Self {
         let mut app = Self {
             store,
             worker,
@@ -135,6 +169,7 @@ impl App {
             save_due: None,
             theme,
             accent,
+            databases,
         };
         app.refresh_list();
         app
@@ -547,6 +582,94 @@ impl App {
             Err(e) => self.outcome = Some(Outcome::error(format!("{file} wasn’t imported. {e}"))),
         }
         self.refresh_list();
+    }
+
+    // Databases
+
+    /// Switches to the database at `path`, creating it if it's new. The open diagram is saved
+    /// first, and the list of diagrams shows the new database's.
+    pub fn use_database(&mut self, path: &Path, ctx: &egui::Context) {
+        if path == self.databases.path {
+            return;
+        }
+        self.flush_save();
+        let started = Store::open(path)
+            .and_then(|store| Ok((store, Worker::start(path.to_owned(), ctx.clone())?)));
+        let (store, worker) = match started {
+            Ok(started) => started,
+            Err(e) => {
+                self.outcome = Some(Outcome::error(format!(
+                    "The diagrams at {} couldn’t be opened. {e}",
+                    path.display()
+                )));
+                return;
+            }
+        };
+        // The old store thread writes what it was sent, then stops.
+        self.store = store;
+        self.worker = worker;
+        let old = std::mem::replace(&mut self.databases.path, path.to_owned());
+        let undo = std::mem::take(&mut self.undo);
+        self.databases.undo_elsewhere.insert(old, undo);
+        self.undo = self
+            .databases
+            .undo_elsewhere
+            .remove(path)
+            .unwrap_or_default();
+        self.open = None;
+        self.dialog = None;
+        self.back.clear();
+        self.page = Page::List;
+        self.databases.locations.use_path(path);
+        self.outcome = Some(Outcome::ok(format!(
+            "Using the diagrams in {}.",
+            path.display()
+        )));
+        self.remember_locations();
+        self.refresh_list();
+    }
+
+    /// Asks for an Arch Hiero database and switches to it.
+    pub fn open_database(&mut self, ctx: &egui::Context) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Arch Hiero database", &DATABASE_EXTENSIONS)
+            .set_title("Open database")
+            .pick_file()
+        {
+            self.use_database(&path, ctx);
+        }
+    }
+
+    /// Asks where to keep a new database and switches to it. Choosing an Arch Hiero database
+    /// that's already there opens it as it is.
+    pub fn new_database(&mut self, ctx: &egui::Context) {
+        if let Some(path) = rfd::FileDialog::new()
+            .set_file_name("diagrams.sqlite3")
+            .add_filter("Arch Hiero database", &DATABASE_EXTENSIONS)
+            .set_title("New database")
+            .save_file()
+        {
+            self.use_database(&path, ctx);
+        }
+    }
+
+    /// Takes databases off the recent list.
+    pub fn forget_databases(&mut self, paths: &[PathBuf]) {
+        for path in paths {
+            self.databases.locations.forget(path);
+        }
+        self.remember_locations();
+    }
+
+    /// Saves the database list, unless `ARCH_HIERO_DB` chose the database.
+    pub fn remember_locations(&mut self) {
+        if self.databases.remember
+            && let Err(e) = self.databases.locations.save()
+        {
+            self.outcome = Some(Outcome::error(format!(
+                "The list of recent databases couldn’t be saved. {e}"
+            )));
+        }
     }
 
     // Versions

@@ -16,7 +16,7 @@ Arch Hiero is a desktop app that draws three types of architecture diagram. Its 
 
 ## 1. Connect to the server
 
-The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__edit_diagram`. If they're missing, ask the user to add the server: the binary is `ArchHiero.app/Contents/MacOS/arch-hiero-mcp` in an installed app, or `target/release/arch-hiero-mcp` in a build of this repo (`cargo build -p hiero-mcp --release`), run over stdio. It uses the app's database unless given `--db <path>` or `ARCH_HIERO_DB`.
+The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__edit_diagram`. If they're missing, ask the user to add the server: the binary is `ArchHiero.app/Contents/MacOS/arch-hiero-mcp` in an installed app, or `target/release/arch-hiero-mcp` in a build of this repo (`cargo build -p hiero-mcp --release`), run over stdio. It uses the database the app last opened, read when the server starts (restart it after switching databases in the app), unless given `--db <path>` or `ARCH_HIERO_DB`.
 
 | Tool | Use |
 | --- | --- |

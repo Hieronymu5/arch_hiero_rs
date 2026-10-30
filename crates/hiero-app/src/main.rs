@@ -9,9 +9,12 @@ mod list_sort;
 mod pages;
 mod worker;
 
-use app::{App, Page};
+use std::path::{Path, PathBuf};
+
+use app::{App, Databases, Outcome, Page};
 use hiero_editor::theme::Accent;
 use hiero_store::Store;
+use hiero_store::locations::Locations;
 
 const THEME_KEY: &str = "theme";
 const ACCENT_KEY: &str = "accent";
@@ -52,19 +55,63 @@ impl Shell {
             .and_then(|key| Accent::from_key(&key))
             .unwrap_or_default();
         hiero_editor::theme::set_accent(&cc.egui_ctx, accent);
-        let path = std::env::var_os("ARCH_HIERO_DB")
-            .map(std::path::PathBuf::from)
-            .or_else(hiero_store::default_path);
-        let Some(path) = path else {
+        // `ARCH_HIERO_DB` picks the database for this run only; otherwise it's the one used last.
+        let chosen = std::env::var_os("ARCH_HIERO_DB").map(PathBuf::from);
+        let remember = chosen.is_none();
+        let mut locations = if remember {
+            Locations::load()
+        } else {
+            Locations::default()
+        };
+        let Some(mut path) = chosen.or_else(|| locations.current_or_default()) else {
             return Self::Failed("There's no folder to keep the diagrams in.".into());
         };
-        let started = (|| {
-            let store = Store::open(&path)?;
-            let worker = worker::Worker::start(path.clone(), cc.egui_ctx.clone())?;
-            Ok::<_, hiero_store::StoreError>(App::new(store, worker, theme, accent))
-        })();
+        let start = |path: &Path| {
+            let store = Store::open(path)?;
+            let worker = worker::Worker::start(path.to_owned(), cc.egui_ctx.clone())?;
+            Ok::<_, hiero_store::StoreError>((store, worker))
+        };
+        // A database used last that's gone, such as on a drive that's been removed, isn't made
+        // again empty: the default one is used instead, as it is when one can't be opened.
+        let default = hiero_store::default_path().filter(|d| *d != path);
+        let mut notice = None;
+        let mut started = if remember && default.is_some() && !path.exists() {
+            notice = Some(format!(
+                "{} wasn't found, so the default database is in use.",
+                path.display()
+            ));
+            None
+        } else {
+            Some(start(&path))
+        };
+        if let Some(Err(e)) = &started
+            && remember
+            && default.is_some()
+        {
+            notice = Some(format!(
+                "The diagrams at {} couldn't be opened, so the default database is in use. {e}",
+                path.display()
+            ));
+            started = None;
+        }
+        if started.is_none()
+            && let Some(default) = default
+        {
+            path = default;
+            started = Some(start(&path));
+        }
+        let started = started.expect("a database was tried");
         match started {
-            Ok(app) => Self::Running(Box::new(app), devtools::DevTools::from_env()),
+            Ok((store, worker)) => {
+                locations.use_path(&path);
+                let databases = Databases::new(path, locations, remember);
+                let mut app = App::new(store, worker, theme, accent, databases);
+                app.remember_locations();
+                if let Some(notice) = notice {
+                    app.outcome = Some(Outcome::error(notice));
+                }
+                Self::Running(Box::new(app), devtools::DevTools::from_env())
+            }
             Err(e) => Self::Failed(format!(
                 "The diagrams at {} couldn't be opened. {e}",
                 path.display()

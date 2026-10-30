@@ -9,6 +9,8 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+pub mod locations;
+
 use hiero_core::file::{diagram_from_json, diagram_to_json};
 use hiero_core::history::{DiagramSnapshot, content_hash};
 use hiero_core::model::{
@@ -36,6 +38,8 @@ pub enum StoreError {
     },
     /// Stored data that couldn't be read.
     Corrupt(String),
+    /// A file that isn't an Arch Hiero database, such as another app's.
+    NotOurs(PathBuf),
 }
 
 impl std::fmt::Display for StoreError {
@@ -58,6 +62,9 @@ impl std::fmt::Display for StoreError {
                 incoming.label().to_lowercase()
             ),
             Self::Corrupt(e) => write!(f, "Stored data couldn't be read: {e}"),
+            Self::NotOurs(path) => {
+                write!(f, "{} isn't an Arch Hiero database.", path.display())
+            }
         }
     }
 }
@@ -206,6 +213,18 @@ pub fn seed_diagrams() -> Vec<StoredDiagram> {
         .unwrap_or_default()
 }
 
+/// Whether a database is empty or already holds diagrams. A file that isn't SQLite at all
+/// fails the query, so it isn't ours either.
+fn is_ours(conn: &Connection) -> bool {
+    conn.query_row(
+        "SELECT count(*) = 0 OR count(*) FILTER (WHERE name = 'diagrams') = 1
+         FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        [],
+        |row| row.get(0),
+    )
+    .unwrap_or(false)
+}
+
 /// The diagram store.
 pub struct Store {
     conn: Connection,
@@ -240,7 +259,12 @@ impl Store {
                 StoreError::Migration(format!("can't create {}: {e}", dir.display()))
             })?;
         }
-        Self::setup(Connection::open(path)?)
+        let conn = Connection::open(path)?;
+        // Another app's database would otherwise get our tables added to it.
+        if !is_ours(&conn) {
+            return Err(StoreError::NotOurs(path.to_owned()));
+        }
+        Self::setup(conn)
     }
 
     /// A database that lives only in memory, for tests.
@@ -969,6 +993,29 @@ mod tests {
         assert_eq!(
             gui.get(&"d1".into()).unwrap().unwrap().diagram.meta.name,
             "By agent"
+        );
+    }
+
+    #[test]
+    fn opens_only_its_own_databases() {
+        let dir = tempfile::tempdir().unwrap();
+        // A new file, and one already ours, open.
+        let ours = dir.path().join("ours.sqlite3");
+        drop(Store::open(&ours).unwrap());
+        Store::open(&ours).unwrap();
+        // Another app's database and a file that isn't SQLite are left alone.
+        let theirs = dir.path().join("theirs.sqlite3");
+        Connection::open(&theirs)
+            .unwrap()
+            .execute_batch("CREATE TABLE notes (text TEXT)")
+            .unwrap();
+        assert!(matches!(Store::open(&theirs), Err(StoreError::NotOurs(_))));
+        let text = dir.path().join("notes.txt");
+        std::fs::write(&text, "not a database, just some words in a file").unwrap();
+        assert!(matches!(Store::open(&text), Err(StoreError::NotOurs(_))));
+        assert_eq!(
+            std::fs::read_to_string(&text).unwrap(),
+            "not a database, just some words in a file"
         );
     }
 }

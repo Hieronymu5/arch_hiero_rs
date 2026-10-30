@@ -1,8 +1,8 @@
 //! `arch-hiero-mcp`: a local MCP server, over stdio, that lets agents read and edit the
 //! diagrams in the Arch Hiero database. Logging goes to stderr; stdout carries the protocol.
 //!
-//! Usage: `arch-hiero-mcp [--db <path>]`. Without `--db`, it uses `ARCH_HIERO_DB` or the
-//! app's usual database.
+//! Usage: `arch-hiero-mcp [--db <path>]`. Without `--db`, it uses `ARCH_HIERO_DB`, or else
+//! the database the app last opened.
 
 // The MCP handlers are async because the protocol's traits are, even where they don't wait.
 #![allow(clippy::unused_async, clippy::unused_async_trait_impl)]
@@ -32,7 +32,7 @@ fn database_path() -> Result<std::path::PathBuf, String> {
     }
     std::env::var_os("ARCH_HIERO_DB")
         .map(Into::into)
-        .or_else(hiero_store::default_path)
+        .or_else(|| hiero_store::locations::Locations::load().current_or_default())
         .ok_or_else(|| "there's no folder to keep the diagrams in".to_owned())
 }
 

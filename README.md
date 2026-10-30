@@ -24,9 +24,11 @@ draw.io, or a `.zip` diagram file that imports again on any machine (prototype f
 cargo run -p hiero-app --release
 ```
 
-The database lives in `~/Library/Application Support/ArchHiero/arch-hiero.sqlite3` on macOS
-(set `ARCH_HIERO_DB` to use another). It starts empty; while there are no diagrams, the list
-offers to load samples, one of each type.
+By default the database lives in `~/Library/Application Support/ArchHiero/arch-hiero.sqlite3`
+on macOS. The Database menu on the diagram list switches to another database, opens an existing
+one, or creates a new one anywhere, and remembers the recent ones. The app and the MCP server
+start on the database used last. (`ARCH_HIERO_DB` picks one for a single run.) A new database
+starts empty; while there are no diagrams, the list offers to load samples, one of each type.
 
 ## Agents (MCP)
 

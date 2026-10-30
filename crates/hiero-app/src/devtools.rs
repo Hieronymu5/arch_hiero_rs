@@ -1,7 +1,8 @@
 //! Development aids for checking the app without clicking through it, set by environment
 //! variables:
 //!
-//! - `ARCH_HIERO_DB`: the database file to use instead of the usual one.
+//! - `ARCH_HIERO_DB`: the database file to use instead of the usual one. The list of recent
+//!   databases is neither read nor changed.
 //! - `ARCH_HIERO_OPEN`: the name of a diagram to open on start.
 //! - `ARCH_HIERO_NEW`: a diagram type, such as `physical`, to create a diagram of and open.
 //! - `ARCH_HIERO_SELECT`: the name of an element to select in the open diagram.

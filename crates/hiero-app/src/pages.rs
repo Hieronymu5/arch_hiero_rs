@@ -1,6 +1,8 @@
 //! The app's pages: the list of diagrams, the Add diagram and Edit Details forms, the editor
 //! with its toolbar, and a diagram's history; and the dialogs over them.
 
+use std::path::{Path, PathBuf};
+
 use egui::{Align, Color32, Key, Layout, Modifiers, RichText, Ui};
 use hiero_core::history::validate_version_description;
 use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
@@ -14,6 +16,23 @@ use hiero_store::Status;
 use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
 use crate::format::date;
 use crate::list_sort::{Column, ListSort};
+
+/// A database's file name.
+fn database_name(path: &Path) -> String {
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    )
+}
+
+/// A folder for the database menu, with the home folder shortened to `~`.
+fn display_folder(folder: &Path) -> String {
+    let home = directories::UserDirs::new().map(|d| d.home_dir().to_owned());
+    match home.as_deref().and_then(|h| folder.strip_prefix(h).ok()) {
+        Some(rest) => Path::new("~").join(rest).display().to_string(),
+        None => folder.display().to_string(),
+    }
+}
 
 /// Something to do once a dialog closes.
 type Action = Box<dyn FnOnce(&mut App)>;
@@ -616,6 +635,9 @@ impl App {
             if self.list.is_empty() && page_button(ui, "Load Samples", false).clicked() {
                 self.load_samples();
             }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                self.database_menu(ui);
+            });
         });
         ui.add_space(8.0);
         self.outcome_ui(ui);
@@ -668,6 +690,75 @@ impl App {
                 }
             });
         });
+    }
+
+    /// The database in use, with a menu to switch to a recent one, open or create another, or
+    /// go back to the default.
+    fn database_menu(&mut self, ui: &mut Ui) {
+        enum Choice {
+            Use(PathBuf),
+            Open,
+            New,
+            Forget(Vec<PathBuf>),
+        }
+        let default = hiero_store::default_path();
+        let current = self.databases.path.clone();
+        let mut choice = None;
+        let button = ui.menu_button(format!("Database: {}", database_name(&current)), |ui| {
+            ui.label(RichText::new("Recent databases").weak());
+            let mut missing = Vec::new();
+            for path in &self.databases.locations.recent {
+                let found = path.exists();
+                if !found {
+                    missing.push(path.clone());
+                }
+                let mut name = database_name(path);
+                if Some(path) == default.as_ref() {
+                    name.push_str(" (default)");
+                }
+                let folder = path.parent().map(display_folder).unwrap_or_default();
+                let button = egui::Button::new(name)
+                    .right_text(RichText::new(folder).weak())
+                    .selected(*path == current);
+                let item = ui
+                    .add_enabled(found && *path != current, button)
+                    .on_hover_text(path.display().to_string())
+                    .on_disabled_hover_text(if found {
+                        format!("In use: {}", path.display())
+                    } else {
+                        format!("Not found: {}", path.display())
+                    });
+                if item.clicked() {
+                    choice = Some(Choice::Use(path.clone()));
+                }
+            }
+            ui.separator();
+            if ui.button("Open Database…").clicked() {
+                choice = Some(Choice::Open);
+            }
+            if ui.button("New Database…").clicked() {
+                choice = Some(Choice::New);
+            }
+            if let Some(default) = default.as_ref().filter(|d| **d != current)
+                && ui.button("Use Default Database").clicked()
+            {
+                choice = Some(Choice::Use(default.clone()));
+            }
+            if !missing.is_empty() && ui.button("Forget Missing Databases").clicked() {
+                choice = Some(Choice::Forget(missing));
+            }
+        });
+        button
+            .response
+            .on_hover_text(format!("Diagrams are kept in {}", current.display()));
+        let ctx = ui.ctx().clone();
+        match choice {
+            Some(Choice::Use(path)) => self.use_database(&path, &ctx),
+            Some(Choice::Open) => self.open_database(&ctx),
+            Some(Choice::New) => self.new_database(&ctx),
+            Some(Choice::Forget(paths)) => self.forget_databases(&paths),
+            None => {}
+        }
     }
 
     // Add diagram and Edit details
