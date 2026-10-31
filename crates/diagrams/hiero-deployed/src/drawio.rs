@@ -17,7 +17,7 @@ use crate::layout::{
     layer_name_top, protocol_segments,
 };
 use crate::model::{DeployedComponent, LAYER_PADDING, colors, component_colors};
-use crate::scene::{CORNER_RADIUS, LINE_WIDTH};
+use crate::scene::CORNER_RADIUS;
 use crate::tech_stack;
 
 const BULLET_INDENT: f64 = 16.0;
@@ -135,7 +135,7 @@ fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point, weight: LineWeigh
                 .set("html", 1)
                 .set("fillColor", colors::LAYER_FILL)
                 .set("strokeColor", colors::LAYER_BORDER)
-                .num("strokeWidth", weight.of(LINE_WIDTH)),
+                .num("strokeWidth", weight.width()),
         )
         .build(),
         "1",
@@ -148,7 +148,7 @@ fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point, weight: LineWeigh
             id,
             Rect::new(0.0, -LAYER_BAR_LIFT, r.width, LAYER_BAR_HEIGHT),
             chars,
-            (colors::LAYER_BORDER, weight.of(LINE_WIDTH)),
+            (colors::LAYER_BORDER, weight.width()),
         ));
     }
     cells.push(vertex(
@@ -283,7 +283,8 @@ fn component_cells(
                     .set("arcSize", 8)
                     .set("html", 1)
                     .set("fillColor", colors::LOGO_FILL)
-                    .set("strokeColor", color.border),
+                    .set("strokeColor", color.border)
+                    .num("strokeWidth", width),
             )
             .build(),
             id,
@@ -317,6 +318,7 @@ fn component_cells(
                 .set("whiteSpace", "nowrap")
                 .set("fillColor", colors::BAR_FILL)
                 .set("strokeColor", color.border)
+                .num("strokeWidth", width)
                 .set("fontColor", colors::TEXT)
                 .num("fontSize", BADGE_FONT_SIZE)
                 .set("fontStyle", 1)
@@ -373,7 +375,7 @@ pub fn to_drawio(
         cells.push(xml.clone());
     }
     let weight = eng.line_weight();
-    let width = weight.of(LINE_WIDTH);
+    let width = weight.width();
     for layer in layout.iter().filter(|e| is_layer(&e.el)) {
         cells.extend(layer_cells(layer, offset, weight));
     }

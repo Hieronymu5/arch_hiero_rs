@@ -2,7 +2,7 @@
 //! prototype applies the same rules with the same messages (its `import-file-sync.md`).
 
 use hiero_core::file::{diagram_file_json, diagram_to_zip};
-use hiero_core::model::DiagramTypeId;
+use hiero_core::model::{DiagramTypeId, LineWeight};
 use hiero_registry::edit::EditOp;
 use hiero_registry::{diagram_from_file, new_diagram, ops, read_diagram_file};
 use serde_json::{Value, json};
@@ -124,6 +124,8 @@ fn valid_files_import_and_export_unchanged() {
         assert_eq!(back, diagram);
         let mut written: Value = serde_json::from_str(&diagram_file_json(&diagram)).unwrap();
         let mut expected = valid.clone();
+        // A file without a line weight gets medium lines, and the export says so.
+        at(&mut expected, D).insert("lineWeight".into(), json!("medium"));
         // Numbers come back as written, and ids, keys, and order are kept.
         for v in [&mut written, &mut expected] {
             at(v, D).remove("createdAt");
@@ -265,20 +267,19 @@ fn colours() {
 #[test]
 fn line_weights() {
     assert_eq!(
-        refused(conceptual(), set(D, "lineWeight", json!("medium"))),
-        "The diagram: “lineWeight” must be “thin” or “thick”."
+        refused(conceptual(), set(D, "lineWeight", json!("heavy"))),
+        "The diagram: “lineWeight” must be “thin”, “medium”, or “thick”."
     );
-    assert_eq!(
-        refused(conceptual(), set(D, "lineWeight", json!("thick"))),
-        "The diagram: “lineWeight” must be left out when it’s the default."
-    );
-    assert_eq!(
-        refused(deployed(), set(D, "lineWeight", json!("thin"))),
-        "The diagram: “lineWeight” must be left out when it’s the default."
-    );
+    // A file that doesn't say, such as the prototype's, gets medium lines.
+    for valid in [conceptual(), physical(), deployed()] {
+        let diagram = diagram_from_file(&valid).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(diagram.line_weight(), LineWeight::Medium);
+    }
     for (mut valid, weight) in [
         (conceptual(), "thin"),
-        (physical(), "thin"),
+        (conceptual(), "thick"),
+        (physical(), "medium"),
+        (deployed(), "thin"),
         (deployed(), "thick"),
     ] {
         at(&mut valid, D).insert("lineWeight".into(), json!(weight));

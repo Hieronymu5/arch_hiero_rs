@@ -1,6 +1,6 @@
 # Deployed component diagram
 
-**Type id:** `deployed-component` · **Has arrows:** no · **Custom colours:** no (fixed scheme) · **Line weight:** thin by default
+**Type id:** `deployed-component` · **Has arrows:** no · **Custom colours:** no (fixed scheme) · **Line weight:** medium by default
 **Rust crate:** `crates/diagrams/hiero-deployed`
 **Prototype source:** `arch_hiero/src/app/diagrams/deployed-component/`,
 `model/deployed-component-diagram.ts`, `model/tech-stack.ts`,
@@ -68,12 +68,13 @@ These fills are also used by physical zone colours, so the table lives in
 
 ## Line weight
 
-Edit Details offers **Line thickness**: *Thin* (the default) or *Thick*,
-stored as the diagram's `lineWeight` (`"thick"`) only when it isn't the default. Layers' and
-components' borders, components' dividers, and characteristics and protocol bars' borders and
-separators are
-1 px thin and 2 px thick, as other diagrams' outlines are, in the editor and the exports. Logo boxes
-and the instance oval keep their thin borders.
+Edit Details offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
+stored as the diagram's `lineWeight`. New diagrams, the samples, and imported files that don't
+set it start at *Medium*; a diagram from before the setting existed keeps its old look (*Thin*)
+until it's changed, and exports always write it. Every line of its elements is drawn that thick,
+the same in every diagram type, in the editor and the exports: layers, components and their
+dividers, characteristics and protocol bars with their separators, logo boxes, and the instance
+oval.
 
 ## Element properties
 

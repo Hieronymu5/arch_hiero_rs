@@ -259,8 +259,6 @@ impl ColorScheme for PhysicalColors {
     ];
 }
 
-/// A zone's border, and a network's.
-pub const BORDER_WIDTH: f64 = 2.0;
 /// The size of a new network and of the zones that divide it.
 pub const NETWORK_SIZE: Size = Size::new(600.0, 240.0);
 pub const ZONE_SIZE: Size = Size::new(600.0, 200.0);

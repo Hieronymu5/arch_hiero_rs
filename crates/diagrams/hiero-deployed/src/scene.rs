@@ -26,10 +26,6 @@ const BULLET_DOT_RADIUS: f64 = 2.5;
 const BULLET_DOT_X: f64 = 5.0;
 /// The rounding of layers' and components' corners.
 pub const CORNER_RADIUS: f64 = 6.0;
-/// The width of layers', components', and characteristics and protocol bars' borders,
-/// components' dividers, and the bars' separators, drawn thick: as thick as other diagrams'
-/// outlines.
-pub const LINE_WIDTH: f64 = 2.0;
 
 /// `text` on one line no wider than `width`, ending with "…" when it's cut.
 fn fit(text: &str, width: f64, style: (f64, Weight), measure: &dyn MeasureText) -> String {
@@ -116,17 +112,13 @@ fn draw_layer(
     let mut nodes = vec![Node::rect(
         r,
         CORNER_RADIUS,
-        Paint::fill_stroke(
-            colors::LAYER_FILL,
-            colors::LAYER_BORDER,
-            weight.of(LINE_WIDTH),
-        ),
+        Paint::fill_stroke(colors::LAYER_FILL, colors::LAYER_BORDER, weight.width()),
     )];
     if !chars.is_empty() {
         nodes.extend(bar(
             Rect::new(r.x, r.y - LAYER_BAR_LIFT, r.width, LAYER_BAR_HEIGHT),
             chars,
-            (colors::LAYER_BORDER, weight.of(LINE_WIDTH)),
+            (colors::LAYER_BORDER, weight.width()),
             measure,
         ));
     }
@@ -224,6 +216,7 @@ fn draw_component(
             Paint {
                 fill: Some(colors::LOGO_FILL.into()),
                 stroke: Some(color.border.into()),
+                stroke_width: Some(width),
                 ..Paint::default()
             },
         ));
@@ -242,6 +235,7 @@ fn draw_component(
             Paint {
                 fill: Some(colors::BAR_FILL.into()),
                 stroke: Some(color.border.into()),
+                stroke_width: Some(width),
                 ..Paint::default()
             },
         ));
@@ -267,7 +261,7 @@ pub fn scene_of(eng: &Engine<DeployedComponent>, layout: &[Laid<DeployedComponen
         nodes.extend(draw_layer(layer, measure, weight));
     }
     for component in &components {
-        nodes.extend(draw_component(component, measure, weight.of(LINE_WIDTH)));
+        nodes.extend(draw_component(component, measure, weight.width()));
     }
     let mut xs: Vec<f64> = Vec::new();
     let mut ys: Vec<f64> = Vec::new();
@@ -340,11 +334,12 @@ mod tests {
         assert!(svg.contains(r##"fill="#d5e8d4" stroke="#82b366" stroke-width="2""##));
         // The protocol bar has the component's border, as thick, and so does its separator.
         assert!(svg.contains(r##"fill="#f5f5f5" stroke="#82b366" stroke-width="2""##));
-        // The component, its two dividers, the bar, and the separator.
+        // The component, its two dividers, the bar and its separator, the logo box, and the
+        // instance oval.
         assert_eq!(
             svg.matches(r##"stroke="#82b366" stroke-width="2""##)
                 .count(),
-            5,
+            7,
             "{svg}"
         );
     }

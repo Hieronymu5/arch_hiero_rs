@@ -14,7 +14,7 @@ use hiero_core::export::svg::scene_to_svg;
 use hiero_core::file::{DiagramFileError, diagram_from_json, read_zip_json};
 use hiero_core::file_check;
 use hiero_core::geometry::Rect;
-use hiero_core::model::{ColorScheme, DiagramTypeId, ElementId, Resizable};
+use hiero_core::model::{ColorScheme, DiagramTypeId, ElementId, LineWeight, Resizable};
 use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent, StoredDiagram};
 use hiero_deployed::DeployedComponent;
@@ -312,7 +312,12 @@ pub fn diagram_from_file(file: &Value) -> Result<StoredDiagram, DiagramFileError
     let (diagram, diagram_type) = file_check::check_file(file).map_err(DiagramFileError)?;
     let ops = ops(diagram_type);
     ops.check_file_diagram(diagram).map_err(DiagramFileError)?;
-    let stored = diagram_from_json(&file["diagram"])?;
+    let mut stored = diagram_from_json(&file["diagram"])?;
+    // A file that doesn't say how thick its lines are, such as the prototype's, gets medium
+    // ones, as a new diagram does.
+    if file["diagram"].get("lineWeight").is_none() {
+        stored.set_line_weight(LineWeight::Medium);
+    }
     // The file's rules include the type's own, so this only guards against the two drifting
     // apart and letting in a diagram the editor can't open.
     ops.validate(&stored.content)
@@ -325,13 +330,14 @@ pub fn read_diagram_file(bytes: &[u8]) -> Result<StoredDiagram, DiagramFileError
     diagram_from_file(&read_zip_json(bytes)?)
 }
 
-/// A new diagram of `diagram_type`, with what it starts with.
+/// A new diagram of `diagram_type`, with what it starts with. Its lines are medium; the type's
+/// default only stands for diagrams from before line weights could be chosen.
 pub fn new_diagram(
     diagram_type: DiagramTypeId,
     name: &str,
     description: Option<String>,
 ) -> StoredDiagram {
-    StoredDiagram {
+    let mut diagram = StoredDiagram {
         meta: hiero_core::model::DiagramMeta {
             id: hiero_core::model::DiagramId::new_v4(),
             diagram_type,
@@ -345,7 +351,9 @@ pub fn new_diagram(
         colors: BTreeMap::new(),
         line_weight: None,
         content: ops(diagram_type).new_content(),
-    }
+    };
+    diagram.set_line_weight(LineWeight::Medium);
+    diagram
 }
 
 #[cfg(test)]
@@ -366,6 +374,12 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(ops(DiagramTypeId::Conceptual).default_colors().len(), 9);
+        for t in DiagramTypeId::ALL {
+            assert_eq!(
+                new_diagram(t, "New", None).line_weight(),
+                LineWeight::Medium
+            );
+        }
         assert_eq!(ops(DiagramTypeId::Physical).color_fields().len(), 12);
         assert!(
             ops(DiagramTypeId::DeployedComponent)
@@ -396,9 +410,9 @@ mod tests {
         assert!(
             ops.to_svg(&diagram)
                 .unwrap()
-                .contains(r#"stroke-width="1.5""#)
+                .contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="1""##)
         );
-        assert!(ops.to_drawio(&diagram).unwrap().contains("strokeWidth=1.5"));
+        assert!(ops.to_drawio(&diagram).unwrap().contains("strokeWidth=1;"));
     }
 
     #[test]

@@ -48,8 +48,7 @@ struct FileDiagram<'a> {
     colors: Option<&'a BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     physical_colors: Option<&'a BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    line_weight: Option<LineWeight>,
+    line_weight: LineWeight,
     elements: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     connections: Option<Vec<Value>>,
@@ -80,7 +79,8 @@ fn file_diagram(diagram: &StoredDiagram) -> FileDiagram<'_> {
         description: meta.description.as_deref(),
         colors: if physical { None } else { colors },
         physical_colors: if physical { colors } else { None },
-        line_weight: diagram.line_weight,
+        // Always written, as a file without it imports with medium lines.
+        line_weight: diagram.line_weight(),
         elements: diagram
             .content
             .elements
@@ -313,11 +313,13 @@ mod tests {
     }
 
     #[test]
-    fn line_weights_round_trip_and_defaults_are_left_out() {
+    fn line_weights_are_always_written_and_round_trip() {
         let mut d = sample();
+        // Unset, as in a diagram from before line weights: the type's default, written out.
         assert_eq!(d.line_weight(), LineWeight::Thick);
         let json: Value = serde_json::from_str(&diagram_file_json(&d)).unwrap();
-        assert!(json["diagram"].get("lineWeight").is_none());
+        assert_eq!(json["diagram"]["lineWeight"], json!("thick"));
+        assert_eq!(diagram_from_json(&json["diagram"]).unwrap(), d);
         d.set_line_weight(LineWeight::Thin);
         let file = read_zip_json(&diagram_to_zip(&d)).unwrap();
         assert_eq!(file["diagram"]["lineWeight"], json!("thin"));

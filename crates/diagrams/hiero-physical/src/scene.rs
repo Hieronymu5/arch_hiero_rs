@@ -20,9 +20,7 @@ use hiero_core::routing::{
 use hiero_core::scene::Scene;
 use hiero_core::text::Weight;
 
-use crate::model::{
-    BLUE_ZONE, BORDER_WIDTH, GENERIC_DATABASE, Physical, PhysicalKind, ZoneColorInfo,
-};
+use crate::model::{BLUE_ZONE, GENERIC_DATABASE, Physical, PhysicalKind, ZoneColorInfo};
 use crate::rules::{database_of, figure_of, holds_stack, instance_count_of, is_stacked};
 
 /// How far under a figure's name an arrow at its bottom ends, so it almost touches it.
@@ -55,7 +53,6 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
                 fill: Some(zone.fill.into()),
                 text_color: Some(zone.border.into()),
                 border_color: Some(zone.border.into()),
-                border_width: Some(BORDER_WIDTH),
                 dashed: true,
                 square: false,
                 name_at: NameAt::TopLeft,
@@ -72,7 +69,6 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
             Look {
                 fill: Some(fill),
                 text_color: Some(text),
-                border_width: Some(BORDER_WIDTH),
                 square: true,
                 name_at: if kind == PhysicalKind::Zone {
                     NameAt::BottomLeft

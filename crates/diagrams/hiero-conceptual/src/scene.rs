@@ -356,7 +356,7 @@ mod tests {
         e.set_connection_props(&cid, props);
         let svg = scene_to_svg("Test", &scene(&e));
         // The domain in the domain colour with its name on top.
-        assert!(svg.contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="3""##));
+        assert!(svg.contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="2""##));
         // The actor's figure.
         assert!(svg.contains(r#"<path d="M4 45 A20 20 0 0 1 44 45 Z"/>"#));
         // The connector box in the connectors colour.

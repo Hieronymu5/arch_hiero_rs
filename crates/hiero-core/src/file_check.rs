@@ -445,16 +445,10 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
     }
 
     // 11, continued. How thick elements’ lines are.
-    if let Some(value) = diagram.get("lineWeight") {
-        let weight = value
-            .as_str()
-            .and_then(LineWeight::parse)
-            .ok_or_else(|| at(must_be("lineWeight", "“thin” or “thick”")))?;
-        if weight == T::ID.default_line_weight() {
-            return Err(at(
-                "“lineWeight” must be left out when it’s the default.".into()
-            ));
-        }
+    if let Some(value) = diagram.get("lineWeight")
+        && value.as_str().and_then(LineWeight::parse).is_none()
+    {
+        return Err(at(must_be("lineWeight", "“thin”, “medium”, or “thick”")));
     }
 
     // 12. The dates.

@@ -81,9 +81,10 @@ pub struct DetailsParams {
     /// from the defaults are kept. An empty object resets them all.
     #[serde(default)]
     pub colors: Option<BTreeMap<String, String>>,
-    /// How thick elements' lines are drawn: "thin" or "thick". Arrows keep their own width.
-    /// The default is in list_diagram_types; a diagram's JSON has "lineWeight" only when it
-    /// differs.
+    /// How thick elements' lines are drawn: "thin" (1 px), "medium" (1.5 px), or "thick"
+    /// (2 px), for every element's lines and the boxes and tags on arrows. Arrows' lines keep
+    /// their own width. A diagram's JSON says which it has in "lineWeight"; new diagrams start
+    /// medium.
     #[serde(default)]
     pub line_weight: Option<String>,
     /// The revision from get_diagram. If the diagram changed since, the update is refused.
@@ -261,7 +262,7 @@ impl HieroServer {
 #[tool_router]
 impl HieroServer {
     #[tool(
-        description = "Every diagram type, with its kinds of element (what each can contain and connect to), what its elements' and arrows' props can be, the values of props with a fixed list (such as a deployed component's techStack ids), its colours, and its default line weight.",
+        description = "Every diagram type, with its kinds of element (what each can contain and connect to), what its elements' and arrows' props can be, the values of props with a fixed list (such as a deployed component's techStack ids), and its colours.",
         annotations(read_only_hint = true)
     )]
     pub async fn list_diagram_types(&self) -> ToolResult {
@@ -276,7 +277,6 @@ impl HieroServer {
                     "props": t.props_doc(),
                     "propValues": t.prop_values(),
                     "colors": t.color_fields().iter().map(|(k, l)| json!({"key": k, "label": l})).collect::<Vec<_>>(),
-                    "lineWeight": t.id().default_line_weight(),
                     "spec": format!("arch-hiero://types/{}", t.id().as_str()),
                 })
             })
@@ -327,7 +327,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Creates a diagram and records it as version 1. A physical diagram starts with an End User zone and an Intranet network of three zones."
+        description = "Creates a diagram, with medium lines, and records it as version 1. A physical diagram starts with an End User zone and an Intranet network of three zones."
     )]
     pub async fn create_diagram(&self, Parameters(p): Parameters<CreateParams>) -> ToolResult {
         let Some(diagram_type) = DiagramTypeId::parse(&p.diagram_type) else {
@@ -375,7 +375,9 @@ impl HieroServer {
             }
             if let Some(weight) = p.line_weight {
                 let weight = LineWeight::parse(&weight).ok_or_else(|| {
-                    StoreError::Corrupt("The line weight must be \"thin\" or \"thick\".".into())
+                    StoreError::Corrupt(
+                        "The line weight must be \"thin\", \"medium\", or \"thick\".".into(),
+                    )
                 })?;
                 d.set_line_weight(weight);
             }

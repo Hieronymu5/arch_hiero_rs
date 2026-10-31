@@ -12,8 +12,8 @@ use crate::figures::{
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::model::{ColorScheme, ElementId, LineWeight};
 use crate::routing::{
-    ARROW_TAG_BORDER_WIDTH, Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT,
-    connector_text_position, label_placement, label_text_position, return_arrow_placement,
+    Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT, connector_text_position, label_placement,
+    label_text_position, return_arrow_placement,
 };
 use crate::scene::{Anchor, Marker, Node, Paint, Scene};
 use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
@@ -91,12 +91,6 @@ pub const DESCRIPTION: TextStyle = TextStyle::new(13.0, Weight::Regular, 17.0, 3
 pub const SECTION_NAME: TextStyle = CONTAINER_NAME;
 /// The gap between a section's name and its line on either side.
 pub const SECTION_GAP: f64 = 8.0;
-/// The width of a container's border, drawn thick, unless its look sets one.
-pub const BORDER_WIDTH: f64 = 3.0;
-/// The width of a box's, cloud's, or figure's outline, drawn thick.
-pub const OUTLINE_WIDTH: f64 = 2.0;
-/// The width of a section's lines, drawn thick: as thick as a container's border.
-pub const SECTION_LINE_WIDTH: f64 = BORDER_WIDTH;
 /// An arrow's text size.
 pub const ARROW_LABEL_SIZE: f64 = 13.0;
 
@@ -140,9 +134,6 @@ pub struct Look {
     pub name_at: NameAt,
     /// Square corners on a container.
     pub square: bool,
-    /// A container's border width when drawn thick, halved when thin. Unset means
-    /// [`BORDER_WIDTH`].
-    pub border_width: Option<f64>,
     /// A container's border colour. Unset means the borders colour.
     pub border_color: Option<String>,
     pub dashed: bool,
@@ -170,7 +161,6 @@ impl Look {
             agent: false,
             name_at: NameAt::TopCenter,
             square: false,
-            border_width: None,
             border_color: None,
             dashed: false,
             outline_on_top: false,
@@ -530,11 +520,7 @@ pub fn figure_badge_rect(area: Rect, figure: PhysicalFigure, text_width: f64) ->
 /// border as thick as `weight`.
 fn tag_nodes(tag: &ArrowTag, radius: f64, weight: LineWeight) -> [Node; 2] {
     let paint = match &tag.border {
-        Some(border) => Paint::fill_stroke(
-            tag.fill.clone(),
-            border.clone(),
-            weight.of(ARROW_TAG_BORDER_WIDTH),
-        ),
+        Some(border) => Paint::fill_stroke(tag.fill.clone(), border.clone(), weight.width()),
         None => Paint::fill(tag.fill.clone()),
     };
     [
@@ -595,7 +581,7 @@ pub fn draw_element(
                     look.border_color
                         .clone()
                         .unwrap_or_else(|| colors.borders.clone()),
-                    weight.of(look.border_width.unwrap_or(BORDER_WIDTH)),
+                    weight.width(),
                 )
                 .dashed(look.dashed.then_some((8.0, 4.0))),
             )];
@@ -618,7 +604,7 @@ pub fn draw_element(
                 Paint::fill_stroke(
                     look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
                     colors.borders.clone(),
-                    weight.of(OUTLINE_WIDTH),
+                    weight.width(),
                 ),
                 children,
             )];
@@ -641,7 +627,7 @@ pub fn draw_element(
                 Paint::fill_stroke(
                     look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
                     colors.borders.clone(),
-                    weight.of(OUTLINE_WIDTH),
+                    weight.width(),
                 ),
                 component_figure(look.shape, look.agent),
             )];
@@ -691,7 +677,7 @@ pub fn draw_element(
             let paint = Paint::fill_stroke(
                 look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
                 colors.borders.clone(),
-                weight.of(OUTLINE_WIDTH),
+                weight.width(),
             );
             let outline = if cloud {
                 Node::path(
@@ -730,7 +716,7 @@ fn draw_section(
     } = element.rect;
     let center_x = x + width / 2.0;
     let middle = y + height / 2.0;
-    let line_width = weight.of(SECTION_LINE_WIDTH);
+    let line_width = weight.width();
     let left = x + line_width / 2.0;
     let right = x + width - line_width / 2.0;
     let name = wrap_text(
@@ -847,7 +833,7 @@ pub fn draw_diagram(
             Paint {
                 fill: Some("none".into()),
                 stroke: Some(colors.borders.clone()),
-                stroke_width: Some(weight.of(e.look.border_width.unwrap_or(BORDER_WIDTH))),
+                stroke_width: Some(weight.width()),
                 dash: None,
             },
         ));
@@ -923,7 +909,7 @@ pub fn draw_arrows(
             Paint::fill_stroke(
                 colors.connectors.clone(),
                 colors.borders.clone(),
-                weight.of(ARROW_TAG_BORDER_WIDTH),
+                weight.width(),
             ),
         ));
         nodes.push(Node::Text {
@@ -1000,7 +986,7 @@ mod tests {
     }
 
     #[test]
-    fn thin_lines_are_half_as_wide_on_elements_but_not_arrows() {
+    fn every_element_line_is_as_wide_as_the_weight_but_arrows_are_not() {
         let mut domain = element(Shape::Container, Rect::new(0.0, 0.0, 400.0, 300.0));
         domain.description = None;
         let app = element(Shape::Box, Rect::new(40.0, 60.0, 200.0, 100.0));
@@ -1017,22 +1003,33 @@ mod tests {
             }),
             ..ArrowLook::default()
         }];
-        let svg = scene_to_svg(
-            "t",
-            &draw_diagram(
-                &[domain, app],
-                &arrows,
-                &EstimateText,
-                &DiagramColors::default(),
-                LineWeight::Thin,
-            ),
-        );
-        assert!(svg.contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="1.5""##));
-        assert!(svg.contains(r##"fill="#ffffff" stroke="#1e1e1e" stroke-width="1""##));
-        assert!(svg.contains(r##"stroke="#0066cc" stroke-width="2""##));
-        // The boxes and tags on arrows are thin too.
-        assert!(svg.contains(r##"fill="#cfd4da" stroke="#1e1e1e" stroke-width="0.75""##));
-        assert!(svg.contains(r##"fill="#eeeeee" stroke="#333333" stroke-width="0.75""##));
+        for (weight, width) in [
+            (LineWeight::Thin, "1"),
+            (LineWeight::Medium, "1.5"),
+            (LineWeight::Thick, "2"),
+        ] {
+            let svg = scene_to_svg(
+                "t",
+                &draw_diagram(
+                    &[domain.clone(), app.clone()],
+                    &arrows,
+                    &EstimateText,
+                    &DiagramColors::default(),
+                    weight,
+                ),
+            );
+            // The container, the box, and the box and tag on the arrow.
+            for paint in [
+                r##"fill="#f5f5f5" stroke="#1e1e1e""##,
+                r##"fill="#ffffff" stroke="#1e1e1e""##,
+                r##"fill="#cfd4da" stroke="#1e1e1e""##,
+                r##"fill="#eeeeee" stroke="#333333""##,
+            ] {
+                let drawn = format!(r#"{paint} stroke-width="{width}""#);
+                assert!(svg.contains(&drawn), "{drawn}");
+            }
+            assert!(svg.contains(r##"stroke="#0066cc" stroke-width="2""##));
+        }
     }
 
     #[test]

@@ -451,10 +451,6 @@ pub fn connector_text_position(rect: &Rect) -> Point {
     )
 }
 
-/// The width of an arrow tag's border, as for connector and transformation boxes, drawn thick.
-/// Thin lines halve it.
-pub const ARROW_TAG_BORDER_WIDTH: f64 = 1.5;
-
 /// Where an arrow's transformation box goes, centred on the middle of the line.
 pub fn transformation_placement(from: Point, to: Point, text_width: f64) -> (Rect, Point) {
     let height = CONNECTOR_BOX_HEIGHT;

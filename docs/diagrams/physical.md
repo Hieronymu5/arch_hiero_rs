@@ -1,6 +1,6 @@
 # Physical diagram
 
-**Type id:** `physical` · **Has arrows:** yes (protocol + port) · **Custom colours:** yes (12) · **Line weight:** thick by default
+**Type id:** `physical` · **Has arrows:** yes (protocol + port) · **Custom colours:** yes (12) · **Line weight:** medium by default
 **Rust crate:** `crates/diagrams/hiero-physical`
 **Prototype source:** `arch_hiero/src/app/diagrams/physical/`, `model/physical-diagram.ts`,
 `utils/physical-figures.ts`, `utils/physical-diagram.ts`
@@ -25,8 +25,8 @@ networks (`onTop`).
 | `load-balancer` | Load Balancer | Circle with a small circle on its left joined to three on its right | appliances | – | – |
 | `gateway` | Gateway | Box with three small ports on its left | appliances | – | – |
 | `storage` | Storage | Three stacked disks | data | – | – |
-| `network` | Network | Square region, name top-left, 2 px border | networks | zone | – |
-| `zone` | Zone | Square region, name bottom-left, 2 px border, 20 px header and footer | zones | user, server, database, load-balancer, gateway, storage | Colour (only when outside a network) |
+| `network` | Network | Square region, name top-left, border as thick as the line weight | networks | zone | – |
+| `zone` | Zone | Square region, name bottom-left, border as thick as the line weight, 20 px header and footer | zones | user, server, database, load-balancer, gateway, storage | Colour (only when outside a network) |
 
 Every figure kind (user through storage) can have arrows to every other figure kind.
 
@@ -153,11 +153,13 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 
 ## Line weight
 
-Edit Details offers **Line thickness**: *Thick* (the default) or *Thin*, stored as the diagram's
-`lineWeight` (`"thin"`) only when it isn't the default. It sets how thick elements' lines are,
-in the editor and the exports: networks', zones', and figures' outlines (zone firewalls
-included) are 2 px thick and 1 px thin; protocol/port tags' borders are 1.5 px thick and
-0.75 px thin. Arrows' lines and heads keep their widths.
+Edit Details offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
+stored as the diagram's `lineWeight`. New diagrams, the samples, and imported files that don't
+set it start at *Medium*; a diagram from before the setting existed keeps its old look (*Thick*)
+until it's changed, and exports always write it. Every line of its elements (networks, zones,
+figures, and zone firewalls) and of the protocol/port tags on arrows is drawn that thick, the
+same in every diagram type, in the editor and the exports. Arrows' lines and heads keep their
+widths.
 
 ## Export
 

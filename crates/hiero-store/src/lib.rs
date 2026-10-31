@@ -195,8 +195,22 @@ ALTER TABLE diagrams ADD COLUMN line_weight TEXT
   CHECK (line_weight IS NULL OR line_weight IN ('thin', 'thick'));
 ";
 
+/// Allows a medium line weight. SQLite can't change a column's CHECK, so the column is
+/// replaced, keeping its values.
+const MIGRATION_3: &str = r"
+ALTER TABLE diagrams ADD COLUMN line_weight_3 TEXT
+  CHECK (line_weight_3 IS NULL OR line_weight_3 IN ('thin', 'medium', 'thick'));
+UPDATE diagrams SET line_weight_3 = line_weight;
+ALTER TABLE diagrams DROP COLUMN line_weight;
+ALTER TABLE diagrams RENAME COLUMN line_weight_3 TO line_weight;
+";
+
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(MIGRATION_1), M::up(MIGRATION_2)])
+    Migrations::new(vec![
+        M::up(MIGRATION_1),
+        M::up(MIGRATION_2),
+        M::up(MIGRATION_3),
+    ])
 }
 
 /// Where the database lives: the platform's data directory, such as
@@ -876,6 +890,26 @@ mod tests {
     }
 
     #[test]
+    fn medium_line_weights_keep_what_the_old_column_held() {
+        // A database from before medium existed, with a thin diagram in it.
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrations().to_version(&mut conn, 2).unwrap();
+        conn.execute_batch(
+            "INSERT INTO diagrams (id, type, name, content_hash, created_at, updated_at,
+                                   line_weight)
+             VALUES ('d1', 'conceptual', 'Old', '', '2026-01-01', '2026-01-01', 'thin')",
+        )
+        .unwrap();
+        let mut store = Store::setup(conn).unwrap();
+        let mut got = store.get(&"d1".into()).unwrap().unwrap();
+        assert_eq!(got.diagram.line_weight, Some(LineWeight::Thin));
+        got.diagram.set_line_weight(LineWeight::Medium);
+        store.save(&got.diagram, Some(got.revision)).unwrap();
+        let got = store.get(&"d1".into()).unwrap().unwrap().diagram;
+        assert_eq!(got.line_weight, Some(LineWeight::Medium));
+    }
+
+    #[test]
     fn versions_revert_forwards_and_numbers_are_not_reused() {
         let mut store = Store::open_in_memory().unwrap();
         let record = store
@@ -985,6 +1019,19 @@ mod tests {
             store.delete(&"d1".into()),
             Err(StoreError::NotFound)
         ));
+    }
+
+    #[test]
+    fn samples_have_medium_lines() {
+        for sample in seed_diagrams() {
+            assert_eq!(
+                sample.line_weight(),
+                LineWeight::Medium,
+                "{}",
+                sample.meta.name
+            );
+        }
+        assert_eq!(seed_diagrams().len(), 3);
     }
 
     #[test]

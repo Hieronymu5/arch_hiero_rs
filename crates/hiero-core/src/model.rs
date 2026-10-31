@@ -96,7 +96,7 @@ impl DiagramTypeId {
     }
 
     /// How thick elements' lines are unless a diagram chooses otherwise: deployed component
-    /// diagrams are drawn thin, as in the prototype.
+    /// diagrams are drawn thin.
     pub const fn default_line_weight(self) -> LineWeight {
         match self {
             Self::DeployedComponent => LineWeight::Thin,
@@ -109,21 +109,23 @@ impl DiagramTypeId {
     }
 }
 
-/// How thick elements' lines are drawn: their borders, outlines, and figures. Arrows keep
-/// their own width.
+/// How thick elements' lines are drawn: their borders, outlines, figures, and the boxes and
+/// tags on arrows, all alike. Arrows' lines keep their own width.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LineWeight {
     Thin,
+    Medium,
     Thick,
 }
 
 impl LineWeight {
-    pub const ALL: [Self; 2] = [Self::Thin, Self::Thick];
+    pub const ALL: [Self; 3] = [Self::Thin, Self::Medium, Self::Thick];
 
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Thin => "thin",
+            Self::Medium => "medium",
             Self::Thick => "thick",
         }
     }
@@ -131,6 +133,7 @@ impl LineWeight {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Thin => "Thin",
+            Self::Medium => "Medium",
             Self::Thick => "Thick",
         }
     }
@@ -139,11 +142,12 @@ impl LineWeight {
         Self::ALL.into_iter().find(|w| w.as_str() == text)
     }
 
-    /// The width of a line that is `thick` wide when drawn thick: thin lines are half as wide.
-    pub fn of(self, thick: f64) -> f64 {
+    /// The width of every line it applies to.
+    pub const fn width(self) -> f64 {
         match self {
-            Self::Thin => thick / 2.0,
-            Self::Thick => thick,
+            Self::Thin => 1.0,
+            Self::Medium => 1.5,
+            Self::Thick => 2.0,
         }
     }
 }

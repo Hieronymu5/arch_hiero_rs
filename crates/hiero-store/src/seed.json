@@ -3,6 +3,7 @@
     "id": "01f93d16-5581-4cb9-a7db-6449f0e9dfe7",
     "name": "ARCH Hiero MCP Capabilities",
     "type": "conceptual",
+    "lineWeight": "medium",
     "description": "Teaching an Agent to create Diagrams",
     "elements": [
       {
@@ -267,6 +268,7 @@
     "id": "d1a6a000-0000-4000-8000-000000000002",
     "name": "Standard 3 -Tier Application",
     "type": "deployed-component",
+    "lineWeight": "medium",
     "description": "3 Tier Application",
     "elements": [
       {
@@ -431,6 +433,7 @@
     "id": "d1a6a000-0000-4000-8000-000000000003",
     "name": "Website Example - Active - Active",
     "type": "physical",
+    "lineWeight": "medium",
     "description": "Example of an Active - Active Web Application with a Reverse Proxy Spring Boot Application with Database Relplication.",
     "elements": [
       {

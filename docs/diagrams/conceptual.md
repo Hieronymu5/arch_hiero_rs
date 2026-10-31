@@ -1,6 +1,6 @@
 # Conceptual diagram
 
-**Type id:** `conceptual` · **Has arrows:** yes · **Custom colours:** yes (9) · **Line weight:** thick by default
+**Type id:** `conceptual` · **Has arrows:** yes · **Custom colours:** yes (9) · **Line weight:** medium by default
 **Rust crate:** `crates/diagrams/hiero-conceptual`
 **Prototype source:** `arch_hiero/src/app/diagrams/conceptual/`, `model/conceptual-diagram.ts`
 
@@ -94,12 +94,13 @@ Text on a fill is black or white, whichever has more contrast (WCAG). This uses
 
 ## Line weight
 
-Edit Details offers **Line thickness**: *Thick* (the default) or *Thin*, stored as the diagram's
-`lineWeight` (`"thin"`) only when it isn't the default. It sets how thick elements' lines are,
-in the editor and the exports: containers' borders (such as domains') and sections'
-lines are 3 px thick and 1.5 px thin; boxes', clouds', and figures' outlines are 2 px thick and
-1 px thin; connector and transformation boxes' borders are 1.5 px thick and 0.75 px thin.
-Arrows' lines and heads keep their widths.
+Edit Details offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
+stored as the diagram's `lineWeight`. New diagrams, the samples, and imported files that don't
+set it start at *Medium*; a diagram from before the setting existed keeps its old look (*Thick*)
+until it's changed, and exports always write it. Every line of its elements (containers,
+sections, boxes, clouds, and figures) and of the connector and transformation boxes on arrows is
+drawn that thick, the same in every diagram type, in the editor and the exports. Arrows' lines
+and heads keep their widths.
 
 ## Figures (shared with other types)
 

@@ -8,14 +8,11 @@ use std::fmt::Write as _;
 use crate::color::readable_text;
 use crate::figures::{CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, database};
 use crate::geometry::{Point, Rect, fmt_num, round2};
-use crate::look::{
-    ArrowLook, BORDER_WIDTH, DiagramColors, LookElement, NameAt, OUTLINE_WIDTH, SECTION_LINE_WIDTH,
-    Shape,
-};
+use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
 use crate::model::{ConnectionId, ElementId, LineWeight};
 use crate::routing::{
-    ARROW_TAG_BORDER_WIDTH, Align, CONNECTOR_BOX_FONT_SIZE, RETURN_ARROW_LENGTH, Vertical,
-    label_placement, return_arrow_placement,
+    Align, CONNECTOR_BOX_FONT_SIZE, RETURN_ARROW_LENGTH, Vertical, label_placement,
+    return_arrow_placement,
 };
 
 #[allow(clippy::wildcard_imports, reason = "the stencil table")]
@@ -99,7 +96,7 @@ fn base_style(colors: &DiagramColors, weight: LineWeight) -> Style {
         .set("html", 1)
         .set("whiteSpace", "wrap")
         .set("strokeColor", &colors.borders)
-        .num("strokeWidth", weight.of(OUTLINE_WIDTH))
+        .num("strokeWidth", weight.width())
         .set("fontColor", TEXT)
 }
 
@@ -274,7 +271,7 @@ fn box_on_arrow_style(colors: &DiagramColors, weight: LineWeight) -> String {
         .set("arcSize", 6)
         .set("whiteSpace", "nowrap")
         .set("spacing", 0)
-        .num("strokeWidth", weight.of(ARROW_TAG_BORDER_WIDTH))
+        .num("strokeWidth", weight.width())
         .set("fillColor", &colors.connectors)
         .set("fontColor", readable_text(&colors.connectors))
         .set("fontStyle", 1)
@@ -428,7 +425,7 @@ pub fn diagram_to_drawio(
             Shape::Section => {
                 let style = base_style(colors, weight)
                     .set("shape", format!("stencil({SECTION_STENCIL})"))
-                    .num("strokeWidth", weight.of(SECTION_LINE_WIDTH))
+                    .num("strokeWidth", weight.width())
                     .set("fillColor", "none")
                     .set("labelBackgroundColor", BACKGROUND)
                     .set("fontColor", look.text_color.as_deref().unwrap_or(TEXT))
@@ -454,10 +451,10 @@ pub fn diagram_to_drawio(
                 } else {
                     rounded(style)
                 };
-                style = style.set("container", 1).set("collapsible", 0).num(
-                    "strokeWidth",
-                    weight.of(look.border_width.unwrap_or(BORDER_WIDTH)),
-                );
+                style = style
+                    .set("container", 1)
+                    .set("collapsible", 0)
+                    .num("strokeWidth", weight.width());
                 if let Some(border) = &look.border_color {
                     style = style.set("strokeColor", border);
                 }
@@ -555,10 +552,7 @@ pub fn diagram_to_drawio(
         }
         .set("fillColor", "none")
         .set("strokeColor", &colors.borders)
-        .num(
-            "strokeWidth",
-            weight.of(e.look.border_width.unwrap_or(BORDER_WIDTH)),
-        )
+        .num("strokeWidth", weight.width())
         .set("pointerEvents", 0);
         cells.push(cell(
             &format!("{}-outline", e.id),
@@ -711,7 +705,7 @@ pub fn diagram_to_drawio(
             style = match &tag.border {
                 Some(b) => style
                     .set("strokeColor", b)
-                    .num("strokeWidth", weight.of(ARROW_TAG_BORDER_WIDTH)),
+                    .num("strokeWidth", weight.width()),
                 None => style.set("strokeColor", "none"),
             };
             let style = style
@@ -743,7 +737,7 @@ pub fn diagram_to_drawio(
         style = match &badge.border {
             Some(b) => style
                 .set("strokeColor", b)
-                .num("strokeWidth", weight.of(ARROW_TAG_BORDER_WIDTH)),
+                .num("strokeWidth", weight.width()),
             None => style.set("strokeColor", "none"),
         };
         let style = style
