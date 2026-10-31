@@ -126,7 +126,7 @@ fn draw_layer(
         nodes.extend(bar(
             Rect::new(r.x, r.y - LAYER_BAR_LIFT, r.width, LAYER_BAR_HEIGHT),
             chars,
-            (colors::CHARACTERISTICS_BORDER, weight.of(LINE_WIDTH)),
+            (colors::LAYER_BORDER, weight.of(LINE_WIDTH)),
             measure,
         ));
     }
@@ -181,7 +181,7 @@ fn draw_component(
         nodes.extend(bar(
             parts.protocol_bar,
             protocols,
-            (colors::PROTOCOL_BORDER, width),
+            (color.border, width),
             measure,
         ));
     }
@@ -338,13 +338,19 @@ mod tests {
         e.set_line_weight(LineWeight::Thick);
         let svg = scene_to_svg("Deploy", &scene(&e));
         assert!(svg.contains(r##"fill="#d5e8d4" stroke="#82b366" stroke-width="2""##));
-        // The protocol bar and its separator follow it too.
-        let protocol = r##"stroke="#1b1f24" stroke-width="2""##;
-        assert_eq!(svg.matches(protocol).count(), 2, "{svg}");
+        // The protocol bar has the component's border, as thick, and so does its separator.
+        assert!(svg.contains(r##"fill="#f5f5f5" stroke="#82b366" stroke-width="2""##));
+        // The component, its two dividers, the bar, and the separator.
+        assert_eq!(
+            svg.matches(r##"stroke="#82b366" stroke-width="2""##)
+                .count(),
+            5,
+            "{svg}"
+        );
     }
 
     #[test]
-    fn characteristics_bars_follow_the_line_weight() {
+    fn characteristics_bars_look_like_their_layer() {
         let mut e = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {})
             .with_measure(&ESTIMATE);
         e.add_at_free_position(DeployedKind::Layer);
@@ -353,12 +359,13 @@ mod tests {
             l.props.characteristics = Some(vec!["DNS".into(), "VPN".into()]);
             l
         });
-        // The bar's border and the separator between its two labels.
-        let border = |width: &str| format!(r##"stroke="#666666" stroke-width="{width}""##);
+        // The layer's border, the bar's, and the separator between its two labels: all in the
+        // layer's border colour and width.
+        let border = |width: &str| format!(r##"stroke="#b3b3b3" stroke-width="{width}""##);
         let svg = scene_to_svg("Deploy", &scene(&e));
-        assert_eq!(svg.matches(&border("1")).count(), 2, "{svg}");
+        assert_eq!(svg.matches(&border("1")).count(), 3, "{svg}");
         e.set_line_weight(LineWeight::Thick);
         let svg = scene_to_svg("Deploy", &scene(&e));
-        assert_eq!(svg.matches(&border("2")).count(), 2, "{svg}");
+        assert_eq!(svg.matches(&border("2")).count(), 3, "{svg}");
     }
 }

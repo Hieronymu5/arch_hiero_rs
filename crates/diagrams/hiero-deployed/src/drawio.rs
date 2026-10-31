@@ -148,7 +148,7 @@ fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point, weight: LineWeigh
             id,
             Rect::new(0.0, -LAYER_BAR_LIFT, r.width, LAYER_BAR_HEIGHT),
             chars,
-            (colors::CHARACTERISTICS_BORDER, weight.of(LINE_WIDTH)),
+            (colors::LAYER_BORDER, weight.of(LINE_WIDTH)),
         ));
     }
     cells.push(vertex(
@@ -224,7 +224,7 @@ fn component_cells(
             id,
             parts.protocol_bar,
             protocols,
-            (colors::PROTOCOL_BORDER, width),
+            (color.border, width),
         ));
     }
     cells.push(vertex(

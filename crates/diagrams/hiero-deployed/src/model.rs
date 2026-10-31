@@ -85,8 +85,6 @@ pub mod colors {
     pub const LAYER_FILL: &str = "#e6e6e6";
     pub const LAYER_BORDER: &str = "#b3b3b3";
     pub const BAR_FILL: &str = "#f5f5f5";
-    pub const CHARACTERISTICS_BORDER: &str = "#666666";
-    pub const PROTOCOL_BORDER: &str = "#1b1f24";
     pub const LOGO_FILL: &str = "#ffffff";
     pub const TEXT: &str = "#1b1f24";
 }

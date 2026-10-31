@@ -50,8 +50,8 @@ characteristics), then the layer name.
 |---|---|
 | Layer fill / border | `#e6e6e6` / `#b3b3b3` |
 | Bars and the instance oval | `#f5f5f5` |
-| Characteristics bar border | `#666666` |
-| Protocol bar border and separators | `#1b1f24` |
+| Characteristics bar border and separators | the layer's border |
+| Protocol bar border and separators | the component's border |
 | Logo boxes | `#ffffff` |
 | Text | `#1b1f24` |
 
