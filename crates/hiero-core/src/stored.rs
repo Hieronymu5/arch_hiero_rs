@@ -8,7 +8,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
-use crate::model::{Connection, ConnectionId, DiagramMeta, Element, ElementId};
+use crate::model::{Connection, ConnectionId, DiagramMeta, Element, ElementId, LineWeight};
 
 /// Keys that are columns of their own rather than properties.
 const ELEMENT_KEYS: [&str; 9] = [
@@ -61,7 +61,23 @@ pub struct StoredDiagram {
     pub meta: DiagramMeta,
     /// Colours that differ from the type's defaults.
     pub colors: BTreeMap<String, String>,
+    /// How thick elements' lines are, when it differs from the type's default.
+    pub line_weight: Option<LineWeight>,
     pub content: StoredContent,
+}
+
+impl StoredDiagram {
+    /// How thick elements' lines are drawn.
+    pub fn line_weight(&self) -> LineWeight {
+        self.line_weight
+            .unwrap_or(self.meta.diagram_type.default_line_weight())
+    }
+
+    /// Sets how thick elements' lines are, keeping it only when it differs from the default.
+    pub fn set_line_weight(&mut self, weight: LineWeight) {
+        self.line_weight =
+            (weight != self.meta.diagram_type.default_line_weight()).then_some(weight);
+    }
 }
 
 /// Why JSON couldn't be read as a diagram's content.

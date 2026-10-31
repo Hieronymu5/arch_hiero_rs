@@ -1,6 +1,6 @@
 # Physical diagram
 
-**Type id:** `physical` · **Has arrows:** yes (protocol + port) · **Custom colours:** yes (12)
+**Type id:** `physical` · **Has arrows:** yes (protocol + port) · **Custom colours:** yes (12) · **Line weight:** thick by default
 **Rust crate:** `crates/diagrams/hiero-physical`
 **Prototype source:** `arch_hiero/src/app/diagrams/physical/`, `model/physical-diagram.ts`,
 `utils/physical-figures.ts`, `utils/physical-diagram.ts`
@@ -151,6 +151,14 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 | `networkNames` | `#0b3d91` | Network names |
 | `zoneNames` | `#0b3d91` | Zone names |
 
+## Line weight
+
+Edit Details offers **Line thickness**: *Thick* (the default) or *Thin*, stored as the diagram's
+`lineWeight` (`"thin"`) only when it isn't the default. It sets how thick elements' lines are,
+in the editor and the exports: networks', zones', and figures' outlines (zone firewalls
+included) are 2 px thick and 1 px thin; protocol/port tags' borders are 1.5 px thick and
+0.75 px thin. Arrows' lines and heads keep their widths.
+
 ## Export
 
 Uses the shared SVG and draw.io writers. Networks and zones are square regions with their names
@@ -182,4 +190,5 @@ Rust shape: `Element<PhysicalKind, PhysicalProps>`, a fieldless kind enum with `
 - [x] Zone firewalls on incoming arrows (beyond the prototype)
 - [x] Arrows with protocol and port tags and the default rules
 - [x] 12 custom colours
+- [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [ ] SVG and draw.io export that match the prototype — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

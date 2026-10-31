@@ -263,6 +263,31 @@ fn colours() {
 }
 
 #[test]
+fn line_weights() {
+    assert_eq!(
+        refused(conceptual(), set(D, "lineWeight", json!("medium"))),
+        "The diagram: “lineWeight” must be “thin” or “thick”."
+    );
+    assert_eq!(
+        refused(conceptual(), set(D, "lineWeight", json!("thick"))),
+        "The diagram: “lineWeight” must be left out when it’s the default."
+    );
+    assert_eq!(
+        refused(deployed(), set(D, "lineWeight", json!("thin"))),
+        "The diagram: “lineWeight” must be left out when it’s the default."
+    );
+    for (mut valid, weight) in [
+        (conceptual(), "thin"),
+        (physical(), "thin"),
+        (deployed(), "thick"),
+    ] {
+        at(&mut valid, D).insert("lineWeight".into(), json!(weight));
+        let diagram = diagram_from_file(&valid).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(diagram.line_weight().as_str(), weight);
+    }
+}
+
+#[test]
 fn elements_on_their_own() {
     let c = conceptual;
     let bot = "/diagram/elements/0";

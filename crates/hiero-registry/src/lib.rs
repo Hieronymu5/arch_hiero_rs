@@ -167,6 +167,13 @@ pub fn engine_for<T: DiagramType>(
     ))
 }
 
+/// An engine for a stored diagram, to draw: with its colours and line weight.
+fn drawing_engine<T: DiagramType>(diagram: &StoredDiagram) -> Result<Engine<T>, ContentError> {
+    let mut eng = engine_for::<T>(&diagram.content, &diagram.colors)?;
+    eng.set_line_weight(diagram.line_weight());
+    Ok(eng)
+}
+
 impl<T: Drawn> TypeOps for Entry<T> {
     fn id(&self) -> DiagramTypeId {
         T::ID
@@ -236,7 +243,7 @@ impl<T: Drawn> TypeOps for Entry<T> {
     }
 
     fn scene(&self, diagram: &StoredDiagram) -> Result<Scene, ContentError> {
-        let eng = engine_for::<T>(&diagram.content, &diagram.colors)?;
+        let eng = drawing_engine::<T>(diagram)?;
         Ok(T::scene(&eng))
     }
 
@@ -272,7 +279,7 @@ impl<T: Drawn> TypeOps for Entry<T> {
     }
 
     fn to_drawio(&self, diagram: &StoredDiagram) -> Result<String, ContentError> {
-        let eng = engine_for::<T>(&diagram.content, &diagram.colors)?;
+        let eng = drawing_engine::<T>(diagram)?;
         let heading = Heading {
             name: diagram.meta.name.clone(),
             description: diagram.meta.description.clone(),
@@ -336,6 +343,7 @@ pub fn new_diagram(
             updated_at: String::new(),
         },
         colors: BTreeMap::new(),
+        line_weight: None,
         content: ops(diagram_type).new_content(),
     }
 }
@@ -375,6 +383,22 @@ mod tests {
             let svg = ops(diagram.meta.diagram_type).to_svg(&diagram).unwrap();
             assert!(svg.contains(">Sales</text>"));
         }
+    }
+
+    #[test]
+    fn exports_draw_with_the_diagrams_line_weight() {
+        let diagram = hiero_core::file::diagram_from_json(&serde_json::json!({
+            "id": "d", "name": "T", "type": "conceptual", "lineWeight": "thin",
+            "elements": [{"id": "a", "kind": "domain", "label": "Sales", "x": 40, "y": 40}]
+        }))
+        .unwrap();
+        let ops = ops(diagram.meta.diagram_type);
+        assert!(
+            ops.to_svg(&diagram)
+                .unwrap()
+                .contains(r#"stroke-width="1.5""#)
+        );
+        assert!(ops.to_drawio(&diagram).unwrap().contains("strokeWidth=1.5"));
     }
 
     #[test]

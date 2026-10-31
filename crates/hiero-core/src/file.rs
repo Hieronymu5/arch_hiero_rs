@@ -9,7 +9,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::file_check::colors_key;
-use crate::model::{DiagramId, DiagramMeta, DiagramTypeId};
+use crate::model::{DiagramId, DiagramMeta, DiagramTypeId, LineWeight};
 use crate::stored::{StoredConnection, StoredContent, StoredDiagram, StoredElement};
 
 /// What the JSON file says it is, so a file from something else isn't taken for a diagram.
@@ -48,6 +48,8 @@ struct FileDiagram<'a> {
     colors: Option<&'a BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     physical_colors: Option<&'a BTreeMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line_weight: Option<LineWeight>,
     elements: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     connections: Option<Vec<Value>>,
@@ -78,6 +80,7 @@ fn file_diagram(diagram: &StoredDiagram) -> FileDiagram<'_> {
         description: meta.description.as_deref(),
         colors: if physical { None } else { colors },
         physical_colors: if physical { colors } else { None },
+        line_weight: diagram.line_weight,
         elements: diagram
             .content
             .elements
@@ -207,6 +210,9 @@ pub fn diagram_from_json(diagram: &Value) -> Result<StoredDiagram, DiagramFileEr
         .map(colors_from)
         .unwrap_or_default();
     let text = |key: &str| d.get(key).and_then(Value::as_str).map(str::to_owned);
+    let line_weight = text("lineWeight")
+        .and_then(|w| LineWeight::parse(&w))
+        .filter(|w| *w != diagram_type.default_line_weight());
     let now = crate::model::now_rfc3339();
     Ok(StoredDiagram {
         meta: DiagramMeta {
@@ -218,6 +224,7 @@ pub fn diagram_from_json(diagram: &Value) -> Result<StoredDiagram, DiagramFileEr
             updated_at: text("updatedAt").unwrap_or(now),
         },
         colors,
+        line_weight,
         content: StoredContent {
             elements,
             connections,
@@ -303,6 +310,21 @@ mod tests {
         let file = read_zip_json(&diagram_to_zip(&d)).unwrap();
         assert_eq!(file["format"], json!(DIAGRAM_FILE_FORMAT));
         assert_eq!(diagram_from_json(&file["diagram"]).unwrap(), d);
+    }
+
+    #[test]
+    fn line_weights_round_trip_and_defaults_are_left_out() {
+        let mut d = sample();
+        assert_eq!(d.line_weight(), LineWeight::Thick);
+        let json: Value = serde_json::from_str(&diagram_file_json(&d)).unwrap();
+        assert!(json["diagram"].get("lineWeight").is_none());
+        d.set_line_weight(LineWeight::Thin);
+        let file = read_zip_json(&diagram_to_zip(&d)).unwrap();
+        assert_eq!(file["diagram"]["lineWeight"], json!("thin"));
+        assert_eq!(diagram_from_json(&file["diagram"]).unwrap(), d);
+        let mut file = file["diagram"].clone();
+        file["lineWeight"] = json!("thick");
+        assert_eq!(diagram_from_json(&file).unwrap().line_weight, None);
     }
 
     #[test]

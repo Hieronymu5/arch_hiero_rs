@@ -10,7 +10,7 @@ use crate::figures::{
     component, figure_rect,
 };
 use crate::geometry::{Point, Rect, fmt_num, round2};
-use crate::model::{ColorScheme, ElementId};
+use crate::model::{ColorScheme, ElementId, LineWeight};
 use crate::routing::{
     ARROW_TAG_BORDER_WIDTH, Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT,
     connector_text_position, label_placement, label_text_position, return_arrow_placement,
@@ -91,8 +91,12 @@ pub const DESCRIPTION: TextStyle = TextStyle::new(13.0, Weight::Regular, 17.0, 3
 pub const SECTION_NAME: TextStyle = CONTAINER_NAME;
 /// The gap between a section's name and its line on either side.
 pub const SECTION_GAP: f64 = 8.0;
-/// The width of a section's lines, as thick as a container's border.
-pub const SECTION_LINE_WIDTH: f64 = 3.0;
+/// The width of a container's border, drawn thick, unless its look sets one.
+pub const BORDER_WIDTH: f64 = 3.0;
+/// The width of a box's, cloud's, or figure's outline, drawn thick.
+pub const OUTLINE_WIDTH: f64 = 2.0;
+/// The width of a section's lines, drawn thick: as thick as a container's border.
+pub const SECTION_LINE_WIDTH: f64 = BORDER_WIDTH;
 /// An arrow's text size.
 pub const ARROW_LABEL_SIZE: f64 = 13.0;
 
@@ -136,7 +140,8 @@ pub struct Look {
     pub name_at: NameAt,
     /// Square corners on a container.
     pub square: bool,
-    /// A container's border width. Unset means 3.
+    /// A container's border width when drawn thick, halved when thin. Unset means
+    /// [`BORDER_WIDTH`].
     pub border_width: Option<f64>,
     /// A container's border colour. Unset means the borders colour.
     pub border_color: Option<String>,
@@ -521,12 +526,15 @@ pub fn figure_badge_rect(area: Rect, figure: PhysicalFigure, text_width: f64) ->
     )
 }
 
-/// A box of text with its label centred, as an arrow's tag, with corners of `radius`.
-fn tag_nodes(tag: &ArrowTag, radius: f64) -> [Node; 2] {
+/// A box of text with its label centred, as an arrow's tag, with corners of `radius` and its
+/// border as thick as `weight`.
+fn tag_nodes(tag: &ArrowTag, radius: f64, weight: LineWeight) -> [Node; 2] {
     let paint = match &tag.border {
-        Some(border) => {
-            Paint::fill_stroke(tag.fill.clone(), border.clone(), ARROW_TAG_BORDER_WIDTH)
-        }
+        Some(border) => Paint::fill_stroke(
+            tag.fill.clone(),
+            border.clone(),
+            weight.of(ARROW_TAG_BORDER_WIDTH),
+        ),
         None => Paint::fill(tag.fill.clone()),
     };
     [
@@ -543,11 +551,12 @@ fn tag_nodes(tag: &ArrowTag, radius: f64) -> [Node; 2] {
     ]
 }
 
-/// The nodes that draw one element.
+/// The nodes that draw one element, with lines as thick as `weight`.
 pub fn draw_element(
     element: &LookElement,
     measure: &dyn MeasureText,
     colors: &DiagramColors,
+    weight: LineWeight,
 ) -> Vec<Node> {
     let Rect {
         x,
@@ -586,14 +595,14 @@ pub fn draw_element(
                     look.border_color
                         .clone()
                         .unwrap_or_else(|| colors.borders.clone()),
-                    look.border_width.unwrap_or(3.0),
+                    weight.of(look.border_width.unwrap_or(BORDER_WIDTH)),
                 )
                 .dashed(look.dashed.then_some((8.0, 4.0))),
             )];
             nodes.extend(colored(text, look.text_color.as_ref()));
             nodes
         }
-        Shape::Section => draw_section(element, measure, colors),
+        Shape::Section => draw_section(element, measure, colors, weight),
         Shape::Physical(figure) => {
             let size = figure.size();
             let name = wrap_text(&element.label, text_width, FIGURE_NAME, measure);
@@ -609,7 +618,7 @@ pub fn draw_element(
                 Paint::fill_stroke(
                     look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
                     colors.borders.clone(),
-                    2.0,
+                    weight.of(OUTLINE_WIDTH),
                 ),
                 children,
             )];
@@ -632,7 +641,7 @@ pub fn draw_element(
                 Paint::fill_stroke(
                     look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
                     colors.borders.clone(),
-                    2.0,
+                    weight.of(OUTLINE_WIDTH),
                 ),
                 component_figure(look.shape, look.agent),
             )];
@@ -682,7 +691,7 @@ pub fn draw_element(
             let paint = Paint::fill_stroke(
                 look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
                 colors.borders.clone(),
-                2.0,
+                weight.of(OUTLINE_WIDTH),
             );
             let outline = if cloud {
                 Node::path(
@@ -711,6 +720,7 @@ fn draw_section(
     element: &LookElement,
     measure: &dyn MeasureText,
     colors: &DiagramColors,
+    weight: LineWeight,
 ) -> Vec<Node> {
     let Rect {
         x,
@@ -720,8 +730,9 @@ fn draw_section(
     } = element.rect;
     let center_x = x + width / 2.0;
     let middle = y + height / 2.0;
-    let left = x + SECTION_LINE_WIDTH / 2.0;
-    let right = x + width - SECTION_LINE_WIDTH / 2.0;
+    let line_width = weight.of(SECTION_LINE_WIDTH);
+    let left = x + line_width / 2.0;
+    let right = x + width - line_width / 2.0;
     let name = wrap_text(
         &element.label,
         (width - SECTION_GAP * 4.0).max(0.0),
@@ -757,7 +768,7 @@ fn draw_section(
         Paint {
             fill: Some("none".into()),
             stroke: Some(colors.borders.clone()),
-            stroke_width: Some(SECTION_LINE_WIDTH),
+            stroke_width: Some(line_width),
             dash: None,
         },
     )];
@@ -816,17 +827,18 @@ pub fn bounds_of(elements: &[LookElement], arrows: &[ArrowLook]) -> Rect {
     Rect::new(min_x, min_y, max_x - min_x, max_y - min_y)
 }
 
-/// Draws a diagram: elements in the order given (containers before their children), then
-/// arrows with their text and boxes on top.
+/// Draws a diagram: elements in the order given (containers before their children), with
+/// lines as thick as `weight`, then arrows with their text and boxes on top.
 pub fn draw_diagram(
     elements: &[LookElement],
     arrows: &[ArrowLook],
     measure: &dyn MeasureText,
     colors: &DiagramColors,
+    weight: LineWeight,
 ) -> Scene {
     let mut nodes: Vec<Node> = Vec::new();
     for e in elements.iter().filter(|e| !e.look.on_top) {
-        nodes.extend(draw_element(e, measure, colors));
+        nodes.extend(draw_element(e, measure, colors, weight));
     }
     for e in elements.iter().filter(|e| e.look.outline_on_top) {
         nodes.push(Node::rect(
@@ -835,15 +847,15 @@ pub fn draw_diagram(
             Paint {
                 fill: Some("none".into()),
                 stroke: Some(colors.borders.clone()),
-                stroke_width: Some(e.look.border_width.unwrap_or(3.0)),
+                stroke_width: Some(weight.of(e.look.border_width.unwrap_or(BORDER_WIDTH))),
                 dash: None,
             },
         ));
     }
     for e in elements.iter().filter(|e| e.look.on_top) {
-        nodes.extend(draw_element(e, measure, colors));
+        nodes.extend(draw_element(e, measure, colors, weight));
     }
-    nodes.extend(draw_arrows(elements, arrows, colors));
+    nodes.extend(draw_arrows(elements, arrows, colors, weight));
     Scene {
         nodes,
         bounds: bounds_of(elements, arrows),
@@ -853,11 +865,13 @@ pub fn draw_diagram(
     }
 }
 
-/// The arrows' lines, return arrows, figure badges, boxes, tags, and text.
+/// The arrows' lines, return arrows, figure badges, boxes, tags, and text. The borders of the
+/// boxes, tags, and badges are as thick as `weight`; the lines keep their width.
 pub fn draw_arrows(
     elements: &[LookElement],
     arrows: &[ArrowLook],
     colors: &DiagramColors,
+    weight: LineWeight,
 ) -> Vec<Node> {
     let mut nodes: Vec<Node> = Vec::new();
     for a in arrows {
@@ -893,7 +907,7 @@ pub fn draw_arrows(
     // Over the arrows, so they don't move to make room.
     for e in elements {
         if let (Some(badge), Shape::Physical(_)) = (&e.look.figure_badge, e.look.shape) {
-            nodes.extend(tag_nodes(badge, badge.rect.height / 2.0));
+            nodes.extend(tag_nodes(badge, badge.rect.height / 2.0, weight));
         }
     }
     let connector_text = readable_text(&colors.connectors);
@@ -906,7 +920,11 @@ pub fn draw_arrows(
         nodes.push(Node::rect(
             *rect,
             3.0,
-            Paint::fill_stroke(colors.connectors.clone(), colors.borders.clone(), 1.5),
+            Paint::fill_stroke(
+                colors.connectors.clone(),
+                colors.borders.clone(),
+                weight.of(ARROW_TAG_BORDER_WIDTH),
+            ),
         ));
         nodes.push(Node::Text {
             at: text,
@@ -919,7 +937,7 @@ pub fn draw_arrows(
         });
     }
     for tag in arrows.iter().filter_map(|a| a.tag.as_ref()) {
-        nodes.extend(tag_nodes(tag, 3.0));
+        nodes.extend(tag_nodes(tag, 3.0, weight));
     }
     for a in arrows {
         let Some(label) = a.label.as_ref().filter(|l| !l.is_empty()) else {
@@ -965,6 +983,7 @@ mod tests {
             &element(Shape::Box, Rect::new(40.0, 40.0, 200.0, 100.0)),
             &EstimateText,
             &DiagramColors::default(),
+            LineWeight::Thick,
         );
         let svg_scene = Scene {
             nodes,
@@ -981,10 +1000,52 @@ mod tests {
     }
 
     #[test]
+    fn thin_lines_are_half_as_wide_on_elements_but_not_arrows() {
+        let mut domain = element(Shape::Container, Rect::new(0.0, 0.0, 400.0, 300.0));
+        domain.description = None;
+        let app = element(Shape::Box, Rect::new(40.0, 60.0, 200.0, 100.0));
+        let arrows = [ArrowLook {
+            from: Point::new(100.0, 200.0),
+            to: Point::new(300.0, 200.0),
+            connector: Some(("API".into(), Rect::new(268.0, 190.0, 32.0, 20.0))),
+            tag: Some(ArrowTag {
+                label: "HTTPS:443".into(),
+                rect: Rect::new(150.0, 190.0, 60.0, 20.0),
+                fill: "#eeeeee".into(),
+                text_color: "#000000".into(),
+                border: Some("#333333".into()),
+            }),
+            ..ArrowLook::default()
+        }];
+        let svg = scene_to_svg(
+            "t",
+            &draw_diagram(
+                &[domain, app],
+                &arrows,
+                &EstimateText,
+                &DiagramColors::default(),
+                LineWeight::Thin,
+            ),
+        );
+        assert!(svg.contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="1.5""##));
+        assert!(svg.contains(r##"fill="#ffffff" stroke="#1e1e1e" stroke-width="1""##));
+        assert!(svg.contains(r##"stroke="#0066cc" stroke-width="2""##));
+        // The boxes and tags on arrows are thin too.
+        assert!(svg.contains(r##"fill="#cfd4da" stroke="#1e1e1e" stroke-width="0.75""##));
+        assert!(svg.contains(r##"fill="#eeeeee" stroke="#333333" stroke-width="0.75""##));
+    }
+
+    #[test]
     fn descriptions_keep_their_line_breaks() {
         let mut e = element(Shape::Box, Rect::new(40.0, 40.0, 200.0, 140.0));
         e.description = Some("Leads\nAccounts".into());
-        let scene = draw_diagram(&[e], &[], &EstimateText, &DiagramColors::default());
+        let scene = draw_diagram(
+            &[e],
+            &[],
+            &EstimateText,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
         let svg = scene_to_svg("t", &scene);
         // Each line of the description on a line of its own, though both would fit on one.
         assert!(svg.contains(r#"font-size="13" font-weight="400">Leads</text>"#));
@@ -1001,7 +1062,13 @@ mod tests {
             transformation: Some(("Map".into(), Rect::new(184.0, 40.0, 32.0, 20.0))),
             ..ArrowLook::default()
         }];
-        let scene = draw_diagram(&[], &arrows, &EstimateText, &DiagramColors::default());
+        let scene = draw_diagram(
+            &[],
+            &arrows,
+            &EstimateText,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
         let svg = scene_to_svg("t", &scene);
         assert!(svg.contains(r##"<line x1="100" y1="50" x2="300" y2="50" stroke="#0066cc" stroke-width="2" marker-end="url(#arrowhead)"/>"##));
         assert!(svg.contains(r#"marker-end="url(#return-arrowhead)""#));
@@ -1017,7 +1084,13 @@ mod tests {
             two_heads: true,
             ..ArrowLook::default()
         }];
-        let scene = draw_diagram(&[], &arrows, &EstimateText, &DiagramColors::default());
+        let scene = draw_diagram(
+            &[],
+            &arrows,
+            &EstimateText,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
         let svg = scene_to_svg("t", &scene);
         assert!(svg.contains(r#"<line x1="200" y1="50" x2="300" y2="50""#));
         assert!(svg.contains(r#"<line x1="200" y1="50" x2="100" y2="50""#));
@@ -1031,7 +1104,13 @@ mod tests {
         let svg_of = |label: &str| {
             let mut e = element(Shape::Actor, area);
             e.label = label.into();
-            let scene = draw_diagram(&[e], &[], &EstimateText, &DiagramColors::default());
+            let scene = draw_diagram(
+                &[e],
+                &[],
+                &EstimateText,
+                &DiagramColors::default(),
+                LineWeight::Thick,
+            );
             scene_to_svg("t", &scene)
         };
         // The figure starts 5px down the area, whatever the name's length.
@@ -1065,6 +1144,7 @@ mod tests {
             &[],
             &EstimateText,
             &DiagramColors::default(),
+            LineWeight::Thick,
         );
         let svg = scene_to_svg("t", &scene);
         assert!(svg.contains(r#"<g transform="translate(76 40)""#));

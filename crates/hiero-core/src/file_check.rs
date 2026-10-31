@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use crate::color::is_hex_color;
 use crate::count::InstanceCount;
 use crate::engine::DiagramType;
-use crate::model::{ColorScheme, DiagramTypeId, KindInfo};
+use crate::model::{ColorScheme, DiagramTypeId, KindInfo, LineWeight};
 
 type Object = Map<String, Value>;
 
@@ -444,6 +444,19 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
         check_colors::<T>(colors_key, value).map_err(at)?;
     }
 
+    // 11, continued. How thick elements’ lines are.
+    if let Some(value) = diagram.get("lineWeight") {
+        let weight = value
+            .as_str()
+            .and_then(LineWeight::parse)
+            .ok_or_else(|| at(must_be("lineWeight", "“thin” or “thick”")))?;
+        if weight == T::ID.default_line_weight() {
+            return Err(at(
+                "“lineWeight” must be left out when it’s the default.".into()
+            ));
+        }
+    }
+
     // 12. The dates.
     for key in ["createdAt", "updatedAt"] {
         let text = match diagram.get(key) {
@@ -477,6 +490,7 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
                 | "updatedAt"
                 | "elements"
                 | "connections"
+                | "lineWeight"
         ) || (has_colors && k == colors_key)
     };
     if let Some(key) = first_unknown(diagram, allowed) {

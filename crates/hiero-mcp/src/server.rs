@@ -6,7 +6,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use hiero_core::file::{diagram_to_json, diagram_to_zip};
-use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
+use hiero_core::model::{
+    DiagramId, DiagramTypeId, LineWeight, validate_description, validate_name,
+};
 use hiero_registry::{EditOp, ops, types};
 use hiero_store::{Store, StoreError};
 use rmcp::handler::server::router::tool::ToolRouter;
@@ -79,6 +81,11 @@ pub struct DetailsParams {
     /// from the defaults are kept. An empty object resets them all.
     #[serde(default)]
     pub colors: Option<BTreeMap<String, String>>,
+    /// How thick elements' lines are drawn: "thin" or "thick". Arrows keep their own width.
+    /// The default is in list_diagram_types; a diagram's JSON has "lineWeight" only when it
+    /// differs.
+    #[serde(default)]
+    pub line_weight: Option<String>,
     /// The revision from get_diagram. If the diagram changed since, the update is refused.
     #[serde(default)]
     pub expected_revision: Option<i64>,
@@ -254,7 +261,7 @@ impl HieroServer {
 #[tool_router]
 impl HieroServer {
     #[tool(
-        description = "Every diagram type, with its kinds of element (what each can contain and connect to), what its elements' and arrows' props can be, the values of props with a fixed list (such as a deployed component's techStack ids), and its colours.",
+        description = "Every diagram type, with its kinds of element (what each can contain and connect to), what its elements' and arrows' props can be, the values of props with a fixed list (such as a deployed component's techStack ids), its colours, and its default line weight.",
         annotations(read_only_hint = true)
     )]
     pub async fn list_diagram_types(&self) -> ToolResult {
@@ -269,6 +276,7 @@ impl HieroServer {
                     "props": t.props_doc(),
                     "propValues": t.prop_values(),
                     "colors": t.color_fields().iter().map(|(k, l)| json!({"key": k, "label": l})).collect::<Vec<_>>(),
+                    "lineWeight": t.id().default_line_weight(),
                     "spec": format!("arch-hiero://types/{}", t.id().as_str()),
                 })
             })
@@ -344,7 +352,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Changes a diagram's name, description, or colours. Its type can't be changed."
+        description = "Changes a diagram's name, description, colours, or line weight (how thick elements' lines are). Its type can't be changed."
     )]
     pub async fn update_diagram_details(
         &self,
@@ -364,6 +372,12 @@ impl HieroServer {
             }
             if let Some(colors) = p.colors {
                 d.colors = ops(d.meta.diagram_type).normalize_colors(&colors);
+            }
+            if let Some(weight) = p.line_weight {
+                let weight = LineWeight::parse(&weight).ok_or_else(|| {
+                    StoreError::Corrupt("The line weight must be \"thin\" or \"thick\".".into())
+                })?;
+                d.set_line_weight(weight);
             }
             store.save(
                 &record.diagram,

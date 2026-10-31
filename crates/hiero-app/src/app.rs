@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use hiero_core::file::{diagram_to_zip, file_name};
 use hiero_core::history::{DiagramSnapshot, UndoStack};
-use hiero_core::model::{DiagramId, DiagramTypeId};
+use hiero_core::model::{DiagramId, DiagramTypeId, LineWeight};
 use hiero_core::stored::StoredDiagram;
 use hiero_editor::DiagramEditor;
 use hiero_editor::theme::Accent;
@@ -100,6 +100,8 @@ pub struct DetailsForm {
     pub diagram_type: Option<DiagramTypeId>,
     pub description: String,
     pub colors: BTreeMap<String, String>,
+    /// How thick elements' lines are. Unset while adding a diagram.
+    pub line_weight: Option<LineWeight>,
     pub tried: bool,
     pub error: Option<String>,
 }
@@ -317,6 +319,7 @@ impl App {
             open.save_failed = Some(e.to_string());
         }
         open.editor.set_colors(&open.record.colors);
+        open.editor.set_line_weight(open.record.line_weight());
     }
 
     pub fn undo(&mut self) {
@@ -492,6 +495,10 @@ impl App {
             Some(form.description.trim().to_owned()).filter(|d| !d.is_empty());
         open.record.colors = ops.normalize_colors(&form.colors);
         open.editor.set_colors(&open.record.colors);
+        if let Some(weight) = form.line_weight {
+            open.record.set_line_weight(weight);
+            open.editor.set_line_weight(weight);
+        }
         if DiagramSnapshot::of(&open.record) != before {
             let stack = self.undo_stack(&id);
             stack.break_group();

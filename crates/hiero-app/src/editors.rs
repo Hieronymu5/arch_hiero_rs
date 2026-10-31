@@ -11,7 +11,7 @@ use hiero_physical::Physical;
 pub fn editor_for(diagram: &StoredDiagram) -> Result<Box<dyn DiagramEditor>, ContentError> {
     let salt = egui::Id::unique(("editor", diagram.meta.id.as_str()));
     let (content, colors) = (&diagram.content, &diagram.colors);
-    Ok(match diagram.meta.diagram_type {
+    let mut editor: Box<dyn DiagramEditor> = match diagram.meta.diagram_type {
         DiagramTypeId::Conceptual => {
             Box::new(Editor::<Conceptual>::from_stored(content, colors, salt)?)
         }
@@ -21,5 +21,7 @@ pub fn editor_for(diagram: &StoredDiagram) -> Result<Box<dyn DiagramEditor>, Con
         DiagramTypeId::DeployedComponent => Box::new(Editor::<DeployedComponent>::from_stored(
             content, colors, salt,
         )?),
-    })
+    };
+    editor.set_line_weight(diagram.line_weight());
+    Ok(editor)
 }

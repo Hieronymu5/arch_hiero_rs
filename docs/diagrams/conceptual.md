@@ -1,6 +1,6 @@
 # Conceptual diagram
 
-**Type id:** `conceptual` · **Has arrows:** yes · **Custom colours:** yes (9)
+**Type id:** `conceptual` · **Has arrows:** yes · **Custom colours:** yes (9) · **Line weight:** thick by default
 **Rust crate:** `crates/diagrams/hiero-conceptual`
 **Prototype source:** `arch_hiero/src/app/diagrams/conceptual/`, `model/conceptual-diagram.ts`
 
@@ -92,6 +92,15 @@ Each diagram can override any of these. Only colours that differ from the defaul
 Text on a fill is black or white, whichever has more contrast (WCAG). This uses
 `hiero_core::color::readable_text`.
 
+## Line weight
+
+Edit Details offers **Line thickness**: *Thick* (the default) or *Thin*, stored as the diagram's
+`lineWeight` (`"thin"`) only when it isn't the default. It sets how thick elements' lines are,
+in the editor and the exports: containers' borders (such as domains') and sections'
+lines are 3 px thick and 1.5 px thin; boxes', clouds', and figures' outlines are 2 px thick and
+1 px thin; connector and transformation boxes' borders are 1.5 px thick and 0.75 px thin.
+Arrows' lines and heads keep their widths.
+
 ## Figures (shared with other types)
 
 - **Actor:** a person, or a bot. Physical diagrams use the same person for users.
@@ -145,4 +154,5 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] Arrow draw, route, select, straighten, and place automatically. Arrow keys nudge the selected arrow.
 - [x] Arrow text, mode, bidirectional, connector, and transformation
 - [x] Per-diagram colours with "Use the default colors"
+- [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [ ] SVG and draw.io export that match the prototype (snapshot tests) — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

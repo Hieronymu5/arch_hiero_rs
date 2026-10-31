@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use crate::model::LineWeight;
 use crate::stored::{
     StoredConnection, StoredContent, StoredDiagram, StoredElement, canonical_json,
 };
@@ -29,6 +30,7 @@ pub struct DiagramSnapshot {
     pub name: String,
     pub description: Option<String>,
     pub colors: BTreeMap<String, String>,
+    pub line_weight: Option<LineWeight>,
     pub content: StoredContent,
 }
 
@@ -38,6 +40,7 @@ impl DiagramSnapshot {
             name: diagram.meta.name.clone(),
             description: diagram.meta.description.clone(),
             colors: diagram.colors.clone(),
+            line_weight: diagram.line_weight,
             content: diagram.content.clone(),
         }
     }
@@ -47,17 +50,23 @@ impl DiagramSnapshot {
         diagram.meta.name.clone_from(&self.name);
         diagram.meta.description.clone_from(&self.description);
         diagram.colors.clone_from(&self.colors);
+        diagram.line_weight = self.line_weight;
         diagram.content.clone_from(&self.content);
     }
 
     fn to_json(&self) -> Value {
-        json!({
+        let mut value = json!({
             "name": self.name,
             "description": self.description,
             "colors": self.colors,
             "elements": self.content.elements.iter().map(StoredElement::to_json).collect::<Vec<_>>(),
             "connections": self.content.connections.iter().map(StoredConnection::to_json).collect::<Vec<_>>(),
-        })
+        });
+        // Left out when unset, so the hashes of diagrams from before it existed don't change.
+        if let Some(weight) = self.line_weight {
+            value["lineWeight"] = json!(weight);
+        }
+        value
     }
 
     /// The SHA-256 of the snapshot's canonical JSON, as lowercase hex.
@@ -173,6 +182,7 @@ mod tests {
                 updated_at: "2026-01-01T00:00:00.000Z".into(),
             },
             colors: BTreeMap::new(),
+            line_weight: None,
             content: StoredContent {
                 elements: vec![
                     StoredElement::from_json(&json!({
@@ -193,6 +203,9 @@ mod tests {
         assert_eq!(content_hash(&a), content_hash(&b));
         b.meta.name = "Two".into();
         assert_ne!(content_hash(&a), content_hash(&b));
+        let mut c = a.clone();
+        c.line_weight = Some(crate::model::LineWeight::Thin);
+        assert_ne!(content_hash(&a), content_hash(&c));
         assert_eq!(content_hash(&a).len(), 64);
     }
 

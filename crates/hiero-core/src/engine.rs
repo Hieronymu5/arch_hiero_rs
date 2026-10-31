@@ -21,7 +21,7 @@ use crate::layout::{
 };
 use crate::model::{
     ColorScheme, Connection, ConnectionId, ContainerLook, DiagramTypeId, Element, ElementId,
-    KindInfo, Resizable,
+    KindInfo, LineWeight, Resizable,
 };
 use crate::text::{MeasureText, font_metrics};
 
@@ -446,6 +446,7 @@ pub struct Engine<T: DiagramType> {
     connections: Vec<Conn<T>>,
     layout: Vec<Laid<T>>,
     colors: T::Colors,
+    line_weight: LineWeight,
     /// The selected elements' ids, in the order they were selected.
     pub selection: Vec<ElementId>,
     pub selected_connection: Option<ConnectionId>,
@@ -464,6 +465,7 @@ impl<T: DiagramType> Engine<T> {
             connections,
             layout: Vec::new(),
             colors,
+            line_weight: T::ID.default_line_weight(),
             selection: Vec::new(),
             selected_connection: None,
             announcement: String::new(),
@@ -547,6 +549,18 @@ impl<T: DiagramType> Engine<T> {
         self.colors = colors;
         self.relayout();
         self.changes += 1;
+    }
+
+    /// How thick elements' lines are drawn.
+    pub fn line_weight(&self) -> LineWeight {
+        self.line_weight
+    }
+
+    pub fn set_line_weight(&mut self, weight: LineWeight) {
+        if weight != self.line_weight {
+            self.line_weight = weight;
+            self.changes += 1;
+        }
     }
 
     fn relayout(&mut self) {

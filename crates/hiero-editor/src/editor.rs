@@ -12,7 +12,7 @@ use hiero_core::engine::{
     Conn, Corner, DiagramType, Dir, El, Engine, Laid, Placement, validate_label,
 };
 use hiero_core::geometry::{CANVAS_HEIGHT, CANVAS_WIDTH, GRID, Point, Rect};
-use hiero_core::model::{ColorScheme, ConnectionId, ElementId};
+use hiero_core::model::{ColorScheme, ConnectionId, ElementId, LineWeight};
 use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent};
 
@@ -345,6 +345,10 @@ impl<T: DiagramView> Editor<T> {
 
     pub fn set_colors(&mut self, overrides: &BTreeMap<String, String>) {
         self.eng.set_colors(T::Colors::from_overrides(overrides));
+    }
+
+    pub fn set_line_weight(&mut self, weight: LineWeight) {
+        self.eng.set_line_weight(weight);
     }
 
     /// The diagram as stored, drawn.
@@ -1440,6 +1444,7 @@ pub trait DiagramEditor {
     fn content(&self) -> StoredContent;
     fn replace_content(&mut self, content: &StoredContent) -> Result<(), ContentError>;
     fn set_colors(&mut self, overrides: &BTreeMap<String, String>);
+    fn set_line_weight(&mut self, weight: LineWeight);
     fn scene(&self) -> Scene;
     fn has_content(&self) -> bool;
     fn show_help(&mut self) -> &mut bool;
@@ -1470,6 +1475,10 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn set_colors(&mut self, overrides: &BTreeMap<String, String>) {
         Editor::set_colors(self, overrides);
+    }
+
+    fn set_line_weight(&mut self, weight: LineWeight) {
+        Editor::set_line_weight(self, weight);
     }
 
     fn scene(&self) -> Scene {

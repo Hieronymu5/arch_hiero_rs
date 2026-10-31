@@ -24,7 +24,7 @@ The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__
 | `list_diagrams`, `get_diagram` | Find a diagram, and read its elements, arrows, `revision`, and `layout`: each element's drawn `x`, `y`, `width`, and `height`. |
 | `create_diagram` | `name`, `type`, and an optional `description`. A diagram's type can't be changed later. |
 | `edit_diagram` | A batch of `ops` (below), applied with the type's rules, all or nothing. |
-| `update_diagram_details` | The name, description, or colours. |
+| `update_diagram_details` | The name, description, colours, or line weight (`"thin"` or `"thick"`). |
 | `save_version`, `list_versions` | Record the diagram as a numbered version, with a short description. |
 | `export_diagram` | `svg` or `drawio` (returned as text, and written to `path` if given), or `zip` (the diagram file, to `path`). Add `overwrite: true` to replace a file. |
 

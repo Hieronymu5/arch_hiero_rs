@@ -1,6 +1,6 @@
 # Deployed component diagram
 
-**Type id:** `deployed-component` · **Has arrows:** no · **Custom colours:** no (fixed scheme)
+**Type id:** `deployed-component` · **Has arrows:** no · **Custom colours:** no (fixed scheme) · **Line weight:** thin by default
 **Rust crate:** `crates/diagrams/hiero-deployed`
 **Prototype source:** `arch_hiero/src/app/diagrams/deployed-component/`,
 `model/deployed-component-diagram.ts`, `model/tech-stack.ts`,
@@ -65,6 +65,15 @@ Each component's own colours depend on its **Type**:
 
 These fills are also used by physical zone colours, so the table lives in
 `hiero-core::palette`.
+
+## Line weight
+
+Edit Details offers **Line thickness**: *Thin* (the default) or *Thick*,
+stored as the diagram's `lineWeight` (`"thick"`) only when it isn't the default. Layers' and
+components' borders, components' dividers, and characteristics and protocol bars' borders and
+separators are
+1 px thin and 2 px thick, as other diagrams' outlines are, in the editor and the exports. Logo boxes
+and the instance oval keep their thin borders.
 
 ## Element properties
 
@@ -136,4 +145,5 @@ Rust shape: `Element<DeployedKind, DeployedProps>`, with `DeployedProps { charac
 - [x] Keyboard and drag reordering, and moving components between layers
 - [x] 92-item tech stack picker with grouped, collapsible categories
 - [x] Dependency colours
+- [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [ ] Custom SVG and draw.io export that match the prototype — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

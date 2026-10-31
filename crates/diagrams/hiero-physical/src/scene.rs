@@ -419,11 +419,12 @@ pub fn scene_of(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Scene {
     let firewalls = edge_firewalls(eng, layout, &drawn);
     let arrows: Vec<ArrowLook> = drawn.into_iter().map(|a| a.look).collect();
     let colors = base_colors(eng);
-    let mut scene = draw_diagram(&elements, &arrows, eng.measure(), &colors);
+    let weight = eng.line_weight();
+    let mut scene = draw_diagram(&elements, &arrows, eng.measure(), &colors, weight);
     for firewall in &firewalls {
         scene
             .nodes
-            .extend(draw_element(firewall, eng.measure(), &colors));
+            .extend(draw_element(firewall, eng.measure(), &colors, weight));
         let (b, r) = (scene.bounds, firewall.rect);
         let (x, y) = (b.x.min(r.x), b.y.min(r.y));
         scene.bounds = Rect::new(
@@ -464,6 +465,7 @@ pub fn to_drawio(
         &arrows,
         heading,
         &base_colors(eng),
+        eng.line_weight(),
     )
 }
 

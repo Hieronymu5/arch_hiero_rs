@@ -4,6 +4,7 @@
 
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::geometry::{Point, Rect, round2};
+use hiero_core::model::LineWeight;
 use hiero_core::scene::{Anchor, Node, Paint, Scene};
 use hiero_core::text::{MeasureText, TextStyle, Weight, wrap_text};
 
@@ -25,6 +26,10 @@ const BULLET_DOT_RADIUS: f64 = 2.5;
 const BULLET_DOT_X: f64 = 5.0;
 /// The rounding of layers' and components' corners.
 pub const CORNER_RADIUS: f64 = 6.0;
+/// The width of layers', components', and characteristics and protocol bars' borders,
+/// components' dividers, and the bars' separators, drawn thick: as thick as other diagrams'
+/// outlines.
+pub const LINE_WIDTH: f64 = 2.0;
 
 /// `text` on one line no wider than `width`, ending with "…" when it's cut.
 fn fit(text: &str, width: f64, style: (f64, Weight), measure: &dyn MeasureText) -> String {
@@ -59,8 +64,13 @@ fn text(
 }
 
 /// A bar across the top of a layer or component: a pill with `labels` side by side, with a
-/// line leaning over between each and the next.
-fn bar(rect: Rect, labels: &[String], border: &str, measure: &dyn MeasureText) -> Vec<Node> {
+/// line leaning over between each and the next. Its lines are `width` wide.
+fn bar(
+    rect: Rect,
+    labels: &[String],
+    (border, width): (&str, f64),
+    measure: &dyn MeasureText,
+) -> Vec<Node> {
     let (segments, separators) = protocol_segments(rect, labels);
     let mut nodes = vec![Node::rect(
         rect,
@@ -68,6 +78,7 @@ fn bar(rect: Rect, labels: &[String], border: &str, measure: &dyn MeasureText) -
         Paint {
             fill: Some(colors::BAR_FILL.into()),
             stroke: Some(border.into()),
+            stroke_width: Some(width),
             ..Paint::default()
         },
     )];
@@ -77,6 +88,7 @@ fn bar(rect: Rect, labels: &[String], border: &str, measure: &dyn MeasureText) -
             Point::new(round2(to.x), to.y),
             Paint {
                 stroke: Some(border.into()),
+                stroke_width: Some(width),
                 ..Paint::default()
             },
         ));
@@ -94,19 +106,27 @@ fn bar(rect: Rect, labels: &[String], border: &str, measure: &dyn MeasureText) -
     nodes
 }
 
-fn draw_layer(layer: &Laid<DeployedComponent>, measure: &dyn MeasureText) -> Vec<Node> {
+fn draw_layer(
+    layer: &Laid<DeployedComponent>,
+    measure: &dyn MeasureText,
+    weight: LineWeight,
+) -> Vec<Node> {
     let r = layer.rect;
     let chars = characteristics(&layer.el);
     let mut nodes = vec![Node::rect(
         r,
         CORNER_RADIUS,
-        Paint::fill_stroke(colors::LAYER_FILL, colors::LAYER_BORDER, 1.5),
+        Paint::fill_stroke(
+            colors::LAYER_FILL,
+            colors::LAYER_BORDER,
+            weight.of(LINE_WIDTH),
+        ),
     )];
     if !chars.is_empty() {
         nodes.extend(bar(
             Rect::new(r.x, r.y - LAYER_BAR_LIFT, r.width, LAYER_BAR_HEIGHT),
             chars,
-            colors::CHARACTERISTICS_BORDER,
+            (colors::CHARACTERISTICS_BORDER, weight.of(LINE_WIDTH)),
             measure,
         ));
     }
@@ -126,7 +146,11 @@ fn draw_layer(layer: &Laid<DeployedComponent>, measure: &dyn MeasureText) -> Vec
     nodes
 }
 
-fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText) -> Vec<Node> {
+fn draw_component(
+    component: &Laid<DeployedComponent>,
+    measure: &dyn MeasureText,
+    width: f64,
+) -> Vec<Node> {
     let r = component.rect;
     let el = &component.el;
     let color = component_colors(el.props.dependency);
@@ -141,14 +165,14 @@ fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText
         Node::line(
             Point::new(r.x, y),
             Point::new(r.right(), y),
-            Paint::stroke(color.border, 1.5),
+            Paint::stroke(color.border, width),
         )
     };
     let mut nodes = vec![
         Node::rect(
             r,
             CORNER_RADIUS,
-            Paint::fill_stroke(color.fill, color.border, 1.5),
+            Paint::fill_stroke(color.fill, color.border, width),
         ),
         divider(parts.name_divider_y),
         divider(parts.footer_divider_y),
@@ -157,7 +181,7 @@ fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText
         nodes.extend(bar(
             parts.protocol_bar,
             protocols,
-            colors::PROTOCOL_BORDER,
+            (colors::PROTOCOL_BORDER, width),
             measure,
         ));
     }
@@ -237,12 +261,13 @@ fn draw_component(component: &Laid<DeployedComponent>, measure: &dyn MeasureText
 pub fn scene_of(eng: &Engine<DeployedComponent>, layout: &[Laid<DeployedComponent>]) -> Scene {
     let measure = eng.measure();
     let (layers, components): (Vec<_>, Vec<_>) = layout.iter().partition(|e| is_layer(&e.el));
+    let weight = eng.line_weight();
     let mut nodes = Vec::new();
     for layer in &layers {
-        nodes.extend(draw_layer(layer, measure));
+        nodes.extend(draw_layer(layer, measure, weight));
     }
     for component in &components {
-        nodes.extend(draw_component(component, measure));
+        nodes.extend(draw_component(component, measure, weight.of(LINE_WIDTH)));
     }
     let mut xs: Vec<f64> = Vec::new();
     let mut ys: Vec<f64> = Vec::new();
@@ -302,13 +327,38 @@ mod tests {
             c
         });
         let svg = scene_to_svg("Deploy", &scene(&e));
-        assert!(svg.contains(r##"fill="#e6e6e6" stroke="#b3b3b3" stroke-width="1.5""##));
-        assert!(svg.contains(r##"fill="#d5e8d4" stroke="#82b366" stroke-width="1.5""##));
+        assert!(svg.contains(r##"fill="#e6e6e6" stroke="#b3b3b3" stroke-width="1""##));
+        assert!(svg.contains(r##"fill="#d5e8d4" stroke="#82b366" stroke-width="1""##));
         assert!(svg.contains(">HTTPS</text>"));
         assert!(svg.contains(r#"href="data:image/png;base64,"#));
         assert!(svg.contains(">Serves pages</text>"));
         assert!(svg.contains(">50+</text>"));
         // Cropped to include the protocol bar raised over the component's top.
         assert!(svg.contains(r#"viewBox="0 0 900 290""#));
+        e.set_line_weight(LineWeight::Thick);
+        let svg = scene_to_svg("Deploy", &scene(&e));
+        assert!(svg.contains(r##"fill="#d5e8d4" stroke="#82b366" stroke-width="2""##));
+        // The protocol bar and its separator follow it too.
+        let protocol = r##"stroke="#1b1f24" stroke-width="2""##;
+        assert_eq!(svg.matches(protocol).count(), 2, "{svg}");
+    }
+
+    #[test]
+    fn characteristics_bars_follow_the_line_weight() {
+        let mut e = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {})
+            .with_measure(&ESTIMATE);
+        e.add_at_free_position(DeployedKind::Layer);
+        let id = e.selected_id().unwrap().clone();
+        e.replace(&id, |mut l| {
+            l.props.characteristics = Some(vec!["DNS".into(), "VPN".into()]);
+            l
+        });
+        // The bar's border and the separator between its two labels.
+        let border = |width: &str| format!(r##"stroke="#666666" stroke-width="{width}""##);
+        let svg = scene_to_svg("Deploy", &scene(&e));
+        assert_eq!(svg.matches(&border("1")).count(), 2, "{svg}");
+        e.set_line_weight(LineWeight::Thick);
+        let svg = scene_to_svg("Deploy", &scene(&e));
+        assert_eq!(svg.matches(&border("2")).count(), 2, "{svg}");
     }
 }

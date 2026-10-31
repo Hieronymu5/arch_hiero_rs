@@ -9,6 +9,7 @@ use hiero_core::export::drawio::{
 };
 use hiero_core::export::svg::escape_xml;
 use hiero_core::geometry::{Point, Rect, fmt_num, round2};
+use hiero_core::model::LineWeight;
 
 use crate::layout::{
     BADGE_FONT_SIZE, BULLET_LINE, LAYER_BAR_HEIGHT, LAYER_BAR_LIFT, LAYER_NAME_HEIGHT, LOGO,
@@ -16,7 +17,7 @@ use crate::layout::{
     layer_name_top, protocol_segments,
 };
 use crate::model::{DeployedComponent, LAYER_PADDING, colors, component_colors};
-use crate::scene::CORNER_RADIUS;
+use crate::scene::{CORNER_RADIUS, LINE_WIDTH};
 use crate::tech_stack;
 
 const BULLET_INDENT: f64 = 16.0;
@@ -35,12 +36,13 @@ fn vertex(id: &str, value: &str, style: &str, parent: &str, r: Rect) -> String {
     )
 }
 
-/// A line with no arrowheads, relative to `parent`.
-fn line(id: &str, color: &str, parent: &str, from: Point, to: Point) -> String {
+/// A line with no arrowheads, relative to `parent`, `width` wide.
+fn line(id: &str, (color, width): (&str, f64), parent: &str, from: Point, to: Point) -> String {
     let style = Style::new()
         .set("endArrow", "none")
         .set("html", 1)
         .set("strokeColor", color)
+        .num("strokeWidth", width)
         .build();
     format!(
         "        <mxCell id=\"{}\" value=\"\" style=\"{style}\" edge=\"1\" parent=\"{}\">\n          <mxGeometry relative=\"1\" as=\"geometry\">\n            <mxPoint x=\"{}\" y=\"{}\" as=\"sourcePoint\" />\n            <mxPoint x=\"{}\" y=\"{}\" as=\"targetPoint\" />\n          </mxGeometry>\n        </mxCell>",
@@ -81,22 +83,17 @@ fn bar_cells(
     parent: &str,
     bar: Rect,
     labels: &[String],
-    border: &str,
+    (border, width): (&str, f64),
 ) -> Vec<String> {
     let (segments, separators) = protocol_segments(bar, labels);
-    let mut cells = vec![vertex(
-        id,
-        "",
-        &Style::new()
-            .set("rounded", 1)
-            .set("arcSize", 50)
-            .set("html", 1)
-            .set("fillColor", colors::BAR_FILL)
-            .set("strokeColor", border)
-            .build(),
-        parent,
-        bar,
-    )];
+    let style = Style::new()
+        .set("rounded", 1)
+        .set("arcSize", 50)
+        .set("html", 1)
+        .set("fillColor", colors::BAR_FILL)
+        .set("strokeColor", border)
+        .num("strokeWidth", width);
+    let mut cells = vec![vertex(id, "", &style.build(), parent, bar)];
     for (i, s) in segments.iter().enumerate() {
         cells.push(vertex(
             &format!("{label_id}-{i}"),
@@ -114,7 +111,7 @@ fn bar_cells(
     for (i, (from, to)) in separators.into_iter().enumerate() {
         cells.push(line(
             &format!("{label_id}-separator-{i}"),
-            border,
+            (border, width),
             parent,
             from,
             to,
@@ -123,7 +120,7 @@ fn bar_cells(
     cells
 }
 
-fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point) -> Vec<String> {
+fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point, weight: LineWeight) -> Vec<String> {
     let id = layer.id().as_str();
     let r = layer.rect;
     let chars = characteristics(&layer.el);
@@ -137,7 +134,8 @@ fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point) -> Vec<String> {
                 .num("arcSize", CORNER_RADIUS * 2.0)
                 .set("html", 1)
                 .set("fillColor", colors::LAYER_FILL)
-                .set("strokeColor", colors::LAYER_BORDER),
+                .set("strokeColor", colors::LAYER_BORDER)
+                .num("strokeWidth", weight.of(LINE_WIDTH)),
         )
         .build(),
         "1",
@@ -150,7 +148,7 @@ fn layer_cells(layer: &Laid<DeployedComponent>, offset: Point) -> Vec<String> {
             id,
             Rect::new(0.0, -LAYER_BAR_LIFT, r.width, LAYER_BAR_HEIGHT),
             chars,
-            colors::CHARACTERISTICS_BORDER,
+            (colors::CHARACTERISTICS_BORDER, weight.of(LINE_WIDTH)),
         ));
     }
     cells.push(vertex(
@@ -172,6 +170,7 @@ fn component_cells(
     component: &Laid<DeployedComponent>,
     parent: &str,
     origin: Point,
+    width: f64,
 ) -> Vec<String> {
     let id = component.id().as_str();
     let el = &component.el;
@@ -196,7 +195,8 @@ fn component_cells(
                     .num("arcSize", CORNER_RADIUS * 2.0)
                     .set("html", 1)
                     .set("fillColor", color.fill)
-                    .set("strokeColor", color.border),
+                    .set("strokeColor", color.border)
+                    .num("strokeWidth", width),
             )
             .build(),
             parent,
@@ -204,14 +204,14 @@ fn component_cells(
         ),
         line(
             &format!("{id}-name-divider"),
-            color.border,
+            (color.border, width),
             id,
             Point::new(0.0, parts.name_divider_y),
             Point::new(r.width, parts.name_divider_y),
         ),
         line(
             &format!("{id}-footer-divider"),
-            color.border,
+            (color.border, width),
             id,
             Point::new(0.0, parts.footer_divider_y),
             Point::new(r.width, parts.footer_divider_y),
@@ -224,7 +224,7 @@ fn component_cells(
             id,
             parts.protocol_bar,
             protocols,
-            colors::PROTOCOL_BORDER,
+            (colors::PROTOCOL_BORDER, width),
         ));
     }
     cells.push(vertex(
@@ -372,14 +372,18 @@ pub fn to_drawio(
     if let Some((xml, _)) = &heading {
         cells.push(xml.clone());
     }
+    let weight = eng.line_weight();
+    let width = weight.of(LINE_WIDTH);
     for layer in layout.iter().filter(|e| is_layer(&e.el)) {
-        cells.extend(layer_cells(layer, offset));
+        cells.extend(layer_cells(layer, offset, weight));
     }
     for component in layout.iter().filter(|e| !is_layer(&e.el)) {
         let layer = component.el.parent_id.as_ref().and_then(|p| eng.laid(p));
         cells.extend(match layer {
-            Some(layer) => component_cells(component, layer.id().as_str(), layer.rect.position()),
-            None => component_cells(component, "1", Point::new(-offset.x, -offset.y)),
+            Some(layer) => {
+                component_cells(component, layer.id().as_str(), layer.rect.position(), width)
+            }
+            None => component_cells(component, "1", Point::new(-offset.x, -offset.y), width),
         });
     }
     wrap(title, &cells)
@@ -414,5 +418,8 @@ mod tests {
         assert!(xml.contains("data:image/png,"));
         assert!(xml.contains("&lt;li style"));
         assert!(xml.contains(&format!(r#"id="{id}-instances" value="2–4""#)));
+        assert!(xml.contains("strokeColor=#82b366;strokeWidth=1"));
+        e.set_line_weight(LineWeight::Thick);
+        assert!(to_drawio(&e, "D", None).contains("strokeColor=#82b366;strokeWidth=2"));
     }
 }

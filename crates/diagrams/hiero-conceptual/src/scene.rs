@@ -288,7 +288,13 @@ pub fn scene_of(
         .into_iter()
         .map(|a| a.look)
         .collect();
-    draw_diagram(&elements, &arrows, eng.measure(), eng.colors())
+    draw_diagram(
+        &elements,
+        &arrows,
+        eng.measure(),
+        eng.colors(),
+        eng.line_weight(),
+    )
 }
 
 /// The diagram as it's stored, drawn.
@@ -313,7 +319,14 @@ pub fn to_drawio(
                 look: a.look,
             })
             .collect();
-    hiero_core::export::drawio::diagram_to_drawio(title, &elements, &arrows, heading, eng.colors())
+    hiero_core::export::drawio::diagram_to_drawio(
+        title,
+        &elements,
+        &arrows,
+        heading,
+        eng.colors(),
+        eng.line_weight(),
+    )
 }
 
 #[cfg(test)]

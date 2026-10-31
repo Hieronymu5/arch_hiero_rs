@@ -8,8 +8,11 @@ use std::fmt::Write as _;
 use crate::color::readable_text;
 use crate::figures::{CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, database};
 use crate::geometry::{Point, Rect, fmt_num, round2};
-use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
-use crate::model::{ConnectionId, ElementId};
+use crate::look::{
+    ArrowLook, BORDER_WIDTH, DiagramColors, LookElement, NameAt, OUTLINE_WIDTH, SECTION_LINE_WIDTH,
+    Shape,
+};
+use crate::model::{ConnectionId, ElementId, LineWeight};
 use crate::routing::{
     ARROW_TAG_BORDER_WIDTH, Align, CONNECTOR_BOX_FONT_SIZE, RETURN_ARROW_LENGTH, Vertical,
     label_placement, return_arrow_placement,
@@ -91,12 +94,12 @@ impl Style {
     }
 }
 
-fn base_style(colors: &DiagramColors) -> Style {
+fn base_style(colors: &DiagramColors, weight: LineWeight) -> Style {
     Style::new()
         .set("html", 1)
         .set("whiteSpace", "wrap")
         .set("strokeColor", &colors.borders)
-        .set("strokeWidth", 2)
+        .num("strokeWidth", weight.of(OUTLINE_WIDTH))
         .set("fontColor", TEXT)
 }
 
@@ -266,12 +269,12 @@ fn physical_stencil(figure: PhysicalFigure, detail: Option<&str>) -> &'static st
     }
 }
 
-fn box_on_arrow_style(colors: &DiagramColors) -> String {
-    rounded(base_style(colors))
+fn box_on_arrow_style(colors: &DiagramColors, weight: LineWeight) -> String {
+    rounded(base_style(colors, weight))
         .set("arcSize", 6)
         .set("whiteSpace", "nowrap")
         .set("spacing", 0)
-        .num("strokeWidth", 1.5)
+        .num("strokeWidth", weight.of(ARROW_TAG_BORDER_WIDTH))
         .set("fillColor", &colors.connectors)
         .set("fontColor", readable_text(&colors.connectors))
         .set("fontStyle", 1)
@@ -280,14 +283,16 @@ fn box_on_arrow_style(colors: &DiagramColors) -> String {
         .build()
 }
 
-/// Renders the diagram. Elements should come before the elements they contain. A `heading`,
-/// when given, goes in the top-left corner with the drawing below it.
+/// Renders the diagram, with elements' lines as thick as `weight`. Elements should come before
+/// the elements they contain. A `heading`, when given, goes in the top-left corner with the
+/// drawing below it.
 pub fn diagram_to_drawio(
     title: &str,
     elements: &[LookElement],
     arrows: &[DrawioArrow],
     heading: Option<&Heading>,
     colors: &DiagramColors,
+    weight: LineWeight,
 ) -> String {
     let by_id: HashMap<&ElementId, &LookElement> = elements.iter().map(|e| (&e.id, e)).collect();
     let top_level: Vec<&LookElement> = elements
@@ -339,7 +344,7 @@ pub fn diagram_to_drawio(
                     Shape::File => FILE_STENCIL,
                     _ => STORAGE_STENCIL,
                 };
-                let style = base_style(colors)
+                let style = base_style(colors, weight)
                     .set("shape", format!("stencil({stencil})"))
                     .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
                     .set("align", "center")
@@ -363,7 +368,7 @@ pub fn diagram_to_drawio(
                 )
             }
             Shape::Physical(figure) => {
-                let style = base_style(colors)
+                let style = base_style(colors, weight)
                     .set(
                         "shape",
                         format!(
@@ -421,9 +426,9 @@ pub fn diagram_to_drawio(
                 out
             }
             Shape::Section => {
-                let style = base_style(colors)
+                let style = base_style(colors, weight)
                     .set("shape", format!("stencil({SECTION_STENCIL})"))
-                    .set("strokeWidth", 3)
+                    .num("strokeWidth", weight.of(SECTION_LINE_WIDTH))
                     .set("fillColor", "none")
                     .set("labelBackgroundColor", BACKGROUND)
                     .set("fontColor", look.text_color.as_deref().unwrap_or(TEXT))
@@ -443,16 +448,16 @@ pub fn diagram_to_drawio(
                 )
             }
             Shape::Container => {
-                let mut style = base_style(colors);
+                let mut style = base_style(colors, weight);
                 style = if look.square {
                     style.set("rounded", 0)
                 } else {
                     rounded(style)
                 };
-                style = style
-                    .set("container", 1)
-                    .set("collapsible", 0)
-                    .num("strokeWidth", look.border_width.unwrap_or(3.0));
+                style = style.set("container", 1).set("collapsible", 0).num(
+                    "strokeWidth",
+                    weight.of(look.border_width.unwrap_or(BORDER_WIDTH)),
+                );
                 if let Some(border) = &look.border_color {
                     style = style.set("strokeColor", border);
                 }
@@ -506,7 +511,7 @@ pub fn diagram_to_drawio(
                     )
                 };
                 let inset = round2(e.rect.width * CLOUD_TEXT_INSET);
-                let mut style = base_style(colors);
+                let mut style = base_style(colors, weight);
                 style = if look.shape == Shape::Cloud {
                     with_spacing(style.set("shape", format!("stencil({CLOUD_STENCIL})")))
                         .num("spacingLeft", inset)
@@ -550,7 +555,10 @@ pub fn diagram_to_drawio(
         }
         .set("fillColor", "none")
         .set("strokeColor", &colors.borders)
-        .num("strokeWidth", e.look.border_width.unwrap_or(3.0))
+        .num(
+            "strokeWidth",
+            weight.of(e.look.border_width.unwrap_or(BORDER_WIDTH)),
+        )
         .set("pointerEvents", 0);
         cells.push(cell(
             &format!("{}-outline", e.id),
@@ -562,7 +570,7 @@ pub fn diagram_to_drawio(
     }
     cells.extend(elements.iter().filter(|e| e.look.on_top).map(element_cell));
 
-    let box_style = box_on_arrow_style(colors);
+    let box_style = box_on_arrow_style(colors, weight);
     for arrow in arrows {
         let (Some(source), Some(target)) =
             (by_id.get(&arrow.source_id), by_id.get(&arrow.target_id))
@@ -703,7 +711,7 @@ pub fn diagram_to_drawio(
             style = match &tag.border {
                 Some(b) => style
                     .set("strokeColor", b)
-                    .num("strokeWidth", ARROW_TAG_BORDER_WIDTH),
+                    .num("strokeWidth", weight.of(ARROW_TAG_BORDER_WIDTH)),
                 None => style.set("strokeColor", "none"),
             };
             let style = style
@@ -735,7 +743,7 @@ pub fn diagram_to_drawio(
         style = match &badge.border {
             Some(b) => style
                 .set("strokeColor", b)
-                .num("strokeWidth", ARROW_TAG_BORDER_WIDTH),
+                .num("strokeWidth", weight.of(ARROW_TAG_BORDER_WIDTH)),
             None => style.set("strokeColor", "none"),
         };
         let style = style
@@ -816,6 +824,7 @@ mod tests {
             &arrows,
             Some(&heading),
             &DiagramColors::default(),
+            LineWeight::Thick,
         );
         assert!(xml.starts_with(r#"<mxfile host="ArchHiero" type="device">"#));
         // The child is placed relative to its container.
@@ -838,7 +847,14 @@ mod tests {
     fn keeps_the_line_breaks_in_a_description() {
         let mut crm = element("a", None, Shape::Box, Rect::new(40.0, 40.0, 200.0, 100.0));
         crm.description = Some("Leads\nAccounts & more\n".into());
-        let xml = diagram_to_drawio("T", &[crm], &[], None, &DiagramColors::default());
+        let xml = diagram_to_drawio(
+            "T",
+            &[crm],
+            &[],
+            None,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
         // Escaped once for the HTML and once more for the XML attribute.
         assert!(
             xml.contains(
@@ -849,7 +865,14 @@ mod tests {
         // A description of only a line break shows nothing.
         let mut blank = element("b", None, Shape::Box, Rect::new(40.0, 40.0, 200.0, 100.0));
         blank.description = Some("\n".into());
-        let xml = diagram_to_drawio("T", &[blank], &[], None, &DiagramColors::default());
+        let xml = diagram_to_drawio(
+            "T",
+            &[blank],
+            &[],
+            None,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
         assert!(xml.contains(r#"id="b" value="&lt;b&gt;b &amp;amp; co&lt;/b&gt;""#));
     }
 
@@ -864,7 +887,14 @@ mod tests {
                 Rect::new(200.0, 40.0, 120.0, 80.0),
             ),
         ];
-        let xml = diagram_to_drawio("T", &elements, &[], None, &DiagramColors::default());
+        let xml = diagram_to_drawio(
+            "T",
+            &elements,
+            &[],
+            None,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
         assert!(xml.contains("verticalAlign=top;spacingTop=55;"), "{xml}");
         assert!(xml.contains("verticalAlign=top;spacingTop=50;"), "{xml}");
         assert!(!xml.contains("verticalAlign=bottom"));

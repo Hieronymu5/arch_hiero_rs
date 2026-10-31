@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 
 use egui::{Align, Color32, Key, Layout, Modifiers, RichText, Ui};
 use hiero_core::history::validate_version_description;
-use hiero_core::model::{DiagramId, DiagramTypeId, validate_description, validate_name};
+use hiero_core::model::{
+    DiagramId, DiagramTypeId, LineWeight, validate_description, validate_name,
+};
 use hiero_editor::fonts;
 use hiero_editor::theme::{
     Accent, CONTENT_INSET, danger_button, field_label, form_style, page_button, palette,
@@ -859,6 +861,18 @@ impl App {
         egui::ScrollArea::vertical().show(ui, |ui| {
             let valid = self.details_fields(ui, false);
             let ops = hiero_registry::ops(meta.diagram_type);
+            if let Some(weight) = &mut self.form.line_weight {
+                ui.add_space(14.0);
+                field_label(ui, "Line thickness", false);
+                ui.horizontal(|ui| {
+                    for option in LineWeight::ALL {
+                        ui.radio_value(weight, option, option.label());
+                    }
+                });
+                ui.label(
+                    RichText::new("The lines of elements. Arrows keep their own thickness.").weak(),
+                );
+            }
             if !ops.color_fields().is_empty() {
                 ui.add_space(14.0);
                 field_label(ui, "Colors", false);
@@ -1019,6 +1033,7 @@ impl App {
             diagram_type: Some(meta.diagram_type),
             description: meta.description.clone().unwrap_or_default(),
             colors: open.record.colors.clone(),
+            line_weight: Some(open.record.line_weight()),
             tried: false,
             error: None,
         };

@@ -14,7 +14,7 @@ pub mod locations;
 use hiero_core::file::{diagram_from_json, diagram_to_json};
 use hiero_core::history::{DiagramSnapshot, content_hash};
 use hiero_core::model::{
-    ConnectionId, DiagramId, DiagramMeta, DiagramTypeId, ElementId, now_rfc3339,
+    ConnectionId, DiagramId, DiagramMeta, DiagramTypeId, ElementId, LineWeight, now_rfc3339,
 };
 use hiero_core::stored::{StoredConnection, StoredContent, StoredDiagram, StoredElement};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -189,8 +189,14 @@ CREATE TABLE diagram_versions (
 CREATE INDEX diagrams_by_name ON diagrams(name COLLATE NOCASE);
 ";
 
+/// How thick elements' lines are; unset means the type's default.
+const MIGRATION_2: &str = r"
+ALTER TABLE diagrams ADD COLUMN line_weight TEXT
+  CHECK (line_weight IS NULL OR line_weight IN ('thin', 'thick'));
+";
+
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(MIGRATION_1)])
+    Migrations::new(vec![M::up(MIGRATION_1), M::up(MIGRATION_2)])
 }
 
 /// Where the database lives: the platform's data directory, such as
@@ -559,7 +565,8 @@ fn status_of(conn: &Connection, id: &DiagramId) -> Result<Status> {
 fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
     let row = conn
         .query_row(
-            "SELECT type, name, description, colors, created_at, updated_at, revision
+            "SELECT type, name, description, colors, created_at, updated_at, revision,
+                    line_weight
              FROM diagrams WHERE id = ?1",
             params![id.0],
             |row| {
@@ -571,12 +578,21 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
                     row.get::<_, i64>(6)?,
+                    row.get::<_, Option<String>>(7)?,
                 ))
             },
         )
         .optional()?;
-    let Some((ty, name, description, colors, created_at, updated_at, revision)) = row else {
+    let Some((ty, name, description, colors, created_at, updated_at, revision, line_weight)) = row
+    else {
         return Ok(None);
+    };
+    let line_weight = match line_weight {
+        Some(text) => Some(
+            LineWeight::parse(&text)
+                .ok_or_else(|| StoreError::Corrupt(format!("“{text}” isn't a line weight.")))?,
+        ),
+        None => None,
     };
     let colors: BTreeMap<String, String> = match colors {
         Some(text) => {
@@ -633,6 +649,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
                 updated_at,
             },
             colors,
+            line_weight,
             content: StoredContent {
                 elements,
                 connections,
@@ -645,15 +662,16 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
 fn insert_diagram(tx: &Transaction<'_>, diagram: &StoredDiagram) -> Result<()> {
     let m = &diagram.meta;
     tx.execute(
-        "INSERT INTO diagrams (id, type, name, description, colors, content_hash, revision,
-                               next_version, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 1, ?7, ?8)",
+        "INSERT INTO diagrams (id, type, name, description, colors, line_weight, content_hash,
+                               revision, next_version, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 1, ?8, ?9)",
         params![
             m.id.0,
             m.diagram_type.as_str(),
             m.name,
             m.description,
             colors_json(&diagram.colors),
+            diagram.line_weight.map(LineWeight::as_str),
             content_hash(diagram),
             m.created_at,
             m.updated_at
@@ -705,14 +723,15 @@ fn insert_content(tx: &Transaction<'_>, id: &DiagramId, content: &StoredContent)
 fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) -> Result<()> {
     let m = &diagram.meta;
     let changed = tx.execute(
-        "UPDATE diagrams SET name = ?2, description = ?3, colors = ?4, content_hash = ?5,
-                revision = revision + 1, updated_at = ?6
-         WHERE id = ?1 AND revision = ?7",
+        "UPDATE diagrams SET name = ?2, description = ?3, colors = ?4, line_weight = ?5,
+                content_hash = ?6, revision = revision + 1, updated_at = ?7
+         WHERE id = ?1 AND revision = ?8",
         params![
             m.id.0,
             m.name,
             m.description,
             colors_json(&diagram.colors),
+            diagram.line_weight.map(LineWeight::as_str),
             content_hash(diagram),
             now_rfc3339(),
             revision
@@ -778,6 +797,7 @@ mod tests {
                 updated_at: String::new(),
             },
             colors: BTreeMap::new(),
+            line_weight: None,
             content: StoredContent {
                 elements: vec![
                     StoredElement::from_json(&json!({"id": "a", "kind": "actor", "label": "A", "x": 40, "y": 40})).unwrap(),
@@ -834,6 +854,25 @@ mod tests {
         changed.meta.name = "Overview".into();
         store.save(&changed, Some(1)).unwrap();
         assert!(store.status(&"d1".into()).unwrap().saved);
+    }
+
+    #[test]
+    fn line_weights_are_kept_in_records_and_versions() {
+        let mut store = Store::open_in_memory().unwrap();
+        let record = store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
+        let mut thin = record.diagram.clone();
+        thin.set_line_weight(LineWeight::Thin);
+        store.save(&thin, Some(record.revision)).unwrap();
+        let got = store.get(&"d1".into()).unwrap().unwrap().diagram;
+        assert_eq!(got.line_weight, Some(LineWeight::Thin));
+        assert_eq!(store.status(&"d1".into()).unwrap().label(), "Draft · v1");
+        assert_eq!(store.save_version(&"d1".into(), None).unwrap(), Some(2));
+        let v2 = store.get_version(&"d1".into(), 2).unwrap().unwrap();
+        assert_eq!(v2.line_weight(), LineWeight::Thin);
+        let (reverted, _) = store.revert_to_version(&"d1".into(), 1, None).unwrap();
+        assert_eq!(reverted.diagram.line_weight(), LineWeight::Thick);
     }
 
     #[test]
