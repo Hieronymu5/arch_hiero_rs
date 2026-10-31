@@ -384,6 +384,29 @@ impl PhysicalFigure {
         };
         Size::new(width, height)
     }
+
+    /// The part of the figure's height, from its top, where arrows meet its left and right
+    /// sides. Figures that can show an instance count beside their foot take arrows higher, so
+    /// a level arrow and its head stay clear of the count.
+    pub const fn side_span(self) -> (f64, f64) {
+        match self {
+            Self::Server | Self::ContainerStack => (0.0, 32.0),
+            Self::DatabaseCylinder | Self::VirtualMachine => (0.0, 24.0),
+            _ => (0.0, self.size().height),
+        }
+    }
+
+    /// How far in from the figure's box an arrow at its left or right side ends, so it meets
+    /// the figure rather than the space beside it. On a container ship, it's level with the
+    /// ends of the hull below.
+    pub const fn side_inset(self) -> f64 {
+        match self {
+            Self::Server | Self::ContainerStack => 1.0,
+            Self::VirtualMachine => 2.0,
+            Self::DatabaseCylinder => 6.0,
+            _ => 0.0,
+        }
+    }
 }
 
 /// Where a figure is drawn in its element's area: centred at the top, with the name under it.

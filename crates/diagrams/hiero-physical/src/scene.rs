@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use hiero_core::color::{black_or_white, readable_text};
 use hiero_core::engine::{Engine, Laid};
-use hiero_core::figures::PhysicalFigure;
+use hiero_core::figures::{PhysicalFigure, figure_rect};
 use hiero_core::geometry::{Point, Rect};
 use hiero_core::look::{
     ArrowLook, ArrowTag, DiagramColors, Look, LookElement, NameAt, Shape, draw_diagram,
@@ -157,19 +157,28 @@ fn reverses(eng: &Engine<Physical>) -> HashMap<ConnectionId, ConnectionId> {
     drawn_by
 }
 
+/// The area arrows meet on an element: its figure, down to where arrows meet the figure's
+/// sides, or else the element.
+fn meet_rect(eng: &Engine<Physical>, element: &Laid<Physical>) -> Rect {
+    let rect = <Physical as hiero_core::engine::DiagramType>::arrow_rect(eng, element);
+    match figure_of(&element.el) {
+        Some(figure) => {
+            let (top, bottom) = figure.side_span();
+            Rect::new(rect.x, rect.y + top, rect.width, bottom - top)
+        }
+        None => rect,
+    }
+}
+
 /// Every arrow between evenly spread points on its elements' figures, with its protocol and
-/// port in a box on the middle of the line. An end at a figure's bottom moves down to just
-/// under its name. Two arrows between the same elements in opposite directions, over the same
+/// port in a box on the middle of the line. An end at a figure's side is on its outline, high
+/// enough to keep clear of an instance count; an end at its bottom moves down to just under
+/// its name. Two arrows between the same elements in opposite directions, over the same
 /// protocol and port, are drawn as one line pointing both ways.
 pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<DrawnArrow> {
     let rects: HashMap<ElementId, _> = layout
         .iter()
-        .map(|e| {
-            (
-                e.el.id.clone(),
-                <Physical as hiero_core::engine::DiagramType>::arrow_rect(eng, e),
-            )
-        })
+        .map(|e| (e.el.id.clone(), meet_rect(eng, e)))
         .collect();
     let by_id: HashMap<&ElementId, &Laid<Physical>> =
         layout.iter().map(|e| (&e.el.id, e)).collect();
@@ -190,12 +199,21 @@ pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<Dr
     let routes = route_connections(&rects, &ends);
     let colors = eng.colors();
     let measure = eng.measure();
-    let below = |point: Point, element: &Laid<Physical>| match figure_of(&element.el) {
-        Some(figure) => Point::new(
-            point.x,
-            figure_name_bottom(element.rect, &element.el.label, figure, measure) + NAME_CLEARANCE,
-        ),
-        None => point,
+    let end = |point: Point, side: Side, element: &Laid<Physical>| {
+        let Some(figure) = figure_of(&element.el) else {
+            return point;
+        };
+        let rect = figure_rect(element.rect, figure);
+        match side {
+            Side::Bottom => Point::new(
+                point.x,
+                figure_name_bottom(element.rect, &element.el.label, figure, measure)
+                    + NAME_CLEARANCE,
+            ),
+            Side::Left => Point::new(rect.x + figure.side_inset(), point.y),
+            Side::Right => Point::new(rect.right() - figure.side_inset(), point.y),
+            Side::Top => point,
+        }
     };
     let mut arrows: Vec<DrawnArrow> = eng
         .connections()
@@ -204,16 +222,8 @@ pub fn drawn_arrows(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Vec<Dr
             let route = *routes.get(&c.id)?;
             let source = by_id.get(&c.source_id)?;
             let target = by_id.get(&c.target_id)?;
-            let from = if route.from_side == Side::Bottom {
-                below(route.from, source)
-            } else {
-                route.from
-            };
-            let to = if route.to_side == Side::Bottom {
-                below(route.to, target)
-            } else {
-                route.to
-            };
+            let from = end(route.from, route.from_side, source);
+            let to = end(route.to, route.to_side, target);
             let label = c.props.tag();
             let tag = (!label.is_empty()).then(|| {
                 let width = measure.width(&label, CONNECTOR_BOX_FONT_SIZE, Weight::SemiBold);
@@ -536,12 +546,10 @@ mod tests {
         let look = look_of(&e, &laid);
         let badge = look.look.figure_badge.expect("a count over one has a box");
         assert_eq!(badge.label, "50-100");
-        // Beside the figure's bottom-right corner, black with white text.
+        // Beside the figure's bottom-right corner, past the head of an arrow coming in at its
+        // right, black with white text.
         let figure = hiero_core::figures::figure_rect(laid.rect, figure_of(&laid.el).unwrap());
-        assert_eq!(
-            badge.rect.x,
-            figure.right() + hiero_core::look::FIGURE_BADGE_GAP
-        );
+        assert!(badge.rect.x > figure.right() + hiero_core::look::FIGURE_BADGE_GAP);
         assert_eq!(badge.rect.bottom(), figure.bottom());
         assert_eq!(
             (badge.fill.as_str(), badge.text_color.as_str()),
@@ -565,6 +573,58 @@ mod tests {
             "{svg}"
         );
         assert!(!svg.contains('×'));
+    }
+
+    #[test]
+    fn arrows_at_a_side_end_on_the_figure_clear_of_its_count() {
+        use crate::model::ServerType;
+        use hiero_core::count::InstanceCount;
+        use hiero_core::scene::Marker;
+
+        let kinds = [
+            (PhysicalKind::Server, None),
+            (PhysicalKind::Server, Some(ServerType::VirtualMachine)),
+            (PhysicalKind::Server, Some(ServerType::Container)),
+            (PhysicalKind::Database, None),
+        ];
+        for (kind, server_type) in kinds {
+            let mut e =
+                Engine::<Physical>::new_diagram(PhysicalColors::default()).with_measure(&ESTIMATE);
+            let zone = e.elements()[2].id.clone();
+            // A counted figure with an arrow coming in level at its right.
+            e.select(&zone);
+            e.add_at_free_position(kind);
+            let target = e.selection[0].clone();
+            e.replace(&target, |mut el| {
+                el.props.instance_count = Some(InstanceCount::Exactly(3));
+                el.props.server_type = server_type;
+                el
+            });
+            e.select(&zone);
+            e.add_at_free_position(PhysicalKind::Server);
+            let source = e.selection[0].clone();
+            let arrow = e.add_connection(&source, &target).unwrap();
+            let drawn = drawn_arrows(&e, e.layout());
+            let look = &drawn.iter().find(|a| a.id == arrow).unwrap().look;
+            let laid = e.laid(&target).unwrap().clone();
+            let figure = figure_of(&laid.el).unwrap();
+            let rect = hiero_core::figures::figure_rect(laid.rect, figure);
+            let badge = look_of(&e, &laid).look.figure_badge.unwrap().rect;
+            assert!((look.from.y - look.to.y).abs() < 1e-6, "{figure:?} level");
+            // The tip is on the figure's outline, not in the space beside it.
+            let inset = figure.side_inset();
+            assert!(
+                (look.to.x - (rect.right() - inset)).abs() < 1e-6,
+                "{figure:?}"
+            );
+            // Neither the line nor the head touches the count, which is level with the foot.
+            let head = Marker::Arrowhead.size();
+            let line = Rect::new(look.to.x, look.to.y - 1.0, look.from.x - look.to.x, 2.0);
+            let tip = Rect::new(look.to.x, look.to.y - head / 2.0, head, head);
+            assert!(!line.overlaps(&badge), "{figure:?}: {line:?} {badge:?}");
+            assert!(!tip.overlaps(&badge), "{figure:?}: {tip:?} {badge:?}");
+            assert_eq!(badge.bottom(), rect.bottom());
+        }
     }
 
     #[test]

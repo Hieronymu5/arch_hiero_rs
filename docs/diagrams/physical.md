@@ -32,7 +32,8 @@ Every figure kind (user through storage) can have arrows to every other figure k
 
 **Instances:** when a server's instance count or a database's node count is more than 1, it's
 shown in a small black box with round ends and white text beside the figure's bottom-right
-corner, level with its bottom: "3" (a circle), "50+", or "50-100". A count can also be a minimum or a range (new in Rust; the prototype shows "×3" to
+corner, level with its bottom (never lower), and far enough right to clear the head of an arrow
+coming in at the figure's right (a physical server's and a container ship's move out past it): "3" (a circle), "50+", or "50-100". A count can also be a minimum or a range (new in Rust; the prototype shows "×3" to
 the right of the figure).
 
 **Database types:**
@@ -113,6 +114,11 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 
 - Routing is the shared `route_connections` (facing sides, straight where they overlap, else
   spread evenly). There's no manual straightening.
+- An arrow at a figure's left or right side ends on its drawn outline (a database's cylinder, a
+  virtual machine's cube; on a container ship, level with the ends of its hull), not on its box. Figures that can
+  show an instance count take side arrows higher up (servers and container ships in the top
+  32 px, databases and virtual machines in the top 24 px), so a level arrow and its head pass
+  above the count. An end at a figure's bottom moves down to just under its name.
 - Every arrow has a **protocol** and a **port**, both required and at most 20 characters. They
   appear in a tag on the middle of the line ("HTTPS:443"). The tag is placed so it doesn't cover
   figure names.
