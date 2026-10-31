@@ -32,16 +32,14 @@ crates/
 scripts/
   bundle-macos.sh          builds target/bundle/ArchHiero.app with both binaries
   extract-tech-stack.py    regenerates the tech stack from the prototype
-docs/                      the plan and each diagram type's spec
+docs/                      each diagram type's spec
 ```
 
 ## Roadmap and specs
 
 This app is a rewrite of the Angular prototype in `../arch_hiero`, with diagrams stored in
-SQLite. Read these before working on diagrams or storage:
+SQLite. Read this before working on diagrams:
 
-- `docs/implementation-plan.md`: the target crate layout, the `DiagramType`/`DiagramView` traits,
-  the SQLite schema, phases, and open questions.
 - `docs/diagrams/{conceptual,physical,deployed-component}.md`: the feature spec and parity
   checklist for each diagram type. Tick a checklist item when it's done.
 
@@ -62,7 +60,7 @@ Crate boundaries:
   `hiero-registry` and the MCP server use them with `default-features = false`.
   `cargo tree -p hiero-mcp -i egui` must find nothing.
 - **One SQLite database** is shared by the GUI (`arch-hiero`) and the local MCP server
-  (`arch-hiero-mcp`, stdio, see plan section 5). Every write checks `revision` for conflicts.
+  (`arch-hiero-mcp`, stdio). Every write checks `revision` for conflicts.
   Diagrams move between machines only as zipped JSON (`.zip` holding `diagram.json`).
 - MCP edits must go through `hiero-registry`, so each type's rules apply. Never write element
   rows directly from `hiero-mcp`. When you add or change a feature, update the matching MCP tool
@@ -73,7 +71,7 @@ Crate boundaries:
 - **Two kinds of save:** every change autosaves to the current record. The Save button records
   an immutable version in `diagram_versions`, with an optional description (≤ 200 characters) asked for in the Save prompt. The status is *Saved* when the current content
   hash equals the latest version's hash. Snapshot types must serialise deterministically, so
-  use `Vec`/`BTreeMap` and never `HashMap`, or the hash breaks. See plan section 4.
+  use `Vec`/`BTreeMap` and never `HashMap`, or the hash breaks.
 - **History is append-only, except for an explicit Delete.** Reverting records the old content
   as a *new* version. Version numbers come from `diagrams.next_version` and are never reused.
   Undo/redo changes only the current record, never versions. Undo stacks are per diagram and

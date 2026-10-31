@@ -106,7 +106,7 @@ These live in `hiero-core::figures` because more than one diagram type uses them
 ## Interaction specific to this type
 
 Everything else (palette, select, multi-select, move, snap, resize, delete, pan and zoom) is the
-shared editor engine described in [the plan](../implementation-plan.md#shared-editor-engine).
+shared editor engine (`hiero-editor`).
 
 - Dropping an application on a domain puts it inside the domain. Dropping a component on an
   application puts it inside the application. Dropping a process, entity, or file on an
