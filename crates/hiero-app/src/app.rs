@@ -93,6 +93,15 @@ pub enum Dialog {
     },
 }
 
+/// Why a diagram couldn't be opened.
+#[derive(Debug)]
+enum OpenError {
+    /// The diagram open before couldn't be saved, so it's still open, showing why.
+    Unsaved,
+    /// The diagram couldn't be read.
+    Load(String),
+}
+
 /// The fields of the Add diagram and Edit details forms.
 #[derive(Debug, Clone, Default)]
 pub struct DetailsForm {
@@ -221,17 +230,30 @@ impl App {
     }
 
     pub fn go_back(&mut self) {
-        self.page = self.back.pop().unwrap_or(Page::List);
+        let target = self.back.pop().unwrap_or(Page::List);
         // Going back to a diagram another was opened from opens it again, as it was.
-        if let Page::Editor(id) = self.page.clone()
-            && self.open.as_ref().is_none_or(|o| o.record.meta.id != id)
+        if let Page::Editor(id) = &target
+            && self.open.as_ref().is_none_or(|o| o.record.meta.id != *id)
         {
-            let viewing = self.viewed.get(&id).copied().unwrap_or(true);
-            if let Err(e) = self.load_open(&id, viewing) {
-                self.outcome = Some(Outcome::error(e));
-                self.page = Page::List;
+            let viewing = self.viewed.get(id).copied().unwrap_or(true);
+            match self.load_open(id, viewing) {
+                Ok(()) => {}
+                // The diagram being left couldn't be saved: stay on it, showing why.
+                Err(OpenError::Unsaved) => {
+                    self.back.push(target);
+                    return;
+                }
+                Err(OpenError::Load(e)) => {
+                    self.outcome = Some(Outcome::error(e));
+                    self.page = Page::List;
+                    self.back.clear();
+                    self.flush_save();
+                    self.refresh_list();
+                    return;
+                }
             }
         }
+        self.page = target;
         if self.page == Page::List {
             self.back.clear();
             self.flush_save();
@@ -246,18 +268,28 @@ impl App {
     pub fn open_diagram(&mut self, id: &DiagramId, viewing: bool) {
         match self.load_open(id, viewing) {
             Ok(()) => self.go(Page::Editor(id.clone())),
-            Err(e) => self.outcome = Some(Outcome::error(e)),
+            // The diagram open before couldn't be saved: show it, with why.
+            Err(OpenError::Unsaved) => {
+                if let Some(open) = &self.open {
+                    let id = open.record.meta.id.clone();
+                    self.go(Page::Editor(id));
+                }
+            }
+            Err(OpenError::Load(e)) => self.outcome = Some(Outcome::error(e)),
         }
     }
 
-    /// Makes `id` the open diagram, to view or to edit, saving the one open before.
-    fn load_open(&mut self, id: &DiagramId, viewing: bool) -> Result<(), String> {
+    /// Makes `id` the open diagram, to view or to edit, saving the one open before. If that
+    /// one can't be saved, it stays open, showing why.
+    fn load_open(&mut self, id: &DiagramId, viewing: bool) -> Result<(), OpenError> {
         if let Some(open) = self.open.as_mut().filter(|o| o.record.meta.id == *id) {
             open.editor.set_viewing(viewing);
             return Ok(());
         }
-        self.flush_save();
-        let mut open = self.load(id)?;
+        if !self.save_before_leaving() {
+            return Err(OpenError::Unsaved);
+        }
+        let mut open = self.load(id).map_err(OpenError::Load)?;
         open.editor.set_viewing(viewing);
         if let Some(before) = &self.open {
             self.viewed
@@ -270,6 +302,43 @@ impl App {
         self.open = Some(open);
         self.share_diagram_names();
         Ok(())
+    }
+
+    /// Saves the open diagram and waits for the answer, before another diagram takes its
+    /// place: once it's gone, a conflict or failure couldn't be shown with it. Returns whether
+    /// it's saved; if not, it's left showing why, as an autosave would.
+    fn save_before_leaving(&mut self) -> bool {
+        let due = self.save_due.take().is_some();
+        let Some(open) = &mut self.open else {
+            return true;
+        };
+        if !due && !open.saving {
+            return true;
+        }
+        let diagram = open.record.clone();
+        let expected = open.revision;
+        match self.worker.call(|reply| Request::SaveNow {
+            diagram,
+            expected,
+            reply,
+        }) {
+            Ok(record) => {
+                open.revision = record.revision;
+                open.saving = false;
+                open.save_failed = None;
+                true
+            }
+            Err(StoreError::Conflict) => {
+                let id = open.record.meta.id.clone();
+                self.conflict(&id);
+                false
+            }
+            Err(e) => {
+                open.saving = false;
+                open.save_failed = Some(e.to_string());
+                false
+            }
+        }
     }
 
     /// Does what the open diagram's editor asked: opens the diagram an element opens, or
@@ -545,16 +614,19 @@ impl App {
         match self.worker.call(|reply| Request::Create { diagram, reply }) {
             Ok(record) => {
                 let id = record.diagram.meta.id;
+                let mut unlinked = false;
                 match form.opened_from {
                     // The element it's for opens it, and Back goes back to the element's
                     // diagram.
                     Some((from, element)) => {
-                        if let Some(open) = self.open.as_mut().filter(|o| o.record.meta.id == from)
-                        {
-                            open.editor.link_diagram(&element, Some(id.clone()));
-                        }
+                        // The element may have gone while the form was open, such as by an agent.
+                        unlinked = !self
+                            .open
+                            .as_mut()
+                            .filter(|o| o.record.meta.id == from)
+                            .is_some_and(|o| o.editor.link_diagram(&element, Some(id.clone())));
+                        // Opening the new diagram saves this one first.
                         self.collect_changes();
-                        self.flush_save();
                         self.page = self.back.pop().unwrap_or(Page::List);
                     }
                     None => {
@@ -564,6 +636,13 @@ impl App {
                 }
                 self.refresh_list();
                 self.open_diagram(&id, false);
+                if unlinked
+                    && let Some(open) = self.open.as_mut().filter(|o| o.record.meta.id == id)
+                {
+                    open.notice = Some(
+                        "The element this diagram was for is gone, so nothing opens it.".into(),
+                    );
+                }
             }
             Err(e) => self.form.error = Some(format!("The diagram couldn't be saved. {e}")),
         }
@@ -939,12 +1018,14 @@ impl App {
                 .to_svg(&diagram)
                 .map(String::into_bytes)
                 .map_err(|e| e.0),
-            // With the diagrams its elements open as more pages.
-            ExportFormat::Drawio => {
-                hiero_registry::drawio_with_sub_diagrams(&diagram, |id| self.current(id))
-                    .map(String::into_bytes)
-                    .map_err(|e| e.0)
+            // The current diagram comes with the diagrams its elements open as more pages; a
+            // saved version comes alone, as it was.
+            ExportFormat::Drawio => match version {
+                Some(_) => ops.to_drawio(&diagram),
+                None => hiero_registry::drawio_with_sub_diagrams(&diagram, |id| self.current(id)),
             }
+            .map(String::into_bytes)
+            .map_err(|e| e.0),
         };
         match result {
             Ok(bytes) => self.save_file(&name, format.extension(), &bytes),

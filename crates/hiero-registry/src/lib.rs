@@ -4,7 +4,7 @@
 
 pub mod edit;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 
 use hiero_conceptual::Conceptual;
@@ -317,43 +317,70 @@ pub fn sub_diagram_of(element: &hiero_core::stored::StoredElement) -> Option<Dia
 }
 
 /// A diagram as a draw.io file, with the diagrams its elements open (and the ones theirs open)
-/// as more pages after it. Each such element links to its diagram's page. `load` gives
-/// a diagram by id; ones it can't give are left out, with no link to them.
+/// as more pages after it. Each such element links to its diagram's page. `load` gives a
+/// diagram by id; one it can't give, or that can't be drawn, is left out, with no link to it.
+/// Only the first diagram's own problems are errors.
 pub fn drawio_with_sub_diagrams(
     diagram: &StoredDiagram,
     load: impl Fn(&DiagramId) -> Option<StoredDiagram>,
 ) -> Result<String, ContentError> {
     use hiero_core::export::drawio::{DrawioPage, FIRST_PAGE_ID, combine_pages};
-    let mut diagrams = vec![diagram.clone()];
-    let mut page_ids: BTreeMap<DiagramId, String> =
-        BTreeMap::from([(diagram.meta.id.clone(), FIRST_PAGE_ID.to_owned())]);
-    let mut pages = Vec::new();
+    let first = ops(diagram.meta.diagram_type).to_drawio(diagram)?;
+    // Every diagram reached, in order, drawn; ones that can't be drawn are dropped.
+    let mut pages: Vec<(StoredDiagram, String)> = vec![(diagram.clone(), first)];
+    let mut seen: BTreeSet<DiagramId> = BTreeSet::from([diagram.meta.id.clone()]);
     let mut next = 0;
-    while let Some(current) = diagrams.get(next).cloned() {
+    while let Some((current, _)) = pages.get(next) {
+        let targets: Vec<DiagramId> = current
+            .content
+            .elements
+            .iter()
+            .filter_map(sub_diagram_of)
+            .collect();
         next += 1;
-        let mut links = Vec::new();
-        for element in &current.content.elements {
-            let Some(target) = sub_diagram_of(element) else {
+        for target in targets {
+            if !seen.insert(target.clone()) {
                 continue;
-            };
-            if !page_ids.contains_key(&target) {
-                let Some(found) = load(&target) else {
-                    continue;
-                };
-                page_ids.insert(target.clone(), target.to_string());
-                diagrams.push(found);
             }
-            links.push((element.id.clone(), page_ids[&target].clone()));
+            if let Some(found) = load(&target)
+                && let Ok(file) = ops(found.meta.diagram_type).to_drawio(&found)
+            {
+                pages.push((found, file));
+            }
         }
-        let file = ops(current.meta.diagram_type).to_drawio(&current)?;
-        if diagrams.len() == 1 && links.is_empty() {
-            return Ok(file);
-        }
-        pages.push(DrawioPage {
-            id: page_ids[&current.meta.id].clone(),
-            file,
-            links,
-        });
+    }
+    let page_ids: BTreeMap<&DiagramId, String> = pages
+        .iter()
+        .enumerate()
+        .map(|(i, (d, _))| {
+            let page = if i == 0 {
+                FIRST_PAGE_ID.to_owned()
+            } else {
+                d.meta.id.to_string()
+            };
+            (&d.meta.id, page)
+        })
+        .collect();
+    let pages: Vec<DrawioPage> = pages
+        .iter()
+        .map(|(d, file)| DrawioPage {
+            id: page_ids[&d.meta.id].clone(),
+            file: file.clone(),
+            links: d
+                .content
+                .elements
+                .iter()
+                .filter_map(|e| {
+                    let page = page_ids.get(&sub_diagram_of(e)?)?;
+                    Some((e.id.clone(), page.clone()))
+                })
+                .collect(),
+        })
+        .collect();
+    if let [only] = pages.as_slice()
+        && only.links.is_empty()
+    {
+        return Ok(only.file.clone());
     }
     Ok(combine_pages(&pages))
 }
@@ -492,6 +519,14 @@ mod tests {
         // The detail links back to the first page, which isn't added again.
         assert!(xml.contains(r#"link="data:page/id,archhiero-diagram""#));
         assert_eq!(xml.matches("<diagram ").count(), 2);
+        // A sub diagram that can't be drawn is left out, with no link to it.
+        let mut broken = file("d4", "Broken", None);
+        broken.content.elements[0].kind = "spaceship".into();
+        let top = file("d5", "Top", Some("d4"));
+        assert_eq!(
+            drawio_with_sub_diagrams(&top, |_| Some(broken.clone())).unwrap(),
+            ops(DiagramTypeId::Conceptual).to_drawio(&top).unwrap()
+        );
         // Without sub diagrams, it's the diagram's own file.
         let alone = file("d3", "Alone", Some("missing"));
         assert_eq!(

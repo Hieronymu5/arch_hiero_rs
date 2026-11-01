@@ -432,8 +432,6 @@ fn sort_header(ui: &mut Ui, header: &str, sort: Option<ListSort>) -> egui::Respo
 /// The vertical gap between a table's rows, with a rule drawn across its middle.
 const ROW_GAP: f32 = 20.0;
 
-/// A table of rows separated by subtle rules, like the prototype's tables. `rows` adds the
-/// cells and calls `end_row` after each row, which records where the rule goes.
 /// The width of the button that shows or hides a diagram's sub diagrams.
 const TREE_TOGGLE: f32 = 16.0;
 /// How far each level of sub diagrams is indented.
@@ -478,6 +476,8 @@ fn paint_toggle(ui: &Ui, response: &egui::Response, plus: bool) {
     }
 }
 
+/// A table of rows separated by subtle rules, like the prototype's tables. `rows` adds the
+/// cells and calls `end_row` after each row, which records where the rule goes.
 fn ruled_grid(
     ui: &mut Ui,
     id: &str,

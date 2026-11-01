@@ -17,6 +17,12 @@ pub enum Request {
         diagram: StoredDiagram,
         expected: i64,
     },
+    /// Saves the current record and answers, for when the UI must know before it moves on.
+    SaveNow {
+        diagram: StoredDiagram,
+        expected: i64,
+        reply: Sender<Result<Record, StoreError>>,
+    },
     Create {
         diagram: StoredDiagram,
         reply: Sender<Result<Record, StoreError>>,
@@ -169,6 +175,22 @@ fn handle(
                     });
                 }
             }
+        }
+        Request::SaveNow {
+            diagram,
+            expected,
+            reply,
+        } => {
+            let id = diagram.meta.id.clone();
+            let expected = known
+                .get(&id)
+                .copied()
+                .map_or(expected, |k| k.max(expected));
+            let result = store.save(&diagram, Some(expected));
+            if let Ok(record) = &result {
+                remember(known, record);
+            }
+            let _ = reply.send(result);
         }
         Request::Create { diagram, reply } => {
             let result = store.create(&diagram);

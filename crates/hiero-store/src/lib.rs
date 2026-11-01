@@ -330,15 +330,24 @@ impl Store {
 
     /// Every diagram, sorted by name, with its Release/Draft status and the diagram it belongs to.
     pub fn list(&self) -> Result<Vec<Summary>> {
+        // Each diagram an element opens, with the first diagram holding such an element, in
+        // one pass over the elements.
+        let parents: BTreeMap<String, String> = self
+            .conn
+            .prepare(
+                "SELECT json_extract(props, '$.subDiagramId') AS child, MIN(diagram_id)
+                 FROM elements
+                 WHERE child IS NOT NULL AND child <> diagram_id
+                 GROUP BY child",
+            )?
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
         let mut statement = self.conn.prepare(
             "SELECT d.id, d.type, d.name, d.description, d.created_at, d.updated_at, d.revision,
                     d.content_hash,
                     (SELECT v.content_hash FROM diagram_versions v WHERE v.diagram_id = d.id
                      ORDER BY v.version DESC LIMIT 1),
-                    (SELECT MAX(v.version) FROM diagram_versions v WHERE v.diagram_id = d.id),
-                    (SELECT e.diagram_id FROM elements e
-                     WHERE json_extract(e.props, '$.subDiagramId') = d.id AND e.diagram_id <> d.id
-                     ORDER BY e.diagram_id LIMIT 1)
+                    (SELECT MAX(v.version) FROM diagram_versions v WHERE v.diagram_id = d.id)
              FROM diagrams d ORDER BY d.name COLLATE NOCASE, d.id",
         )?;
         let rows = statement.query_map([], |row| {
@@ -353,23 +362,12 @@ impl Store {
                 row.get::<_, String>(7)?,
                 row.get::<_, Option<String>>(8)?,
                 row.get::<_, Option<i64>>(9)?,
-                row.get::<_, Option<String>>(10)?,
             ))
         })?;
         rows.map(|row| {
-            let (
-                id,
-                ty,
-                name,
-                description,
-                created,
-                updated,
-                revision,
-                hash,
-                latest_hash,
-                latest,
-                parent,
-            ) = row?;
+            let (id, ty, name, description, created, updated, revision, hash, latest_hash, latest) =
+                row?;
+            let parent = parents.get(&id).cloned().map(DiagramId);
             Ok(Summary {
                 meta: DiagramMeta {
                     id: DiagramId(id),
@@ -384,7 +382,7 @@ impl Store {
                     latest,
                 },
                 revision,
-                parent: parent.map(DiagramId),
+                parent,
             })
         })
         .collect()

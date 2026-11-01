@@ -548,7 +548,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A drawio file adds the diagrams its elements open (subDiagramId) as more pages, each such element linking to its page. Won't replace a file unless overwrite is true.",
+        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A drawio file of the current diagram adds the diagrams its elements open (subDiagramId) as more pages, each such element linking to its page; a version's comes alone. Won't replace a file unless overwrite is true.",
         annotations(read_only_hint = true)
     )]
     pub async fn export_diagram(&self, Parameters(p): Parameters<ExportParams>) -> ToolResult {
@@ -573,12 +573,16 @@ impl HieroServer {
                 Ok(s) => (s.clone().into_bytes(), "svg", Some(s)),
                 Err(e) => return Ok(failure(e.0)),
             },
-            "drawio" => match hiero_registry::drawio_with_sub_diagrams(&diagram, |id| {
-                self.with_store(|s| s.get(id))
-                    .ok()
-                    .flatten()
-                    .map(|r| r.diagram)
-            }) {
+            "drawio" => match match p.version {
+                // A saved version comes alone, as it was.
+                Some(_) => t.to_drawio(&diagram),
+                None => hiero_registry::drawio_with_sub_diagrams(&diagram, |id| {
+                    self.with_store(|s| s.get(id))
+                        .ok()
+                        .flatten()
+                        .map(|r| r.diagram)
+                }),
+            } {
                 Ok(s) => (s.clone().into_bytes(), "drawio", Some(s)),
                 Err(e) => return Ok(failure(e.0)),
             },

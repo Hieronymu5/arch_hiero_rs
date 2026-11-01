@@ -260,10 +260,10 @@ const HANDLE_FILL: Color32 = Color32::WHITE;
 const HANDLE: f32 = 12.0;
 const CONNECT_RADIUS: f32 = 7.0;
 
-/// Whether the canvas shows its grid: one setting for every diagram, kept between runs.
 /// How far the pointer may move, in points, for a press and release to count as a click.
 const CLICK_SLOP: f32 = 4.0;
 
+/// Whether the canvas shows its grid: one setting for every diagram, kept between runs.
 fn grid_id() -> Id {
     Id::unique("hiero-editor.show-grid")
 }
@@ -405,10 +405,11 @@ impl<T: DiagramView> Editor<T> {
         self.request.take()
     }
 
-    /// Makes an element open `diagram`, or nothing, as an undoable change.
-    pub fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>) {
+    /// Makes an element open `diagram`, or nothing, as an undoable change. Returns false when
+    /// there's no such element.
+    pub fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>) -> bool {
         if self.eng.element(element).is_none() {
-            return;
+            return false;
         }
         let element = element.clone();
         self.act(None, move |eng| {
@@ -417,6 +418,7 @@ impl<T: DiagramView> Editor<T> {
                 e
             });
         });
+        true
     }
 
     /// The diagram an element opens, when it still exists, with its name.
@@ -1685,7 +1687,7 @@ pub trait DiagramEditor {
     fn take_notice(&mut self) -> Option<String>;
     fn set_diagram_names(&mut self, names: BTreeMap<DiagramId, String>);
     fn take_request(&mut self) -> Option<DiagramRequest>;
-    fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>);
+    fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>) -> bool;
     /// Selects the first element named `label`, such as for checking the editor.
     fn select_by_label(&mut self, label: &str);
 }
@@ -1755,8 +1757,8 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
         Editor::take_request(self)
     }
 
-    fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>) {
-        Editor::link_diagram(self, element, diagram);
+    fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>) -> bool {
+        Editor::link_diagram(self, element, diagram)
     }
 
     fn select_by_label(&mut self, label: &str) {

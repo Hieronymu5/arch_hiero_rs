@@ -12,7 +12,7 @@ use crate::geometry::{GRID, Point, Rect};
 use crate::layout::{
     CANVAS_AREA, child_placement_area, clamp_into, content_area, find_free_position, snap_to_canvas,
 };
-use crate::model::{ConnectionId, DiagramTypeId, ElementId};
+use crate::model::{ConnectionId, DiagramId, DiagramTypeId, ElementId};
 use crate::stored::{StoredConnection, StoredElement};
 
 /// What the clipboard text's `format` says, so other text isn't taken for elements.
@@ -194,6 +194,13 @@ impl<T: DiagramType> Engine<T> {
             .iter()
             .map(|e| (e.id.clone(), ElementId(self.new_id())))
             .collect();
+        // A diagram belongs to one element: a pasted element keeps the diagram it opens only
+        // while nothing here opens it already, so a cut and paste keeps it, and a copy doesn't.
+        let mut opened: HashSet<DiagramId> = self
+            .elements()
+            .iter()
+            .filter_map(|e| e.sub_diagram_id.clone())
+            .collect();
         let mut pasted: Vec<El<T>> = clip
             .elements
             .iter()
@@ -201,8 +208,7 @@ impl<T: DiagramType> Engine<T> {
                 let mut e = e.clone();
                 e.id = new_ids[&e.id].clone();
                 e.parent_id = e.parent_id.and_then(|p| new_ids.get(&p).cloned());
-                // A diagram belongs to one element, so copies don't take it with them.
-                e.sub_diagram_id = None;
+                e.sub_diagram_id = e.sub_diagram_id.filter(|d| opened.insert(d.clone()));
                 e
             })
             .collect();
@@ -461,6 +467,35 @@ mod tests {
             (third.x, third.y),
             (original.x + GRID * 2.0, original.y + GRID * 2.0)
         );
+    }
+
+    #[test]
+    fn a_cut_keeps_the_diagram_an_element_opens_and_a_copy_doesnt() {
+        let mut e = group_of_two();
+        e.replace(&id("id2"), |mut el| {
+            el.sub_diagram_id = Some("detail".into());
+            el
+        });
+        let opens = |e: &Engine<Test>| -> Vec<ElementId> {
+            e.elements()
+                .iter()
+                .filter(|el| el.sub_diagram_id == Some("detail".into()))
+                .map(|el| el.id.clone())
+                .collect()
+        };
+        e.select(&id("id2"));
+        let copy = e.copy_selection().unwrap();
+        e.paste(&copy);
+        assert_eq!(opens(&e), [id("id2")], "the copy doesn't open it");
+
+        e.select(&id("id2"));
+        let cut = e.cut_selection().unwrap();
+        e.paste(&cut);
+        let moved = e.selection[0].clone();
+        assert_eq!(opens(&e), [moved], "the cut one still opens it");
+        // Pasting the cut one again makes a copy.
+        e.paste(&cut);
+        assert_eq!(opens(&e).len(), 1);
     }
 
     #[test]
