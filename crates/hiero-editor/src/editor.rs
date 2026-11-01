@@ -180,6 +180,11 @@ pub enum DiagramRequest {
     Add { element: ElementId, name: String },
     /// Open a diagram, to view or to edit.
     Open { diagram: DiagramId, viewing: bool },
+    /// Delete the diagram an element opens, once the user agrees, and stop it opening it.
+    Remove {
+        element: ElementId,
+        diagram: DiagramId,
+    },
 }
 
 /// A change the editor made, for the app to save and add to the undo history.
@@ -564,7 +569,6 @@ impl<T: DiagramView> Editor<T> {
         let mut remove_selection = false;
         let mut focus_name_id = None;
         let mut request = None;
-        let mut unlink = false;
         if let Some(id) = cx.eng.selected_connection.clone()
             && let Some(connection) = cx.eng.connection(&id).cloned()
         {
@@ -598,10 +602,13 @@ impl<T: DiagramView> Editor<T> {
                             });
                         }
                         if page_button(ui, "Remove diagram", false)
-                            .on_hover_text("Stop opening it from here. The diagram itself is kept.")
+                            .on_hover_text("Delete it, with its own sub diagrams")
                             .clicked()
                         {
-                            unlink = true;
+                            request = Some(DiagramRequest::Remove {
+                                element: element.id().clone(),
+                                diagram: id.clone(),
+                            });
                         }
                     });
                 }
@@ -683,9 +690,6 @@ impl<T: DiagramView> Editor<T> {
         }
         if request.is_some() {
             self.request = request;
-        }
-        if unlink && let Some(id) = self.eng.selected_id().cloned() {
-            self.link_diagram(&id, None);
         }
         if remove_selection {
             self.act(None, |eng| {

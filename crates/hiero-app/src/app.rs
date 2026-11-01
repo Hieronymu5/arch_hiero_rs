@@ -76,6 +76,9 @@ pub enum Dialog {
         name: String,
         /// How many sub diagrams, and theirs, go with it.
         sub_diagrams: usize,
+        /// The element of the open diagram that opens it, when it's removed from there: it
+        /// stops opening it.
+        opened_by: Option<ElementId>,
     },
     SaveVersion {
         description: String,
@@ -366,7 +369,34 @@ impl App {
                 };
                 self.go(Page::New);
             }
+            DiagramRequest::Remove { element, diagram } => {
+                let name = self
+                    .list
+                    .iter()
+                    .find(|s| s.meta.id == diagram)
+                    .map_or_else(|| diagram.to_string(), |s| s.meta.name.clone());
+                let sub_diagrams = self.store.sub_diagrams(&diagram).map_or(0, |s| s.len());
+                self.dialog = Some(Dialog::DeleteDiagram {
+                    id: diagram,
+                    name,
+                    sub_diagrams,
+                    opened_by: Some(element),
+                });
+            }
         }
+    }
+
+    /// Deletes the diagram an element of the open diagram opens, then stops the element
+    /// opening it, as Remove diagram in its properties does. The delete can't be undone.
+    pub fn remove_sub_diagram(&mut self, element: &ElementId, id: &DiagramId, name: &str) {
+        self.delete(id, name);
+        if self.list.iter().any(|s| s.meta.id == *id) {
+            return;
+        }
+        if let Some(open) = &mut self.open {
+            open.editor.link_diagram(element, None);
+        }
+        self.collect_changes();
     }
 
     fn load(&self, id: &DiagramId) -> Result<OpenDiagram, String> {

@@ -751,6 +751,7 @@ impl App {
                                 id: id.clone(),
                                 name: row.meta.name.clone(),
                                 sub_diagrams,
+                                opened_by: None,
                             });
                         }
                     });
@@ -1238,6 +1239,7 @@ impl App {
                     id,
                     name,
                     sub_diagrams,
+                    opened_by,
                 } => {
                     ui.heading("Delete diagram?");
                     ui.label(match sub_diagrams {
@@ -1252,7 +1254,12 @@ impl App {
                         }
                         if danger_button(ui, "Delete").clicked() {
                             let (id, name) = (id.clone(), name.clone());
-                            next = Some(Box::new(move |app| app.delete(&id, &name)));
+                            next = Some(match opened_by.clone() {
+                                Some(element) => Box::new(move |app| {
+                                    app.remove_sub_diagram(&element, &id, &name);
+                                }),
+                                None => Box::new(move |app| app.delete(&id, &name)),
+                            });
                             keep = false;
                         }
                     });
