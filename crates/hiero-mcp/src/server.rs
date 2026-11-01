@@ -99,7 +99,9 @@ pub struct EditParams {
     /// description?, parent_id?, x?, y?, props?}, update_element {id, label?, description?,
     /// parent_id? ("" takes it out of its container), props? (merged; null removes a key),
     /// sub_diagram_id? (the id of a diagram the element opens, a more detailed one of what it
-    /// stands for, such as one made with create_diagram; "" stops it opening one)},
+    /// stands for, such as one made with create_diagram, which becomes this diagram's sub
+    /// diagram and is deleted with it; it can't already be another diagram's sub diagram or be
+    /// above this one; "" stops it opening one)},
     /// move_element {id, x, y}, resize_element {id, width, height}, remove_element {id},
     /// add_connection {ref?, source_id, target_id, props?}, update_connection {id, props},
     /// remove_connection {id}. Any id can be a ref given to an element added earlier in the
@@ -400,13 +402,22 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Deletes a diagram and all its versions. This can't be undone.",
+        description = "Deletes a diagram and all its versions, with its sub diagrams (the ones its elements open, listed with it as their parentId) and theirs. This can't be undone.",
         annotations(destructive_hint = true)
     )]
     pub async fn delete_diagram(&self, Parameters(p): Parameters<DiagramParams>) -> ToolResult {
         let id = DiagramId(p.id);
         Ok(match self.with_store(|s| s.delete(&id)) {
-            Ok(()) => text(format!("Deleted “{id}”.")),
+            Ok(deleted) => match deleted.get(1..).unwrap_or_default() {
+                [] => text(format!("Deleted “{id}”.")),
+                subs => text(format!(
+                    "Deleted “{id}” and its sub diagrams: {}.",
+                    subs.iter()
+                        .map(|s| format!("“{s}”"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )),
+            },
             Err(e) => store_failure(&e),
         })
     }
@@ -430,19 +441,36 @@ impl HieroServer {
         }
         let outcome = self.with_store(|store| -> Result<Result<Value, String>, StoreError> {
             let record = store.get(&id)?.ok_or(StoreError::NotFound)?;
-            // The diagrams elements are to open must exist.
+            // The diagrams elements are to open must exist, belong to no other diagram, and
+            // not be above this one, as deleting a diagram deletes its sub diagrams.
+            let above = store.ancestors(&id)?;
             for (i, edit) in edits.iter().enumerate() {
-                if let EditOp::UpdateElement {
+                let EditOp::UpdateElement {
                     sub_diagram_id: Some(sub),
                     ..
                 } = edit
-                    && !sub.is_empty()
-                    && store.get(&DiagramId(sub.clone()))?.is_none()
-                {
-                    return Ok(Err(format!(
-                        "Edit {} was rejected: there's no diagram “{sub}”.",
-                        i + 1
-                    )));
+                else {
+                    continue;
+                };
+                if sub.is_empty() {
+                    continue;
+                }
+                let sub_id = DiagramId(sub.clone());
+                let reason = if store.get(&sub_id)?.is_none() {
+                    Some(format!("there's no diagram “{sub}”"))
+                } else if above.contains(&sub_id) {
+                    Some(format!(
+                        "“{sub}” is above this diagram, so it can't be a sub diagram of it"
+                    ))
+                } else {
+                    store
+                        .ancestors(&sub_id)?
+                        .first()
+                        .filter(|parent| **parent != id)
+                        .map(|parent| format!("“{sub}” is already a sub diagram of “{parent}”"))
+                };
+                if let Some(reason) = reason {
+                    return Ok(Err(format!("Edit {} was rejected: {reason}.", i + 1)));
                 }
             }
             if p.expected_revision.is_some_and(|r| r != record.revision) {

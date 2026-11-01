@@ -67,6 +67,9 @@ Crate boundaries:
   and its schema too.
 - A diagram's **type is fixed at creation**. Never add a code path that changes it. The
   database enforces this with a trigger.
+- **Sub diagrams:** an element opens one through `subDiagramId` in its props. The store
+  derives `diagrams.parent_diagram_id` from those links whenever content is written (never set
+  it directly), keeps it free of loops, and deleting a diagram cascades to its sub diagrams.
 - No usernames anywhere: records carry dates only.
 - **Two kinds of save:** every change autosaves to the current record. The Save button records
   an immutable version in `diagram_versions`, with an optional description (≤ 200 characters) asked for in the Save prompt. The status is *Saved* when the current content

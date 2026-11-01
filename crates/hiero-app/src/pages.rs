@@ -746,9 +746,11 @@ impl App {
                             self.export(&id, None, ExportFormat::Zip);
                         }
                         if row_button(ui, "Delete").clicked() {
+                            let sub_diagrams = self.store.sub_diagrams(&id).map_or(0, |s| s.len());
                             self.dialog = Some(Dialog::DeleteDiagram {
                                 id: id.clone(),
                                 name: row.meta.name.clone(),
+                                sub_diagrams,
                             });
                         }
                     });
@@ -1232,9 +1234,17 @@ impl App {
         let modal = egui::Modal::new(egui::Id::unique("dialog")).show(ctx, |ui| {
             ui.set_width(420.0);
             match &mut dialog {
-                Dialog::DeleteDiagram { id, name } => {
+                Dialog::DeleteDiagram {
+                    id,
+                    name,
+                    sub_diagrams,
+                } => {
                     ui.heading("Delete diagram?");
-                    ui.label(format!("“{name}”, everything on it, and its history will be deleted. This can’t be undone."));
+                    ui.label(match sub_diagrams {
+                        0 => format!("“{name}”, everything on it, and its history will be deleted. This can’t be undone."),
+                        1 => format!("“{name}” and its sub diagram, everything on them, and their history will be deleted. This can’t be undone."),
+                        n => format!("“{name}” and its {n} sub diagrams, everything on them, and their history will be deleted. This can’t be undone."),
+                    });
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
                         if page_button(ui, "Cancel", false).clicked() {

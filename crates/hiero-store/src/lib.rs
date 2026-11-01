@@ -6,7 +6,7 @@
 //! it expects, so a change made elsewhere in the meantime fails with [`StoreError::Conflict`]
 //! rather than being overwritten.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 pub mod locations;
@@ -207,11 +207,27 @@ ALTER TABLE diagrams DROP COLUMN line_weight;
 ALTER TABLE diagrams RENAME COLUMN line_weight_3 TO line_weight;
 ";
 
+/// The diagram each diagram is a sub diagram of: the one with an element that opens it.
+/// Deleting a diagram deletes its sub diagrams, and theirs. It's kept up to date from the
+/// elements' `subDiagramId` whenever content is written, and filled in here from them.
+const MIGRATION_4: &str = r"
+ALTER TABLE diagrams ADD COLUMN parent_diagram_id TEXT
+  REFERENCES diagrams(id) ON DELETE CASCADE;
+CREATE INDEX diagrams_by_parent ON diagrams(parent_diagram_id);
+CREATE INDEX elements_by_sub_diagram ON elements(json_extract(props, '$.subDiagramId'))
+  WHERE json_extract(props, '$.subDiagramId') IS NOT NULL;
+UPDATE diagrams SET parent_diagram_id = (
+  SELECT MIN(e.diagram_id) FROM elements e
+  WHERE json_extract(e.props, '$.subDiagramId') = diagrams.id AND e.diagram_id <> diagrams.id
+);
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(MIGRATION_1),
         M::up(MIGRATION_2),
         M::up(MIGRATION_3),
+        M::up(MIGRATION_4),
     ])
 }
 
@@ -301,6 +317,7 @@ impl Store {
         migrations()
             .to_latest(&mut conn)
             .map_err(|e| StoreError::Migration(e.to_string()))?;
+        break_parent_loops(&conn)?;
         Ok(Self { conn })
     }
 
@@ -330,24 +347,13 @@ impl Store {
 
     /// Every diagram, sorted by name, with its Release/Draft status and the diagram it belongs to.
     pub fn list(&self) -> Result<Vec<Summary>> {
-        // Each diagram an element opens, with the first diagram holding such an element, in
-        // one pass over the elements.
-        let parents: BTreeMap<String, String> = self
-            .conn
-            .prepare(
-                "SELECT json_extract(props, '$.subDiagramId') AS child, MIN(diagram_id)
-                 FROM elements
-                 WHERE child IS NOT NULL AND child <> diagram_id
-                 GROUP BY child",
-            )?
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-            .collect::<rusqlite::Result<_>>()?;
         let mut statement = self.conn.prepare(
             "SELECT d.id, d.type, d.name, d.description, d.created_at, d.updated_at, d.revision,
                     d.content_hash,
                     (SELECT v.content_hash FROM diagram_versions v WHERE v.diagram_id = d.id
                      ORDER BY v.version DESC LIMIT 1),
-                    (SELECT MAX(v.version) FROM diagram_versions v WHERE v.diagram_id = d.id)
+                    (SELECT MAX(v.version) FROM diagram_versions v WHERE v.diagram_id = d.id),
+                    d.parent_diagram_id
              FROM diagrams d ORDER BY d.name COLLATE NOCASE, d.id",
         )?;
         let rows = statement.query_map([], |row| {
@@ -362,12 +368,23 @@ impl Store {
                 row.get::<_, String>(7)?,
                 row.get::<_, Option<String>>(8)?,
                 row.get::<_, Option<i64>>(9)?,
+                row.get::<_, Option<String>>(10)?,
             ))
         })?;
         rows.map(|row| {
-            let (id, ty, name, description, created, updated, revision, hash, latest_hash, latest) =
-                row?;
-            let parent = parents.get(&id).cloned().map(DiagramId);
+            let (
+                id,
+                ty,
+                name,
+                description,
+                created,
+                updated,
+                revision,
+                hash,
+                latest_hash,
+                latest,
+                parent,
+            ) = row?;
             Ok(Summary {
                 meta: DiagramMeta {
                     id: DiagramId(id),
@@ -382,7 +399,7 @@ impl Store {
                     latest,
                 },
                 revision,
-                parent,
+                parent: parent.map(DiagramId),
             })
         })
         .collect()
@@ -435,15 +452,30 @@ impl Store {
         Ok(record)
     }
 
-    /// Deletes a diagram and its versions.
-    pub fn delete(&mut self, id: &DiagramId) -> Result<()> {
-        let changed = self
-            .conn
-            .execute("DELETE FROM diagrams WHERE id = ?1", params![id.0])?;
+    /// Deletes a diagram and its versions, with its sub diagrams and theirs. Returns every
+    /// diagram deleted, the given one first.
+    pub fn delete(&mut self, id: &DiagramId) -> Result<Vec<DiagramId>> {
+        let tx = self.conn.transaction()?;
+        let deleted = descendants(&tx, id)?;
+        let changed = tx.execute("DELETE FROM diagrams WHERE id = ?1", params![id.0])?;
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
-        Ok(())
+        tx.commit()?;
+        Ok(deleted)
+    }
+
+    /// A diagram's sub diagrams, and theirs: what deleting it deletes with it.
+    pub fn sub_diagrams(&self, id: &DiagramId) -> Result<Vec<DiagramId>> {
+        Ok(descendants(&self.conn, id)?.into_iter().skip(1).collect())
+    }
+
+    /// The diagrams a diagram is a sub diagram of, its parent first.
+    pub fn ancestors(&self, id: &DiagramId) -> Result<Vec<DiagramId>> {
+        Ok(ancestors(&self.conn, &id.0)?
+            .into_iter()
+            .map(DiagramId)
+            .collect())
     }
 
     /// Saves a diagram from a file: it replaces the diagram with the same id, every field of
@@ -590,6 +622,137 @@ fn status_of(conn: &Connection, id: &DiagramId) -> Result<Status> {
     )
     .optional()?
     .ok_or(StoreError::NotFound)
+}
+
+/// A diagram and its sub diagrams, and theirs: the diagram first.
+fn descendants(conn: &Connection, id: &DiagramId) -> Result<Vec<DiagramId>> {
+    let mut statement = conn.prepare(
+        "WITH RECURSIVE below(id) AS (
+           SELECT id FROM diagrams WHERE id = ?1
+           UNION SELECT d.id FROM diagrams d JOIN below b ON d.parent_diagram_id = b.id
+         )
+         SELECT id FROM below",
+    )?;
+    let ids = statement
+        .query_map(params![id.0], |row| row.get(0).map(DiagramId))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(ids)
+}
+
+fn parent_of(conn: &Connection, id: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT parent_diagram_id FROM diagrams WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .optional()?
+        .flatten())
+}
+
+/// The diagrams above `id`, its parent first, stopping before any loop.
+fn ancestors(conn: &Connection, id: &str) -> Result<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    let mut at = id.to_owned();
+    while let Some(parent) = parent_of(conn, &at)? {
+        if parent == id || out.contains(&parent) {
+            break;
+        }
+        out.push(parent.clone());
+        at = parent;
+    }
+    Ok(out)
+}
+
+/// Makes `child` a sub diagram of `parent`, unless that would make a loop, where deleting a
+/// sub diagram would delete what it's under. Returns whether it did.
+fn adopt(conn: &Connection, child: &str, parent: &str) -> Result<bool> {
+    if child == parent || ancestors(conn, parent)?.iter().any(|a| a == child) {
+        return Ok(false);
+    }
+    let changed = conn.execute(
+        "UPDATE diagrams SET parent_diagram_id = ?2 WHERE id = ?1",
+        params![child, parent],
+    )?;
+    Ok(changed > 0)
+}
+
+/// Gives `child`, which has no parent, the first diagram with an element that opens it.
+fn find_parent(conn: &Connection, child: &str) -> Result<()> {
+    let candidates: Vec<String> = conn
+        .prepare_cached(
+            "SELECT DISTINCT diagram_id FROM elements
+             WHERE json_extract(props, '$.subDiagramId') = ?1 AND diagram_id <> ?1
+             ORDER BY diagram_id",
+        )?
+        .query_map(params![child], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for parent in candidates {
+        if adopt(conn, child, &parent)? {
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Brings the diagrams' parents up to date after `id`'s content was written: the diagrams its
+/// elements open become its sub diagrams, unless they're already another's; ones they no
+/// longer open look for another parent; and it finds its own, if it has none.
+fn sync_parents(conn: &Connection, id: &DiagramId, content: &StoredContent) -> Result<()> {
+    let opened: BTreeSet<&str> = content
+        .elements
+        .iter()
+        .filter_map(|e| e.props.get("subDiagramId").and_then(Value::as_str))
+        .filter(|s| !s.is_empty() && *s != id.0)
+        .collect();
+    let children: Vec<String> = conn
+        .prepare_cached("SELECT id FROM diagrams WHERE parent_diagram_id = ?1")?
+        .query_map(params![id.0], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for child in children.iter().filter(|c| !opened.contains(c.as_str())) {
+        conn.execute(
+            "UPDATE diagrams SET parent_diagram_id = NULL WHERE id = ?1",
+            params![child],
+        )?;
+        find_parent(conn, child)?;
+    }
+    for child in opened {
+        if parent_of(conn, child)?.is_none() {
+            adopt(conn, child, &id.0)?;
+        }
+    }
+    if parent_of(conn, &id.0)?.is_none() {
+        find_parent(conn, &id.0)?;
+    }
+    Ok(())
+}
+
+/// Takes the parent away from one diagram in each loop of diagrams under each other, which
+/// the migration's fill could make, so deleting a diagram never deletes what it's under.
+fn break_parent_loops(conn: &Connection) -> Result<()> {
+    let ids: Vec<String> = conn
+        .prepare("SELECT id FROM diagrams WHERE parent_diagram_id IS NOT NULL ORDER BY id")?
+        .query_map([], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for id in ids {
+        let mut seen = vec![id.clone()];
+        let mut at = id.clone();
+        while let Some(parent) = parent_of(conn, &at)? {
+            if parent == id {
+                conn.execute(
+                    "UPDATE diagrams SET parent_diagram_id = NULL WHERE id = ?1",
+                    params![id],
+                )?;
+                break;
+            }
+            if seen.contains(&parent) {
+                break;
+            }
+            seen.push(parent.clone());
+            at = parent;
+        }
+    }
+    Ok(())
 }
 
 fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
@@ -746,7 +909,7 @@ fn insert_content(tx: &Transaction<'_>, id: &DiagramId, content: &StoredContent)
             props_json(&c.props)
         ])?;
     }
-    Ok(())
+    sync_parents(tx, id, content)
 }
 
 /// Writes `diagram` over the current record, which is at `revision`.
@@ -946,6 +1109,123 @@ mod tests {
         store.save(&got.diagram, Some(got.revision)).unwrap();
         let got = store.get(&"d1".into()).unwrap().unwrap().diagram;
         assert_eq!(got.line_weight, Some(LineWeight::Medium));
+    }
+
+    /// A diagram whose second element opens each of `opens`.
+    fn opening(id: &str, opens: &[&str]) -> StoredDiagram {
+        let mut d = diagram(id, DiagramTypeId::Conceptual);
+        d.content.elements.truncate(1);
+        for (i, sub) in opens.iter().enumerate() {
+            let mut e = d.content.elements[0].clone();
+            e.id = format!("x{i}").as_str().into();
+            e.props.insert("subDiagramId".into(), json!(sub));
+            d.content.elements.push(e);
+        }
+        d.content.connections.clear();
+        d
+    }
+
+    fn parent(store: &Store, id: &str) -> Option<String> {
+        parent_of(&store.conn, id).unwrap()
+    }
+
+    fn ids(store: &Store) -> Vec<String> {
+        let mut ids: Vec<String> = store
+            .list()
+            .unwrap()
+            .into_iter()
+            .map(|s| s.meta.id.0)
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    #[test]
+    fn deleting_a_diagram_deletes_its_sub_diagrams_and_theirs() {
+        let mut store = Store::open_in_memory().unwrap();
+        store.create(&opening("top", &["mid"])).unwrap();
+        store.create(&opening("mid", &["leaf"])).unwrap();
+        store.create(&opening("leaf", &[])).unwrap();
+        store.create(&opening("other", &[])).unwrap();
+        assert_eq!(parent(&store, "mid").as_deref(), Some("top"));
+        assert_eq!(parent(&store, "leaf").as_deref(), Some("mid"));
+        let mut below = store.sub_diagrams(&"top".into()).unwrap();
+        below.sort();
+        assert_eq!(below, [DiagramId::from("leaf"), DiagramId::from("mid")]);
+        assert_eq!(
+            store.ancestors(&"leaf".into()).unwrap(),
+            [DiagramId::from("mid"), DiagramId::from("top")]
+        );
+        let deleted = store.delete(&"top".into()).unwrap();
+        assert_eq!(deleted[0], DiagramId::from("top"));
+        assert_eq!(deleted.len(), 3);
+        assert_eq!(ids(&store), ["other"]);
+        let versions: i64 = store
+            .conn
+            .query_row("SELECT COUNT(*) FROM diagram_versions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(versions, 1, "their versions go too");
+    }
+
+    #[test]
+    fn unlinked_sub_diagrams_stand_alone_and_survive_their_old_parent() {
+        let mut store = Store::open_in_memory().unwrap();
+        let top = store.create(&opening("top", &["sub"])).unwrap();
+        store.create(&opening("sub", &[])).unwrap();
+        assert_eq!(parent(&store, "sub").as_deref(), Some("top"));
+        store
+            .save(&opening("top", &[]), Some(top.revision))
+            .unwrap();
+        assert_eq!(parent(&store, "sub"), None);
+        store.delete(&"top".into()).unwrap();
+        assert_eq!(ids(&store), ["sub"]);
+    }
+
+    #[test]
+    fn a_second_diagram_opening_a_sub_diagram_takes_over_when_the_first_stops() {
+        let mut store = Store::open_in_memory().unwrap();
+        let a = store.create(&opening("a", &["sub"])).unwrap();
+        store.create(&opening("b", &["sub"])).unwrap();
+        store.create(&opening("sub", &[])).unwrap();
+        assert_eq!(parent(&store, "sub").as_deref(), Some("a"));
+        store.save(&opening("a", &[]), Some(a.revision)).unwrap();
+        assert_eq!(parent(&store, "sub").as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn diagrams_opening_each_other_never_delete_what_they_are_under() {
+        let mut store = Store::open_in_memory().unwrap();
+        store.create(&opening("top", &["sub"])).unwrap();
+        let sub = store.create(&opening("sub", &[])).unwrap();
+        // The sub diagram links back to the top one.
+        store
+            .save(&opening("sub", &["top"]), Some(sub.revision))
+            .unwrap();
+        assert_eq!(parent(&store, "top"), None);
+        store.delete(&"sub".into()).unwrap();
+        assert_eq!(ids(&store), ["top"]);
+    }
+
+    #[test]
+    fn parents_are_filled_in_from_links_made_before_the_column() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrations().to_version(&mut conn, 3).unwrap();
+        conn.execute_batch(
+            "INSERT INTO diagrams (id, type, name, content_hash, created_at, updated_at)
+             VALUES ('a', 'conceptual', 'A', '', '', ''), ('b', 'conceptual', 'B', '', '', ''),
+                    ('c', 'conceptual', 'C', '', '', '');
+             INSERT INTO elements (diagram_id, id, ord, kind, label, x, y, props)
+             VALUES ('a', 'e', 0, 'actor', 'E', 0, 0, '{\"subDiagramId\": \"b\"}'),
+                    ('b', 'e', 0, 'actor', 'E', 0, 0, '{\"subDiagramId\": \"a\"}'),
+                    ('b', 'f', 1, 'actor', 'F', 0, 0, '{\"subDiagramId\": \"c\"}');",
+        )
+        .unwrap();
+        let store = Store::setup(conn).unwrap();
+        assert_eq!(parent(&store, "c").as_deref(), Some("b"));
+        // a and b open each other: one of them is left at the top.
+        let a = parent(&store, "a");
+        let b = parent(&store, "b");
+        assert!(a.is_none() != b.is_none(), "{a:?} {b:?}");
     }
 
     #[test]

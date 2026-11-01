@@ -74,6 +74,8 @@ pub enum Dialog {
     DeleteDiagram {
         id: DiagramId,
         name: String,
+        /// How many sub diagrams, and theirs, go with it.
+        sub_diagrams: usize,
     },
     SaveVersion {
         description: String,
@@ -681,12 +683,26 @@ impl App {
             id: id.clone(),
             reply,
         }) {
-            Ok(()) => {
-                if self.open.as_ref().is_some_and(|o| o.record.meta.id == *id) {
+            Ok(deleted) => {
+                if self
+                    .open
+                    .as_ref()
+                    .is_some_and(|o| deleted.contains(&o.record.meta.id))
+                {
                     self.open = None;
+                    self.save_due = None;
                 }
-                self.undo.remove(id);
-                self.outcome = Some(Outcome::ok(format!("Deleted “{name}”.")));
+                for gone in &deleted {
+                    self.undo.remove(gone);
+                    self.expanded.remove(gone);
+                    self.viewed.remove(gone);
+                }
+                let message = match deleted.len() - 1 {
+                    0 => format!("Deleted “{name}”."),
+                    1 => format!("Deleted “{name}” and its sub diagram."),
+                    n => format!("Deleted “{name}” and its {n} sub diagrams."),
+                };
+                self.outcome = Some(Outcome::ok(message));
             }
             Err(e) => {
                 self.outcome = Some(Outcome::error(format!("“{name}” couldn't be deleted. {e}")));

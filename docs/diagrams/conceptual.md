@@ -157,5 +157,5 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] Per-diagram colours with "Use the default colors"
 - [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [x] View mode, the default when opening from the list: no palette, properties, or grid; drag with either button, scroll, zoom, and export (beyond the prototype)
-- [x] Sub diagrams: an element can open a diagram of its own, added, edited, or removed in its properties and opened by clicking it in view mode; the list shows them under their diagram, and draw.io exports add them as linked pages (beyond the prototype)
+- [x] Sub diagrams: an element can open a diagram of its own, added, edited, or removed in its properties and opened by clicking it in view mode; the list shows them under their diagram, deleting a diagram deletes them, and draw.io exports add them as linked pages (beyond the prototype)
 - [ ] SVG and draw.io export that match the prototype (snapshot tests) — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

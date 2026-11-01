@@ -27,9 +27,10 @@ pub enum Request {
         diagram: StoredDiagram,
         reply: Sender<Result<Record, StoreError>>,
     },
+    /// Deletes a diagram with its sub diagrams, answering with every diagram deleted.
     Delete {
         id: DiagramId,
-        reply: Sender<Result<(), StoreError>>,
+        reply: Sender<Result<Vec<DiagramId>, StoreError>>,
     },
     Import {
         diagram: StoredDiagram,
@@ -200,8 +201,13 @@ fn handle(
             let _ = reply.send(result);
         }
         Request::Delete { id, reply } => {
-            known.remove(&id);
-            let _ = reply.send(store.delete(&id));
+            let result = store.delete(&id);
+            if let Ok(deleted) = &result {
+                for id in deleted {
+                    known.remove(id);
+                }
+            }
+            let _ = reply.send(result);
         }
         Request::Import { diagram, reply } => {
             let result = store.import(&diagram);
