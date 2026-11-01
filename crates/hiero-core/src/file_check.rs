@@ -593,12 +593,21 @@ fn check_element<'a, T: DiagramType>(
             return Err(at(must_be("parentId", "text")));
         }
     }
+    // The diagram the element opens (beyond the prototype).
+    if let Some(sub) = object.get("subDiagramId") {
+        if is_empty(sub) {
+            return Err(at(left_out("subDiagramId")));
+        }
+        if !sub.is_string() {
+            return Err(at(must_be("subDiagramId", "text")));
+        }
+    }
     // 22.
     let fields = T::file_fields(info.kind);
     let allowed = |k: &str| {
         matches!(
             k,
-            "id" | "kind" | "label" | "x" | "y" | "width" | "height" | "parentId"
+            "id" | "kind" | "label" | "x" | "y" | "width" | "height" | "parentId" | "subDiagramId"
         ) || (info.has_description && k == "description")
             || fields.iter().any(|f| f.key == k)
     };

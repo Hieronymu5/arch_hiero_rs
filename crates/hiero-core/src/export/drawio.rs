@@ -140,7 +140,7 @@ pub fn wrap(title: &str, cells: &[String]) -> String {
     let _ = writeln!(out, r#"<mxfile host="ArchHiero" type="device">"#);
     let _ = writeln!(
         out,
-        r#"  <diagram id="archhiero-diagram" name="{}">"#,
+        r#"  <diagram id="{FIRST_PAGE_ID}" name="{}">"#,
         escape_xml(title)
     );
     let _ = writeln!(
@@ -158,6 +158,79 @@ pub fn wrap(title: &str, cells: &[String]) -> String {
     let _ = writeln!(out, "  </diagram>");
     let _ = writeln!(out, "</mxfile>");
     out
+}
+
+/// The id of a single diagram's page, and of the first page of a file with several.
+pub const FIRST_PAGE_ID: &str = "archhiero-diagram";
+
+/// A page of a draw.io file with several: a whole file from [`wrap`], its page's id, and the
+/// elements that link to another page, with that page's id.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DrawioPage {
+    pub id: String,
+    pub file: String,
+    pub links: Vec<(ElementId, String)>,
+}
+
+/// One draw.io file holding each page in turn, with the links made: each linked element
+/// links to its page.
+pub fn combine_pages(pages: &[DrawioPage]) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, r#"<mxfile host="ArchHiero" type="device">"#);
+    for page in pages {
+        let start = page.file.find("  <diagram ").unwrap_or(0);
+        let end = page
+            .file
+            .rfind("  </diagram>")
+            .map_or(page.file.len(), |i| i + "  </diagram>\n".len());
+        let mut body = page.file[start..end.min(page.file.len())].replacen(
+            &format!(r#"id="{FIRST_PAGE_ID}""#),
+            &format!(r#"id="{}""#, escape_xml(&page.id)),
+            1,
+        );
+        for (element, target) in &page.links {
+            body = link_cell(&body, element, target);
+        }
+        out.push_str(&body);
+    }
+    let _ = writeln!(out, "</mxfile>");
+    out
+}
+
+/// Links an element to the page `target`: its cell becomes a draw.io `UserObject` with the
+/// link. Its text stays as it is, so draw.io offers the one link.
+fn link_cell(body: &str, element: &ElementId, target: &str) -> String {
+    let own = format!(r#"<mxCell id="{}" value=""#, escape_xml(element.as_str()));
+    let Some(start) = body.find(&own) else {
+        return body.to_owned();
+    };
+    let Some(end) = body[start..].find("</mxCell>").map(|i| start + i) else {
+        return body.to_owned();
+    };
+    let cell = &body[start..end];
+    let attribute = |name: &str| -> Option<(usize, usize)> {
+        let key = format!(r#" {name}=""#);
+        let from = cell.find(&key)? + key.len();
+        Some((from, from + cell[from..].find('"')?))
+    };
+    let (Some((id_from, id_to)), Some((value_from, value_to)), Some((style_from, style_to))) =
+        (attribute("id"), attribute("value"), attribute("style"))
+    else {
+        return body.to_owned();
+    };
+    let link = format!("data:page/id,{target}");
+    let label = &cell[value_from..value_to];
+    let style = &cell[style_from..style_to];
+    let rest = &cell[style_to + 1..];
+    format!(
+        r#"{}<UserObject id="{}" label="{label}" link="{}">
+          <mxCell style="{style}"{rest}</mxCell>
+        </UserObject>{}"#,
+        &body[..start],
+        &cell[id_from..id_to],
+        escape_xml(&link),
+        &body[end + "</mxCell>".len()..]
+    )
 }
 
 /// The heading as a text cell at the origin, `width` wide, and its height.
@@ -835,6 +908,38 @@ mod tests {
                 || xml.contains(r#"id="d" value="d &amp; co""#)
         );
         assert!(xml.contains(r#"x="40" y="108" width="480" height="180""#));
+    }
+
+    #[test]
+    fn pages_link_elements_to_the_pages_of_their_diagrams() {
+        let page = |id: &str, title: &str, links: Vec<(ElementId, String)>| DrawioPage {
+            id: id.into(),
+            file: wrap(
+                title,
+                &[cell(
+                    "e1",
+                    "Web &amp; API",
+                    "rounded=1;",
+                    "1",
+                    r#"x="0" y="0""#,
+                )],
+            ),
+            links,
+        };
+        let xml = combine_pages(&[
+            page(FIRST_PAGE_ID, "Overview", vec![("e1".into(), "d2".into())]),
+            page("d2", "Detail", Vec::new()),
+        ]);
+        assert_eq!(xml.matches("<mxfile ").count(), 1);
+        assert!(xml.contains(r#"<diagram id="archhiero-diagram" name="Overview">"#));
+        assert!(xml.contains(r#"<diagram id="d2" name="Detail">"#));
+        assert_eq!(xml.matches("<UserObject ").count(), 1);
+        assert!(
+            xml.contains(r#"<UserObject id="e1" label="Web &amp; API" link="data:page/id,d2">"#)
+        );
+        assert!(!xml.contains("&lt;a "));
+        assert!(xml.contains(r#"<mxCell style="rounded=1;" vertex="1" parent="1">"#));
+        assert!(xml.trim_end().ends_with("</mxfile>"));
     }
 
     #[test]

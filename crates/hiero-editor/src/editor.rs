@@ -12,7 +12,7 @@ use hiero_core::engine::{
     Conn, Corner, DiagramType, Dir, El, Engine, Laid, Placement, validate_label,
 };
 use hiero_core::geometry::{CANVAS_HEIGHT, CANVAS_WIDTH, GRID, Point, Rect};
-use hiero_core::model::{ColorScheme, ConnectionId, ElementId, LineWeight};
+use hiero_core::model::{ColorScheme, ConnectionId, DiagramId, ElementId, LineWeight};
 use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent};
 
@@ -173,6 +173,15 @@ impl<T: DiagramType> PropsCx<'_, T> {
     }
 }
 
+/// Something about the diagrams elements open that the editor asks the app to do.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DiagramRequest {
+    /// Create a diagram for the element to open, named after it.
+    Add { element: ElementId, name: String },
+    /// Open a diagram, to view or to edit.
+    Open { diagram: DiagramId, viewing: bool },
+}
+
 /// A change the editor made, for the app to save and add to the undo history.
 #[derive(Debug, Clone)]
 pub struct Change {
@@ -234,6 +243,13 @@ enum Focus {
 #[derive(Debug, Clone, Copy)]
 struct PaletteDrag(usize);
 
+/// The instructions while viewing, when nothing can be changed.
+const VIEW_HELP: &str = concat!(
+    "• You're viewing this diagram: nothing can be changed. Press Edit to change it.\n",
+    "• Drag with either mouse button, scroll, or use the arrow keys to move around.\n",
+    "• Use the Zoom slider in the canvas's corner, or Cmd or Ctrl and the scroll wheel, to see more."
+);
+
 /// How far the pointer moves, in canvas pixels, before a press on empty canvas draws a box.
 const SELECT_THRESHOLD: f64 = 3.0;
 
@@ -245,6 +261,9 @@ const HANDLE: f32 = 12.0;
 const CONNECT_RADIUS: f32 = 7.0;
 
 /// Whether the canvas shows its grid: one setting for every diagram, kept between runs.
+/// How far the pointer may move, in points, for a press and release to count as a click.
+const CLICK_SLOP: f32 = 4.0;
+
 fn grid_id() -> Id {
     Id::unique("hiero-editor.show-grid")
 }
@@ -264,9 +283,15 @@ pub struct Editor<T: DiagramView> {
     scene_cache: Option<(u64, Scene)>,
     outbox: Vec<Change>,
     pub show_help: bool,
+    /// Only looking: no palette or properties, and the canvas only moves and zooms.
+    viewing: bool,
     focus_name: bool,
     /// A message for the app to show, such as why the clipboard couldn't be pasted.
     notice: Option<String>,
+    /// The names of the diagrams there are, for the elements that open one.
+    diagram_names: BTreeMap<DiagramId, String>,
+    /// What the app is asked to do about the diagrams elements open.
+    request: Option<DiagramRequest>,
     salt: Id,
 }
 
@@ -292,8 +317,11 @@ impl<T: DiagramView> Editor<T> {
             scene_cache: None,
             outbox: Vec::new(),
             show_help: false,
+            viewing: false,
             focus_name: false,
             notice: None,
+            diagram_names: BTreeMap::new(),
+            request: None,
             salt,
         }
     }
@@ -351,6 +379,67 @@ impl<T: DiagramView> Editor<T> {
         self.eng.set_line_weight(weight);
     }
 
+    pub fn viewing(&self) -> bool {
+        self.viewing
+    }
+
+    /// Starts or stops viewing. Viewing drops the selection and anything being dragged, so
+    /// nothing is left half done.
+    pub fn set_viewing(&mut self, viewing: bool) {
+        if viewing {
+            self.eng.clear_selection();
+            self.drag = Drag::None;
+            self.focus = Focus::Canvas;
+            self.selection_before_focus = None;
+        }
+        self.viewing = viewing;
+    }
+
+    /// The names of the diagrams there are, so elements can show the one they open.
+    pub fn set_diagram_names(&mut self, names: BTreeMap<DiagramId, String>) {
+        self.diagram_names = names;
+    }
+
+    /// What the app was asked to do since last asked.
+    pub fn take_request(&mut self) -> Option<DiagramRequest> {
+        self.request.take()
+    }
+
+    /// Makes an element open `diagram`, or nothing, as an undoable change.
+    pub fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>) {
+        if self.eng.element(element).is_none() {
+            return;
+        }
+        let element = element.clone();
+        self.act(None, move |eng| {
+            eng.replace(&element, |mut e| {
+                e.sub_diagram_id = diagram;
+                e
+            });
+        });
+    }
+
+    /// The diagram an element opens, when it still exists, with its name.
+    fn opens(&self, element: &El<T>) -> Option<(&DiagramId, &str)> {
+        let id = element.sub_diagram_id.as_ref()?;
+        self.diagram_names
+            .get_key_value(id)
+            .map(|(id, name)| (id, name.as_str()))
+    }
+
+    /// The topmost element under a world point that opens a diagram.
+    fn opener_at(&self, p: Point) -> Option<(&DiagramId, &str)> {
+        let layout = self.eng.layout();
+        let hit = |e: &&Laid<T>| T::drawn_rect(&self.eng, e).contains_point(p);
+        layout
+            .iter()
+            .rev()
+            .filter(|e| !e.is_container)
+            .chain(layout.iter().rev().filter(|e| e.is_container))
+            .filter(hit)
+            .find_map(|e| self.opens(&e.el))
+    }
+
     /// The diagram as stored, drawn.
     pub fn scene(&self) -> Scene {
         T::scene(&self.eng, self.eng.layout(), None)
@@ -372,7 +461,7 @@ impl<T: DiagramView> Editor<T> {
                 .show(ui, |ui| {
                     egui::Frame::group(ui.style()).show(ui, |ui| {
                         ui.set_width(ui.available_width());
-                        ui.label(T::HELP);
+                        ui.label(if self.viewing { VIEW_HELP } else { T::HELP });
                     });
                 });
             ui.add_space(4.0);
@@ -388,18 +477,22 @@ impl<T: DiagramView> Editor<T> {
         // The bar is just wide enough for the longest name, "Load Balancer". Its id carries
         // the default width, so a width saved before the default changed is dropped.
         const ELEMENTS_WIDTH: u16 = 149;
-        egui::Panel::left(self.salt.with(("elements", ELEMENTS_WIDTH)))
-            .frame(palette_frame)
-            .resizable(true)
-            .default_size(f32::from(ELEMENTS_WIDTH))
-            .size_range(134.0..=360.0)
-            .show(ui, |ui| {
-                egui::ScrollArea::vertical()
-                    .auto_shrink(false)
-                    .show(ui, |ui| self.palette_ui(ui));
-            });
+        // While viewing, the canvas has the whole width.
+        if !self.viewing {
+            egui::Panel::left(self.salt.with(("elements", ELEMENTS_WIDTH)))
+                .frame(palette_frame)
+                .resizable(true)
+                .default_size(f32::from(ELEMENTS_WIDTH))
+                .size_range(134.0..=360.0)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .auto_shrink(false)
+                        .show(ui, |ui| self.palette_ui(ui));
+                });
+        }
         // With nothing or several selected, the canvas gets the room.
-        let editing = self.eng.selected_connection.is_some() || self.eng.selected().is_some();
+        let editing = !self.viewing
+            && (self.eng.selected_connection.is_some() || self.eng.selected().is_some());
         if editing {
             egui::Panel::right(self.salt.with("properties"))
                 .resizable(true)
@@ -468,6 +561,8 @@ impl<T: DiagramView> Editor<T> {
         let mut add_arrow: Option<(ElementId, ElementId)> = None;
         let mut remove_selection = false;
         let mut focus_name_id = None;
+        let mut request = None;
+        let mut unlink = false;
         if let Some(id) = cx.eng.selected_connection.clone()
             && let Some(connection) = cx.eng.connection(&id).cloned()
         {
@@ -484,10 +579,48 @@ impl<T: DiagramView> Editor<T> {
             ui.label(RichText::new(element.info.label).weak());
             T::element_properties(ui, &mut cx, &element);
             focus_name_id = Some(cx.field_id(element.id(), "label").with("edit"));
+            ui.add_space(5.0);
+            heading(ui, "Diagram");
+            let linked = element.el.sub_diagram_id.as_ref();
+            match linked.and_then(|id| self.diagram_names.get(id).map(|name| (id, name))) {
+                Some((id, name)) => {
+                    ui.label(RichText::new(name).strong());
+                    ui.horizontal_wrapped(|ui| {
+                        if page_button(ui, "Edit diagram", false)
+                            .on_hover_text("Open it to change it")
+                            .clicked()
+                        {
+                            request = Some(DiagramRequest::Open {
+                                diagram: id.clone(),
+                                viewing: false,
+                            });
+                        }
+                        if page_button(ui, "Remove diagram", false)
+                            .on_hover_text("Stop opening it from here. The diagram itself is kept.")
+                            .clicked()
+                        {
+                            unlink = true;
+                        }
+                    });
+                }
+                // Also when the diagram it opened was deleted.
+                None => {
+                    if page_button(ui, "Add diagram", false)
+                        .on_hover_text("Create a diagram that opens from this element")
+                        .clicked()
+                    {
+                        request = Some(DiagramRequest::Add {
+                            element: element.id().clone(),
+                            name: element.el.label.clone(),
+                        });
+                    }
+                }
+            }
             if T::ID.has_arrows() {
                 let arrows = cx.eng.arrows_of(element.id());
                 let can_draw = Engine::<T>::can_connect_from(&element);
                 if !arrows.is_empty() || can_draw {
+                    ui.add_space(5.0);
                     heading(ui, "Arrows");
                 }
                 for (connection, outgoing, other) in arrows {
@@ -545,6 +678,12 @@ impl<T: DiagramView> Editor<T> {
             self.act(None, |eng| {
                 eng.add_connection(&source, &target);
             });
+        }
+        if request.is_some() {
+            self.request = request;
+        }
+        if unlink && let Some(id) = self.eng.selected_id().cloned() {
+            self.link_diagram(&id, None);
         }
         if remove_selection {
             self.act(None, |eng| {
@@ -627,6 +766,10 @@ impl<T: DiagramView> Editor<T> {
                     .map(|c| self.eng.arrow_name(&c.source_id, &c.target_id))
             });
         let label = match focused_label {
+            _ if self.viewing => format!(
+                "Diagram, {} elements, view only. Use the arrow keys to move around.",
+                self.eng.elements().len()
+            ),
             Some(l) => format!("Diagram canvas: {l}"),
             None => format!(
                 "Diagram canvas, {} elements. Press Tab to move through them.",
@@ -649,7 +792,8 @@ impl<T: DiagramView> Editor<T> {
         let xf = self.view.transform(rect);
         let paper = xf.rect(Rect::new(0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT));
         painter.rect_filled(paper, 0.0, Color32::WHITE);
-        if show_grid(ui.ctx()) {
+        // Viewing never shows the grid.
+        if !self.viewing && show_grid(ui.ctx()) {
             self.paint_grid(&painter, xf, rect);
         }
 
@@ -673,9 +817,13 @@ impl<T: DiagramView> Editor<T> {
         }
         let xf = self.view.transform(rect);
 
-        self.pointer_input(ui, &response, xf, rect);
+        if self.viewing {
+            self.view_pointer_input(ui, &response, rect);
+        } else {
+            self.pointer_input(ui, &response, xf, rect);
+        }
         // Text fields cut, copy, and paste their own text.
-        if response.has_focus() || ui.memory(|m| m.focused().is_none()) {
+        if !self.viewing && (response.has_focus() || ui.memory(|m| m.focused().is_none())) {
             self.clipboard_input(ui);
         }
         if response.has_focus() {
@@ -713,7 +861,9 @@ impl<T: DiagramView> Editor<T> {
             }
         };
         paint_scene(&painter, &scene, xf, &mut self.cache, 1.0);
-        self.paint_overlays(&painter, xf, &displayed, &response, ui);
+        if !self.viewing {
+            self.paint_overlays(&painter, xf, &displayed, &response, ui);
+        }
         self.zoom_control(ui, rect);
     }
 
@@ -900,9 +1050,11 @@ impl<T: DiagramView> Editor<T> {
     }
 
     fn zoom_control(&mut self, ui: &mut Ui, rect: egui::Rect) {
+        // Narrower while viewing, which has no grid checkbox, so it still ends at the right.
+        let width = if self.viewing { 225.0 } else { 320.0 };
         let area = egui::Rect::from_min_size(
-            rect.right_bottom() - Vec2::new(330.0, 40.0),
-            Vec2::new(320.0, 32.0),
+            rect.right_bottom() - Vec2::new(width + 10.0, 40.0),
+            Vec2::new(width, 32.0),
         );
         ui.scope_builder(egui::UiBuilder::new().max_rect(area), |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
@@ -916,10 +1068,12 @@ impl<T: DiagramView> Editor<T> {
                     if ui.add(slider).changed() {
                         self.view.zoom_around(percent / 100.0, rect.center(), rect);
                     }
-                    ui.separator();
-                    let mut grid = show_grid(ui.ctx());
-                    if ui.checkbox(&mut grid, "Grid").changed() {
-                        ui.data_mut(|d| d.insert_persisted(grid_id(), grid));
+                    if !self.viewing {
+                        ui.separator();
+                        let mut grid = show_grid(ui.ctx());
+                        if ui.checkbox(&mut grid, "Grid").changed() {
+                            ui.data_mut(|d| d.insert_persisted(grid_id(), grid));
+                        }
                     }
                 });
             });
@@ -998,6 +1152,71 @@ impl<T: DiagramView> Editor<T> {
                 }
             };
             ui.ctx().set_cursor_icon(cursor);
+        }
+    }
+
+    /// While viewing: either button drags the canvas around, and clicking an element that opens a
+    /// diagram opens it.
+    fn view_pointer_input(&mut self, ui: &mut Ui, response: &egui::Response, rect: egui::Rect) {
+        let (pressed, down, released, pos) = ui.input(|i| {
+            let p = &i.pointer;
+            (
+                p.primary_pressed() || p.secondary_pressed(),
+                p.primary_down() || p.secondary_down(),
+                p.primary_released() || p.secondary_released(),
+                p.interact_pos(),
+            )
+        });
+        let Some(pos) = pos else {
+            return;
+        };
+        if pressed && response.hovered() {
+            response.request_focus();
+            self.drag = Drag::Pan {
+                scroll: self.view.scroll,
+                pointer: pos,
+            };
+        } else if down && let Drag::Pan { scroll, pointer } = self.drag {
+            self.view.scroll = scroll + (pos - pointer);
+            self.view.clamp(rect);
+        }
+        let xf = self.view.transform(rect);
+        // A click that didn't move the canvas opens the diagram of the element under it.
+        if released
+            && response.hovered()
+            && let Drag::Pan { pointer, .. } = self.drag
+            && (pos - pointer).length() < CLICK_SLOP
+            && let Some((id, _)) = self.opener_at(xf.world(pos))
+        {
+            self.request = Some(DiagramRequest::Open {
+                diagram: id.clone(),
+                viewing: true,
+            });
+        }
+        if released {
+            self.drag = Drag::None;
+        }
+        if response.hovered() {
+            let opener = match self.drag {
+                Drag::Pan { .. } => None,
+                _ => self
+                    .opener_at(xf.world(pos))
+                    .map(|(_, name)| name.to_owned()),
+            };
+            ui.ctx().set_cursor_icon(match (&self.drag, &opener) {
+                (Drag::Pan { .. }, _) => CursorIcon::Grabbing,
+                (_, Some(_)) => CursorIcon::PointingHand,
+                _ => CursorIcon::Grab,
+            });
+            if let Some(name) = opener {
+                egui::Tooltip::always_open(
+                    ui.ctx().clone(),
+                    ui.layer_id(),
+                    self.salt.with("opens"),
+                    egui::PopupAnchor::Pointer,
+                )
+                .show(|ui| ui.label(format!("Open “{name}”")));
+            }
         }
     }
 
@@ -1266,6 +1485,10 @@ impl<T: DiagramView> Editor<T> {
                 _ => None,
             };
             if let Some(dir) = dir {
+                if self.viewing {
+                    self.scroll_key(dir, shift, rect);
+                    continue;
+                }
                 if self.eng.selected_connection.is_some() {
                     let mut used = false;
                     self.act(None, |eng| used = T::connection_key(eng, dir, shift));
@@ -1283,18 +1506,11 @@ impl<T: DiagramView> Editor<T> {
                     Focus::Handle(id, corner) if self.eng.element(&id).is_some() => {
                         self.act(None, |eng| eng.resize_key(&id, corner, dir, shift));
                     }
-                    _ => {
-                        let step = if shift { 200.0 } else { 40.0 };
-                        let d = match dir {
-                            Dir::Left => Vec2::new(step, 0.0),
-                            Dir::Right => Vec2::new(-step, 0.0),
-                            Dir::Up => Vec2::new(0.0, step),
-                            Dir::Down => Vec2::new(0.0, -step),
-                        };
-                        self.view.scroll += d;
-                        self.view.clamp(rect);
-                    }
+                    _ => self.scroll_key(dir, shift, rect),
                 }
+                continue;
+            }
+            if self.viewing {
                 continue;
             }
             match key {
@@ -1352,6 +1568,18 @@ impl<T: DiagramView> Editor<T> {
                 _ => {}
             }
         }
+    }
+
+    /// Moves the canvas for an arrow key, further with Shift.
+    fn scroll_key(&mut self, dir: Dir, shift: bool, rect: egui::Rect) {
+        let step = if shift { 200.0 } else { 40.0 };
+        self.view.scroll += match dir {
+            Dir::Left => Vec2::new(step, 0.0),
+            Dir::Right => Vec2::new(-step, 0.0),
+            Dir::Up => Vec2::new(0.0, step),
+            Dir::Down => Vec2::new(0.0, -step),
+        };
+        self.view.clamp(rect);
     }
 
     /// Cut, copy, and paste (Cmd or Ctrl and X, C, and V): the selected elements, with
@@ -1448,10 +1676,16 @@ pub trait DiagramEditor {
     fn scene(&self) -> Scene;
     fn has_content(&self) -> bool;
     fn show_help(&mut self) -> &mut bool;
+    /// Whether it's only being looked at, with nothing to change.
+    fn viewing(&self) -> bool;
+    fn set_viewing(&mut self, viewing: bool);
     fn announcement(&self) -> &str;
     fn set_announcement(&mut self, text: String);
     /// A message to show, such as why the clipboard couldn't be pasted. Taken once.
     fn take_notice(&mut self) -> Option<String>;
+    fn set_diagram_names(&mut self, names: BTreeMap<DiagramId, String>);
+    fn take_request(&mut self) -> Option<DiagramRequest>;
+    fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>);
     /// Selects the first element named `label`, such as for checking the editor.
     fn select_by_label(&mut self, label: &str);
 }
@@ -1489,6 +1723,14 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
         Editor::has_content(self)
     }
 
+    fn viewing(&self) -> bool {
+        Editor::viewing(self)
+    }
+
+    fn set_viewing(&mut self, viewing: bool) {
+        Editor::set_viewing(self, viewing);
+    }
+
     fn show_help(&mut self) -> &mut bool {
         &mut self.show_help
     }
@@ -1503,6 +1745,18 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn take_notice(&mut self) -> Option<String> {
         self.notice.take()
+    }
+
+    fn set_diagram_names(&mut self, names: BTreeMap<DiagramId, String>) {
+        Editor::set_diagram_names(self, names);
+    }
+
+    fn take_request(&mut self) -> Option<DiagramRequest> {
+        Editor::take_request(self)
+    }
+
+    fn link_diagram(&mut self, element: &ElementId, diagram: Option<DiagramId>) {
+        Editor::link_diagram(self, element, diagram);
     }
 
     fn select_by_label(&mut self, label: &str) {

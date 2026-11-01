@@ -9,4 +9,4 @@ pub mod theme;
 pub mod view;
 pub mod widgets;
 
-pub use editor::{ArrowLine, Change, DiagramEditor, DiagramView, Editor, PropsCx};
+pub use editor::{ArrowLine, Change, DiagramEditor, DiagramRequest, DiagramView, Editor, PropsCx};

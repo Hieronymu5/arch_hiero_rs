@@ -496,6 +496,7 @@ fn new_element(
         label: label.to_owned(),
         description: None,
         parent_id: parent,
+        sub_diagram_id: None,
         props: PhysicalProps::default(),
         width: None,
         height: None,

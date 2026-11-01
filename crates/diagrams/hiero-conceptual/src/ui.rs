@@ -378,6 +378,50 @@ mod tests {
     }
 
     #[test]
+    fn viewing_only_moves_the_canvas() {
+        use hiero_editor::DiagramEditor;
+
+        let mut w = Window::new();
+        let u1 = w.editor.eng.laid(&"u1".into()).unwrap().rect;
+        let u2 = w.editor.eng.laid(&"u2".into()).unwrap().rect;
+        w.editor.eng.select(&"u1".into());
+        w.editor.set_viewing(true);
+        assert!(w.selection().is_empty(), "viewing drops the selection");
+        // The canvas takes the palette's room.
+        w.frame(vec![], Modifiers::NONE);
+        // Dragging an element with the left button moves the canvas, not the element.
+        let from = w.screen(u1.center(), Vec2::ZERO);
+        let pan = Vec2::new(-100.0, -50.0);
+        w.drag(from, from + pan, PointerButton::Primary, Modifiers::NONE);
+        assert!(w.selection().is_empty());
+        assert_eq!(w.editor.eng.laid(&"u1".into()).unwrap().rect, u1);
+        // Clicking selects nothing, and deleting, cutting, and pasting change nothing.
+        let click = w.screen(u2.center(), pan);
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert!(w.selection().is_empty());
+        let delete = Event::Key {
+            key: egui::Key::Delete,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        };
+        w.frame(vec![delete, Event::Cut], Modifiers::NONE);
+        w.frame(vec![Event::Paste("Hello".into())], Modifiers::NONE);
+        assert_eq!(w.editor.eng.elements().len(), 3);
+        assert!(w.editor.take_changes().is_empty());
+        assert!(w.editor.take_notice().is_none());
+        // Editing again, a click selects.
+        w.editor.set_viewing(false);
+        // The palette comes back, and the canvas settles beside it.
+        w.frame(vec![], Modifiers::NONE);
+        w.frame(vec![], Modifiers::NONE);
+        let click = w.screen(u2.center(), pan);
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.selection(), ["u2"]);
+    }
+
+    #[test]
     fn cut_and_paste_go_through_the_system_clipboard() {
         use hiero_editor::DiagramEditor;
 

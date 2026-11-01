@@ -98,6 +98,7 @@ The app reads these environment variables (see `crates/hiero-app/src/devtools.rs
 - `ARCH_HIERO_DB=<path>`: use a scratch database instead of the real one. Always do this when testing.
 - `ARCH_HIERO_OPEN=<diagram name>` or `ARCH_HIERO_NEW=<type>`: open or create a diagram on start.
 - `ARCH_HIERO_SELECT=<element name>`: select an element.
+- `ARCH_HIERO_VIEW=1`: view the open diagram rather than edit it.
 - `ARCH_HIERO_SCREENSHOT=<file.png>` (with optional `ARCH_HIERO_SCREENSHOT_AFTER=<seconds>`): save a screenshot of the window and quit. Look at it.
 
 `cargo run -p hiero-mcp --example agent_edit -- <db> <diagram name>` edits a diagram from another process, to check the app's live reload.

@@ -36,6 +36,7 @@ fn new_element(eng: &mut DEngine, kind: DeployedKind, label: &str) -> El<Deploye
         label: label.to_owned(),
         description: None,
         parent_id: None,
+        sub_diagram_id: None,
         props: DeployedProps::default(),
         width: None,
         height: None,

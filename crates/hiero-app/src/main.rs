@@ -161,6 +161,7 @@ impl eframe::App for Shell {
         });
         app.dialogs(&ctx);
         app.collect_changes();
+        app.editor_request();
         app.shortcuts(&ctx);
         app.save_if_due();
         if app.save_due.is_some() {

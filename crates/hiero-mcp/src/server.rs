@@ -97,7 +97,9 @@ pub struct EditParams {
     pub id: String,
     /// Edits applied in order, all or nothing. Each has an "op": add_element {ref?, kind, label?,
     /// description?, parent_id?, x?, y?, props?}, update_element {id, label?, description?,
-    /// parent_id? ("" takes it out of its container), props? (merged; null removes a key)},
+    /// parent_id? ("" takes it out of its container), props? (merged; null removes a key),
+    /// sub_diagram_id? (the id of a diagram the element opens, a more detailed one of what it
+    /// stands for, such as one made with create_diagram; "" stops it opening one)},
     /// move_element {id, x, y}, resize_element {id, width, height}, remove_element {id},
     /// add_connection {ref?, source_id, target_id, props?}, update_connection {id, props},
     /// remove_connection {id}. Any id can be a ref given to an element added earlier in the
@@ -285,7 +287,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Every diagram: id, name, type, when it was last updated, its version tag (Release when it matches its latest version, Draft when it has changed since), and its revision.",
+        description = "Every diagram: id, name, type, when it was last updated, its version tag (Release when it matches its latest version, Draft when it has changed since), its revision, and parentId: the diagram with an element that opens it (null for none).",
         annotations(read_only_hint = true)
     )]
     pub async fn list_diagrams(&self) -> ToolResult {
@@ -297,6 +299,7 @@ impl HieroServer {
                             "id": s.meta.id, "name": s.meta.name, "type": s.meta.diagram_type.as_str(),
                             "updatedAt": s.meta.updated_at, "status": s.status.label(),
                             "saved": s.status.saved, "latestVersion": s.status.latest, "revision": s.revision,
+                            "parentId": s.parent,
                         })
                     })
                     .collect(),
@@ -427,6 +430,21 @@ impl HieroServer {
         }
         let outcome = self.with_store(|store| -> Result<Result<Value, String>, StoreError> {
             let record = store.get(&id)?.ok_or(StoreError::NotFound)?;
+            // The diagrams elements are to open must exist.
+            for (i, edit) in edits.iter().enumerate() {
+                if let EditOp::UpdateElement {
+                    sub_diagram_id: Some(sub),
+                    ..
+                } = edit
+                    && !sub.is_empty()
+                    && store.get(&DiagramId(sub.clone()))?.is_none()
+                {
+                    return Ok(Err(format!(
+                        "Edit {} was rejected: there's no diagram “{sub}”.",
+                        i + 1
+                    )));
+                }
+            }
             if p.expected_revision.is_some_and(|r| r != record.revision) {
                 return Err(StoreError::Conflict);
             }
@@ -530,7 +548,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). Won't replace a file unless overwrite is true.",
+        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A drawio file adds the diagrams its elements open (subDiagramId) as more pages, each such element linking to its page. Won't replace a file unless overwrite is true.",
         annotations(read_only_hint = true)
     )]
     pub async fn export_diagram(&self, Parameters(p): Parameters<ExportParams>) -> ToolResult {
@@ -555,7 +573,12 @@ impl HieroServer {
                 Ok(s) => (s.clone().into_bytes(), "svg", Some(s)),
                 Err(e) => return Ok(failure(e.0)),
             },
-            "drawio" => match t.to_drawio(&diagram) {
+            "drawio" => match hiero_registry::drawio_with_sub_diagrams(&diagram, |id| {
+                self.with_store(|s| s.get(id))
+                    .ok()
+                    .flatten()
+                    .map(|r| r.diagram)
+            }) {
                 Ok(s) => (s.clone().into_bytes(), "drawio", Some(s)),
                 Err(e) => return Ok(failure(e.0)),
             },

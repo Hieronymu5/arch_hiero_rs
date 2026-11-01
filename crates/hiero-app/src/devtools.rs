@@ -6,6 +6,7 @@
 //! - `ARCH_HIERO_OPEN`: the name of a diagram to open on start.
 //! - `ARCH_HIERO_NEW`: a diagram type, such as `physical`, to create a diagram of and open.
 //! - `ARCH_HIERO_SELECT`: the name of an element to select in the open diagram.
+//! - `ARCH_HIERO_VIEW`: set to view the open diagram rather than edit it.
 //! - `ARCH_HIERO_SCREENSHOT`: a PNG path; the window is saved there after it has settled, and
 //!   the app quits.
 //! - `ARCH_HIERO_SCREENSHOT_AFTER`: how many seconds to wait before the screenshot.
@@ -20,6 +21,7 @@ pub struct DevTools {
     open: Option<String>,
     new: Option<String>,
     select: Option<String>,
+    view: bool,
     screenshot: Option<std::path::PathBuf>,
     frame: u32,
     started: Option<std::time::Instant>,
@@ -34,6 +36,7 @@ impl DevTools {
             open: std::env::var("ARCH_HIERO_OPEN").ok(),
             new: std::env::var("ARCH_HIERO_NEW").ok(),
             select: std::env::var("ARCH_HIERO_SELECT").ok(),
+            view: std::env::var_os("ARCH_HIERO_VIEW").is_some(),
             delay: std::env::var("ARCH_HIERO_SCREENSHOT_AFTER")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -48,7 +51,7 @@ impl DevTools {
         if let Some(name) = self.open.take()
             && let Some(summary) = app.list.iter().find(|s| s.meta.name == name).cloned()
         {
-            app.open_diagram(&summary.meta.id);
+            app.open_diagram(&summary.meta.id, false);
         }
         if let Some(kind) = self.new.take()
             && let Some(t) = hiero_core::model::DiagramTypeId::parse(&kind)
@@ -65,6 +68,12 @@ impl DevTools {
             && let Some(open) = &mut app.open
         {
             open.editor.select_by_label(&label);
+        }
+        if self.frame > 5
+            && std::mem::take(&mut self.view)
+            && let Some(open) = &mut app.open
+        {
+            open.editor.set_viewing(true);
         }
         let Some(path) = self.screenshot.clone() else {
             return;

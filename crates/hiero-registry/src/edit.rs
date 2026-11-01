@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use hiero_core::engine::{Corner, DiagramType, Engine};
 use hiero_core::geometry::Point;
-use hiero_core::model::{ConnectionId, ElementId};
+use hiero_core::model::{ConnectionId, DiagramId, ElementId};
 use hiero_core::stored::{StoredContent, StoredDiagram};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -36,8 +36,9 @@ pub enum EditOp {
         #[serde(default)]
         props: Option<Map<String, Value>>,
     },
-    /// Changes an element's name, description, properties (merged), or container. A
-    /// `parent_id` of "" takes it out of its container.
+    /// Changes an element's name, description, properties (merged), container, or the diagram
+    /// it opens. A `parent_id` of "" takes it out of its container, and a `sub_diagram_id` of
+    /// "" stops it opening one.
     UpdateElement {
         id: String,
         #[serde(default)]
@@ -48,6 +49,8 @@ pub enum EditOp {
         parent_id: Option<String>,
         #[serde(default)]
         props: Option<Map<String, Value>>,
+        #[serde(default)]
+        sub_diagram_id: Option<String>,
     },
     /// Moves an element's top-left corner to `x`, `y`, as dragging it there would.
     MoveElement {
@@ -128,6 +131,8 @@ fn merge_props<P: Serialize + serde::de::DeserializeOwned>(
 struct Batch<'a, T: DiagramType> {
     eng: Engine<T>,
     refs: &'a mut HashMap<String, String>,
+    /// The diagram being edited.
+    diagram: DiagramId,
 }
 
 impl<T: DiagramType> Batch<'_, T> {
@@ -253,8 +258,19 @@ impl<T: DiagramType> Batch<'_, T> {
                 description,
                 parent_id,
                 props,
+                sub_diagram_id,
             } => {
                 let id = self.element_id(id)?;
+                if let Some(sub) = sub_diagram_id {
+                    let sub = Some(DiagramId::from(sub.as_str())).filter(|s| !s.0.is_empty());
+                    if sub.as_ref() == Some(&self.diagram) {
+                        return Err("an element can't open the diagram it's in".into());
+                    }
+                    self.eng.replace(&id, |mut e| {
+                        e.sub_diagram_id = sub;
+                        e
+                    });
+                }
                 let parent = match parent_id.as_deref() {
                     None => None,
                     Some("") => Some(None),
@@ -454,6 +470,7 @@ pub fn apply<T: DiagramType>(
     let mut batch = Batch {
         eng,
         refs: &mut refs,
+        diagram: diagram.meta.id.clone(),
     };
     let mut messages = Vec::new();
     for (index, op) in ops.iter().enumerate() {
@@ -582,6 +599,41 @@ mod tests {
             error
                 .message
                 .starts_with("“spaceship” isn't a kind of element here")
+        );
+    }
+
+    #[test]
+    fn elements_open_diagrams_and_stop() {
+        let diagram = new_diagram(DiagramTypeId::Conceptual, "C", None);
+        let opens = |outcome: &EditOutcome| {
+            outcome.content.elements[0]
+                .props
+                .get("subDiagramId")
+                .cloned()
+        };
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "a", "kind": "actor", "label": "Customer"},
+            {"op": "update_element", "id": "a", "sub_diagram_id": "detail"}
+        ]));
+        let t = ops(DiagramTypeId::Conceptual);
+        let linked = t.apply(&diagram, &edits).unwrap();
+        assert_eq!(opens(&linked), Some(json!("detail")));
+        let mut next = diagram.clone();
+        next.content = linked.content;
+        let id = next.content.elements[0].id.0.clone();
+        let cleared = t
+            .apply(
+                &next,
+                &parse(json!([{"op": "update_element", "id": id, "sub_diagram_id": ""}])),
+            )
+            .unwrap();
+        assert_eq!(opens(&cleared), None);
+        let own = parse(json!([
+            {"op": "update_element", "id": id, "sub_diagram_id": next.meta.id.0}
+        ]));
+        assert_eq!(
+            t.apply(&next, &own).unwrap_err().message,
+            "an element can't open the diagram it's in"
         );
     }
 

@@ -201,6 +201,8 @@ impl<T: DiagramType> Engine<T> {
                 let mut e = e.clone();
                 e.id = new_ids[&e.id].clone();
                 e.parent_id = e.parent_id.and_then(|p| new_ids.get(&p).cloned());
+                // A diagram belongs to one element, so copies don't take it with them.
+                e.sub_diagram_id = None;
                 e
             })
             .collect();

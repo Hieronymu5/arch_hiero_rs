@@ -17,7 +17,7 @@ use hiero_store::Status;
 
 use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
 use crate::format::date;
-use crate::list_sort::{Column, ListSort};
+use crate::list_sort::{Column, ListSort, tree_rows};
 
 /// A database's file name.
 fn database_name(path: &Path) -> String {
@@ -434,6 +434,50 @@ const ROW_GAP: f32 = 20.0;
 
 /// A table of rows separated by subtle rules, like the prototype's tables. `rows` adds the
 /// cells and calls `end_row` after each row, which records where the rule goes.
+/// The width of the button that shows or hides a diagram's sub diagrams.
+const TREE_TOGGLE: f32 = 16.0;
+/// How far each level of sub diagrams is indented.
+const TREE_INDENT: f32 = 20.0;
+
+/// A boxed + that shows a diagram's sub diagrams, or a boxed − that hides them.
+fn expand_toggle(ui: &mut Ui, expanded: bool, name: &str) -> egui::Response {
+    let (_, response) =
+        ui.allocate_exact_size(egui::vec2(TREE_TOGGLE, TREE_TOGGLE), egui::Sense::click());
+    let label = if expanded {
+        format!("Hide the sub diagrams of {name}")
+    } else {
+        format!("Show the sub diagrams of {name}")
+    };
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+    ui.ctx()
+        .accesskit_node_builder(response.id, |node| node.set_expanded(expanded));
+    paint_toggle(ui, &response, !expanded);
+    response
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+        .on_hover_text(label)
+}
+
+/// A boxed − that does nothing, for a diagram with no sub diagrams.
+fn leaf_marker(ui: &mut Ui) {
+    let (_, response) =
+        ui.allocate_exact_size(egui::vec2(TREE_TOGGLE, TREE_TOGGLE), egui::Sense::hover());
+    paint_toggle(ui, &response, false);
+}
+
+/// Paints a boxed + or −.
+fn paint_toggle(ui: &Ui, response: &egui::Response, plus: bool) {
+    let stroke = ui.style().interact(response).fg_stroke;
+    let painter = ui.painter();
+    let square = egui::Rect::from_center_size(response.rect.center(), egui::vec2(11.0, 11.0));
+    painter.rect_stroke(square, 2.0, stroke, egui::StrokeKind::Inside);
+    let c = square.center();
+    let arm = 2.5;
+    painter.hline((c.x - arm)..=(c.x + arm), c.y, stroke);
+    if plus {
+        painter.vline(c.x, (c.y - arm)..=(c.y + arm), stroke);
+    }
+}
+
 fn ruled_grid(
     ui: &mut Ui,
     id: &str,
@@ -663,18 +707,38 @@ impl App {
                 column_headers(ui, &[""]);
                 let size = egui::TextStyle::Body.resolve(ui.style()).size;
                 end_row(ui);
-                for row in rows {
+                let tree = tree_rows(&rows, &self.expanded);
+                // Without sub diagrams anywhere, the list is flat: no boxes.
+                let nested = tree.iter().any(|r| r.has_children);
+                for tree_row in tree {
+                    let row = &rows[tree_row.index];
                     let id = row.meta.id.clone();
                     let name = RichText::new(&row.meta.name)
                         .font(fonts::bold(size))
                         .color(palette(ui).accent);
-                    if ui.link(name).clicked() {
-                        self.open_diagram(&id);
-                    }
+                    ui.horizontal(|ui| {
+                        // Sub diagrams are indented under the diagram they belong to.
+                        ui.add_space(tree_row.depth as f32 * TREE_INDENT);
+                        if tree_row.has_children {
+                            if expand_toggle(ui, tree_row.expanded, &row.meta.name).clicked()
+                                && !self.expanded.remove(&id)
+                            {
+                                self.expanded.insert(id.clone());
+                            }
+                        } else if nested {
+                            leaf_marker(ui);
+                        }
+                        if ui.link(name).on_hover_text("View").clicked() {
+                            self.open_diagram(&id, true);
+                        }
+                    });
                     ui.label(row.meta.diagram_type.label());
                     ui.label(date(&row.meta.updated_at));
                     status_badge(ui, row.status);
                     ui.horizontal(|ui| {
+                        if row_button(ui, "Edit").clicked() {
+                            self.open_diagram(&id, false);
+                        }
                         if row_button(ui, "History").clicked() {
                             self.go(Page::History(id.clone()));
                         }
@@ -831,6 +895,21 @@ impl App {
 
     pub fn new_page(&mut self, ui: &mut Ui) {
         ui.heading(RichText::new("Add diagram").font(fonts::bold(26.0)));
+        if let Some((from, element)) = &self.form.opened_from
+            && let Some(open) = self.open.as_ref().filter(|o| o.record.meta.id == *from)
+            && let Some(label) = open
+                .record
+                .content
+                .elements
+                .iter()
+                .find(|e| e.id == *element)
+                .map(|e| e.label.clone())
+        {
+            ui.label(format!(
+                "“{label}” in {} will open it.",
+                open.record.meta.name
+            ));
+        }
         ui.add_space(8.0);
         let valid = self.details_fields(ui, true);
         if let Some(error) = &self.form.error {
@@ -941,25 +1020,38 @@ impl App {
                     if page_button(ui, "Back", true).clicked() {
                         action = Some("back");
                     }
-                    let save =
-                        ui.add_enabled_ui(!open.status.saved, |ui| page_button(ui, "Save", false));
-                    if save
-                        .inner
-                        .on_hover_text("Record a version (Cmd+S)")
-                        .clicked()
-                    {
-                        action = Some("save");
+                    // Viewing leaves only what doesn't change the diagram: help and exports.
+                    let viewing = open.editor.viewing();
+                    let (label, hint) = if viewing {
+                        ("Edit", "Change the diagram")
+                    } else {
+                        ("View", "Look around without changing anything")
+                    };
+                    if page_button(ui, label, false).on_hover_text(hint).clicked() {
+                        open.editor.set_viewing(!viewing);
                     }
-                    let undo = ui.add_enabled_ui(can_undo, |ui| page_button(ui, "Undo", false));
-                    if undo.inner.on_hover_text("Cmd+Z").clicked() {
-                        action = Some("undo");
-                    }
-                    let redo = ui.add_enabled_ui(can_redo, |ui| page_button(ui, "Redo", false));
-                    if redo.inner.on_hover_text("Shift+Cmd+Z").clicked() {
-                        action = Some("redo");
-                    }
-                    if page_button(ui, "History", false).clicked() {
-                        action = Some("history");
+                    if !viewing {
+                        let save = ui.add_enabled_ui(!open.status.saved, |ui| {
+                            page_button(ui, "Save", false)
+                        });
+                        if save
+                            .inner
+                            .on_hover_text("Record a version (Cmd+S)")
+                            .clicked()
+                        {
+                            action = Some("save");
+                        }
+                        let undo = ui.add_enabled_ui(can_undo, |ui| page_button(ui, "Undo", false));
+                        if undo.inner.on_hover_text("Cmd+Z").clicked() {
+                            action = Some("undo");
+                        }
+                        let redo = ui.add_enabled_ui(can_redo, |ui| page_button(ui, "Redo", false));
+                        if redo.inner.on_hover_text("Shift+Cmd+Z").clicked() {
+                            action = Some("redo");
+                        }
+                        if page_button(ui, "History", false).clicked() {
+                            action = Some("history");
+                        }
                     }
                     // Filled while the help shows.
                     let help = open.editor.show_help();
@@ -977,7 +1069,7 @@ impl App {
                     if drawio.inner.clicked() {
                         action = Some("drawio");
                     }
-                    if page_button(ui, "Edit Details", false).clicked() {
+                    if !viewing && page_button(ui, "Edit Details", false).clicked() {
                         action = Some("details");
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1036,6 +1128,7 @@ impl App {
             line_weight: Some(open.record.line_weight()),
             tried: false,
             error: None,
+            opened_from: None,
         };
         let id = meta.id.clone();
         self.go(Page::Details(id));
@@ -1273,9 +1366,12 @@ impl App {
         }
     }
 
-    /// Cmd+S, Cmd+Z, and Shift+Cmd+Z (or Ctrl+Y), unless typing in a field.
+    /// Cmd+S, Cmd+Z, and Shift+Cmd+Z (or Ctrl+Y), unless typing in a field or viewing.
     pub fn shortcuts(&mut self, ctx: &egui::Context) {
-        if !matches!(self.page, Page::Editor(_)) || self.dialog.is_some() {
+        if !matches!(self.page, Page::Editor(_))
+            || self.dialog.is_some()
+            || self.open.as_ref().is_some_and(|o| o.editor.viewing())
+        {
             return;
         }
         if ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::S)) {

@@ -207,6 +207,9 @@ pub struct Element<K, P> {
     /// Id of the container element this element sits in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<ElementId>,
+    /// The diagram this element opens: a more detailed diagram of what it stands for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sub_diagram_id: Option<DiagramId>,
     #[serde(flatten)]
     pub props: P,
     /// Size set by resizing. Unset means the kind's natural size.
@@ -452,6 +455,7 @@ mod tests {
             label: "A".into(),
             description: None,
             parent_id: Some("p".into()),
+            sub_diagram_id: None,
             props: Props { agent: true },
             width: None,
             height: Some(120.0),

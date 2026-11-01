@@ -1,16 +1,16 @@
 //! The app: its pages, the open diagram, autosave, undo and redo, versions, and changes made
 //! outside the app.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use hiero_core::file::{diagram_to_zip, file_name};
 use hiero_core::history::{DiagramSnapshot, UndoStack};
-use hiero_core::model::{DiagramId, DiagramTypeId, LineWeight};
+use hiero_core::model::{DiagramId, DiagramTypeId, ElementId, LineWeight};
 use hiero_core::stored::StoredDiagram;
-use hiero_editor::DiagramEditor;
 use hiero_editor::theme::Accent;
+use hiero_editor::{DiagramEditor, DiagramRequest};
 use hiero_store::locations::Locations;
 use hiero_store::{Record, Status, Store, StoreError, Summary};
 
@@ -104,6 +104,8 @@ pub struct DetailsForm {
     pub line_weight: Option<LineWeight>,
     pub tried: bool,
     pub error: Option<String>,
+    /// While adding a diagram for an element: the diagram it's in, and the element.
+    pub opened_from: Option<(DiagramId, ElementId)>,
 }
 
 /// The database in use and the ones used before it.
@@ -146,6 +148,11 @@ pub struct App {
     pub theme: egui::ThemePreference,
     pub accent: Accent,
     pub databases: Databases,
+    /// Whether each diagram was last viewed rather than edited, to open it the same way when
+    /// going back to it.
+    pub viewed: HashMap<DiagramId, bool>,
+    /// The diagrams whose sub diagrams the list shows.
+    pub expanded: BTreeSet<DiagramId>,
 }
 
 impl App {
@@ -172,6 +179,8 @@ impl App {
             theme,
             accent,
             databases,
+            viewed: HashMap::new(),
+            expanded: BTreeSet::new(),
         };
         app.refresh_list();
         app
@@ -179,7 +188,10 @@ impl App {
 
     pub fn refresh_list(&mut self) {
         match self.store.list() {
-            Ok(list) => self.list = list,
+            Ok(list) => {
+                self.list = list;
+                self.share_diagram_names();
+            }
             Err(e) => {
                 self.outcome = Some(Outcome::error(format!(
                     "The diagrams couldn't be loaded. {e}"
@@ -195,8 +207,31 @@ impl App {
         }
     }
 
+    /// Tells the open diagram's editor the names of the diagrams there are, for the elements
+    /// that open one.
+    fn share_diagram_names(&mut self) {
+        if let Some(open) = &mut self.open {
+            let names = self
+                .list
+                .iter()
+                .map(|s| (s.meta.id.clone(), s.meta.name.clone()))
+                .collect();
+            open.editor.set_diagram_names(names);
+        }
+    }
+
     pub fn go_back(&mut self) {
         self.page = self.back.pop().unwrap_or(Page::List);
+        // Going back to a diagram another was opened from opens it again, as it was.
+        if let Page::Editor(id) = self.page.clone()
+            && self.open.as_ref().is_none_or(|o| o.record.meta.id != id)
+        {
+            let viewing = self.viewed.get(&id).copied().unwrap_or(true);
+            if let Err(e) = self.load_open(&id, viewing) {
+                self.outcome = Some(Outcome::error(e));
+                self.page = Page::List;
+            }
+        }
         if self.page == Page::List {
             self.back.clear();
             self.flush_save();
@@ -206,23 +241,60 @@ impl App {
 
     // Opening and saving
 
-    /// Opens a diagram in the editor, keeping its undo history from earlier in the session.
-    pub fn open_diagram(&mut self, id: &DiagramId) {
-        if self.open.as_ref().is_some_and(|o| o.record.meta.id == *id) {
-            self.go(Page::Editor(id.clone()));
-            return;
+    /// Opens a diagram in the editor, to view or to edit, keeping its undo history from
+    /// earlier in the session.
+    pub fn open_diagram(&mut self, id: &DiagramId, viewing: bool) {
+        match self.load_open(id, viewing) {
+            Ok(()) => self.go(Page::Editor(id.clone())),
+            Err(e) => self.outcome = Some(Outcome::error(e)),
+        }
+    }
+
+    /// Makes `id` the open diagram, to view or to edit, saving the one open before.
+    fn load_open(&mut self, id: &DiagramId, viewing: bool) -> Result<(), String> {
+        if let Some(open) = self.open.as_mut().filter(|o| o.record.meta.id == *id) {
+            open.editor.set_viewing(viewing);
+            return Ok(());
         }
         self.flush_save();
-        match self.load(id) {
-            Ok(open) => {
-                self.worker.send(Request::Reloaded {
-                    id: id.clone(),
-                    revision: open.revision,
-                });
-                self.open = Some(open);
-                self.go(Page::Editor(id.clone()));
+        let mut open = self.load(id)?;
+        open.editor.set_viewing(viewing);
+        if let Some(before) = &self.open {
+            self.viewed
+                .insert(before.record.meta.id.clone(), before.editor.viewing());
+        }
+        self.worker.send(Request::Reloaded {
+            id: id.clone(),
+            revision: open.revision,
+        });
+        self.open = Some(open);
+        self.share_diagram_names();
+        Ok(())
+    }
+
+    /// Does what the open diagram's editor asked: opens the diagram an element opens, or
+    /// starts adding one for an element.
+    pub fn editor_request(&mut self) {
+        let Some(open) = &mut self.open else {
+            return;
+        };
+        let Some(request) = open.editor.take_request() else {
+            return;
+        };
+        let from = open.record.meta.id.clone();
+        let diagram_type = open.record.meta.diagram_type;
+        match request {
+            DiagramRequest::Open { diagram, viewing } => self.open_diagram(&diagram, viewing),
+            DiagramRequest::Add { element, name } => {
+                // A sub diagram starts as the same type as the diagram it's in.
+                self.form = DetailsForm {
+                    name,
+                    diagram_type: Some(diagram_type),
+                    opened_from: Some((from, element)),
+                    ..DetailsForm::default()
+                };
+                self.go(Page::New);
             }
-            Err(e) => self.outcome = Some(Outcome::error(e)),
         }
     }
 
@@ -472,10 +544,26 @@ impl App {
             hiero_registry::new_diagram(diagram_type, &form.name, Some(form.description.clone()));
         match self.worker.call(|reply| Request::Create { diagram, reply }) {
             Ok(record) => {
+                let id = record.diagram.meta.id;
+                match form.opened_from {
+                    // The element it's for opens it, and Back goes back to the element's
+                    // diagram.
+                    Some((from, element)) => {
+                        if let Some(open) = self.open.as_mut().filter(|o| o.record.meta.id == from)
+                        {
+                            open.editor.link_diagram(&element, Some(id.clone()));
+                        }
+                        self.collect_changes();
+                        self.flush_save();
+                        self.page = self.back.pop().unwrap_or(Page::List);
+                    }
+                    None => {
+                        self.back.clear();
+                        self.page = Page::List;
+                    }
+                }
                 self.refresh_list();
-                self.back.clear();
-                self.page = Page::List;
-                self.open_diagram(&record.diagram.meta.id);
+                self.open_diagram(&id, false);
             }
             Err(e) => self.form.error = Some(format!("The diagram couldn't be saved. {e}")),
         }
@@ -851,10 +939,12 @@ impl App {
                 .to_svg(&diagram)
                 .map(String::into_bytes)
                 .map_err(|e| e.0),
-            ExportFormat::Drawio => ops
-                .to_drawio(&diagram)
-                .map(String::into_bytes)
-                .map_err(|e| e.0),
+            // With the diagrams its elements open as more pages.
+            ExportFormat::Drawio => {
+                hiero_registry::drawio_with_sub_diagrams(&diagram, |id| self.current(id))
+                    .map(String::into_bytes)
+                    .map_err(|e| e.0)
+            }
         };
         match result {
             Ok(bytes) => self.save_file(&name, format.extension(), &bytes),

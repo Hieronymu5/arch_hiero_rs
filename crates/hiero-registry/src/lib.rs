@@ -14,7 +14,7 @@ use hiero_core::export::svg::scene_to_svg;
 use hiero_core::file::{DiagramFileError, diagram_from_json, read_zip_json};
 use hiero_core::file_check;
 use hiero_core::geometry::Rect;
-use hiero_core::model::{ColorScheme, DiagramTypeId, ElementId, LineWeight, Resizable};
+use hiero_core::model::{ColorScheme, DiagramId, DiagramTypeId, ElementId, LineWeight, Resizable};
 use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent, StoredDiagram};
 use hiero_deployed::DeployedComponent;
@@ -306,6 +306,58 @@ pub fn ops(id: DiagramTypeId) -> &'static dyn TypeOps {
     }
 }
 
+/// The diagram an element opens, from its stored properties.
+pub fn sub_diagram_of(element: &hiero_core::stored::StoredElement) -> Option<DiagramId> {
+    element
+        .props
+        .get("subDiagramId")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(DiagramId::from)
+}
+
+/// A diagram as a draw.io file, with the diagrams its elements open (and the ones theirs open)
+/// as more pages after it. Each such element links to its diagram's page. `load` gives
+/// a diagram by id; ones it can't give are left out, with no link to them.
+pub fn drawio_with_sub_diagrams(
+    diagram: &StoredDiagram,
+    load: impl Fn(&DiagramId) -> Option<StoredDiagram>,
+) -> Result<String, ContentError> {
+    use hiero_core::export::drawio::{DrawioPage, FIRST_PAGE_ID, combine_pages};
+    let mut diagrams = vec![diagram.clone()];
+    let mut page_ids: BTreeMap<DiagramId, String> =
+        BTreeMap::from([(diagram.meta.id.clone(), FIRST_PAGE_ID.to_owned())]);
+    let mut pages = Vec::new();
+    let mut next = 0;
+    while let Some(current) = diagrams.get(next).cloned() {
+        next += 1;
+        let mut links = Vec::new();
+        for element in &current.content.elements {
+            let Some(target) = sub_diagram_of(element) else {
+                continue;
+            };
+            if !page_ids.contains_key(&target) {
+                let Some(found) = load(&target) else {
+                    continue;
+                };
+                page_ids.insert(target.clone(), target.to_string());
+                diagrams.push(found);
+            }
+            links.push((element.id.clone(), page_ids[&target].clone()));
+        }
+        let file = ops(current.meta.diagram_type).to_drawio(&current)?;
+        if diagrams.len() == 1 && links.is_empty() {
+            return Ok(file);
+        }
+        pages.push(DrawioPage {
+            id: page_ids[&current.meta.id].clone(),
+            file,
+            links,
+        });
+    }
+    Ok(combine_pages(&pages))
+}
+
 /// The diagram in a parsed diagram file, if the file follows every rule in
 /// `hiero_core::file_check`. Otherwise, the message for the first rule it breaks.
 pub fn diagram_from_file(file: &Value) -> Result<StoredDiagram, DiagramFileError> {
@@ -413,6 +465,39 @@ mod tests {
                 .contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="1""##)
         );
         assert!(ops.to_drawio(&diagram).unwrap().contains("strokeWidth=1;"));
+    }
+
+    #[test]
+    fn drawio_exports_add_the_diagrams_elements_open_as_linked_pages() {
+        let file = |id: &str, name: &str, opens: Option<&str>| {
+            let mut element = serde_json::json!(
+                {"id": "a", "kind": "domain", "label": "Sales", "x": 40, "y": 40}
+            );
+            if let Some(opens) = opens {
+                element["subDiagramId"] = opens.into();
+            }
+            hiero_core::file::diagram_from_json(&serde_json::json!({
+                "id": id, "name": name, "type": "conceptual", "elements": [element]
+            }))
+            .unwrap()
+        };
+        let top = file("d1", "Top", Some("d2"));
+        let detail = file("d2", "Detail", Some("d1"));
+        let xml =
+            drawio_with_sub_diagrams(&top, |id| (id.as_str() == "d2").then(|| detail.clone()))
+                .unwrap();
+        assert!(xml.contains(r#"<diagram id="archhiero-diagram" name="Top">"#));
+        assert!(xml.contains(r#"<diagram id="d2" name="Detail">"#));
+        assert!(xml.contains(r#"link="data:page/id,d2""#));
+        // The detail links back to the first page, which isn't added again.
+        assert!(xml.contains(r#"link="data:page/id,archhiero-diagram""#));
+        assert_eq!(xml.matches("<diagram ").count(), 2);
+        // Without sub diagrams, it's the diagram's own file.
+        let alone = file("d3", "Alone", Some("missing"));
+        assert_eq!(
+            drawio_with_sub_diagrams(&alone, |_| None).unwrap(),
+            ops(DiagramTypeId::Conceptual).to_drawio(&alone).unwrap()
+        );
     }
 
     #[test]

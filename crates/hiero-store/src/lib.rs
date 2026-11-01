@@ -112,6 +112,8 @@ pub struct Summary {
     pub meta: DiagramMeta,
     pub status: Status,
     pub revision: i64,
+    /// The diagram with an element that opens this one, if any.
+    pub parent: Option<DiagramId>,
 }
 
 /// A row in a diagram's history.
@@ -326,14 +328,17 @@ impl Store {
         Ok(n)
     }
 
-    /// Every diagram, sorted by name, with its Release/Draft status.
+    /// Every diagram, sorted by name, with its Release/Draft status and the diagram it belongs to.
     pub fn list(&self) -> Result<Vec<Summary>> {
         let mut statement = self.conn.prepare(
             "SELECT d.id, d.type, d.name, d.description, d.created_at, d.updated_at, d.revision,
                     d.content_hash,
                     (SELECT v.content_hash FROM diagram_versions v WHERE v.diagram_id = d.id
                      ORDER BY v.version DESC LIMIT 1),
-                    (SELECT MAX(v.version) FROM diagram_versions v WHERE v.diagram_id = d.id)
+                    (SELECT MAX(v.version) FROM diagram_versions v WHERE v.diagram_id = d.id),
+                    (SELECT e.diagram_id FROM elements e
+                     WHERE json_extract(e.props, '$.subDiagramId') = d.id AND e.diagram_id <> d.id
+                     ORDER BY e.diagram_id LIMIT 1)
              FROM diagrams d ORDER BY d.name COLLATE NOCASE, d.id",
         )?;
         let rows = statement.query_map([], |row| {
@@ -348,11 +353,23 @@ impl Store {
                 row.get::<_, String>(7)?,
                 row.get::<_, Option<String>>(8)?,
                 row.get::<_, Option<i64>>(9)?,
+                row.get::<_, Option<String>>(10)?,
             ))
         })?;
         rows.map(|row| {
-            let (id, ty, name, description, created, updated, revision, hash, latest_hash, latest) =
-                row?;
+            let (
+                id,
+                ty,
+                name,
+                description,
+                created,
+                updated,
+                revision,
+                hash,
+                latest_hash,
+                latest,
+                parent,
+            ) = row?;
             Ok(Summary {
                 meta: DiagramMeta {
                     id: DiagramId(id),
@@ -367,6 +384,7 @@ impl Store {
                     latest,
                 },
                 revision,
+                parent: parent.map(DiagramId),
             })
         })
         .collect()
@@ -846,6 +864,29 @@ mod tests {
             diagram("d1", DiagramTypeId::Conceptual).content
         );
         assert!(!got.diagram.meta.created_at.is_empty());
+    }
+
+    #[test]
+    fn diagrams_list_the_diagram_whose_element_opens_them() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut parent = diagram("d1", DiagramTypeId::Conceptual);
+        parent.content.elements[1]
+            .props
+            .insert("subDiagramId".into(), json!("d2"));
+        store.create(&parent).unwrap();
+        store
+            .create(&diagram("d2", DiagramTypeId::Conceptual))
+            .unwrap();
+        let list = store.list().unwrap();
+        let parent_of = |id: &str| {
+            list.iter()
+                .find(|s| s.meta.id.as_str() == id)
+                .unwrap()
+                .parent
+                .clone()
+        };
+        assert_eq!(parent_of("d1"), None);
+        assert_eq!(parent_of("d2"), Some("d1".into()));
     }
 
     #[test]
