@@ -378,6 +378,81 @@ mod tests {
     }
 
     #[test]
+    fn the_scroll_wheel_zooms_and_trackpads_scroll() {
+        use egui::{MouseWheelSource as Source, MouseWheelUnit as Unit};
+
+        let scroll = |w: &mut Window, unit, source, y: f32, modifiers: Modifiers| {
+            let wheel = Event::MouseWheel {
+                unit,
+                delta: Vec2::new(0.0, y),
+                phase: egui::TouchPhase::Move,
+                source,
+                modifiers,
+            };
+            let at = w.screen(Point::new(400.0, 400.0), w.editor.view().scroll);
+            w.frame(vec![Event::PointerMoved(at), wheel], modifiers);
+            // Mouse wheels' steps are spread over a few frames.
+            for _ in 0..30 {
+                w.frame(vec![], modifiers);
+            }
+            w.editor.view()
+        };
+        let mut w = Window::new();
+        let start = w.editor.view();
+        // A mouse wheel turned towards the user zooms out, and back the other way zooms in.
+        let out = scroll(&mut w, Unit::Line, Source::Wheel, -1.0, Modifiers::NONE);
+        assert!(out.zoom < start.zoom, "{out:?}");
+        let back = scroll(&mut w, Unit::Line, Source::Wheel, 1.0, Modifiers::NONE);
+        assert!(back.zoom > out.zoom, "{back:?}");
+        // Where the platform doesn't say, a wheel is told apart by scrolling in lines.
+        let unknown = scroll(&mut w, Unit::Line, Source::Unknown, -1.0, Modifiers::NONE);
+        assert!(unknown.zoom < back.zoom, "{unknown:?}");
+        // A trackpad scrolls, as does the wheel with Shift (sideways), and neither zooms.
+        let pad = scroll(
+            &mut w,
+            Unit::Point,
+            Source::Trackpad,
+            -30.0,
+            Modifiers::NONE,
+        );
+        assert_eq!(pad.zoom, unknown.zoom);
+        assert!(pad.scroll.y < unknown.scroll.y, "{pad:?}");
+        let sideways = scroll(&mut w, Unit::Line, Source::Wheel, -1.0, Modifiers::SHIFT);
+        assert_eq!(sideways.zoom, pad.zoom);
+        assert!(sideways.scroll.x < pad.scroll.x, "{sideways:?}");
+
+        // Each notch zooms in the frame it comes, however slowly the wheel turns and however
+        // small the notch, zooming in as well as out.
+        let notch = |w: &mut Window, y: f32| {
+            let at = w.screen(Point::new(400.0, 400.0), w.editor.view().scroll);
+            let wheel = Event::MouseWheel {
+                unit: Unit::Line,
+                delta: Vec2::new(0.0, y),
+                phase: egui::TouchPhase::Move,
+                source: Source::Wheel,
+                modifiers: Modifiers::NONE,
+            };
+            w.frame(vec![Event::PointerMoved(at)], Modifiers::NONE);
+            let before = w.editor.view().zoom;
+            w.frame(vec![wheel], Modifiers::NONE);
+            (before, w.editor.view().zoom)
+        };
+        let mut w = Window::new();
+        let (before, after) = notch(&mut w, -0.1);
+        assert!(after < before, "{before} {after}");
+        for _ in 0..3 {
+            notch(&mut w, -1.0);
+        }
+        for _ in 0..3 {
+            for _ in 0..20 {
+                w.frame(vec![], Modifiers::NONE);
+            }
+            let (before, after) = notch(&mut w, 0.1);
+            assert!(after > before, "{before} {after}");
+        }
+    }
+
+    #[test]
     fn viewing_only_moves_the_canvas() {
         use hiero_editor::DiagramEditor;
 

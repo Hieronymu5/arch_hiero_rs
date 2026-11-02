@@ -247,8 +247,8 @@ struct PaletteDrag(usize);
 /// The instructions while viewing, when nothing can be changed.
 const VIEW_HELP: &str = concat!(
     "• You're viewing this diagram: nothing can be changed. Press Edit to change it.\n",
-    "• Drag with either mouse button, scroll, or use the arrow keys to move around.\n",
-    "• Use the Zoom slider in the canvas's corner, or Cmd or Ctrl and the scroll wheel, to see more."
+    "• Drag with either mouse button, scroll with a trackpad or with Shift and the scroll wheel, or use the arrow keys to move around.\n",
+    "• Use the scroll wheel, a pinch on a trackpad, or the Zoom slider in the canvas's corner to zoom."
 );
 
 /// How far the pointer moves, in canvas pixels, before a press on empty canvas draws a box.
@@ -294,6 +294,57 @@ pub struct Editor<T: DiagramView> {
     /// What the app is asked to do about the diagrams elements open.
     request: Option<DiagramRequest>,
     salt: Id,
+}
+
+/// What the wheel events of a frame do to the view, as a zoom factor and a scroll in points.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Wheel {
+    zoom: f32,
+    scroll: Vec2,
+}
+
+impl Default for Wheel {
+    fn default() -> Self {
+        Self {
+            zoom: 1.0,
+            scroll: Vec2::ZERO,
+        }
+    }
+}
+
+impl Wheel {
+    /// Adds a wheel event. A mouse wheel zooms, unless Shift is held, which scrolls sideways; a
+    /// trackpad, and the momentum after it, scroll. Where the platform doesn't say what drove
+    /// it, a mouse wheel is told apart by scrolling in lines rather than points.
+    fn add(
+        &mut self,
+        unit: egui::MouseWheelUnit,
+        delta: Vec2,
+        source: egui::MouseWheelSource,
+        shift: bool,
+        options: &egui::InputOptions,
+        viewport: egui::Rect,
+    ) {
+        use egui::{MouseWheelSource as Source, MouseWheelUnit as Unit};
+        let points = match unit {
+            Unit::Point => delta,
+            Unit::Line => delta * options.line_scroll_speed,
+            Unit::Page => delta * viewport.height(),
+        };
+        let wheel = match source {
+            Source::Wheel => true,
+            Source::Unknown => unit != Unit::Point,
+            Source::Trackpad | Source::Momentum => false,
+        };
+        if wheel && !shift {
+            self.zoom *= (options.scroll_zoom_speed * (points.x + points.y)).exp();
+        } else if shift && points.x == 0.0 {
+            // Sideways, where the platform hasn't already turned it.
+            self.scroll.x += points.y;
+        } else {
+            self.scroll += points;
+        }
+    }
 }
 
 fn distance_to_segment(p: Pos2, a: Pos2, b: Pos2) -> f32 {
@@ -391,6 +442,11 @@ impl<T: DiagramView> Editor<T> {
     /// The smallest the drawing area can be: its default size, or bigger to hold everything.
     pub fn min_canvas(&self) -> Size {
         self.eng.min_canvas()
+    }
+
+    /// How the canvas is zoomed and scrolled.
+    pub fn view(&self) -> View {
+        self.view
     }
 
     pub fn viewing(&self) -> bool {
@@ -832,21 +888,36 @@ impl<T: DiagramView> Editor<T> {
             self.paint_grid(&painter, xf, rect);
         }
 
-        // Input that changes the view.
-        let (zoom_delta, scroll_delta, hover) = ui.input(|i| {
-            (
-                i.zoom_delta(),
-                i.smooth_scroll_delta(),
-                i.pointer.hover_pos(),
-            )
+        // Input that changes the view. Cmd or Ctrl with the wheel, and pinching, zoom through
+        // egui's `zoom_delta`. Other wheel events are taken one by one, as they come: a mouse
+        // wheel zooms as fast, and a trackpad, or the wheel with Shift, scrolls.
+        let options = ui.ctx().options(|o| o.input_options);
+        let (pinch, wheel, hover) = ui.input(|i| {
+            let mut wheel = Wheel::default();
+            for event in &i.events {
+                if let egui::Event::MouseWheel {
+                    unit,
+                    delta,
+                    source,
+                    modifiers,
+                    ..
+                } = event
+                    && !modifiers.matches_any(options.zoom_modifier)
+                {
+                    wheel.add(*unit, *delta, *source, modifiers.shift, &options, rect);
+                }
+            }
+            (i.zoom_delta(), wheel, i.pointer.hover_pos())
         });
         if response.hovered() {
-            if (zoom_delta - 1.0).abs() > f32::EPSILON
+            let zoom = pinch * wheel.zoom;
+            if zoom != 1.0
                 && let Some(p) = hover
             {
-                self.view.zoom_around(self.view.zoom * zoom_delta, p, rect);
-            } else if scroll_delta != Vec2::ZERO {
-                self.view.scroll += scroll_delta;
+                self.view.zoom_around(self.view.zoom * zoom, p, rect);
+            }
+            if wheel.scroll != Vec2::ZERO {
+                self.view.scroll += wheel.scroll;
                 self.view.clamp(rect);
             }
         }
@@ -1097,6 +1168,10 @@ impl<T: DiagramView> Editor<T> {
                     let slider =
                         egui::Slider::new(&mut percent, (ZOOM_MIN * 100.0)..=(ZOOM_MAX * 100.0))
                             .step_by(f64::from(ZOOM_STEP * 100.0))
+                            // Clamping would round the zoom to a step every frame, undoing
+                            // smaller changes, such as a slow turn of the wheel.
+                            // `zoom_around` keeps it in range.
+                            .clamping(egui::SliderClamping::Never)
                             .suffix("%");
                     if ui.add(slider).changed() {
                         self.view.zoom_around(percent / 100.0, rect.center(), rect);
