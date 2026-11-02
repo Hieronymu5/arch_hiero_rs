@@ -67,6 +67,11 @@ pub struct CreateParams {
     /// What the diagram shows, at most 1000 characters.
     #[serde(default)]
     pub description: Option<String>,
+    /// The id of a diagram to add this one as a sub diagram of: it's listed with that one as
+    /// its parentId, and deleting that one deletes it too. Elements in any diagram can link to
+    /// it either way, with update_element's sub_diagram_id.
+    #[serde(default)]
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -98,10 +103,10 @@ pub struct EditParams {
     /// Edits applied in order, all or nothing. Each has an "op": add_element {ref?, kind, label?,
     /// description?, parent_id?, x?, y?, props?}, update_element {id, label?, description?,
     /// parent_id? ("" takes it out of its container), props? (merged; null removes a key),
-    /// sub_diagram_id? (the id of a diagram the element opens, a more detailed one of what it
-    /// stands for, such as one made with create_diagram, which becomes this diagram's sub
-    /// diagram and is deleted with it; it can't already be another diagram's sub diagram or be
-    /// above this one; "" stops it opening one)},
+    /// sub_diagram_id? (the id of an existing diagram the element links to and opens, a more
+    /// detailed one of what it stands for; any number of elements can link to the same one,
+    /// and linking or unlinking never creates, deletes, or moves a diagram; "" removes the
+    /// link)},
     /// move_element {id, x, y}, resize_element {id, width, height}, remove_element {id},
     /// add_connection {ref?, source_id, target_id, props?}, update_connection {id, props},
     /// remove_connection {id}. Any id can be a ref given to an element added earlier in the
@@ -289,7 +294,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Every diagram: id, name, type, when it was last updated, its version tag (Release when it matches its latest version, Draft when it has changed since), its revision, and parentId: the diagram with an element that opens it (null for none).",
+        description = "Every diagram: id, name, type, when it was last updated, its version tag (Release when it matches its latest version, Draft when it has changed since), its revision, and parentId: the diagram it was created as a sub diagram of, which deleting deletes it too (null for none).",
         annotations(read_only_hint = true)
     )]
     pub async fn list_diagrams(&self) -> ToolResult {
@@ -332,7 +337,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Creates a diagram, with medium lines, and records it as version 1. A physical diagram starts with an End User zone and an Intranet network of three zones."
+        description = "Creates a diagram, with medium lines, and records it as version 1, on its own or, with parent_id, as a sub diagram of another. A physical diagram starts with an End User zone and an Intranet network of three zones."
     )]
     pub async fn create_diagram(&self, Parameters(p): Parameters<CreateParams>) -> ToolResult {
         let Some(diagram_type) = DiagramTypeId::parse(&p.diagram_type) else {
@@ -347,7 +352,8 @@ impl HieroServer {
             return Ok(failure(m));
         }
         let diagram = hiero_registry::new_diagram(diagram_type, &p.name, p.description);
-        match self.with_store(|s| s.create(&diagram)) {
+        let parent = p.parent_id.filter(|p| !p.is_empty()).map(DiagramId);
+        match self.with_store(|s| s.create_under(&diagram, parent.as_ref())) {
             Ok(record) => Ok(match self.describe(&record.diagram.meta.id) {
                 Ok(v) => json_result(&v),
                 Err(r) => r,
@@ -402,7 +408,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Deletes a diagram and all its versions, with its sub diagrams (the ones its elements open, listed with it as their parentId) and theirs. This can't be undone.",
+        description = "Deletes a diagram and all its versions, with its sub diagrams (the ones listed with it as their parentId) and theirs. Elements elsewhere that link to a deleted diagram are left with a dead link, which counts as no link and is dropped when their diagram's next version is saved. This can't be undone.",
         annotations(destructive_hint = true)
     )]
     pub async fn delete_diagram(&self, Parameters(p): Parameters<DiagramParams>) -> ToolResult {
@@ -441,36 +447,19 @@ impl HieroServer {
         }
         let outcome = self.with_store(|store| -> Result<Result<Value, String>, StoreError> {
             let record = store.get(&id)?.ok_or(StoreError::NotFound)?;
-            // The diagrams elements are to open must exist, belong to no other diagram, and
-            // not be above this one, as deleting a diagram deletes its sub diagrams.
-            let above = store.ancestors(&id)?;
+            // The diagrams elements are to link to must exist.
             for (i, edit) in edits.iter().enumerate() {
-                let EditOp::UpdateElement {
+                if let EditOp::UpdateElement {
                     sub_diagram_id: Some(sub),
                     ..
                 } = edit
-                else {
-                    continue;
-                };
-                if sub.is_empty() {
-                    continue;
-                }
-                let sub_id = DiagramId(sub.clone());
-                let reason = if store.get(&sub_id)?.is_none() {
-                    Some(format!("there's no diagram “{sub}”"))
-                } else if above.contains(&sub_id) {
-                    Some(format!(
-                        "“{sub}” is above this diagram, so it can't be a sub diagram of it"
-                    ))
-                } else {
-                    store
-                        .ancestors(&sub_id)?
-                        .first()
-                        .filter(|parent| **parent != id)
-                        .map(|parent| format!("“{sub}” is already a sub diagram of “{parent}”"))
-                };
-                if let Some(reason) = reason {
-                    return Ok(Err(format!("Edit {} was rejected: {reason}.", i + 1)));
+                    && !sub.is_empty()
+                    && !store.exists(&DiagramId(sub.clone()))?
+                {
+                    return Ok(Err(format!(
+                        "Edit {} was rejected: there's no diagram “{sub}”.",
+                        i + 1
+                    )));
                 }
             }
             if p.expected_revision.is_some_and(|r| r != record.revision) {
@@ -505,7 +494,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Records the diagram as a new numbered version, with an optional short description. Does nothing if it already matches its latest version."
+        description = "Records the diagram as a new numbered version, with an optional short description. Links to deleted diagrams are dropped from its elements first. Does nothing if it already matches its latest version."
     )]
     pub async fn save_version(&self, Parameters(p): Parameters<SaveVersionParams>) -> ToolResult {
         if let Err(m) = hiero_core::history::validate_version_description(
@@ -576,7 +565,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A drawio file of the current diagram adds the diagrams its elements open (subDiagramId) as more pages, each such element linking to its page; a version's comes alone. Won't replace a file unless overwrite is true.",
+        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A drawio file of the current diagram adds the diagrams its elements open (subDiagramId) as more pages, each such element linking to its page; a version's comes alone. Links to deleted diagrams are left out. Won't replace a file unless overwrite is true.",
         annotations(read_only_hint = true)
     )]
     pub async fn export_diagram(&self, Parameters(p): Parameters<ExportParams>) -> ToolResult {
@@ -585,7 +574,7 @@ impl HieroServer {
             Some(v) => s.get_version(&id, v),
             None => s.get(&id).map(|r| r.map(|r| r.diagram)),
         });
-        let diagram = match diagram {
+        let mut diagram = match diagram {
             Ok(Some(d)) => d,
             Ok(None) => {
                 return Ok(failure(format!(
@@ -594,6 +583,10 @@ impl HieroServer {
             }
             Err(e) => return Ok(store_failure(&e)),
         };
+        // Exports leave out links to diagrams that are gone.
+        if let Err(e) = self.with_store(|s| s.drop_dead_links(&mut diagram.content)) {
+            return Ok(store_failure(&e));
+        }
         let t = ops(diagram.meta.diagram_type);
         let (bytes, extension, as_text) = match p.format.as_str() {
             "zip" => (diagram_to_zip(&diagram), "zip", None),

@@ -6,7 +6,7 @@
 //! it expects, so a change made elsewhere in the meantime fails with [`StoreError::Conflict`]
 //! rather than being overwritten.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub mod locations;
@@ -20,6 +20,9 @@ use hiero_core::stored::{StoredConnection, StoredContent, StoredDiagram, StoredE
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use rusqlite_migration::{M, Migrations};
 use serde_json::{Map, Value};
+
+/// The element property that names the diagram an element opens.
+const SUB_DIAGRAM: &str = "subDiagramId";
 
 /// What went wrong reading or writing the store.
 #[derive(Debug)]
@@ -112,7 +115,8 @@ pub struct Summary {
     pub meta: DiagramMeta,
     pub status: Status,
     pub revision: i64,
-    /// The diagram with an element that opens this one, if any.
+    /// The diagram this one was added as a sub diagram of, if any. Deleting that one deletes
+    /// this one with it.
     pub parent: Option<DiagramId>,
 }
 
@@ -207,9 +211,9 @@ ALTER TABLE diagrams DROP COLUMN line_weight;
 ALTER TABLE diagrams RENAME COLUMN line_weight_3 TO line_weight;
 ";
 
-/// The diagram each diagram is a sub diagram of: the one with an element that opens it.
-/// Deleting a diagram deletes its sub diagrams, and theirs. It's kept up to date from the
-/// elements' `subDiagramId` whenever content is written, and filled in here from them.
+/// The diagram each diagram is a sub diagram of. Deleting a diagram deletes its sub diagrams,
+/// and theirs. It was filled in here from the elements' `subDiagramId`; since then it's set
+/// only when a diagram is added as a sub diagram, and elements' links don't change it.
 const MIGRATION_4: &str = r"
 ALTER TABLE diagrams ADD COLUMN parent_diagram_id TEXT
   REFERENCES diagrams(id) ON DELETE CASCADE;
@@ -417,7 +421,22 @@ impl Store {
 
     /// Adds a diagram, recording it as version 1.
     pub fn create(&mut self, diagram: &StoredDiagram) -> Result<Record> {
+        self.create_under(diagram, None)
+    }
+
+    /// Adds a diagram as a sub diagram of `parent`, which deleting deletes it with, or on its
+    /// own, recording it as version 1.
+    pub fn create_under(
+        &mut self,
+        diagram: &StoredDiagram,
+        parent: Option<&DiagramId>,
+    ) -> Result<Record> {
         let tx = self.conn.transaction()?;
+        if let Some(parent) = parent
+            && !exists(&tx, parent)?
+        {
+            return Err(StoreError::NotFound);
+        }
         let now = now_rfc3339();
         let mut diagram = diagram.clone();
         if diagram.meta.created_at.is_empty() {
@@ -425,6 +444,12 @@ impl Store {
         }
         diagram.meta.updated_at.clone_from(&now);
         insert_diagram(&tx, &diagram)?;
+        if let Some(parent) = parent {
+            tx.execute(
+                "UPDATE diagrams SET parent_diagram_id = ?2 WHERE id = ?1",
+                params![diagram.meta.id.0, parent.0],
+            )?;
+        }
         insert_version(&tx, &diagram, None)?;
         let record = read_record(&tx, &diagram.meta.id)?.ok_or(StoreError::NotFound)?;
         tx.commit()?;
@@ -470,12 +495,26 @@ impl Store {
         Ok(descendants(&self.conn, id)?.into_iter().skip(1).collect())
     }
 
-    /// The diagrams a diagram is a sub diagram of, its parent first.
-    pub fn ancestors(&self, id: &DiagramId) -> Result<Vec<DiagramId>> {
-        Ok(ancestors(&self.conn, &id.0)?
-            .into_iter()
-            .map(DiagramId)
-            .collect())
+    /// A diagram's own sub diagrams, not theirs, with their names, sorted by name.
+    pub fn children(&self, id: &DiagramId) -> Result<Vec<(DiagramId, String)>> {
+        let mut statement = self.conn.prepare(
+            "SELECT id, name FROM diagrams WHERE parent_diagram_id = ?1
+             ORDER BY name COLLATE NOCASE, id",
+        )?;
+        let rows = statement.query_map(params![id.0], |row| {
+            Ok((DiagramId(row.get(0)?), row.get(1)?))
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Whether there's a diagram with this id.
+    pub fn exists(&self, id: &DiagramId) -> Result<bool> {
+        exists(&self.conn, id)
+    }
+
+    /// Stops `content`'s elements opening diagrams that don't exist. Returns whether any did.
+    pub fn drop_dead_links(&self, content: &mut StoredContent) -> Result<bool> {
+        drop_dead_links(&self.conn, content)
     }
 
     /// Saves a diagram from a file: it replaces the diagram with the same id, every field of
@@ -509,21 +548,26 @@ impl Store {
         }
     }
 
-    /// Records the current record as a new version. Returns its number, or `None` when the
-    /// latest version already has the same content.
+    /// Records the current record as a new version. Its elements stop opening diagrams that
+    /// have been deleted first, in the current record too. Returns the version's number, or
+    /// `None` when the latest version already has the same content.
     pub fn save_version(
         &mut self,
         id: &DiagramId,
         description: Option<&str>,
     ) -> Result<Option<i64>> {
         let tx = self.conn.transaction()?;
-        let record = read_record(&tx, id)?.ok_or(StoreError::NotFound)?;
-        if status_of(&tx, id)?.saved {
-            return Ok(None);
+        let mut record = read_record(&tx, id)?.ok_or(StoreError::NotFound)?;
+        if drop_dead_links(&tx, &mut record.diagram.content)? {
+            write_record(&tx, &record.diagram, record.revision)?;
         }
-        let version = insert_version(&tx, &record.diagram, description)?;
+        let version = if status_of(&tx, id)?.saved {
+            None
+        } else {
+            Some(insert_version(&tx, &record.diagram, description)?)
+        };
         tx.commit()?;
-        Ok(Some(version))
+        Ok(version)
     }
 
     /// A diagram's versions, newest first.
@@ -585,6 +629,7 @@ impl Store {
         let current = read_record(&tx, id)?.ok_or(StoreError::NotFound)?;
         let mut next = current.diagram.clone();
         DiagramSnapshot::of(&old).apply_to(&mut next);
+        drop_dead_links(&tx, &mut next.content)?;
         write_record(&tx, &next, current.revision)?;
         let default = format!("Reverted to v{version}");
         let new_version = insert_version(&tx, &next, Some(description.unwrap_or(&default)))?;
@@ -650,81 +695,29 @@ fn parent_of(conn: &Connection, id: &str) -> Result<Option<String>> {
         .flatten())
 }
 
-/// The diagrams above `id`, its parent first, stopping before any loop.
-fn ancestors(conn: &Connection, id: &str) -> Result<Vec<String>> {
-    let mut out: Vec<String> = Vec::new();
-    let mut at = id.to_owned();
-    while let Some(parent) = parent_of(conn, &at)? {
-        if parent == id || out.contains(&parent) {
-            break;
-        }
-        out.push(parent.clone());
-        at = parent;
-    }
-    Ok(out)
+fn exists(conn: &Connection, id: &DiagramId) -> Result<bool> {
+    Ok(conn
+        .prepare_cached("SELECT 1 FROM diagrams WHERE id = ?1")?
+        .exists(params![id.0])?)
 }
 
-/// Makes `child` a sub diagram of `parent`, unless that would make a loop, where deleting a
-/// sub diagram would delete what it's under. Returns whether it did.
-fn adopt(conn: &Connection, child: &str, parent: &str) -> Result<bool> {
-    if child == parent || ancestors(conn, parent)?.iter().any(|a| a == child) {
-        return Ok(false);
-    }
-    let changed = conn.execute(
-        "UPDATE diagrams SET parent_diagram_id = ?2 WHERE id = ?1",
-        params![child, parent],
-    )?;
-    Ok(changed > 0)
-}
-
-/// Gives `child`, which has no parent, the first diagram with an element that opens it.
-fn find_parent(conn: &Connection, child: &str) -> Result<()> {
-    let candidates: Vec<String> = conn
-        .prepare_cached(
-            "SELECT DISTINCT diagram_id FROM elements
-             WHERE json_extract(props, '$.subDiagramId') = ?1 AND diagram_id <> ?1
-             ORDER BY diagram_id",
-        )?
-        .query_map(params![child], |row| row.get(0))?
-        .collect::<rusqlite::Result<_>>()?;
-    for parent in candidates {
-        if adopt(conn, child, &parent)? {
-            break;
+/// Stops `content`'s elements opening diagrams that don't exist. Returns whether any did.
+fn drop_dead_links(conn: &Connection, content: &mut StoredContent) -> Result<bool> {
+    let mut dropped = false;
+    for element in &mut content.elements {
+        let Some(link) = element.props.get(SUB_DIAGRAM) else {
+            continue;
+        };
+        let live = match link.as_str() {
+            Some(id) if !id.is_empty() => exists(conn, &DiagramId::from(id))?,
+            _ => false,
+        };
+        if !live {
+            element.props.remove(SUB_DIAGRAM);
+            dropped = true;
         }
     }
-    Ok(())
-}
-
-/// Brings the diagrams' parents up to date after `id`'s content was written: the diagrams its
-/// elements open become its sub diagrams, unless they're already another's; ones they no
-/// longer open look for another parent; and it finds its own, if it has none.
-fn sync_parents(conn: &Connection, id: &DiagramId, content: &StoredContent) -> Result<()> {
-    let opened: BTreeSet<&str> = content
-        .elements
-        .iter()
-        .filter_map(|e| e.props.get("subDiagramId").and_then(Value::as_str))
-        .filter(|s| !s.is_empty() && *s != id.0)
-        .collect();
-    let children: Vec<String> = conn
-        .prepare_cached("SELECT id FROM diagrams WHERE parent_diagram_id = ?1")?
-        .query_map(params![id.0], |row| row.get(0))?
-        .collect::<rusqlite::Result<_>>()?;
-    for child in children.iter().filter(|c| !opened.contains(c.as_str())) {
-        conn.execute(
-            "UPDATE diagrams SET parent_diagram_id = NULL WHERE id = ?1",
-            params![child],
-        )?;
-        find_parent(conn, child)?;
-    }
-    for child in opened {
-        if parent_of(conn, child)?.is_none() {
-            adopt(conn, child, &id.0)?;
-        }
-    }
-    if parent_of(conn, &id.0)?.is_none() {
-        find_parent(conn, &id.0)?;
-    }
-    Ok(())
+    Ok(dropped)
 }
 
 /// Takes the parent away from one diagram in each loop of diagrams under each other, which
@@ -909,7 +902,7 @@ fn insert_content(tx: &Transaction<'_>, id: &DiagramId, content: &StoredContent)
             props_json(&c.props)
         ])?;
     }
-    sync_parents(tx, id, content)
+    Ok(())
 }
 
 /// Writes `diagram` over the current record, which is at `revision`.
@@ -1028,15 +1021,16 @@ mod tests {
     }
 
     #[test]
-    fn diagrams_list_the_diagram_whose_element_opens_them() {
+    fn diagrams_list_the_diagram_they_were_added_under() {
         let mut store = Store::open_in_memory().unwrap();
-        let mut parent = diagram("d1", DiagramTypeId::Conceptual);
-        parent.content.elements[1]
-            .props
-            .insert("subDiagramId".into(), json!("d2"));
-        store.create(&parent).unwrap();
         store
-            .create(&diagram("d2", DiagramTypeId::Conceptual))
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
+        store
+            .create_under(
+                &diagram("d2", DiagramTypeId::Conceptual),
+                Some(&"d1".into()),
+            )
             .unwrap();
         let list = store.list().unwrap();
         let parent_of = |id: &str| {
@@ -1048,6 +1042,17 @@ mod tests {
         };
         assert_eq!(parent_of("d1"), None);
         assert_eq!(parent_of("d2"), Some("d1".into()));
+        assert_eq!(
+            store.children(&"d1".into()).unwrap(),
+            [(DiagramId::from("d2"), "Overview".to_owned())]
+        );
+        assert!(matches!(
+            store.create_under(
+                &diagram("d3", DiagramTypeId::Conceptual),
+                Some(&"gone".into())
+            ),
+            Err(StoreError::NotFound)
+        ));
     }
 
     #[test]
@@ -1144,18 +1149,18 @@ mod tests {
     fn deleting_a_diagram_deletes_its_sub_diagrams_and_theirs() {
         let mut store = Store::open_in_memory().unwrap();
         store.create(&opening("top", &["mid"])).unwrap();
-        store.create(&opening("mid", &["leaf"])).unwrap();
-        store.create(&opening("leaf", &[])).unwrap();
-        store.create(&opening("other", &[])).unwrap();
+        store
+            .create_under(&opening("mid", &["leaf"]), Some(&"top".into()))
+            .unwrap();
+        store
+            .create_under(&opening("leaf", &[]), Some(&"mid".into()))
+            .unwrap();
+        store.create(&opening("other", &["mid"])).unwrap();
         assert_eq!(parent(&store, "mid").as_deref(), Some("top"));
         assert_eq!(parent(&store, "leaf").as_deref(), Some("mid"));
         let mut below = store.sub_diagrams(&"top".into()).unwrap();
         below.sort();
         assert_eq!(below, [DiagramId::from("leaf"), DiagramId::from("mid")]);
-        assert_eq!(
-            store.ancestors(&"leaf".into()).unwrap(),
-            [DiagramId::from("mid"), DiagramId::from("top")]
-        );
         let deleted = store.delete(&"top".into()).unwrap();
         assert_eq!(deleted[0], DiagramId::from("top"));
         assert_eq!(deleted.len(), 3);
@@ -1168,42 +1173,55 @@ mod tests {
     }
 
     #[test]
-    fn unlinked_sub_diagrams_stand_alone_and_survive_their_old_parent() {
+    fn links_never_change_which_diagram_a_sub_diagram_is_under() {
         let mut store = Store::open_in_memory().unwrap();
         let top = store.create(&opening("top", &["sub"])).unwrap();
-        store.create(&opening("sub", &[])).unwrap();
-        assert_eq!(parent(&store, "sub").as_deref(), Some("top"));
+        store
+            .create_under(&opening("sub", &["top"]), Some(&"top".into()))
+            .unwrap();
+        store.create(&opening("other", &["sub", "top"])).unwrap();
+        // Unlinking keeps it a sub diagram; another diagram linking it doesn't take it over.
         store
             .save(&opening("top", &[]), Some(top.revision))
             .unwrap();
-        assert_eq!(parent(&store, "sub"), None);
-        store.delete(&"top".into()).unwrap();
-        assert_eq!(ids(&store), ["sub"]);
-    }
-
-    #[test]
-    fn a_second_diagram_opening_a_sub_diagram_takes_over_when_the_first_stops() {
-        let mut store = Store::open_in_memory().unwrap();
-        let a = store.create(&opening("a", &["sub"])).unwrap();
-        store.create(&opening("b", &["sub"])).unwrap();
-        store.create(&opening("sub", &[])).unwrap();
-        assert_eq!(parent(&store, "sub").as_deref(), Some("a"));
-        store.save(&opening("a", &[]), Some(a.revision)).unwrap();
-        assert_eq!(parent(&store, "sub").as_deref(), Some("b"));
-    }
-
-    #[test]
-    fn diagrams_opening_each_other_never_delete_what_they_are_under() {
-        let mut store = Store::open_in_memory().unwrap();
-        store.create(&opening("top", &["sub"])).unwrap();
-        let sub = store.create(&opening("sub", &[])).unwrap();
-        // The sub diagram links back to the top one.
-        store
-            .save(&opening("sub", &["top"]), Some(sub.revision))
-            .unwrap();
+        assert_eq!(parent(&store, "sub").as_deref(), Some("top"));
         assert_eq!(parent(&store, "top"), None);
+        assert_eq!(parent(&store, "other"), None);
+        // Deleting the linked diagram leaves the diagrams that linked it.
         store.delete(&"sub".into()).unwrap();
-        assert_eq!(ids(&store), ["top"]);
+        assert_eq!(ids(&store), ["other", "top"]);
+    }
+
+    #[test]
+    fn saving_a_version_drops_links_to_deleted_diagrams() {
+        let mut store = Store::open_in_memory().unwrap();
+        store.create(&opening("a", &["b", "gone", ""])).unwrap();
+        store.create(&opening("b", &[])).unwrap();
+        let links = |d: &StoredDiagram| -> Vec<Option<Value>> {
+            d.content
+                .elements
+                .iter()
+                .map(|e| e.props.get(SUB_DIAGRAM).cloned())
+                .collect()
+        };
+        // Created as it came, links and all.
+        let before = store.get(&"a".into()).unwrap().unwrap();
+        assert_eq!(links(&before.diagram)[2], Some(json!("gone")));
+        let version = store.save_version(&"a".into(), None).unwrap();
+        assert_eq!(version, Some(2));
+        let after = store.get(&"a".into()).unwrap().unwrap();
+        assert_eq!(links(&after.diagram), [None, Some(json!("b")), None, None]);
+        assert_eq!(after.revision, before.revision + 1);
+        assert_eq!(
+            links(&store.get_version(&"a".into(), 2).unwrap().unwrap()),
+            links(&after.diagram)
+        );
+        assert!(store.status(&"a".into()).unwrap().saved);
+        // Saving again finds nothing to do.
+        assert_eq!(store.save_version(&"a".into(), None).unwrap(), None);
+        // Reverting to the version with the dead link records it without.
+        let (reverted, _) = store.revert_to_version(&"a".into(), 1, None).unwrap();
+        assert_eq!(links(&reverted.diagram), links(&after.diagram));
     }
 
     #[test]

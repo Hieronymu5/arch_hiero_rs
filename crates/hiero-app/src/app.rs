@@ -76,9 +76,6 @@ pub enum Dialog {
         name: String,
         /// How many sub diagrams, and theirs, go with it.
         sub_diagrams: usize,
-        /// The element of the open diagram that opens it, when it's removed from there: it
-        /// stops opening it.
-        opened_by: Option<ElementId>,
     },
     SaveVersion {
         description: String,
@@ -225,9 +222,11 @@ impl App {
     /// that open one.
     fn share_diagram_names(&mut self) {
         if let Some(open) = &mut self.open {
+            // Not the open one: an element can't open the diagram it's in.
             let names = self
                 .list
                 .iter()
+                .filter(|s| s.meta.id != open.record.meta.id)
                 .map(|s| (s.meta.id.clone(), s.meta.name.clone()))
                 .collect();
             open.editor.set_diagram_names(names);
@@ -369,34 +368,22 @@ impl App {
                 };
                 self.go(Page::New);
             }
-            DiagramRequest::Remove { element, diagram } => {
-                let name = self
-                    .list
-                    .iter()
-                    .find(|s| s.meta.id == diagram)
-                    .map_or_else(|| diagram.to_string(), |s| s.meta.name.clone());
-                let sub_diagrams = self.store.sub_diagrams(&diagram).map_or(0, |s| s.len());
-                self.dialog = Some(Dialog::DeleteDiagram {
-                    id: diagram,
-                    name,
-                    sub_diagrams,
-                    opened_by: Some(element),
-                });
-            }
         }
     }
 
-    /// Deletes the diagram an element of the open diagram opens, then stops the element
-    /// opening it, as Remove diagram in its properties does. The delete can't be undone.
-    pub fn remove_sub_diagram(&mut self, element: &ElementId, id: &DiagramId, name: &str) {
-        self.delete(id, name);
-        if self.list.iter().any(|s| s.meta.id == *id) {
-            return;
-        }
-        if let Some(open) = &mut self.open {
-            open.editor.link_diagram(element, None);
-        }
-        self.collect_changes();
+    /// Asks before deleting a diagram, with its sub diagrams and theirs.
+    pub fn ask_delete(&mut self, id: &DiagramId) {
+        let name = self
+            .list
+            .iter()
+            .find(|s| s.meta.id == *id)
+            .map_or_else(|| id.to_string(), |s| s.meta.name.clone());
+        let sub_diagrams = self.store.sub_diagrams(id).map_or(0, |s| s.len());
+        self.dialog = Some(Dialog::DeleteDiagram {
+            id: id.clone(),
+            name,
+            sub_diagrams,
+        });
     }
 
     fn load(&self, id: &DiagramId) -> Result<OpenDiagram, String> {
@@ -643,7 +630,13 @@ impl App {
         };
         let diagram =
             hiero_registry::new_diagram(diagram_type, &form.name, Some(form.description.clone()));
-        match self.worker.call(|reply| Request::Create { diagram, reply }) {
+        // A diagram added for an element is a sub diagram of the element's diagram.
+        let parent = form.opened_from.as_ref().map(|(from, _)| from.clone());
+        match self.worker.call(|reply| Request::Create {
+            diagram,
+            parent,
+            reply,
+        }) {
             Ok(record) => {
                 let id = record.diagram.meta.id;
                 let mut unlinked = false;
@@ -927,6 +920,14 @@ impl App {
             reply,
         }) {
             Ok((record, version)) => {
+                // Saving drops links to deleted diagrams, so show what was saved.
+                if record.diagram.content != open.record.content {
+                    let snapshot = DiagramSnapshot::of(&record.diagram);
+                    self.show_snapshot(&snapshot);
+                }
+                let Some(open) = &mut self.open else {
+                    return;
+                };
                 open.revision = record.revision;
                 open.saving = false;
                 if let Ok(status) = self.store.status(&record.diagram.meta.id) {
@@ -1049,10 +1050,17 @@ impl App {
             Some(v) => self.store.get_version(id, v).ok().flatten(),
             None => self.current(id),
         };
-        let Some(diagram) = diagram else {
+        let Some(mut diagram) = diagram else {
             self.outcome = Some(Outcome::error("That diagram doesn't exist."));
             return;
         };
+        // Exports leave out links to diagrams that are gone.
+        if let Err(e) = self.store.drop_dead_links(&mut diagram.content) {
+            self.outcome = Some(Outcome::error(format!(
+                "The diagram couldn't be exported. {e}"
+            )));
+            return;
+        }
         let name = match version {
             Some(v) => format!("{} v{v}", diagram.meta.name),
             None => diagram.meta.name.clone(),

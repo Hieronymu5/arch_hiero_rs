@@ -23,8 +23,10 @@ pub enum Request {
         expected: i64,
         reply: Sender<Result<Record, StoreError>>,
     },
+    /// Adds a diagram, as a sub diagram of `parent` when given.
     Create {
         diagram: StoredDiagram,
+        parent: Option<DiagramId>,
         reply: Sender<Result<Record, StoreError>>,
     },
     /// Deletes a diagram with its sub diagrams, answering with every diagram deleted.
@@ -193,8 +195,12 @@ fn handle(
             }
             let _ = reply.send(result);
         }
-        Request::Create { diagram, reply } => {
-            let result = store.create(&diagram);
+        Request::Create {
+            diagram,
+            parent,
+            reply,
+        } => {
+            let result = store.create_under(&diagram, parent.as_ref());
             if let Ok(r) = &result {
                 remember(known, r);
             }
@@ -230,9 +236,12 @@ fn handle(
                 .get(&id)
                 .copied()
                 .map_or(expected, |k| k.max(expected));
-            let result = store.save(&diagram, Some(expected)).and_then(|record| {
-                remember(known, &record);
+            // Saving a version may drop links to deleted diagrams, so the record is read again.
+            let result = store.save(&diagram, Some(expected)).and_then(|saved| {
+                remember(known, &saved);
                 let version = store.save_version(&id, description.as_deref())?;
+                let record = store.get(&id)?.ok_or(StoreError::NotFound)?;
+                remember(known, &record);
                 Ok((record, version))
             });
             let _ = reply.send(result);

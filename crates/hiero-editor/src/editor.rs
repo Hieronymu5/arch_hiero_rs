@@ -180,11 +180,6 @@ pub enum DiagramRequest {
     Add { element: ElementId, name: String },
     /// Open a diagram, to view or to edit.
     Open { diagram: DiagramId, viewing: bool },
-    /// Delete the diagram an element opens, once the user agrees, and stop it opening it.
-    Remove {
-        element: ElementId,
-        diagram: DiagramId,
-    },
 }
 
 /// A change the editor made, for the app to save and add to the undo history.
@@ -400,7 +395,8 @@ impl<T: DiagramView> Editor<T> {
         self.viewing = viewing;
     }
 
-    /// The names of the diagrams there are, so elements can show the one they open.
+    /// The names of the diagrams elements can open, so they can show the one they open and
+    /// link to others. A link to a diagram not here is dead: it counts as no link.
     pub fn set_diagram_names(&mut self, names: BTreeMap<DiagramId, String>) {
         self.diagram_names = names;
     }
@@ -569,6 +565,7 @@ impl<T: DiagramView> Editor<T> {
         let mut remove_selection = false;
         let mut focus_name_id = None;
         let mut request = None;
+        let mut link: Option<(ElementId, Option<DiagramId>)> = None;
         if let Some(id) = cx.eng.selected_connection.clone()
             && let Some(connection) = cx.eng.connection(&id).cloned()
         {
@@ -587,8 +584,8 @@ impl<T: DiagramView> Editor<T> {
             focus_name_id = Some(cx.field_id(element.id(), "label").with("edit"));
             ui.add_space(5.0);
             heading(ui, "Diagram");
-            let linked = element.el.sub_diagram_id.as_ref();
-            match linked.and_then(|id| self.diagram_names.get(id).map(|name| (id, name))) {
+            // A link to a diagram that's gone counts as none.
+            match self.opens(&element.el) {
                 Some((id, name)) => {
                     ui.label(RichText::new(name).strong());
                     ui.horizontal_wrapped(|ui| {
@@ -601,27 +598,42 @@ impl<T: DiagramView> Editor<T> {
                                 viewing: false,
                             });
                         }
-                        if page_button(ui, "Remove diagram", false)
-                            .on_hover_text("Delete it, with its own sub diagrams")
+                        if page_button(ui, "Remove link", false)
+                            .on_hover_text("Stop this element opening it. The diagram is kept.")
                             .clicked()
                         {
-                            request = Some(DiagramRequest::Remove {
-                                element: element.id().clone(),
-                                diagram: id.clone(),
-                            });
+                            link = Some((element.id().clone(), None));
                         }
                     });
                 }
-                // Also when the diagram it opened was deleted.
                 None => {
                     if page_button(ui, "Add diagram", false)
-                        .on_hover_text("Create a diagram that opens from this element")
+                        .on_hover_text("Create a sub diagram that opens from this element")
                         .clicked()
                     {
                         request = Some(DiagramRequest::Add {
                             element: element.id().clone(),
                             name: element.el.label.clone(),
                         });
+                    }
+                    let mut options: Vec<(DiagramId, String)> = self
+                        .diagram_names
+                        .iter()
+                        .map(|(id, name)| (id.clone(), name.clone()))
+                        .collect();
+                    options.sort_by_cached_key(|(id, name)| (name.to_lowercase(), id.clone()));
+                    if !options.is_empty() {
+                        ui.add_space(4.0);
+                        if let Some(Some(chosen)) = select(
+                            ui,
+                            cx.field_id(element.id(), "link-diagram"),
+                            "Link to a diagram",
+                            &None,
+                            Some("Select a diagram"),
+                            &options,
+                        ) {
+                            link = Some((element.id().clone(), Some(chosen)));
+                        }
                     }
                 }
             }
@@ -690,6 +702,9 @@ impl<T: DiagramView> Editor<T> {
         }
         if request.is_some() {
             self.request = request;
+        }
+        if let Some((element, diagram)) = link {
+            self.link_diagram(&element, diagram);
         }
         if remove_selection {
             self.act(None, |eng| {

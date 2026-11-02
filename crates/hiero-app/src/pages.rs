@@ -746,13 +746,7 @@ impl App {
                             self.export(&id, None, ExportFormat::Zip);
                         }
                         if row_button(ui, "Delete").clicked() {
-                            let sub_diagrams = self.store.sub_diagrams(&id).map_or(0, |s| s.len());
-                            self.dialog = Some(Dialog::DeleteDiagram {
-                                id: id.clone(),
-                                name: row.meta.name.clone(),
-                                sub_diagrams,
-                                opened_by: None,
-                            });
+                            self.ask_delete(&id);
                         }
                     });
                     end_row(ui);
@@ -909,7 +903,7 @@ impl App {
                 .map(|e| e.label.clone())
         {
             ui.label(format!(
-                "“{label}” in {} will open it.",
+                "It will be a sub diagram of {}, and “{label}” will open it.",
                 open.record.meta.name
             ));
         }
@@ -995,10 +989,51 @@ impl App {
                     self.go_back();
                 }
             });
+            self.sub_diagrams_section(ui, id);
             ui.add_space(10.0);
             ui.label(RichText::new(format!("Created {}", date(&meta.created_at))).weak());
             ui.label(RichText::new(format!("Last updated {}", date(&meta.updated_at))).weak());
         });
+    }
+
+    /// The diagram's own sub diagrams, each of which can be deleted, with its own.
+    fn sub_diagrams_section(&mut self, ui: &mut Ui, id: &DiagramId) {
+        let children = match self.store.children(id) {
+            Ok(children) => children,
+            Err(e) => {
+                ui.add_space(14.0);
+                ui.label(error_text(
+                    ui,
+                    &format!("The sub diagrams couldn't be loaded. {e}"),
+                ));
+                return;
+            }
+        };
+        if children.is_empty() {
+            return;
+        }
+        ui.add_space(14.0);
+        field_label(ui, "Sub diagrams", false);
+        ui.label(
+            RichText::new(
+                "Removing one deletes it now, with its own sub diagrams. Elements that open it are left with no link.",
+            )
+            .weak(),
+        );
+        ui.add_space(4.0);
+        let mut remove = None;
+        ruled_grid(ui, "sub-diagrams", 2, |ui, end_row| {
+            for (child, name) in &children {
+                ui.label(name);
+                if row_button(ui, "Remove").clicked() {
+                    remove = Some(child.clone());
+                }
+                end_row(ui);
+            }
+        });
+        if let Some(child) = remove {
+            self.ask_delete(&child);
+        }
     }
 
     // The editor
@@ -1239,7 +1274,6 @@ impl App {
                     id,
                     name,
                     sub_diagrams,
-                    opened_by,
                 } => {
                     ui.heading("Delete diagram?");
                     ui.label(match sub_diagrams {
@@ -1254,12 +1288,7 @@ impl App {
                         }
                         if danger_button(ui, "Delete").clicked() {
                             let (id, name) = (id.clone(), name.clone());
-                            next = Some(match opened_by.clone() {
-                                Some(element) => Box::new(move |app| {
-                                    app.remove_sub_diagram(&element, &id, &name);
-                                }),
-                                None => Box::new(move |app| app.delete(&id, &name)),
-                            });
+                            next = Some(Box::new(move |app| app.delete(&id, &name)));
                             keep = false;
                         }
                     });
