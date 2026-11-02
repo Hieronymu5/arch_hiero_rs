@@ -13,11 +13,11 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::file_check::{DescriptionRule, Field};
-use crate::geometry::{CANVAS_HEIGHT, CANVAS_WIDTH, GRID, Point, Rect, Size, fmt_num, snap};
+use crate::geometry::{DEFAULT_CANVAS, GRID, MAX_CANVAS, Point, Rect, Size, fmt_num, snap};
 use crate::layout::{
-    CANVAS, CANVAS_AREA, ContainerRect, MIN_CONTAINER_SIZE, MIN_ELEMENT_SIZE, child_placement_area,
-    clamp_into, content_area, find_free_position, fit_container, resize_element,
-    resize_from_top_left, snap_to_canvas,
+    ContainerRect, MIN_CONTAINER_SIZE, MIN_ELEMENT_SIZE, canvas_area, canvas_rect,
+    child_placement_area, clamp_into, content_area, find_free_position, fit_container, min_canvas,
+    resize_element, resize_from_top_left, snap_to_canvas,
 };
 use crate::model::{
     ColorScheme, Connection, ConnectionId, ContainerLook, DiagramTypeId, Element, ElementId,
@@ -447,6 +447,8 @@ pub struct Engine<T: DiagramType> {
     layout: Vec<Laid<T>>,
     colors: T::Colors,
     line_weight: LineWeight,
+    /// The size of the drawing area.
+    canvas: Size,
     /// The selected elements' ids, in the order they were selected.
     pub selection: Vec<ElementId>,
     pub selected_connection: Option<ConnectionId>,
@@ -466,6 +468,7 @@ impl<T: DiagramType> Engine<T> {
             layout: Vec::new(),
             colors,
             line_weight: T::ID.default_line_weight(),
+            canvas: DEFAULT_CANVAS,
             selection: Vec::new(),
             selected_connection: None,
             announcement: String::new(),
@@ -561,6 +564,29 @@ impl<T: DiagramType> Engine<T> {
             self.line_weight = weight;
             self.changes += 1;
         }
+    }
+
+    /// The size of the drawing area, which elements stay on.
+    pub fn canvas(&self) -> Size {
+        self.canvas
+    }
+
+    /// Sizes the drawing area, keeping it from `min_canvas` to `MAX_CANVAS`.
+    pub fn set_canvas(&mut self, size: Size) {
+        let min = self.min_canvas();
+        let size = Size::new(
+            size.width.min(MAX_CANVAS.width).max(min.width),
+            size.height.min(MAX_CANVAS.height).max(min.height),
+        );
+        if size != self.canvas {
+            self.canvas = size;
+            self.changes += 1;
+        }
+    }
+
+    /// The smallest the drawing area can be: its default size, or bigger to hold everything.
+    pub fn min_canvas(&self) -> Size {
+        min_canvas(self.layout.iter().map(|l| l.rect))
     }
 
     fn relayout(&mut self) {
@@ -754,12 +780,12 @@ impl<T: DiagramType> Engine<T> {
                     .map(|e| e.rect)
                     .collect::<Vec<_>>(),
                 selected.rect.size(),
-                child_placement_area(&parent.container_rect()),
+                child_placement_area(&parent.container_rect(), self.canvas),
             ),
             None => find_free_position(
                 &others.iter().map(|e| e.rect).collect::<Vec<_>>(),
                 selected.rect.size(),
-                CANVAS_AREA,
+                canvas_area(self.canvas),
             ),
         };
         T::commit_move(
@@ -797,7 +823,7 @@ impl<T: DiagramType> Engine<T> {
             let position = find_free_position(
                 &siblings,
                 size,
-                child_placement_area(&container.container_rect()),
+                child_placement_area(&container.container_rect(), self.canvas),
             );
             self.add(
                 kind,
@@ -811,7 +837,7 @@ impl<T: DiagramType> Engine<T> {
         let preferred = T::preferred_position(self, kind);
         let free = preferred.is_some_and(|p| {
             let spot = Rect::from_parts(p, size);
-            CANVAS_AREA.contains_rect(&spot)
+            canvas_area(self.canvas).contains_rect(&spot)
                 && !self
                     .layout
                     .iter()
@@ -822,7 +848,7 @@ impl<T: DiagramType> Engine<T> {
             _ => find_free_position(
                 &self.layout.iter().map(|e| e.rect).collect::<Vec<_>>(),
                 size,
-                CANVAS_AREA,
+                canvas_area(self.canvas),
             ),
         };
         self.add(
@@ -876,7 +902,7 @@ impl<T: DiagramType> Engine<T> {
         kind: &'static KindInfo<T::Kind>,
         placement: Placement,
     ) -> Created<T> {
-        let position = snap_to_canvas(placement.position, kind.size());
+        let position = snap_to_canvas(placement.position, kind.size(), self.canvas);
         let element = Element {
             id: ElementId(self.new_id()),
             kind: kind.kind,
@@ -901,7 +927,7 @@ impl<T: DiagramType> Engine<T> {
     /// Where a moved element lands; anything it holds moves with it. An element sits in a
     /// container while it's fully inside the container's content area.
     pub fn move_placement(&self, element: &Laid<T>, desired: Point) -> Placement {
-        let position = snap_to_canvas(desired, element.rect.size());
+        let position = snap_to_canvas(desired, element.rect.size(), self.canvas);
         let rect = Rect::from_parts(position, element.rect.size());
         let inside = descendant_ids(&self.elements, element.id());
         let parent = self
@@ -963,8 +989,8 @@ impl<T: DiagramType> Engine<T> {
             .iter()
             .map(|e| e.rect.bottom())
             .fold(f64::NEG_INFINITY, f64::max);
-        let dx = snap(delta.x).max(-left).min(CANVAS_WIDTH - right);
-        let dy = snap(delta.y).max(-top).min(CANVAS_HEIGHT - bottom);
+        let dx = snap(delta.x).max(-left).min(self.canvas.width - right);
+        let dy = snap(delta.y).max(-top).min(self.canvas.height - bottom);
         let moving: HashSet<ElementId> = roots
             .iter()
             .flat_map(|root| {
@@ -1022,7 +1048,7 @@ impl<T: DiagramType> Engine<T> {
     /// Where a dropped element lands: inside a container when its centre falls on one.
     pub fn drop_placement(&self, kind: &'static KindInfo<T::Kind>, desired: Point) -> Placement {
         let size = T::new_size_of(self, kind);
-        let position = snap_to_canvas(desired, size);
+        let position = snap_to_canvas(desired, size, self.canvas);
         let center = Rect::from_parts(position, size).center();
         let parent = self
             .containers_for(kind.kind, &self.layout)
@@ -1051,6 +1077,7 @@ impl<T: DiagramType> Engine<T> {
         snap_to_canvas(
             clamp_into(position, size, content_area(&parent.container_rect())),
             size,
+            self.canvas,
         )
     }
 
@@ -1262,7 +1289,13 @@ impl<T: DiagramType> Engine<T> {
         let r = element.rect;
         if corner == Corner::BottomRight {
             let desired = Size::new(r.width + delta.x, r.height + delta.y);
-            let size = resize_element(&element.container_rect(), desired, min_size, &children);
+            let size = resize_element(
+                &element.container_rect(),
+                desired,
+                min_size,
+                &children,
+                self.canvas,
+            );
             return Rect::from_parts(r.position(), size);
         }
         let parent = element
@@ -1276,7 +1309,7 @@ impl<T: DiagramType> Engine<T> {
             Point::new(r.x + delta.x, r.y + delta.y),
             min_size,
             &children,
-            parent.unwrap_or(CANVAS),
+            parent.unwrap_or(canvas_rect(self.canvas)),
         )
     }
 

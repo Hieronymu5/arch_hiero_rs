@@ -354,7 +354,7 @@ fn step_out_of_container(eng: &mut PEngine, element: &PLaid, dir: Dir) -> bool {
             c.id() != element.id() && !inside.contains(c.id()) && c.rect.contains_point(middle)
         })
         .cloned();
-    let snapped = snap_to_canvas(out, r.size());
+    let snapped = snap_to_canvas(out, r.size(), eng.canvas());
     let placement = Placement {
         position: next
             .as_ref()
@@ -862,7 +862,7 @@ impl DiagramType for Physical {
     ) -> Point {
         let size = Self::new_size_of(eng, kind);
         keep_inside(
-            snap_to_canvas(keep_inside(position, size, parent), size),
+            snap_to_canvas(keep_inside(position, size, parent), size, eng.canvas()),
             size,
             parent,
         )
@@ -894,7 +894,7 @@ impl DiagramType for Physical {
                     .collect::<Vec<_>>(),
                 default_size.height,
             ),
-            _ => Rect::from_parts(snap_to_canvas(placement.position, size), size),
+            _ => Rect::from_parts(snap_to_canvas(placement.position, size, eng.canvas()), size),
         };
         let mut element = new_element(eng, kind.kind, kind.label, placement.parent_id.clone());
         let stored = if template.is_some() {

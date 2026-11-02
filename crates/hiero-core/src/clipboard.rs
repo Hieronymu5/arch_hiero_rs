@@ -10,7 +10,7 @@ use crate::engine::{Conn, DiagramType, El, Engine, Placement, descendant_ids, li
 use crate::file_check::check_content;
 use crate::geometry::{GRID, Point, Rect};
 use crate::layout::{
-    CANVAS_AREA, child_placement_area, clamp_into, content_area, find_free_position, snap_to_canvas,
+    canvas_area, child_placement_area, clamp_into, content_area, find_free_position, snap_to_canvas,
 };
 use crate::model::{ConnectionId, DiagramTypeId, ElementId};
 use crate::stored::{StoredConnection, StoredElement};
@@ -250,11 +250,12 @@ impl<T: DiagramType> Engine<T> {
                                 content_area(&parent.container_rect()),
                             ),
                             size,
+                            self.canvas(),
                         ),
                         parent_id: Some(parent.id().clone()),
                     },
                     None => Placement {
-                        position: snap_to_canvas(root.rect.position(), size),
+                        position: snap_to_canvas(root.rect.position(), size, self.canvas()),
                         parent_id: None,
                     },
                 };
@@ -321,7 +322,7 @@ impl<T: DiagramType> Engine<T> {
             let position = find_free_position(
                 &siblings,
                 bounds.size(),
-                child_placement_area(&target.container_rect()),
+                child_placement_area(&target.container_rect(), self.canvas()),
             );
             return Point::new(position.x - left, position.y - top);
         }
@@ -332,7 +333,7 @@ impl<T: DiagramType> Engine<T> {
                     .any(|e| e.kind == r.kind && e.x == r.x + step && e.y == r.y + step)
             })
         };
-        let steps = (CANVAS_AREA.right() / GRID) as u32;
+        let steps = (canvas_area(self.canvas()).right() / GRID) as u32;
         let step = (0..steps)
             .map(|n| f64::from(n) * GRID)
             .find(|step| !taken(*step))

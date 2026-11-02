@@ -15,6 +15,7 @@ use serde_json::{Map, Value};
 use crate::color::is_hex_color;
 use crate::count::InstanceCount;
 use crate::engine::DiagramType;
+use crate::geometry::{DEFAULT_CANVAS, GRID, MAX_CANVAS, fmt_num};
 use crate::model::{ColorScheme, DiagramTypeId, KindInfo, LineWeight};
 
 type Object = Map<String, Value>;
@@ -451,6 +452,27 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
         return Err(at(must_be("lineWeight", "“thin”, “medium”, or “thick”")));
     }
 
+    // 11, continued. The canvas's size, where it's bigger than the default.
+    let sides = [
+        ("canvasWidth", DEFAULT_CANVAS.width, MAX_CANVAS.width),
+        ("canvasHeight", DEFAULT_CANVAS.height, MAX_CANVAS.height),
+    ];
+    for (key, default, max) in sides {
+        if let Some(value) = diagram.get(key)
+            && !value
+                .as_f64()
+                .is_some_and(|v| v > default && v <= max && v % GRID == 0.0)
+        {
+            let what = format!(
+                "a multiple of {} over {} and at most {}",
+                fmt_num(GRID),
+                fmt_num(default),
+                fmt_num(max)
+            );
+            return Err(at(must_be(key, &what)));
+        }
+    }
+
     // 12. The dates.
     for key in ["createdAt", "updatedAt"] {
         let text = match diagram.get(key) {
@@ -485,6 +507,8 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
                 | "elements"
                 | "connections"
                 | "lineWeight"
+                | "canvasWidth"
+                | "canvasHeight"
         ) || (has_colors && k == colors_key)
     };
     if let Some(key) = first_unknown(diagram, allowed) {

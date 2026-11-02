@@ -7,7 +7,7 @@ use hiero_core::engine::{
     validate_length,
 };
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
-use hiero_core::geometry::{CANVAS_WIDTH, Point, Size};
+use hiero_core::geometry::{Point, Size};
 use hiero_core::model::{DiagramTypeId, Element, ElementId, KindInfo, NoColors, NoProps};
 
 use crate::layout::{
@@ -358,7 +358,7 @@ impl DiagramType for DeployedComponent {
             !is_layer(&s.el) && s.el.parent_id.as_ref() == layer.as_ref().map(Laid::id)
         });
         let width = component_size(Some("")).width;
-        let x = after.as_ref().map_or(CANVAS_WIDTH, |a| {
+        let x = after.as_ref().map_or(eng.canvas().width, |a| {
             a.rect.x + a.rect.width / 2.0 - width / 2.0
         });
         eng.add(
@@ -518,7 +518,7 @@ impl DiagramType for DeployedComponent {
             eng.base_commit_move(
                 id,
                 Placement {
-                    position: Point::new(CANVAS_WIDTH, y),
+                    position: Point::new(eng.canvas().width, y),
                     parent_id,
                 },
                 Some(with),

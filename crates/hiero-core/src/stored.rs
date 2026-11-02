@@ -8,6 +8,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
+use crate::geometry::{DEFAULT_CANVAS, Size};
 use crate::model::{Connection, ConnectionId, DiagramMeta, Element, ElementId, LineWeight};
 
 /// Keys that are columns of their own rather than properties.
@@ -63,6 +64,8 @@ pub struct StoredDiagram {
     pub colors: BTreeMap<String, String>,
     /// How thick elements' lines are, when it differs from the type's default.
     pub line_weight: Option<LineWeight>,
+    /// The size of the drawing area, when it's been made bigger than the default.
+    pub canvas: Option<Size>,
     pub content: StoredContent,
 }
 
@@ -77,6 +80,16 @@ impl StoredDiagram {
     pub fn set_line_weight(&mut self, weight: LineWeight) {
         self.line_weight =
             (weight != self.meta.diagram_type.default_line_weight()).then_some(weight);
+    }
+
+    /// The size of the drawing area.
+    pub fn canvas(&self) -> Size {
+        self.canvas.unwrap_or(DEFAULT_CANVAS)
+    }
+
+    /// Sizes the drawing area, keeping the size only when it differs from the default.
+    pub fn set_canvas(&mut self, size: Size) {
+        self.canvas = (size != DEFAULT_CANVAS).then_some(size);
     }
 }
 

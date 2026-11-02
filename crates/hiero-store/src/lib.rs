@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 pub mod locations;
 
 use hiero_core::file::{diagram_from_json, diagram_to_json};
+use hiero_core::geometry::Size;
 use hiero_core::history::{DiagramSnapshot, content_hash};
 use hiero_core::model::{
     ConnectionId, DiagramId, DiagramMeta, DiagramTypeId, ElementId, LineWeight, now_rfc3339,
@@ -226,12 +227,20 @@ UPDATE diagrams SET parent_diagram_id = (
 );
 ";
 
+/// The size of each diagram's drawing area; unset means the default size.
+const MIGRATION_5: &str = r"
+ALTER TABLE diagrams ADD COLUMN canvas_width REAL CHECK (canvas_width IS NULL OR canvas_width > 0);
+ALTER TABLE diagrams ADD COLUMN canvas_height REAL
+  CHECK (canvas_height IS NULL OR canvas_height > 0);
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(MIGRATION_1),
         M::up(MIGRATION_2),
         M::up(MIGRATION_3),
         M::up(MIGRATION_4),
+        M::up(MIGRATION_5),
     ])
 }
 
@@ -752,7 +761,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
     let row = conn
         .query_row(
             "SELECT type, name, description, colors, created_at, updated_at, revision,
-                    line_weight
+                    line_weight, canvas_width, canvas_height
              FROM diagrams WHERE id = ?1",
             params![id.0],
             |row| {
@@ -765,13 +774,31 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
                     row.get::<_, String>(5)?,
                     row.get::<_, i64>(6)?,
                     row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<f64>>(8)?,
+                    row.get::<_, Option<f64>>(9)?,
                 ))
             },
         )
         .optional()?;
-    let Some((ty, name, description, colors, created_at, updated_at, revision, line_weight)) = row
+    let Some((
+        ty,
+        name,
+        description,
+        colors,
+        created_at,
+        updated_at,
+        revision,
+        line_weight,
+        canvas_width,
+        canvas_height,
+    )) = row
     else {
         return Ok(None);
+    };
+    let canvas = match (canvas_width, canvas_height) {
+        (Some(width), Some(height)) => Some(Size::new(width, height)),
+        (None, None) => None,
+        _ => return Err(StoreError::Corrupt("A canvas has only one side.".into())),
     };
     let line_weight = match line_weight {
         Some(text) => Some(
@@ -836,6 +863,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
             },
             colors,
             line_weight,
+            canvas,
             content: StoredContent {
                 elements,
                 connections,
@@ -849,8 +877,9 @@ fn insert_diagram(tx: &Transaction<'_>, diagram: &StoredDiagram) -> Result<()> {
     let m = &diagram.meta;
     tx.execute(
         "INSERT INTO diagrams (id, type, name, description, colors, line_weight, content_hash,
-                               revision, next_version, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 1, ?8, ?9)",
+                               revision, next_version, created_at, updated_at,
+                               canvas_width, canvas_height)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 1, ?8, ?9, ?10, ?11)",
         params![
             m.id.0,
             m.diagram_type.as_str(),
@@ -860,7 +889,9 @@ fn insert_diagram(tx: &Transaction<'_>, diagram: &StoredDiagram) -> Result<()> {
             diagram.line_weight.map(LineWeight::as_str),
             content_hash(diagram),
             m.created_at,
-            m.updated_at
+            m.updated_at,
+            diagram.canvas.map(|c| c.width),
+            diagram.canvas.map(|c| c.height),
         ],
     )?;
     insert_content(tx, &m.id, &diagram.content)
@@ -910,7 +941,8 @@ fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) ->
     let m = &diagram.meta;
     let changed = tx.execute(
         "UPDATE diagrams SET name = ?2, description = ?3, colors = ?4, line_weight = ?5,
-                content_hash = ?6, revision = revision + 1, updated_at = ?7
+                content_hash = ?6, revision = revision + 1, updated_at = ?7,
+                canvas_width = ?9, canvas_height = ?10
          WHERE id = ?1 AND revision = ?8",
         params![
             m.id.0,
@@ -920,7 +952,9 @@ fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) ->
             diagram.line_weight.map(LineWeight::as_str),
             content_hash(diagram),
             now_rfc3339(),
-            revision
+            revision,
+            diagram.canvas.map(|c| c.width),
+            diagram.canvas.map(|c| c.height),
         ],
     )?;
     if changed == 0 {
@@ -984,6 +1018,7 @@ mod tests {
             },
             colors: BTreeMap::new(),
             line_weight: None,
+            canvas: None,
             content: StoredContent {
                 elements: vec![
                     StoredElement::from_json(&json!({"id": "a", "kind": "actor", "label": "A", "x": 40, "y": 40})).unwrap(),
@@ -1094,6 +1129,26 @@ mod tests {
         assert_eq!(v2.line_weight(), LineWeight::Thin);
         let (reverted, _) = store.revert_to_version(&"d1".into(), 1, None).unwrap();
         assert_eq!(reverted.diagram.line_weight(), LineWeight::Thick);
+    }
+
+    #[test]
+    fn canvas_sizes_are_kept_in_records_and_versions() {
+        let mut store = Store::open_in_memory().unwrap();
+        let record = store
+            .create(&diagram("d1", DiagramTypeId::Conceptual))
+            .unwrap();
+        assert_eq!(record.diagram.canvas, None);
+        let mut bigger = record.diagram.clone();
+        bigger.set_canvas(Size::new(4800.0, 3200.0));
+        store.save(&bigger, Some(record.revision)).unwrap();
+        let got = store.get(&"d1".into()).unwrap().unwrap().diagram;
+        assert_eq!(got.canvas, Some(Size::new(4800.0, 3200.0)));
+        assert_eq!(store.status(&"d1".into()).unwrap().label(), "Draft · v1");
+        assert_eq!(store.save_version(&"d1".into(), None).unwrap(), Some(2));
+        let v2 = store.get_version(&"d1".into(), 2).unwrap().unwrap();
+        assert_eq!(v2.canvas(), Size::new(4800.0, 3200.0));
+        let (reverted, _) = store.revert_to_version(&"d1".into(), 1, None).unwrap();
+        assert_eq!(reverted.diagram.canvas, None);
     }
 
     #[test]

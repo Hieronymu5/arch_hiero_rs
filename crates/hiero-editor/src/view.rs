@@ -1,7 +1,7 @@
 //! The canvas's view: how far it's zoomed and scrolled.
 
 use egui::{Pos2, Rect, Vec2};
-use hiero_core::geometry::{CANVAS_HEIGHT, CANVAS_WIDTH};
+use hiero_core::geometry::{DEFAULT_CANVAS, Size};
 
 use crate::paint::Transform;
 
@@ -20,6 +20,8 @@ const MARGIN: f32 = 0.0;
 pub struct View {
     pub zoom: f32,
     pub scroll: Vec2,
+    /// The paper's size in canvas pixels: the diagram's canvas.
+    pub paper: Vec2,
 }
 
 impl Default for View {
@@ -27,7 +29,9 @@ impl Default for View {
         Self {
             zoom: ZOOM_MAX,
             scroll: Vec2::new(MARGIN, MARGIN),
+            paper: Vec2::ZERO,
         }
+        .with_canvas(DEFAULT_CANVAS)
     }
 }
 
@@ -39,9 +43,15 @@ impl View {
         }
     }
 
+    /// The view of a canvas of `size`.
+    pub fn with_canvas(mut self, size: Size) -> Self {
+        self.paper = Vec2::new(size.width as f32, size.height as f32);
+        self
+    }
+
     /// The paper's size on screen.
     pub fn paper_size(&self) -> Vec2 {
-        Vec2::new(CANVAS_WIDTH as f32, CANVAS_HEIGHT as f32) * self.zoom
+        self.paper * self.zoom
     }
 
     /// Keeps the paper reachable: it can't be scrolled further than a margin past any edge,

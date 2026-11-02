@@ -23,5 +23,6 @@ pub fn editor_for(diagram: &StoredDiagram) -> Result<Box<dyn DiagramEditor>, Con
         )?),
     };
     editor.set_line_weight(diagram.line_weight());
+    editor.set_canvas(diagram.canvas());
     Ok(editor)
 }

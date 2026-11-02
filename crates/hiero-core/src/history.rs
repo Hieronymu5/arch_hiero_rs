@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use crate::geometry::Size;
 use crate::model::LineWeight;
 use crate::stored::{
     StoredConnection, StoredContent, StoredDiagram, StoredElement, canonical_json,
@@ -31,6 +32,7 @@ pub struct DiagramSnapshot {
     pub description: Option<String>,
     pub colors: BTreeMap<String, String>,
     pub line_weight: Option<LineWeight>,
+    pub canvas: Option<Size>,
     pub content: StoredContent,
 }
 
@@ -41,6 +43,7 @@ impl DiagramSnapshot {
             description: diagram.meta.description.clone(),
             colors: diagram.colors.clone(),
             line_weight: diagram.line_weight,
+            canvas: diagram.canvas,
             content: diagram.content.clone(),
         }
     }
@@ -51,6 +54,7 @@ impl DiagramSnapshot {
         diagram.meta.description.clone_from(&self.description);
         diagram.colors.clone_from(&self.colors);
         diagram.line_weight = self.line_weight;
+        diagram.canvas = self.canvas;
         diagram.content.clone_from(&self.content);
     }
 
@@ -65,6 +69,11 @@ impl DiagramSnapshot {
         // Left out when unset, so the hashes of diagrams from before it existed don't change.
         if let Some(weight) = self.line_weight {
             value["lineWeight"] = json!(weight);
+        }
+        // Left out at the default size, for the same reason.
+        if let Some(canvas) = self.canvas {
+            value["canvasWidth"] = json!(canvas.width);
+            value["canvasHeight"] = json!(canvas.height);
         }
         value
     }
@@ -183,6 +192,7 @@ mod tests {
             },
             colors: BTreeMap::new(),
             line_weight: None,
+            canvas: None,
             content: StoredContent {
                 elements: vec![
                     StoredElement::from_json(&json!({
@@ -206,6 +216,11 @@ mod tests {
         let mut c = a.clone();
         c.line_weight = Some(crate::model::LineWeight::Thin);
         assert_ne!(content_hash(&a), content_hash(&c));
+        let mut d = a.clone();
+        d.set_canvas(crate::geometry::DEFAULT_CANVAS);
+        assert_eq!(content_hash(&a), content_hash(&d));
+        d.set_canvas(crate::geometry::Size::new(4800.0, 1600.0));
+        assert_ne!(content_hash(&a), content_hash(&d));
         assert_eq!(content_hash(&a).len(), 64);
     }
 

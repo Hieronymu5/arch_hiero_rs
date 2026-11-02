@@ -13,7 +13,7 @@ use hiero_core::export::drawio::Heading;
 use hiero_core::export::svg::scene_to_svg;
 use hiero_core::file::{DiagramFileError, diagram_from_json, read_zip_json};
 use hiero_core::file_check;
-use hiero_core::geometry::Rect;
+use hiero_core::geometry::{Rect, Size};
 use hiero_core::model::{ColorScheme, DiagramId, DiagramTypeId, ElementId, LineWeight, Resizable};
 use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent, StoredDiagram};
@@ -73,6 +73,9 @@ pub trait TypeOps: Send + Sync {
     ) -> Result<StoredContent, ContentError>;
     /// Each element's laid-out area, in drawing order.
     fn layout(&self, diagram: &StoredDiagram) -> Result<Vec<(ElementId, Rect)>, ContentError>;
+    /// The smallest the diagram's canvas can be: its default size, or bigger to hold
+    /// everything on it.
+    fn min_canvas(&self, diagram: &StoredDiagram) -> Result<Size, ContentError>;
     /// The diagram drawn.
     fn scene(&self, diagram: &StoredDiagram) -> Result<Scene, ContentError>;
     /// The palette, for agents.
@@ -167,9 +170,16 @@ pub fn engine_for<T: DiagramType>(
     ))
 }
 
-/// An engine for a stored diagram, to draw: with its colours and line weight.
-fn drawing_engine<T: DiagramType>(diagram: &StoredDiagram) -> Result<Engine<T>, ContentError> {
+/// An engine for a stored diagram, to edit: with its colours and canvas.
+pub fn diagram_engine<T: DiagramType>(diagram: &StoredDiagram) -> Result<Engine<T>, ContentError> {
     let mut eng = engine_for::<T>(&diagram.content, &diagram.colors)?;
+    eng.set_canvas(diagram.canvas());
+    Ok(eng)
+}
+
+/// An engine for a stored diagram, to draw: with its colours, canvas, and line weight.
+fn drawing_engine<T: DiagramType>(diagram: &StoredDiagram) -> Result<Engine<T>, ContentError> {
+    let mut eng = diagram_engine::<T>(diagram)?;
     eng.set_line_weight(diagram.line_weight());
     Ok(eng)
 }
@@ -234,12 +244,16 @@ impl<T: Drawn> TypeOps for Entry<T> {
     }
 
     fn layout(&self, diagram: &StoredDiagram) -> Result<Vec<(ElementId, Rect)>, ContentError> {
-        let eng = engine_for::<T>(&diagram.content, &diagram.colors)?;
+        let eng = diagram_engine::<T>(diagram)?;
         Ok(eng
             .layout()
             .iter()
             .map(|l| (l.el.id.clone(), l.rect))
             .collect())
+    }
+
+    fn min_canvas(&self, diagram: &StoredDiagram) -> Result<Size, ContentError> {
+        Ok(engine_for::<T>(&diagram.content, &diagram.colors)?.min_canvas())
     }
 
     fn scene(&self, diagram: &StoredDiagram) -> Result<Scene, ContentError> {
@@ -429,6 +443,7 @@ pub fn new_diagram(
         },
         colors: BTreeMap::new(),
         line_weight: None,
+        canvas: None,
         content: ops(diagram_type).new_content(),
     };
     diagram.set_line_weight(LineWeight::Medium);

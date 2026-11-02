@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use hiero_core::file::{diagram_to_zip, file_name};
+use hiero_core::geometry::Size;
 use hiero_core::history::{DiagramSnapshot, UndoStack};
 use hiero_core::model::{DiagramId, DiagramTypeId, ElementId, LineWeight};
 use hiero_core::stored::StoredDiagram;
@@ -113,6 +114,8 @@ pub struct DetailsForm {
     pub colors: BTreeMap<String, String>,
     /// How thick elements' lines are. Unset while adding a diagram.
     pub line_weight: Option<LineWeight>,
+    /// The canvas's size. Unset while adding a diagram.
+    pub canvas: Option<Size>,
     pub tried: bool,
     pub error: Option<String>,
     /// While adding a diagram for an element: the diagram it's in, and the element.
@@ -480,6 +483,7 @@ impl App {
         }
         open.editor.set_colors(&open.record.colors);
         open.editor.set_line_weight(open.record.line_weight());
+        open.editor.set_canvas(open.record.canvas());
     }
 
     pub fn undo(&mut self) {
@@ -690,6 +694,10 @@ impl App {
         if let Some(weight) = form.line_weight {
             open.record.set_line_weight(weight);
             open.editor.set_line_weight(weight);
+        }
+        if let Some(size) = form.canvas {
+            open.record.set_canvas(size);
+            open.editor.set_canvas(size);
         }
         if DiagramSnapshot::of(&open.record) != before {
             let stack = self.undo_stack(&id);

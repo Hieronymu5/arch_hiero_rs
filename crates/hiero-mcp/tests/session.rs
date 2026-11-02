@@ -144,6 +144,28 @@ async fn an_agent_builds_versions_and_exports_a_physical_diagram() {
         "{stale}"
     );
 
+    // The canvas can be made bigger, in grid steps, and elements can then go further out.
+    let (ok, bigger) = call(
+        &client,
+        "update_diagram_details",
+        json!({"id": id, "canvas_width": 4800}),
+    )
+    .await;
+    assert!(ok, "{bigger}");
+    let bigger: Value = serde_json::from_str(&bigger).unwrap();
+    assert_eq!(bigger["diagram"]["canvasWidth"], 4800);
+    assert!(bigger["diagram"].get("canvasHeight").is_none());
+    let (ok, refused) = call(
+        &client,
+        "update_diagram_details",
+        json!({"id": id, "canvas_height": 1610}),
+    )
+    .await;
+    assert!(
+        !ok && refused.contains("The canvas height must be a multiple of 20 px."),
+        "{refused}"
+    );
+
     // Export SVG as text, and a zip to a file.
     let (ok, svg) = call(
         &client,

@@ -102,6 +102,17 @@ sections, boxes, clouds, and figures) and of the connector and transformation bo
 drawn that thick, the same in every diagram type, in the editor and the exports. Arrows' lines
 and heads keep their widths.
 
+## Canvas size
+
+Edit Details offers **Canvas size**: the width and height of the area elements can be placed on,
+in 20 px grid steps. It starts at 2400 × 1600 px, and can be made as big as 12000 × 8000 px, but no
+smaller than 2400 × 1600 px or than what's on it needs. Moving, resizing, adding, and pasting keep
+elements on it, the editor's paper shows it, and changing it is one undo step. It's stored as the
+diagram's `canvasWidth` and `canvasHeight`, each left out at its default, so files of diagrams
+that keep the default size stay as the prototype's. Agents set it with `update_diagram_details`.
+The prototype's canvas is always 2400 × 1600 px. Exports are cropped to what's drawn, so the
+canvas size doesn't change them.
+
 ## Figures (shared with other types)
 
 - **Actor:** a person, or a bot. Physical diagrams use the same person for users.

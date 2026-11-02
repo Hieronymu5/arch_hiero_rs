@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 /// Spacing between grid dots, in pixels. Elements snap to this grid.
 pub const GRID: f64 = 20.0;
 
-/// Size of the drawing area, in pixels.
-pub const CANVAS_WIDTH: f64 = 2400.0;
-pub const CANVAS_HEIGHT: f64 = 1600.0;
+/// Size of a diagram's drawing area unless it's been made bigger, in pixels.
+pub const DEFAULT_CANVAS: Size = Size::new(2400.0, 1600.0);
+/// The biggest a diagram's drawing area can be made, in pixels.
+pub const MAX_CANVAS: Size = Size::new(12000.0, 8000.0);
 
 /// A position in pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]

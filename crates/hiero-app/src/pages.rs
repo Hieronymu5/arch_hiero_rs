@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use egui::{Align, Color32, Key, Layout, Modifiers, RichText, Ui};
+use hiero_core::geometry::{DEFAULT_CANVAS, GRID, MAX_CANVAS, Size, fmt_num, snap};
 use hiero_core::history::validate_version_description;
 use hiero_core::model::{
     DiagramId, DiagramTypeId, LineWeight, validate_description, validate_name,
@@ -524,6 +525,54 @@ fn status_badge(ui: &mut Ui, status: Status) {
         });
 }
 
+/// The canvas's width and height, in grid steps, from `min` (what's on it needs) to the most
+/// it can be.
+fn canvas_fields(ui: &mut Ui, canvas: &mut Size, min: Size) {
+    ui.horizontal(|ui| {
+        for (label, side, low, high) in [
+            ("Width", &mut canvas.width, min.width, MAX_CANVAS.width),
+            ("Height", &mut canvas.height, min.height, MAX_CANVAS.height),
+        ] {
+            ui.label(label);
+            let field = ui.add(
+                egui::DragValue::new(side)
+                    .range(low..=high)
+                    .speed(GRID)
+                    .fixed_decimals(0)
+                    .suffix(" px"),
+            );
+            if field.changed() {
+                *side = snap(*side).clamp(low, high);
+            }
+            ui.add_space(8.0);
+        }
+        if *canvas != min && ui.link("Use the smallest size").clicked() {
+            *canvas = min;
+        }
+    });
+    let why = if min == DEFAULT_CANVAS {
+        ""
+    } else {
+        ", to hold what's on it"
+    };
+    ui.label(
+        RichText::new(format!(
+            "Where elements can go, up to {} × {} px.",
+            fmt_num(MAX_CANVAS.width),
+            fmt_num(MAX_CANVAS.height)
+        ))
+        .weak(),
+    );
+    ui.label(
+        RichText::new(format!(
+            "At least {} × {} px{why}.",
+            fmt_num(min.width),
+            fmt_num(min.height)
+        ))
+        .weak(),
+    );
+}
+
 impl App {
     /// The page's title for the top bar, with a description under it: the diagram's name and
     /// description in the editor, the diagram's history, and Diagrams on the list. Other pages
@@ -932,6 +981,7 @@ impl App {
             return;
         };
         let meta = open.record.meta.clone();
+        let min_canvas = open.editor.min_canvas();
         ui.heading(RichText::new("Edit Details").font(fonts::bold(26.0)));
         ui.add_space(8.0);
         egui::ScrollArea::vertical().show(ui, |ui| {
@@ -948,6 +998,11 @@ impl App {
                 ui.label(
                     RichText::new("The lines of elements. Arrows keep their own thickness.").weak(),
                 );
+            }
+            if let Some(canvas) = &mut self.form.canvas {
+                ui.add_space(14.0);
+                field_label(ui, "Canvas size", false);
+                canvas_fields(ui, canvas, min_canvas);
             }
             if !ops.color_fields().is_empty() {
                 ui.add_space(14.0);
@@ -1164,6 +1219,7 @@ impl App {
             description: meta.description.clone().unwrap_or_default(),
             colors: open.record.colors.clone(),
             line_weight: Some(open.record.line_weight()),
+            canvas: Some(open.record.canvas()),
             tried: false,
             error: None,
             opened_from: None,

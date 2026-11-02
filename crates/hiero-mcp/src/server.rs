@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use hiero_core::file::{diagram_to_json, diagram_to_zip};
+use hiero_core::geometry::Size;
+use hiero_core::layout::check_canvas;
 use hiero_core::model::{
     DiagramId, DiagramTypeId, LineWeight, validate_description, validate_name,
 };
@@ -92,6 +94,17 @@ pub struct DetailsParams {
     /// medium.
     #[serde(default)]
     pub line_weight: Option<String>,
+    /// The canvas's width in pixels: a multiple of 20 from 2400 (the default) to 12000, and
+    /// wide enough for what's on it. Elements can't be moved or resized past the canvas's
+    /// edges, so make it bigger for a diagram that needs more room. A diagram's JSON has it in
+    /// "canvasWidth", left out at the default.
+    #[serde(default)]
+    pub canvas_width: Option<f64>,
+    /// The canvas's height in pixels: a multiple of 20 from 1600 (the default) to 8000, and
+    /// tall enough for what's on it. A diagram's JSON has it in "canvasHeight", left out at
+    /// the default.
+    #[serde(default)]
+    pub canvas_height: Option<f64>,
     /// The revision from get_diagram. If the diagram changed since, the update is refused.
     #[serde(default)]
     pub expected_revision: Option<i64>,
@@ -363,7 +376,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Changes a diagram's name, description, colours, or line weight (how thick elements' lines are). Its type can't be changed."
+        description = "Changes a diagram's name, description, colours, line weight (how thick elements' lines are), or canvas size (the area elements can be placed on). Its type can't be changed."
     )]
     pub async fn update_diagram_details(
         &self,
@@ -391,6 +404,18 @@ impl HieroServer {
                     )
                 })?;
                 d.set_line_weight(weight);
+            }
+            if p.canvas_width.is_some() || p.canvas_height.is_some() {
+                let current = d.canvas();
+                let size = Size::new(
+                    p.canvas_width.unwrap_or(current.width),
+                    p.canvas_height.unwrap_or(current.height),
+                );
+                let min = ops(d.meta.diagram_type)
+                    .min_canvas(d)
+                    .map_err(|e| StoreError::Corrupt(e.0))?;
+                check_canvas(size, min).map_err(StoreError::Corrupt)?;
+                d.set_canvas(size);
             }
             store.save(
                 &record.diagram,

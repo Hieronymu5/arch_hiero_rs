@@ -11,7 +11,8 @@ use hiero_core::clipboard::Clip;
 use hiero_core::engine::{
     Conn, Corner, DiagramType, Dir, El, Engine, Laid, Placement, validate_label,
 };
-use hiero_core::geometry::{CANVAS_HEIGHT, CANVAS_WIDTH, GRID, Point, Rect};
+use hiero_core::geometry::{GRID, Point, Rect, Size};
+use hiero_core::layout::canvas_rect;
 use hiero_core::model::{ColorScheme, ConnectionId, DiagramId, ElementId, LineWeight};
 use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent};
@@ -307,9 +308,10 @@ fn distance_to_segment(p: Pos2, a: Pos2, b: Pos2) -> f32 {
 
 impl<T: DiagramView> Editor<T> {
     pub fn new(eng: Engine<T>, salt: Id) -> Self {
+        let view = View::default().with_canvas(eng.canvas());
         Self {
             eng,
-            view: View::default(),
+            view,
             drag: Drag::None,
             focus: Focus::Canvas,
             selection_before_focus: None,
@@ -377,6 +379,18 @@ impl<T: DiagramView> Editor<T> {
 
     pub fn set_line_weight(&mut self, weight: LineWeight) {
         self.eng.set_line_weight(weight);
+    }
+
+    /// Sizes the drawing area, which the paper shows. It can't be made smaller than what's on
+    /// it needs (see `min_canvas`).
+    pub fn set_canvas(&mut self, size: Size) {
+        self.eng.set_canvas(size);
+        self.view = self.view.with_canvas(self.eng.canvas());
+    }
+
+    /// The smallest the drawing area can be: its default size, or bigger to hold everything.
+    pub fn min_canvas(&self) -> Size {
+        self.eng.min_canvas()
     }
 
     pub fn viewing(&self) -> bool {
@@ -811,7 +825,7 @@ impl<T: DiagramView> Editor<T> {
             },
         );
         let xf = self.view.transform(rect);
-        let paper = xf.rect(Rect::new(0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT));
+        let paper = xf.rect(canvas_rect(self.eng.canvas()));
         painter.rect_filled(paper, 0.0, Color32::WHITE);
         // Viewing never shows the grid.
         if !self.viewing && show_grid(ui.ctx()) {
@@ -894,9 +908,7 @@ impl<T: DiagramView> Editor<T> {
             return;
         }
         let dot = Color32::from_gray(200);
-        let paper = xf
-            .rect(Rect::new(0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT))
-            .intersect(clip);
+        let paper = xf.rect(canvas_rect(self.eng.canvas())).intersect(clip);
         let first_x = ((paper.min.x - xf.origin.x) / step).ceil();
         let first_y = ((paper.min.y - xf.origin.y) / step).ceil();
         let mut y = xf.origin.y + first_y * step;
@@ -1694,6 +1706,8 @@ pub trait DiagramEditor {
     fn replace_content(&mut self, content: &StoredContent) -> Result<(), ContentError>;
     fn set_colors(&mut self, overrides: &BTreeMap<String, String>);
     fn set_line_weight(&mut self, weight: LineWeight);
+    fn set_canvas(&mut self, size: Size);
+    fn min_canvas(&self) -> Size;
     fn scene(&self) -> Scene;
     fn has_content(&self) -> bool;
     fn show_help(&mut self) -> &mut bool;
@@ -1734,6 +1748,14 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn set_line_weight(&mut self, weight: LineWeight) {
         Editor::set_line_weight(self, weight);
+    }
+
+    fn set_canvas(&mut self, size: Size) {
+        Editor::set_canvas(self, size);
+    }
+
+    fn min_canvas(&self) -> Size {
+        Editor::min_canvas(self)
     }
 
     fn scene(&self) -> Scene {

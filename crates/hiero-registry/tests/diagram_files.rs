@@ -289,6 +289,40 @@ fn line_weights() {
 }
 
 #[test]
+fn canvas_sizes() {
+    let message = "a multiple of 20 over 2400 and at most 12000";
+    for value in [
+        json!(2400),
+        json!(2410),
+        json!(12020),
+        json!("4800"),
+        json!(null),
+    ] {
+        assert_eq!(
+            refused(conceptual(), set(D, "canvasWidth", value)),
+            format!("The diagram: “canvasWidth” must be {message}.")
+        );
+    }
+    assert_eq!(
+        refused(physical(), set(D, "canvasHeight", json!(1600))),
+        "The diagram: “canvasHeight” must be a multiple of 20 over 1600 and at most 8000."
+    );
+    let diagram = diagram_from_file(&conceptual()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(diagram.canvas, None);
+    let mut bigger = deployed();
+    at(&mut bigger, D).insert("canvasWidth".into(), json!(4800));
+    let diagram = diagram_from_file(&bigger).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        diagram.canvas(),
+        hiero_core::geometry::Size::new(4800.0, 1600.0)
+    );
+    // The diagram's file is the one it came from.
+    let written: Value = serde_json::from_str(&diagram_file_json(&diagram)).unwrap();
+    assert_eq!(written["diagram"]["canvasWidth"], json!(4800));
+    assert!(written["diagram"].get("canvasHeight").is_none());
+}
+
+#[test]
 fn elements_on_their_own() {
     let c = conceptual;
     let bot = "/diagram/elements/0";

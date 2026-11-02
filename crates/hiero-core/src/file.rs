@@ -9,6 +9,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::file_check::colors_key;
+use crate::geometry::{DEFAULT_CANVAS, Size};
 use crate::model::{DiagramId, DiagramMeta, DiagramTypeId, LineWeight};
 use crate::stored::{StoredConnection, StoredContent, StoredDiagram, StoredElement};
 
@@ -49,6 +50,18 @@ struct FileDiagram<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     physical_colors: Option<&'a BTreeMap<String, String>>,
     line_weight: LineWeight,
+    /// The drawing area's size. Each side is left out at its default, so files of diagrams
+    /// whose canvas wasn't made bigger stay as the prototype's.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "crate::model::num::opt"
+    )]
+    canvas_width: Option<f64>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "crate::model::num::opt"
+    )]
+    canvas_height: Option<f64>,
     elements: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     connections: Option<Vec<Value>>,
@@ -81,6 +94,8 @@ fn file_diagram(diagram: &StoredDiagram) -> FileDiagram<'_> {
         physical_colors: if physical { colors } else { None },
         // Always written, as a file without it imports with medium lines.
         line_weight: diagram.line_weight(),
+        canvas_width: Some(diagram.canvas().width).filter(|w| *w != DEFAULT_CANVAS.width),
+        canvas_height: Some(diagram.canvas().height).filter(|h| *h != DEFAULT_CANVAS.height),
         elements: diagram
             .content
             .elements
@@ -213,6 +228,11 @@ pub fn diagram_from_json(diagram: &Value) -> Result<StoredDiagram, DiagramFileEr
     let line_weight = text("lineWeight")
         .and_then(|w| LineWeight::parse(&w))
         .filter(|w| *w != diagram_type.default_line_weight());
+    let side = |key: &str, default: f64| d.get(key).and_then(Value::as_f64).unwrap_or(default);
+    let canvas = Size::new(
+        side("canvasWidth", DEFAULT_CANVAS.width),
+        side("canvasHeight", DEFAULT_CANVAS.height),
+    );
     let now = crate::model::now_rfc3339();
     Ok(StoredDiagram {
         meta: DiagramMeta {
@@ -225,6 +245,7 @@ pub fn diagram_from_json(diagram: &Value) -> Result<StoredDiagram, DiagramFileEr
         },
         colors,
         line_weight,
+        canvas: (canvas != DEFAULT_CANVAS).then_some(canvas),
         content: StoredContent {
             elements,
             connections,
@@ -327,6 +348,24 @@ mod tests {
         let mut file = file["diagram"].clone();
         file["lineWeight"] = json!("thick");
         assert_eq!(diagram_from_json(&file).unwrap().line_weight, None);
+    }
+
+    #[test]
+    fn canvas_sides_are_written_when_not_the_default_and_round_trip() {
+        let mut d = sample();
+        let json: Value = serde_json::from_str(&diagram_file_json(&d)).unwrap();
+        assert!(json["diagram"].get("canvasWidth").is_none());
+        assert!(json["diagram"].get("canvasHeight").is_none());
+        d.set_canvas(Size::new(4800.0, 1600.0));
+        let file = read_zip_json(&diagram_to_zip(&d)).unwrap();
+        assert_eq!(file["diagram"]["canvasWidth"], json!(4800));
+        assert!(file["diagram"].get("canvasHeight").is_none());
+        assert_eq!(diagram_from_json(&file["diagram"]).unwrap(), d);
+        d.set_canvas(Size::new(2400.0, 3200.0));
+        let json: Value = serde_json::from_str(&diagram_file_json(&d)).unwrap();
+        assert!(json["diagram"].get("canvasWidth").is_none());
+        assert_eq!(json["diagram"]["canvasHeight"], json!(3200));
+        assert_eq!(diagram_from_json(&json["diagram"]).unwrap(), d);
     }
 
     #[test]

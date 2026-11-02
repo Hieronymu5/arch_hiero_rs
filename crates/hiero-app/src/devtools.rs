@@ -7,6 +7,7 @@
 //! - `ARCH_HIERO_NEW`: a diagram type, such as `physical`, to create a diagram of and open.
 //! - `ARCH_HIERO_SELECT`: the name of an element to select in the open diagram.
 //! - `ARCH_HIERO_VIEW`: set to view the open diagram rather than edit it.
+//! - `ARCH_HIERO_DETAILS`: set to show the open diagram's Edit Details page.
 //! - `ARCH_HIERO_SCREENSHOT`: a PNG path; the window is saved there after it has settled, and
 //!   the app quits.
 //! - `ARCH_HIERO_SCREENSHOT_AFTER`: how many seconds to wait before the screenshot.
@@ -22,6 +23,7 @@ pub struct DevTools {
     new: Option<String>,
     select: Option<String>,
     view: bool,
+    details: bool,
     screenshot: Option<std::path::PathBuf>,
     frame: u32,
     started: Option<std::time::Instant>,
@@ -37,6 +39,7 @@ impl DevTools {
             new: std::env::var("ARCH_HIERO_NEW").ok(),
             select: std::env::var("ARCH_HIERO_SELECT").ok(),
             view: std::env::var_os("ARCH_HIERO_VIEW").is_some(),
+            details: std::env::var_os("ARCH_HIERO_DETAILS").is_some(),
             delay: std::env::var("ARCH_HIERO_SCREENSHOT_AFTER")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -74,6 +77,9 @@ impl DevTools {
             && let Some(open) = &mut app.open
         {
             open.editor.set_viewing(true);
+        }
+        if self.frame > 5 && app.open.is_some() && std::mem::take(&mut self.details) {
+            app.start_details();
         }
         let Some(path) = self.screenshot.clone() else {
             return;

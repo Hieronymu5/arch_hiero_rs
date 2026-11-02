@@ -10,7 +10,7 @@ use hiero_core::stored::{StoredContent, StoredDiagram};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::engine_for;
+use crate::diagram_engine;
 
 /// One edit. Ids can name elements added earlier in the same batch by their `ref`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -462,7 +462,7 @@ pub fn apply<T: DiagramType>(
     diagram: &StoredDiagram,
     ops: &[EditOp],
 ) -> Result<EditOutcome, EditError> {
-    let eng = engine_for::<T>(&diagram.content, &diagram.colors).map_err(|e| EditError {
+    let eng = diagram_engine::<T>(diagram).map_err(|e| EditError {
         index: 0,
         message: e.0,
     })?;
@@ -635,6 +635,24 @@ mod tests {
             t.apply(&next, &own).unwrap_err().message,
             "an element can't open the diagram it's in"
         );
+    }
+
+    #[test]
+    fn elements_stay_on_the_diagrams_canvas() {
+        let mut diagram = new_diagram(DiagramTypeId::Conceptual, "C", None);
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "a", "kind": "actor", "label": "Customer"},
+            {"op": "move_element", "id": "a", "x": 4000, "y": 3000}
+        ]));
+        let t = ops(DiagramTypeId::Conceptual);
+        let at = |diagram: &StoredDiagram| {
+            let e = &t.apply(diagram, &edits).unwrap().content.elements[0];
+            (e.x, e.y)
+        };
+        let usual = at(&diagram);
+        assert!(usual.0 < 2400.0 && usual.1 < 1600.0, "{usual:?}");
+        diagram.set_canvas(hiero_core::geometry::Size::new(4800.0, 3200.0));
+        assert_eq!(at(&diagram), (4000.0, 3000.0));
     }
 
     #[test]

@@ -1,13 +1,75 @@
 //! Placement and sizing rules shared by every diagram type. A port of the prototype's
 //! `utils/diagram-layout.ts`.
 
-use crate::geometry::{CANVAS_HEIGHT, CANVAS_WIDTH, GRID, Point, Rect, Size, max_of, min_of, snap};
+use crate::geometry::{
+    DEFAULT_CANVAS, GRID, MAX_CANVAS, Point, Rect, Size, fmt_num, max_of, min_of, snap,
+};
 
-/// Where elements can be placed automatically: the canvas less a one-grid margin.
-pub const CANVAS_AREA: Rect = Rect::new(GRID, GRID, CANVAS_WIDTH - GRID, CANVAS_HEIGHT - GRID);
+/// The whole of a canvas of size `canvas`.
+pub const fn canvas_rect(canvas: Size) -> Rect {
+    Rect::new(0.0, 0.0, canvas.width, canvas.height)
+}
 
-/// The whole canvas.
-pub const CANVAS: Rect = Rect::new(0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT);
+/// Where elements can be placed automatically on a canvas of size `canvas`: all of it less a
+/// one-grid margin.
+pub const fn canvas_area(canvas: Size) -> Rect {
+    Rect::new(GRID, GRID, canvas.width - GRID, canvas.height - GRID)
+}
+
+/// The smallest a canvas can be: its default size, or bigger to hold all of `rects`, rounded
+/// up to the grid.
+pub fn min_canvas(rects: impl IntoIterator<Item = Rect>) -> Size {
+    let up = |value: f64| (value / GRID).ceil() * GRID;
+    rects.into_iter().fold(DEFAULT_CANVAS, |min, r| {
+        Size::new(min.width.max(up(r.right())), min.height.max(up(r.bottom())))
+    })
+}
+
+/// Checks a canvas size: whole grid steps, from `min` (see `min_canvas`) to `MAX_CANVAS`.
+pub fn check_canvas(size: Size, min: Size) -> Result<(), String> {
+    let sides = [
+        (
+            "width",
+            size.width,
+            min.width,
+            DEFAULT_CANVAS.width,
+            MAX_CANVAS.width,
+        ),
+        (
+            "height",
+            size.height,
+            min.height,
+            DEFAULT_CANVAS.height,
+            MAX_CANVAS.height,
+        ),
+    ];
+    for (side, value, low, default, high) in sides {
+        if !value.is_finite() || value % GRID != 0.0 {
+            return Err(format!(
+                "The canvas {side} must be a multiple of {} px.",
+                fmt_num(GRID)
+            ));
+        }
+        if value < low {
+            let why = if low > default {
+                ", to hold what's on it"
+            } else {
+                ""
+            };
+            return Err(format!(
+                "The canvas {side} must be at least {} px{why}.",
+                fmt_num(low)
+            ));
+        }
+        if value > high {
+            return Err(format!(
+                "The canvas {side} must be at most {} px.",
+                fmt_num(high)
+            ));
+        }
+    }
+    Ok(())
+}
 
 /// Size of a placed element when its kind doesn't set one. Both are multiples of the grid.
 pub const DEFAULT_ELEMENT_SIZE: Size = Size::new(160.0, 60.0);
@@ -45,22 +107,23 @@ impl ContainerRect {
     }
 }
 
-/// Rounds a position to the nearest grid point and keeps an element of `size` fully on the
-/// canvas.
-pub fn snap_to_canvas(p: Point, size: Size) -> Point {
+/// Rounds a position to the nearest grid point and keeps an element of `size` fully on a
+/// canvas of size `canvas`.
+pub fn snap_to_canvas(p: Point, size: Size, canvas: Size) -> Point {
     Point::new(
-        snap(p.x).max(0.0).min(CANVAS_WIDTH - size.width),
-        snap(p.y).max(0.0).min(CANVAS_HEIGHT - size.height),
+        snap(p.x).max(0.0).min(canvas.width - size.width),
+        snap(p.y).max(0.0).min(canvas.height - size.height),
     )
 }
 
 /// The size an element can be resized to: snapped to the grid, no smaller than `min_size` or
-/// than needed to hold its children (for a container), and kept on the canvas.
+/// than needed to hold its children (for a container), and kept on a canvas of size `canvas`.
 pub fn resize_element(
     element: &ContainerRect,
     desired: Size,
     min_size: Size,
     children: &[Rect],
+    canvas: Size,
 ) -> Size {
     let min = fit_container(
         &ContainerRect {
@@ -72,10 +135,10 @@ pub fn resize_element(
     Size::new(
         snap(desired.width)
             .max(min.width)
-            .min(CANVAS_WIDTH - element.rect.x),
+            .min(canvas.width - element.rect.x),
         snap(desired.height)
             .max(min.height)
-            .min(CANVAS_HEIGHT - element.rect.y),
+            .min(canvas.height - element.rect.y),
     )
 }
 
@@ -126,15 +189,16 @@ pub fn content_area(container: &ContainerRect) -> Rect {
 }
 
 /// Where new children are placed automatically: inside the container's padding, under its
-/// header, and extending to the bottom of the canvas so the container can grow downwards.
-pub fn child_placement_area(container: &ContainerRect) -> Rect {
+/// header, and extending to the bottom of a canvas of size `canvas`, so the container can grow
+/// downwards.
+pub fn child_placement_area(container: &ContainerRect, canvas: Size) -> Rect {
     let r = container.rect;
     let y = r.y + container.header;
     Rect::new(
         r.x + container.padding,
         y,
         r.width - container.padding * 2.0,
-        CANVAS_HEIGHT - y,
+        canvas.height - y,
     )
 }
 
@@ -160,9 +224,14 @@ pub fn fit_container(container: &ContainerRect, children: &[Rect]) -> Size {
 /// Where an element of a kind that stacks, such as a zone, goes in `container`: under the
 /// lowest of `siblings`, or at the top of its content, spanning the width inside its padding.
 pub fn stacked_placement(container: &ContainerRect, siblings: &[Rect], height: f64) -> Rect {
-    let area = child_placement_area(container);
-    let y = max_of(area.y, siblings.iter().map(Rect::bottom));
-    Rect::new(area.x, y, area.width, height)
+    let r = container.rect;
+    let y = max_of(r.y + container.header, siblings.iter().map(Rect::bottom));
+    Rect::new(
+        r.x + container.padding,
+        y,
+        r.width - container.padding * 2.0,
+        height,
+    )
 }
 
 /// The first position, scanning `area` row by row from its top left, where an element of
@@ -236,24 +305,68 @@ mod tests {
     #[test]
     fn snap_to_canvas_keeps_elements_on_the_canvas() {
         let size = Size::new(160.0, 60.0);
+        let canvas = DEFAULT_CANVAS;
         assert_eq!(
-            snap_to_canvas(Point::new(-30.0, 9.0), size),
+            snap_to_canvas(Point::new(-30.0, 9.0), size, canvas),
             Point::new(0.0, 0.0)
         );
         assert_eq!(
-            snap_to_canvas(Point::new(3000.0, 3000.0), size),
+            snap_to_canvas(Point::new(3000.0, 3000.0), size, canvas),
             Point::new(2240.0, 1540.0)
         );
         assert_eq!(
-            snap_to_canvas(Point::new(31.0, 49.0), size),
+            snap_to_canvas(Point::new(3000.0, 3000.0), size, Size::new(4000.0, 2000.0)),
+            Point::new(3000.0, 1940.0)
+        );
+        assert_eq!(
+            snap_to_canvas(Point::new(31.0, 49.0), size, canvas),
             Point::new(40.0, 40.0)
+        );
+    }
+
+    #[test]
+    fn the_smallest_canvas_holds_everything_on_it() {
+        assert_eq!(min_canvas([]), DEFAULT_CANVAS);
+        assert_eq!(
+            min_canvas([Rect::new(100.0, 100.0, 200.0, 100.0)]),
+            DEFAULT_CANVAS
+        );
+        assert_eq!(
+            min_canvas([Rect::new(2500.0, 100.0, 210.0, 100.0)]),
+            Size::new(2720.0, 1600.0)
+        );
+    }
+
+    #[test]
+    fn canvas_sizes_are_checked() {
+        let min = Size::new(2400.0, 2000.0);
+        assert_eq!(check_canvas(Size::new(4800.0, 3200.0), min), Ok(()));
+        assert_eq!(
+            check_canvas(Size::new(2410.0, 3200.0), min),
+            Err("The canvas width must be a multiple of 20 px.".into())
+        );
+        assert_eq!(
+            check_canvas(Size::new(2000.0, 3200.0), min),
+            Err("The canvas width must be at least 2400 px.".into())
+        );
+        assert_eq!(
+            check_canvas(Size::new(2400.0, 1800.0), min),
+            Err("The canvas height must be at least 2000 px, to hold what's on it.".into())
+        );
+        assert_eq!(
+            check_canvas(Size::new(2400.0, 8020.0), min),
+            Err("The canvas height must be at most 8000 px.".into())
         );
     }
 
     #[test]
     fn find_free_position_keeps_a_grid_gap() {
         let occupied = [Rect::new(20.0, 20.0, 160.0, 60.0)];
-        let p = find_free_position(&occupied, Size::new(160.0, 60.0), CANVAS_AREA);
+        let p = find_free_position(
+            &occupied,
+            Size::new(160.0, 60.0),
+            canvas_area(DEFAULT_CANVAS),
+        );
         assert_eq!(p, Point::new(200.0, 20.0));
     }
 
@@ -295,7 +408,7 @@ mod tests {
             Point::new(60.0, 61.0),
             MIN_CONTAINER_SIZE,
             &[],
-            CANVAS,
+            canvas_rect(DEFAULT_CANVAS),
         );
         assert_eq!(r, Rect::new(60.0, 60.0, 340.0, 240.0));
     }
@@ -308,6 +421,7 @@ mod tests {
             Size::new(10.0, 10.0),
             MIN_CONTAINER_SIZE,
             &[Rect::new(20.0, 40.0, 240.0, 60.0)],
+            DEFAULT_CANVAS,
         );
         assert_eq!(s, Size::new(280.0, 120.0));
     }
