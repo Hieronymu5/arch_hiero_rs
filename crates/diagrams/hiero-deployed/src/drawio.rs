@@ -8,7 +8,7 @@ use hiero_core::export::drawio::{
     HEADING_GAP, HEADING_MIN_WIDTH, Heading, ORIGIN, Style, heading_cell, wrap,
 };
 use hiero_core::export::svg::escape_xml;
-use hiero_core::geometry::{Point, Rect, fmt_num, round2};
+use hiero_core::geometry::{Point, Rect, Size, fmt_num, round2};
 use hiero_core::model::LineWeight;
 
 use crate::layout::{
@@ -388,7 +388,20 @@ pub fn to_drawio(
             None => component_cells(component, "1", Point::new(-offset.x, -offset.y), width),
         });
     }
-    wrap(title, &cells)
+    let bottom = layout
+        .iter()
+        .map(|e| e.rect.bottom())
+        .fold(f64::NEG_INFINITY, f64::max);
+    let bottom = if layout.is_empty() { 0.0 } else { bottom };
+    let page = Size::new(
+        (right - left).max(if heading.is_some() {
+            HEADING_MIN_WIDTH
+        } else {
+            0.0
+        }),
+        bottom + offset.y - ORIGIN,
+    );
+    wrap(title, page, &cells)
 }
 
 #[cfg(test)]
@@ -423,5 +436,25 @@ mod tests {
         assert!(xml.contains("strokeColor=#82b366;strokeWidth=1"));
         e.set_line_weight(LineWeight::Thick);
         assert!(to_drawio(&e, "D", None).contains("strokeColor=#82b366;strokeWidth=2"));
+    }
+
+    #[test]
+    fn turns_on_page_view_with_one_page_fitting_the_drawing_and_its_margin() {
+        let mut e = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {})
+            .with_measure(&ESTIMATE);
+        e.add_at_free_position(DeployedKind::Layer);
+        let id = e.selected_id().unwrap().clone();
+        e.replace(&id, |mut l| {
+            l.props.characteristics = Some(vec!["Private".into()]);
+            l
+        });
+        let layer = e.laid(&id).unwrap().rect;
+        // The layer from its raised bar down, with 40px all round.
+        let page = format!(
+            r#"page="1" pageScale="1" pageWidth="{}" pageHeight="{}""#,
+            fmt_num((layer.width + 80.0).ceil()),
+            fmt_num((layer.height + LAYER_BAR_LIFT + 80.0).ceil()),
+        );
+        assert!(to_drawio(&e, "D", None).contains(&page));
     }
 }

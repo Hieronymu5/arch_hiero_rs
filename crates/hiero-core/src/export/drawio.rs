@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 
 use crate::color::readable_text;
 use crate::figures::{CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, database};
-use crate::geometry::{Point, Rect, fmt_num, round2};
+use crate::geometry::{Point, Rect, Size, fmt_num, round2};
 use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
 use crate::model::{ConnectionId, ElementId, LineWeight};
 use crate::routing::{
@@ -134,8 +134,10 @@ pub fn cell(id: &str, value: &str, style: &str, parent: &str, geometry: &str) ->
     )
 }
 
-/// The file around `cells`.
-pub fn wrap(title: &str, cells: &[String]) -> String {
+/// The file around `cells`, a drawing `size` big starting at the origin. draw.io's page view is
+/// on, with one page holding the drawing and a margin as wide as the origin all round, so
+/// zooming out shows the page rather than an endless canvas.
+pub fn wrap(title: &str, size: Size, cells: &[String]) -> String {
     let mut out = String::new();
     let _ = writeln!(out, r#"<mxfile host="ArchHiero" type="device">"#);
     let _ = writeln!(
@@ -145,7 +147,9 @@ pub fn wrap(title: &str, cells: &[String]) -> String {
     );
     let _ = writeln!(
         out,
-        r#"    <mxGraphModel grid="1" gridSize="20" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" math="0" shadow="0">"#
+        r#"    <mxGraphModel grid="1" gridSize="20" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="{}" pageHeight="{}" math="0" shadow="0">"#,
+        fmt_num((size.width + ORIGIN * 2.0).ceil()),
+        fmt_num((size.height + ORIGIN * 2.0).ceil()),
     );
     let _ = writeln!(out, "      <root>");
     let _ = writeln!(out, r#"        <mxCell id="0" />"#);
@@ -381,10 +385,14 @@ pub fn diagram_to_drawio(
         .iter()
         .map(|e| e.rect.y)
         .fold(f64::INFINITY, f64::min);
-    let (min_x, max_x, min_y) = if top_level.is_empty() {
-        (0.0, 0.0, 0.0)
+    let bottom = top_level
+        .iter()
+        .map(|e| e.rect.bottom())
+        .fold(f64::NEG_INFINITY, f64::max);
+    let (min_x, max_x, min_y, bottom) = if top_level.is_empty() {
+        (0.0, 0.0, 0.0, 0.0)
     } else {
-        (min_x, max_x, min_y)
+        (min_x, max_x, min_y, bottom)
     };
     let heading = heading.map(|h| heading_cell(h, (max_x - min_x).max(HEADING_MIN_WIDTH)));
     let offset_x = ORIGIN - min_x;
@@ -833,7 +841,15 @@ pub fn diagram_to_drawio(
             )),
         ));
     }
-    wrap(title, &cells)
+    let page = Size::new(
+        (max_x - min_x).max(if heading.is_some() {
+            HEADING_MIN_WIDTH
+        } else {
+            0.0
+        }),
+        bottom + offset_y - ORIGIN,
+    );
+    wrap(title, page, &cells)
 }
 
 #[cfg(test)]
@@ -911,11 +927,39 @@ mod tests {
     }
 
     #[test]
+    fn turns_on_page_view_with_one_page_fitting_the_drawing_and_its_margin() {
+        let a = element("a", None, Shape::Box, Rect::new(100.0, 100.0, 200.0, 100.0));
+        let b = element("b", None, Shape::Box, Rect::new(780.0, 400.0, 120.0, 80.0));
+        let xml = |elements: &[LookElement], heading: Option<&Heading>| {
+            diagram_to_drawio(
+                "Page",
+                elements,
+                &[],
+                heading,
+                &DiagramColors::default(),
+                LineWeight::Thin,
+            )
+        };
+        // 100..900 by 100..480, with 40px all round.
+        assert!(
+            xml(&[a.clone(), b], None)
+                .contains(r#"page="1" pageScale="1" pageWidth="880" pageHeight="460""#)
+        );
+        // 200px of drawing, under a heading at least 400px wide: 28 + 20 + 100 high.
+        let heading = Heading {
+            name: "Page".into(),
+            description: None,
+        };
+        assert!(xml(&[a], Some(&heading)).contains(r#"pageWidth="480" pageHeight="228""#));
+    }
+
+    #[test]
     fn pages_link_elements_to_the_pages_of_their_diagrams() {
         let page = |id: &str, title: &str, links: Vec<(ElementId, String)>| DrawioPage {
             id: id.into(),
             file: wrap(
                 title,
+                Size::default(),
                 &[cell(
                     "e1",
                     "Web &amp; API",
