@@ -348,7 +348,7 @@ mod tests {
             serde_json::json!([
                 { "id": "b", "kind": "system-boundary", "label": "Shop", "x": 0, "y": 0 },
                 { "id": "s", "kind": "service", "label": "Orders API", "x": 20, "y": 40,
-                  "parentId": "b", "technology": "Spring Boot",
+                  "parentId": "b", "technology": "Spring",
                   "description": "Implements ordering." },
                 { "id": "d", "kind": "database", "label": "Orders", "x": 400, "y": 40,
                   "parentId": "b" },
@@ -360,14 +360,14 @@ mod tests {
             ]),
         );
         let svg = scene_to_svg("Test", &scene(&e));
-        assert!(svg.contains(">[Container: Spring Boot]</text>"));
+        assert!(svg.contains(">[Container: Spring]</text>"));
         assert!(
-            svg.contains(r#"<path d="M20 120L80 40H200L260 120L200 200H80Z""#),
+            svg.contains(r#"<path d="M20 120L70 40H170L220 120L170 200H70Z""#),
             "{svg}"
         );
         let arrows = drawn_arrows(&e, e.layout());
         // Level with the hexagon's right point, the arrow starts at the point.
-        assert_eq!(arrows[0].look.from, Point::new(260.0, 120.0));
+        assert_eq!(arrows[0].look.from, Point::new(220.0, 120.0));
         // One in from below and to the right meets the hexagon's edge, not its box.
         let to = arrows[1].look.to;
         let rect = e.laid(&"s".into()).unwrap().rect;

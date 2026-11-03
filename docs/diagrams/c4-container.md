@@ -24,7 +24,7 @@ its name in bold, its type in square brackets with any technology (such as
 | `backend` | Backend | 240×160 | – | A box with a prompt (`>_`) in its top-left corner. |
 | `store` | Store | 240×160 | – | A bucket: an elliptical top, narrowing to the bottom. |
 | `database` | Database | 240×160 | – | A cylinder. |
-| `service` | Service | 240×160 | – | A hexagon, pointed on its left and right, for a microservice or another service that owns one business capability (see <https://c4model.com/abstractions/microservices>). Its points stand out as a regular hexagon's would, but no more than a quarter of its width; its text is inset by half a point. Arrows end on its outline, not its box. |
+| `service` | Service | 200×160 | – | A hexagon, pointed on its left and right, for a microservice or another service that owns one business capability (see <https://c4model.com/abstractions/microservices>). Its points stand out as a regular hexagon's would, but no more than a quarter of its width; its text is inset by half a point. Arrows end on its outline, not its box. |
 
 Containers are blue (fill `#dae8fc`, border `#2d5f9e`). Every element but a person is
 resizable; the boundary grows to fit what it holds. Dropping a container on the boundary puts it

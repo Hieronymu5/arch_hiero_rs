@@ -168,6 +168,8 @@ pub const PERSON_SIZE: Size = Size::new(120.0, 80.0);
 pub const SYSTEM_SIZE: Size = Size::new(240.0, 140.0);
 pub const CONTAINER_SIZE: Size = Size::new(240.0, 160.0);
 pub const COMPONENT_SIZE: Size = Size::new(240.0, 140.0);
+/// A service's hexagon is narrower than the other containers' boxes.
+pub const SERVICE_SIZE: Size = Size::new(200.0, 160.0);
 
 /// The drawing order of elements not in a boundary: system boundaries at the back, then
 /// container boundaries, then everything else.
@@ -305,7 +307,10 @@ pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 9] = {
         element(K::WebApplication, "Website", CONTAINER_TARGETS),
         element(K::StaticContent, "Static Content", CONTAINER_TARGETS),
         element(K::Backend, "Backend", CONTAINER_TARGETS),
-        element(K::Service, "Service", CONTAINER_TARGETS),
+        KindInfo {
+            size: Some(SERVICE_SIZE),
+            ..element(K::Service, "Service", CONTAINER_TARGETS)
+        },
         element(K::Store, "Store", CONTAINER_TARGETS),
         element(K::Database, "Database", CONTAINER_TARGETS),
     ]

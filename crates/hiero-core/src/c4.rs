@@ -86,10 +86,16 @@ impl C4Shape {
                 rect.width * BUCKET_TAPER,
             ),
         };
+        // A hexagon's slants keep its text off its outline, so it needs little padding.
+        let padding = if self == Self::Hexagon {
+            4.0
+        } else {
+            PADDING_X
+        };
         Rect::new(
-            rect.x + PADDING_X + inset,
+            rect.x + padding + inset,
             rect.y + top + 4.0,
-            (rect.width - (PADDING_X + inset) * 2.0).max(0.0),
+            (rect.width - (padding + inset) * 2.0).max(0.0),
             (rect.height - top - bottom - 8.0).max(0.0),
         )
     }
