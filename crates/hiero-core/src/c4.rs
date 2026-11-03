@@ -22,7 +22,7 @@ use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum C4Shape {
     /// A box holding the name, type, and description, with the actor's head and shoulders in
-    /// a circle on its top edge, like a profile picture: a person.
+    /// a white circle on its top edge, like a profile picture: a person.
     Person,
     /// A box with round corners: a software system.
     Box,
@@ -84,8 +84,9 @@ pub const PERSON_FIGURE_TOP: f64 = 14.0;
 /// The gap between the circle and the text under it.
 pub const PERSON_TEXT_GAP: f64 = 6.0;
 
-/// A person's circle in draw.io, 60 × 60: the head, and the shoulders cropped by the circle.
-const PERSON_STENCIL: &str = "3VRBbsMgEHyNj45saKP0WKWJ+o0tXtsoBNBCY+f3BeGmhkpVDu2lt51ZPDMs4Irv3QgWK9ZoOGPFXyrGnkmMrxLJBNYiOaNDARfwQKEb6imt2zYJjjkEZ1H4xPVyxi7RzpM54SQ7v6yXekSSPnb5oeJ7YbQOH0qjXcWOiXsDcRrIvOsuYVRKWhfjzklk8bxm6Md8i3IoSvHeEGZYKnVb/825sG63mTfLvVnmHYXTOG6UhTiWWJ3NZeXSNpvdLjN65JuWrdWAROhSEYuuOZ5rmKWryXiII87mpYAGrINO3SsYspabEO2Kbhe1hB6ePrPcmY4X6fhfprtjdkIZh+s78XUO2en/2+PJtlzcyd97bIVwKMq3Fqj0I+KHDw==";
+/// A person's circle in draw.io, 60 × 60: white, with the head and the shoulders cropped by
+/// the circle in the cell's fill.
+const PERSON_STENCIL: &str = "3VRBbsMgEHwNR0c2tFF6rNJE/QbF6xiFAFpo7Py+YFzXUKnKob3UF+8M69nZBUzY3vXcAqG15hcg7IVQ+oyif5WAJrAW0BkdAiFRqJBHQzykvG2dYJ9D7iwIn7hOjtAm2nk0Zxhk6+d8qXtA6eMqOxC2F0br8KE02hF6TNwbF+cTmnfdJgxKSeui3TGJzDVvGfrR36wcglK8Mwhr7PgVlvxOKiWMMhhnMb0nUUJZNz1r7Zi7AATng/CCv7VQ9NBssyZo3gSty0JprgtleZxvjC7muqrS1JvdLiv0yDYNXatxFGEVC1t4y/FY8VG6Co3nca+ywSuOJ6iCTtUpfsqW3ABgV3QzqyX08PTp5U53rHDH/tLdHbMTyjhYH66vfchOw7/dnqzl4kz+3q0thENQXtpApT8aO3wA";
 
 /// Where a person's shoulders meet their circle, left then right, for a person whose circle
 /// is centred on `center`.
@@ -394,8 +395,8 @@ pub fn draw(
     let line = weight.width();
     let paint = Paint::fill_stroke(fill.clone(), border.clone(), line);
     let mut nodes = match shape {
-        // A box, and a circle on its top edge holding the head and the shoulders, which the
-        // circle crops: their bottom has no line of its own.
+        // A box, and a white circle on its top edge holding the head and the shoulders, in
+        // the person's colour, which the circle crops: their bottom has no line of its own.
         C4Shape::Person => {
             let r = PERSON_CIRCLE_RADIUS;
             let center = Point::new(round2(x + width / 2.0), round2(y + r));
@@ -419,7 +420,7 @@ pub fn draw(
                 Node::Circle {
                     center,
                     r,
-                    paint: Paint::fill(fill.clone()),
+                    paint: Paint::fill("#ffffff"),
                 },
                 Node::Circle {
                     center: Point::new(center.x, round2(figure_top + actor::HEAD_CENTER.y)),
@@ -1049,7 +1050,10 @@ mod tests {
             out.contains(r#"<rect x="0" y="30" width="200" height="130" rx="8""#),
             "{out}"
         );
-        assert!(out.contains(r#"<circle cx="100" cy="30" r="30""#), "{out}");
+        assert!(
+            out.contains(r##"<circle cx="100" cy="30" r="30" fill="#ffffff""##),
+            "{out}"
+        );
         // The head, and the shoulders cropped where they meet the circle, with no line of
         // their own along the bottom.
         assert!(out.contains(r#"<circle cx="100" cy="26" r="10""#), "{out}");

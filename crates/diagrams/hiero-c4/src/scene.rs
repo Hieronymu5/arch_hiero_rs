@@ -218,12 +218,10 @@ mod tests {
         }
         assert!(svg.contains(">[Software System]</text>"));
         assert!(svg.contains(">Lets customers bank online.</text>"));
-        // People's circles, in their colour.
-        assert!(
-            svg.contains(r##"<circle cx="140" cy="30" r="30" fill="#dae8fc""##),
-            "{svg}"
-        );
-        assert!(svg.contains(r##"<circle cx="500" cy="30" r="30" fill="#d5e8d4""##));
+        // People's heads, in their colour, in a white circle.
+        assert!(svg.contains(r##"<circle cx="140" cy="30" r="30" fill="#ffffff""##));
+        assert!(svg.contains(r##"<circle cx="140" cy="26" r="10" fill="#dae8fc""##));
+        assert!(svg.contains(r##"<circle cx="500" cy="26" r="10" fill="#d5e8d4""##));
         // A boundary is only a line, in its colour.
         assert!(svg.contains(r##"fill="none" stroke="#9c3530""##));
         // The relationship is dashed and black, with its description on its middle.
