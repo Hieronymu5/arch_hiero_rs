@@ -278,20 +278,11 @@ const fn container(container_type: Option<ContainerType>) -> KindInfo<C4Kind> {
     )
 }
 
-/// The elements offered in a C4 diagram's palette: Container, then each kind of container.
+/// The elements offered in a C4 diagram's palette: Boundary above Container, then each kind of
+/// container.
 pub static PALETTE: [KindInfo<C4Kind>; 13] = [
     element(K::Person, "Person", PERSON_SIZE),
     element(K::System, "System", SYSTEM_SIZE),
-    container(None),
-    container(Some(ContainerType::WebApplication)),
-    container(Some(ContainerType::StaticContent)),
-    container(Some(ContainerType::Backend)),
-    container(Some(ContainerType::Service)),
-    container(Some(ContainerType::Queue)),
-    container(Some(ContainerType::Topic)),
-    container(Some(ContainerType::Store)),
-    container(Some(ContainerType::Database)),
-    element(K::Component, "Component", COMPONENT_SIZE),
     KindInfo {
         has_description: true,
         // Anything, other boundaries too, such as a container's inside its system's.
@@ -309,4 +300,14 @@ pub static PALETTE: [KindInfo<C4Kind>; 13] = [
         size: Some(BOUNDARY_SIZE),
         ..KindInfo::new(K::Boundary, "Boundary")
     },
+    container(None),
+    container(Some(ContainerType::WebApplication)),
+    container(Some(ContainerType::StaticContent)),
+    container(Some(ContainerType::Backend)),
+    container(Some(ContainerType::Service)),
+    container(Some(ContainerType::Queue)),
+    container(Some(ContainerType::Topic)),
+    container(Some(ContainerType::Store)),
+    container(Some(ContainerType::Database)),
+    element(K::Component, "Component", COMPONENT_SIZE),
 ];

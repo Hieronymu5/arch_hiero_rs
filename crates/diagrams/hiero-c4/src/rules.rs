@@ -485,6 +485,7 @@ pub(crate) mod tests {
             [
                 "Person",
                 "System",
+                "Boundary",
                 "Container",
                 "Website",
                 "Static Content",
@@ -494,8 +495,7 @@ pub(crate) mod tests {
                 "Topic",
                 "Store",
                 "Database",
-                "Component",
-                "Boundary"
+                "Component"
             ]
         );
         // The kinds themselves are still five.
@@ -505,9 +505,9 @@ pub(crate) mod tests {
             [
                 C4Kind::Person,
                 C4Kind::System,
+                C4Kind::Boundary,
                 C4Kind::Container,
-                C4Kind::Component,
-                C4Kind::Boundary
+                C4Kind::Component
             ]
         );
         // Each container entry adds a container of its type, named after it; the generic one,
