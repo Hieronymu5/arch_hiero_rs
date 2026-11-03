@@ -17,7 +17,7 @@ its name in bold, its type in square brackets with any technology (such as
 | Kind | Label | Default size | Can contain | Drawn as |
 |---|---|---|---|---|
 | `person` | Person | 120×80 | – | The actor figure, filled blue, with the name underneath. No description. |
-| `software-system` | Software System | 240×140 | – | A box with round corners, coloured by its **Scope**: blue, orange, or red. |
+| `software-system` | Software System | 240×140 | – | A box with round corners. |
 | `system-boundary` | System | 800×560 | container-boundary, web-application, database, store | A blue line around what it holds, with its name, `[Software System]`, and description in its bottom-left corner. Takes no arrows. |
 | `container-boundary` | Container | 600×400 | component, database, store | The same, with `[Container]`. It can sit inside a system boundary. The palette calls the two *System* and *Container*, as their buttons are narrow. |
 | `web-application` | UI Container | 240×160 | – | A browser window, as on container diagrams, typed `[Container]`. |
@@ -36,7 +36,7 @@ boundaries' own minimum is resizable. Arrows go between any two elements but bou
 | Name | all | Required, at most 100 characters |
 | Technology | web-application, component, database, store | At most 60 characters, shown in the type line |
 | Description | all but person | At most 500 characters |
-| Scope | software-system | *In scope* (blue), *Internal* (orange), *External* (red), stored as `scope` |
+| Colour | all | Radio: *Blue*, *Green*, *Orange*, or *Red*. Stored as `color`: `"green"`, `"orange"`, or `"red"`, left out for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A diagram from before every element had a colour stored a software system's `scope` instead: `"internal"` is read as orange and `"external"` as red, and written back as `color`. |
 | Parent | what a boundary can hold | The boundary it sits in, or none |
 
 ## Relationships (arrows)
@@ -54,7 +54,7 @@ its middle and its technology (≤ 60) in square brackets under it.
 
 ```jsonc
 // element props
-{ "scope": "external" }          // software-system
+{ "color": "red" }               // any element: "green" | "orange" | "red"; omit for blue
 { "technology": "Spring Bean" }  // web-application, component, database, store
 // connection props
 { "description": "Validates credentials using", "technology": "JSON/HTTPS" }

@@ -8,7 +8,7 @@ use hiero_core::c4::{BOUNDARY_FOOTER, C4Shape};
 use hiero_core::engine::DiagramType;
 use hiero_core::geometry::Size;
 use hiero_core::model::{ContainerLook, KindInfo, NoColors, Resizable};
-use hiero_core::palette::{BLUE, FillColors, ORANGE, RED};
+use hiero_core::palette::{BLUE, FillColors, GREEN, ORANGE, RED};
 use serde::{Deserialize, Serialize};
 
 /// A C4 system context diagram: a software system, the people who use it, and the other
@@ -73,11 +73,6 @@ impl Role {
         }
     }
 
-    /// Whether it's in scope, internal, or external, which sets its colour.
-    pub const fn has_scope(self) -> bool {
-        matches!(self, Self::SoftwareSystem)
-    }
-
     /// Whether it names the technology it's built with.
     pub const fn has_technology(self) -> bool {
         matches!(
@@ -99,47 +94,86 @@ impl Role {
     }
 }
 
-/// Where a software system stands relative to the one the diagram is about. Unset means it's
-/// the system in scope.
+/// An element's colour other than blue, which unset means. The C4 model's usual choice is blue
+/// for the software system in scope and what's in it, orange for the organisation's other
+/// systems, and red for systems outside it; green is free for anything else to set apart.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum Scope {
-    /// Another of the organisation's own systems.
-    Internal,
-    /// A system outside the organisation.
-    External,
+pub enum Color {
+    Green,
+    Orange,
+    Red,
 }
 
-impl Scope {
-    pub const fn label(scope: Option<Self>) -> &'static str {
-        match scope {
-            None => "In scope",
-            Some(Self::Internal) => "Internal",
-            Some(Self::External) => "External",
+impl Color {
+    /// Every choice, blue first, in the order offered.
+    pub const CHOICES: [Option<Self>; 4] =
+        [None, Some(Self::Green), Some(Self::Orange), Some(Self::Red)];
+
+    pub const fn label(color: Option<Self>) -> &'static str {
+        match color {
+            None => "Blue",
+            Some(Self::Green) => "Green",
+            Some(Self::Orange) => "Orange",
+            Some(Self::Red) => "Red",
         }
     }
 
-    /// The colours a software system is drawn in: blue in scope, orange internal, and red
-    /// external.
-    pub const fn colors(scope: Option<Self>) -> FillColors {
-        match scope {
+    /// The fill and border an element of `color` is drawn in.
+    pub const fn colors(color: Option<Self>) -> FillColors {
+        match color {
             None => BLUE,
-            Some(Self::Internal) => ORANGE,
-            Some(Self::External) => RED,
+            Some(Self::Green) => GREEN,
+            Some(Self::Orange) => ORANGE,
+            Some(Self::Red) => RED,
         }
     }
+}
+
+/// A software system's place, as diagrams from before every element had a colour stored it:
+/// internal is read as orange, and external as red.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum Scope {
+    Internal,
+    External,
 }
 
 /// What a C4 element can have beyond the common fields.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", from = "StoredProps")]
 pub struct C4Props {
-    /// A software system's place: unset in scope.
+    /// Unset means blue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scope: Option<Scope>,
+    pub color: Option<Color>,
     /// What a container or component is built with, such as "Java and Spring Boot".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub technology: Option<String>,
+}
+
+/// `C4Props` as read, also taking an older diagram's `scope`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredProps {
+    #[serde(default)]
+    color: Option<Color>,
+    #[serde(default)]
+    scope: Option<Scope>,
+    #[serde(default)]
+    technology: Option<String>,
+}
+
+impl From<StoredProps> for C4Props {
+    fn from(stored: StoredProps) -> Self {
+        Self {
+            color: stored.color.or(match stored.scope {
+                Some(Scope::Internal) => Some(Color::Orange),
+                Some(Scope::External) => Some(Color::Red),
+                None => None,
+            }),
+            technology: stored.technology,
+        }
+    }
 }
 
 /// A relationship: what one element does with another, and how.

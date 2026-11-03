@@ -44,6 +44,12 @@ pub const BLUE: FillColors = FillColors {
     border: "#2d5f9e",
 };
 
+/// Green: a physical diagram's green zone, and a colour any C4 element can take.
+pub const GREEN: FillColors = FillColors {
+    fill: CORE_COMPONENT.fill,
+    border: "#356b24",
+};
+
 /// Orange: in a C4 diagram, another of the organisation's own software systems.
 pub const ORANGE: FillColors = FillColors {
     fill: "#ffe6cc",

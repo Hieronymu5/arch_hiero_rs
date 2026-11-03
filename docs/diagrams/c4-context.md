@@ -15,7 +15,7 @@ All sizes are in canvas pixels and multiples of the 20 px grid.
 | Kind | Label | Default size | Has a description | Arrows to | Notes |
 |---|---|---|---|---|---|
 | `person` | Person | 120×80 | no | person, software-system | A user, actor, role, or persona. Drawn as the actor figure (as on conceptual diagrams), filled blue, with the name underneath. |
-| `software-system` | Software System | 240×140 | yes | person, software-system | A box with round corners, its name in bold, `[Software System]`, and its description inside. Resizable. Coloured by its **Scope**. |
+| `software-system` | Software System | 240×140 | yes | person, software-system | A box with round corners, its name in bold, `[Software System]`, and its description inside. Resizable. |
 
 ## Element properties
 
@@ -23,20 +23,23 @@ All sizes are in canvas pixels and multiples of the 20 px grid.
 |---|---|---|
 | Name | all | Required, at most 100 characters |
 | Description | software-system | At most 500 characters, shown inside under the type, keeping line breaks; as many lines as fit |
-| Scope | software-system | Radio: *In scope* (blue), *Internal* (orange: another of the organisation's own systems), *External* (red: outside the organisation). Stored as `scope`: `"internal"` or `"external"`, left out in scope. |
+| Colour | all | Radio: *Blue*, *Green*, *Orange*, or *Red*. Stored as `color`: `"green"`, `"orange"`, or `"red"`, left out for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A diagram from before every element had a colour stored a software system's `scope` instead: `"internal"` is read as orange and `"external"` as red, and written back as `color`. |
 | Arrows list, Add arrow to | all | As on the other types |
 
 ## Colours
 
-Fixed, taken from the other diagram types:
+Every element is blue unless its **Colour** says otherwise. The colours are fixed, taken from
+the other diagram types; text is the usual dark text.
 
-| Scope | Fill | Border |
+| Colour | Fill | Border |
 |---|---|---|
-| In scope (blue, as a physical diagram's blue zone) | `#dae8fc` | `#2d5f9e` |
-| Internal (orange) | `#ffe6cc` | `#b46504` |
-| External (red, as a physical diagram's red zone) | `#f8cecc` | `#9c3530` |
+| Blue (a physical diagram's blue zone) | `#dae8fc` | `#2d5f9e` |
+| Green (a physical diagram's green zone) | `#d5e8d4` | `#356b24` |
+| Orange | `#ffe6cc` | `#b46504` |
+| Red (a physical diagram's red zone) | `#f8cecc` | `#9c3530` |
 
-Text is the usual dark text. People are filled `#dae8fc` with a `#1e1e1e` outline.
+People are filled in their colour with a `#1e1e1e` outline. Boundaries have no fill, and their
+line is drawn in their colour.
 
 ## Relationships (arrows)
 
@@ -62,18 +65,18 @@ Removing an element removes its relationships.
 
 ```jsonc
 // element props
-{ "scope": "external" }            // software-system: "internal" | "external"; omit in scope
+{ "color": "red" }                 // any element: "green" | "orange" | "red"; omit for blue
 // connection props
 { "description": "Sends e-mails to" }
 ```
 
-Rust shape: `Element<ContextKind, C4Props>` and `Connection<C4Arrow>`, where `C4Props { scope,
+Rust shape: `Element<ContextKind, C4Props>` and `Connection<C4Arrow>`, where `C4Props { color,
 technology }` and `C4Arrow { description, technology }` are shared by the three C4 types.
 
 ## Checklist
 
 - [x] Palette: person and software system. Click adds at a free spot, drag drops where released.
-- [x] Software system scope: blue, orange, or red
+- [x] A colour on every element: blue, green, orange, or red
 - [x] Relationships: dashed black arrows with their description on the middle
 - [x] Line thickness, canvas size, view mode, sub diagrams and links, cut/copy/paste (shared)
 - [x] SVG and draw.io export

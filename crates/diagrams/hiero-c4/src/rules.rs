@@ -9,25 +9,29 @@ use hiero_core::model::{DiagramTypeId, ElementId, KindInfo, NoColors};
 
 use crate::model::{
     ARROW_DESCRIPTION_MAX, ARROW_TECHNOLOGY_MAX, C4Arrow, C4Component, C4Container, C4Context,
-    C4Props, C4Type, COMPONENT_PALETTE, CONTAINER_PALETTE, CONTEXT_PALETTE, ComponentKind,
-    ContainerKind, ContextKind, DESCRIPTION_MAX, Scope, TECHNOLOGY_MAX,
+    C4Props, C4Type, COMPONENT_PALETTE, CONTAINER_PALETTE, CONTEXT_PALETTE, Color, ComponentKind,
+    ContainerKind, ContextKind, DESCRIPTION_MAX, TECHNOLOGY_MAX,
 };
 
-const SCOPE_FIELD: &[Field] = &[Field {
-    key: "scope",
+const COLOR_FIELD: Field = Field {
+    key: "color",
     rule: FieldRule::OneOf {
-        values: &["internal", "external"],
-        default: Some("in-scope"),
+        values: &["green", "orange", "red"],
+        default: Some("blue"),
     },
-}];
+};
 
-const TECHNOLOGY_FIELD: &[Field] = &[Field {
+const TECHNOLOGY_FIELD: Field = Field {
     key: "technology",
     rule: FieldRule::Text {
         name: "Technology",
         max: TECHNOLOGY_MAX,
     },
-}];
+};
+
+/// Every element has a colour; containers and components also have a technology.
+const COLOR_FIELDS: &[Field] = &[COLOR_FIELD];
+const COLOR_AND_TECHNOLOGY_FIELDS: &[Field] = &[COLOR_FIELD, TECHNOLOGY_FIELD];
 
 const DESCRIPTION_FIELD: Field = Field {
     key: "description",
@@ -52,13 +56,10 @@ const ARROW_FIELDS: &[Field] = &[DESCRIPTION_FIELD, ARROW_TECHNOLOGY_FIELD];
 
 /// The fields an element of `kind` has beyond the common ones.
 fn file_fields<T: C4Type>(kind: T::Kind) -> &'static [Field] {
-    let role = T::role(kind);
-    if role.has_scope() {
-        SCOPE_FIELD
-    } else if role.has_technology() {
-        TECHNOLOGY_FIELD
+    if T::role(kind).has_technology() {
+        COLOR_AND_TECHNOLOGY_FIELDS
     } else {
-        &[]
+        COLOR_FIELDS
     }
 }
 
@@ -93,25 +94,23 @@ pub fn type_line<T: C4Type>(element: &El<T>) -> Option<String> {
     )
 }
 
-/// Such as "Software System (external)" or "Database (MySQL)".
+/// Such as "Software System (red)", "Database (MySQL)", or "Queue (Kafka, green)": the
+/// technology, and the colour unless it's blue.
 fn kind_description<T: C4Type>(element: &Laid<T>) -> String {
     let role = T::role(element.el.kind);
+    let props = &element.el.props;
+    let details: Vec<String> = [
+        props.technology.clone().filter(|_| role.has_technology()),
+        props.color.map(|c| Color::label(Some(c)).to_lowercase()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     let label = element.info.label;
-    if role.has_scope() {
-        return format!(
-            "{label} ({})",
-            Scope::label(element.el.props.scope).to_lowercase()
-        );
-    }
-    match element
-        .el
-        .props
-        .technology
-        .as_deref()
-        .filter(|_| role.has_technology())
-    {
-        Some(technology) => format!("{label} ({technology})"),
-        None => label.to_owned(),
+    if details.is_empty() {
+        label.to_owned()
+    } else {
+        format!("{label} ({})", details.join(", "))
     }
 }
 
@@ -178,8 +177,8 @@ fn extra_details<T: C4Type>(eng: &Engine<T>, element: &Laid<T>) -> Vec<String> {
     details
 }
 
-/// Applies an edited element, keeping only the properties its kind has, and saying when a
-/// software system's scope changed.
+/// Applies an edited element, keeping only the properties its kind has, and saying when its
+/// colour changed.
 fn apply_element<T: C4Type>(
     eng: &mut Engine<T>,
     id: &ElementId,
@@ -193,15 +192,12 @@ fn apply_element<T: C4Type>(
     if !selected.info.has_description {
         with.description.clone_from(&selected.el.description);
     }
-    if !role.has_scope() {
-        with.props.scope = None;
-    }
     with.props.technology = clean(with.props.technology).filter(|_| role.has_technology());
-    if role.has_scope() && with.props.scope != selected.el.props.scope {
+    if with.props.color != selected.el.props.color {
         eng.announcement = format!(
             "{} set to {}.",
             with.label,
-            Scope::label(with.props.scope).to_lowercase()
+            Color::label(with.props.color).to_lowercase()
         );
     }
     eng.apply_changes(id, with, parent_id);
@@ -345,10 +341,7 @@ pub(crate) mod tests {
         assert!(e.can_connect(&id("id2"), &id("id1")));
         assert!(e.can_connect(&id("id2"), &id("id3")));
         let system = e.laid(&id("id2")).unwrap().clone();
-        assert_eq!(
-            C4Context::kind_description(&e, &system),
-            "Software System (in scope)"
-        );
+        assert_eq!(C4Context::kind_description(&e, &system), "Software System");
     }
 
     #[test]
@@ -380,27 +373,35 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn technology_shows_in_the_type_line_and_scope_is_announced() {
+    fn technology_shows_in_the_type_line_and_colour_changes_are_announced() {
         let mut e = engine::<C4Container>();
         e.add_at_free_position(ContainerKind::Database);
         e.add_at_free_position(ContainerKind::SoftwareSystem);
         e.select(&id("id1"));
         let mut with = e.element(&id("id1")).unwrap().clone();
         with.props.technology = Some("  MySQL  ".into());
-        with.props.scope = Some(Scope::External);
+        with.props.color = Some(Color::Green);
         C4Container::apply_element(&mut e, &id("id1"), with, None);
+        assert_eq!(e.announcement, "Database set to green.");
         let database = e.element(&id("id1")).unwrap();
         assert_eq!(database.props.technology.as_deref(), Some("MySQL"));
-        // A database has no scope.
-        assert_eq!(database.props.scope, None);
+        assert_eq!(database.props.color, Some(Color::Green));
+        let laid = e.laid(&id("id1")).unwrap().clone();
+        assert_eq!(
+            C4Container::kind_description(&e, &laid),
+            "Database (MySQL, green)"
+        );
         assert_eq!(
             type_line::<C4Container>(database).as_deref(),
             Some("[Container: MySQL]")
         );
         let mut with = e.element(&id("id2")).unwrap().clone();
-        with.props.scope = Some(Scope::External);
+        with.props.color = Some(Color::Red);
+        // A software system has no technology.
+        with.props.technology = Some("Java".into());
         C4Container::apply_element(&mut e, &id("id2"), with, None);
-        assert_eq!(e.announcement, "Software System set to external.");
+        assert_eq!(e.announcement, "Software System set to red.");
+        assert_eq!(e.element(&id("id2")).unwrap().props.technology, None);
         assert_eq!(
             type_line::<C4Container>(e.element(&id("id2")).unwrap()).as_deref(),
             Some("[Software System]")

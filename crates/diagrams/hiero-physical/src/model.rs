@@ -144,8 +144,8 @@ impl ZoneColor {
             },
             Self::Green => ZoneColorInfo {
                 label: "Green",
-                fill: palette::CORE_COMPONENT.fill,
-                border: "#356b24",
+                fill: palette::GREEN.fill,
+                border: palette::GREEN.border,
             },
         }
     }

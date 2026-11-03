@@ -19,7 +19,7 @@ use hiero_core::text::MeasureText;
 
 use hiero_core::c4::{C4Shape, hexagon_edge_point, pipe_edge_point};
 
-use crate::model::{C4Type, Role, Scope};
+use crate::model::{C4Type, Color, Role};
 use crate::rules::type_line;
 
 /// The colour of relationships, and of people's outlines.
@@ -39,20 +39,20 @@ pub fn colors() -> DiagramColors {
 /// How an element looks.
 pub fn look_of<T: C4Type>(element: &Laid<T>) -> LookElement {
     let role = T::role(element.el.kind);
+    let colors = Color::colors(element.el.props.color);
     let look = match role.shape() {
+        // A person's figure is filled in their colour, with the usual dark outline.
         None => Look {
-            fill: Some(BLUE.fill.into()),
+            fill: Some(colors.fill.into()),
             ..Look::new(Shape::Actor)
         },
-        Some(shape) => {
-            let colors = Scope::colors(element.el.props.scope.filter(|_| role.has_scope()));
-            Look {
-                fill: (!role.is_boundary()).then(|| colors.fill.into()),
-                border_color: Some(colors.border.into()),
-                type_line: type_line::<T>(&element.el),
-                ..Look::new(Shape::C4(shape))
-            }
-        }
+        // A boundary is only a line, in its colour.
+        Some(shape) => Look {
+            fill: (!role.is_boundary()).then(|| colors.fill.into()),
+            border_color: Some(colors.border.into()),
+            type_line: type_line::<T>(&element.el),
+            ..Look::new(Shape::C4(shape))
+        },
     };
     LookElement {
         id: element.el.id.clone(),
@@ -249,16 +249,20 @@ mod tests {
     }
 
     #[test]
-    fn colours_software_systems_by_scope() {
+    fn colours_elements_blue_green_orange_or_red() {
         let e = engine::<C4Context>(
             serde_json::json!([
                 { "id": "u", "kind": "person", "label": "Customer", "x": 40, "y": 0 },
+                { "id": "v", "kind": "person", "label": "Clerk", "x": 400, "y": 0,
+                  "color": "green" },
                 { "id": "a", "kind": "software-system", "label": "Banking", "x": 0, "y": 200,
                   "description": "Lets customers bank online." },
                 { "id": "b", "kind": "software-system", "label": "Mainframe", "x": 400, "y": 200,
-                  "scope": "internal" },
+                  "color": "orange" },
                 { "id": "c", "kind": "software-system", "label": "E-mail", "x": 800, "y": 200,
-                  "scope": "external" },
+                  "color": "red" },
+                { "id": "d", "kind": "software-system", "label": "Ledger", "x": 1200, "y": 200,
+                  "color": "green" },
             ]),
             serde_json::json!([
                 { "id": "r1", "sourceId": "u", "targetId": "a", "description": "Views balances using" },
@@ -267,6 +271,7 @@ mod tests {
         let svg = scene_to_svg("Test", &scene(&e));
         for (fill, border) in [
             ("#dae8fc", "#2d5f9e"),
+            ("#d5e8d4", "#356b24"),
             ("#ffe6cc", "#b46504"),
             ("#f8cecc", "#9c3530"),
         ] {
@@ -277,11 +282,40 @@ mod tests {
         }
         assert!(svg.contains(">[Software System]</text>"));
         assert!(svg.contains(">Lets customers bank online.</text>"));
-        // The person is the actor figure, in blue.
+        // People are the actor figure, in their colour.
         assert!(svg.contains(r#"<path d="M4 45 A20 20 0 0 1 44 45 Z"/>"#));
+        assert!(
+            svg.contains(r##"<g transform="translate(76 5)" fill="#dae8fc""##),
+            "{svg}"
+        );
+        assert!(svg.contains(r##"<g transform="translate(436 5)" fill="#d5e8d4""##));
         // The relationship is dashed and black, with its description on its middle.
         assert!(svg.contains(r##"stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4""##));
         assert!(svg.contains(">Views balances using</text>"));
+    }
+
+    #[test]
+    fn boundaries_take_a_colour_and_older_scopes_read_as_colours() {
+        let e = engine::<C4Container>(
+            serde_json::json!([
+                { "id": "b", "kind": "system-boundary", "label": "Shop", "x": 0, "y": 0,
+                  "color": "red" },
+                { "id": "i", "kind": "software-system", "label": "Old internal", "x": 800,
+                  "y": 0, "scope": "internal" },
+                { "id": "x", "kind": "software-system", "label": "Old external", "x": 800,
+                  "y": 400, "scope": "external" },
+            ]),
+            serde_json::json!([]),
+        );
+        let svg = scene_to_svg("Test", &scene(&e));
+        assert!(svg.contains(r##"fill="none" stroke="#9c3530""##));
+        let color = |id: &str| e.element(&id.into()).unwrap().props.color;
+        assert_eq!(color("i"), Some(Color::Orange));
+        assert_eq!(color("x"), Some(Color::Red));
+        // Written back as a colour.
+        let json = serde_json::to_value(e.element(&"i".into()).unwrap()).unwrap();
+        assert_eq!(json["color"], "orange");
+        assert!(json.get("scope").is_none());
     }
 
     #[test]

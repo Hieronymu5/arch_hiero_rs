@@ -17,7 +17,7 @@ its name in bold, its type in square brackets with any technology (such as
 | Kind | Label | Default size | Can contain | Drawn as |
 |---|---|---|---|---|
 | `person` | Person | 120×80 | – | The actor figure, filled blue, with the name underneath. No description. |
-| `software-system` | Software System | 240×140 | – | A box with round corners, coloured by its **Scope** (as on system context diagrams). |
+| `software-system` | Software System | 240×140 | – | A box with round corners. |
 | `system-boundary` | System | 600×400 | web-application, static-content, backend, store, database, service, queue, topic | A blue line with round corners and no fill, around what it holds. Its name, `[Software System]`, and its description (one line) sit in its bottom-left corner. Header 20, footer 60, padding 20. Takes no arrows. The palette calls it *System*, as its button is narrow. |
 | `web-application` | Website | 240×160 | – | A browser window: a blue bar across the top with three dots and an address bar. |
 | `static-content` | Static Content | 240×160 | – | A folder, with a tab on its top-left. |
@@ -28,7 +28,7 @@ its name in bold, its type in square brackets with any technology (such as
 | `queue` | Queue | 240×120 | – | A cylinder on its side, its open end (an ellipse 28 wide, or half the width if less) on the left: a message queue, which one consumer takes each message from. |
 | `topic` | Topic | 240×120 | – | The same cylinder: a topic, which every subscriber gets each message from. |
 
-Containers are blue (fill `#dae8fc`, border `#2d5f9e`). Every element but a person is
+Every element is blue unless its **Colour** is green, orange, or red (see the system context spec for the values); a boundary has no fill, so only its line takes it. Every element but a person is
 resizable; the boundary grows to fit what it holds. Dropping a container on the boundary puts it
 inside. Arrows go between any two elements but boundaries.
 
@@ -39,7 +39,7 @@ inside. Arrows go between any two elements but boundaries.
 | Name | all | Required, at most 100 characters |
 | Technology | web-application, static-content, backend, store, database, service, queue, topic | At most 60 characters. Shown as `[Container: technology]`; without it, `[Container]`. |
 | Description | all but person | At most 500 characters. Inside: as many lines as fit. A boundary: one line. |
-| Scope | software-system | *In scope* (blue), *Internal* (orange), *External* (red), stored as `scope` |
+| Colour | all | Radio: *Blue*, *Green*, *Orange*, or *Red*. Stored as `color`: `"green"`, `"orange"`, or `"red"`, left out for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A diagram from before every element had a colour stored a software system's `scope` instead: `"internal"` is read as orange and `"external"` as red, and written back as `color`. |
 | Parent | containers | The system boundary, or none |
 
 ## Queues and topics
@@ -75,7 +75,7 @@ As on system context diagrams (dashed black line, text on its middle), plus a te
 
 ```jsonc
 // element props
-{ "scope": "internal" }                  // software-system
+{ "color": "orange" }                    // any element: "green" | "orange" | "red"; omit for blue
 { "technology": "Java and Spring Boot" } // web-application, static-content, backend, store, database, service, queue, topic
 // connection props
 { "description": "Makes API requests to", "technology": "JSON/HTTPS" }

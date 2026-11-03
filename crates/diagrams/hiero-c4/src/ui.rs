@@ -10,7 +10,7 @@ use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
 use crate::model::{
     ARROW_DESCRIPTION_MAX, ARROW_TECHNOLOGY_MAX, C4Component, C4Container, C4Context, C4Type,
-    DESCRIPTION_MAX, Scope, TECHNOLOGY_MAX,
+    Color, DESCRIPTION_MAX, TECHNOLOGY_MAX,
 };
 use crate::rules::{arrow_title, normalized_arrow};
 use crate::scene::{drawn_arrows, drawn_rect, scene_of};
@@ -64,28 +64,17 @@ fn element_properties<T: C4Type + DiagramView>(
         with.description = Some(description).filter(|d| !d.trim().is_empty());
         field = Some("description");
     }
-    if role.has_scope() {
-        widgets::label(ui, "Scope", false);
-        ui.horizontal_wrapped(|ui| {
-            for value in [None, Some(Scope::Internal), Some(Scope::External)] {
-                let label = format!(
-                    "{} ({})",
-                    Scope::label(value),
-                    match value {
-                        None => "blue",
-                        Some(Scope::Internal) => "orange",
-                        Some(Scope::External) => "red",
-                    }
-                );
-                if ui
-                    .radio_value(&mut with.props.scope, value, label)
-                    .changed()
-                {
-                    field = Some("scope");
-                }
+    widgets::label(ui, "Colour", false);
+    ui.horizontal_wrapped(|ui| {
+        for value in Color::CHOICES {
+            if ui
+                .radio_value(&mut with.props.color, value, Color::label(value))
+                .changed()
+            {
+                field = Some("color");
             }
-        });
-    }
+        }
+    });
     let parent = cx.parent_field(ui, element, false);
     if parent.is_some() {
         field = Some("parent");
@@ -207,7 +196,7 @@ macro_rules! c4_view {
 c4_view!(
     C4Context,
     help!(
-        "Choose a software system's scope to colour it: blue for the system in scope, orange for another of your own, red for one outside.",
+        "Choose an element's colour in its properties: by C4's custom, blue for the system in scope, orange for another of your own, and red for one outside.",
         "Resize software systems with their handles."
     )
 );

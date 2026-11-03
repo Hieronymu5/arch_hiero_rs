@@ -9,6 +9,6 @@ pub mod scene;
 pub mod ui;
 
 pub use model::{
-    C4Arrow, C4Component, C4Container, C4Context, C4Props, C4Type, ComponentKind, ContainerKind,
-    ContextKind, Role, Scope,
+    C4Arrow, C4Component, C4Container, C4Context, C4Props, C4Type, Color, ComponentKind,
+    ContainerKind, ContextKind, Role,
 };

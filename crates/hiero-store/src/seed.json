@@ -761,8 +761,8 @@
         "label": "Claude Code",
         "x": 720,
         "y": 240,
-        "scope": "external",
-        "description": "Agentic coding tool that draws diagrams for its user."
+        "description": "Agentic coding tool that draws diagrams for its user.",
+        "color": "red"
       },
       {
         "id": "0385edf7-24f9-4ae9-a74f-425558fc35c6",
@@ -770,8 +770,8 @@
         "label": "draw.io",
         "x": 120,
         "y": 520,
-        "scope": "external",
-        "description": "Diagram editor that opens exported diagrams."
+        "description": "Diagram editor that opens exported diagrams.",
+        "color": "red"
       },
       {
         "id": "f3c8af9f-67d5-49dd-89a0-9a6e28e502a4",
@@ -779,8 +779,8 @@
         "label": "Architecture Repository",
         "x": 480,
         "y": 520,
-        "scope": "internal",
-        "description": "Keeps the organisation's approved diagrams."
+        "description": "Keeps the organisation's approved diagrams.",
+        "color": "orange"
       }
     ],
     "connections": [
@@ -899,8 +899,8 @@
         "label": "Claude Code",
         "x": 1320,
         "y": 240,
-        "scope": "external",
-        "description": "Agentic coding tool that draws diagrams for its user."
+        "description": "Agentic coding tool that draws diagrams for its user.",
+        "color": "red"
       }
     ],
     "connections": [
@@ -962,8 +962,8 @@
         "label": "Claude Code",
         "x": 100,
         "y": 0,
-        "scope": "external",
-        "description": "Agentic coding tool that draws diagrams for its user."
+        "description": "Agentic coding tool that draws diagrams for its user.",
+        "color": "red"
       },
       {
         "id": "78996fa6-7585-428f-b01f-83b156a0e90a",

@@ -672,7 +672,7 @@ fn edited_diagrams_export_valid_files() {
             {"op": "add_element", "ref": "s", "kind": "software-system", "label": "Bank",
              "description": " ", "props": {"technology": "Java"}},
             {"op": "add_element", "ref": "e", "kind": "software-system", "label": "Mail",
-             "props": {"scope": "external"}},
+             "props": {"color": "red"}},
             {"op": "add_connection", "source_id": "u", "target_id": "s",
              "props": {"description": " Uses ", "technology": "HTTPS"}},
             {"op": "add_connection", "source_id": "s", "target_id": "e"}
@@ -683,7 +683,7 @@ fn edited_diagrams_export_valid_files() {
         json!([
             {"op": "add_element", "ref": "b", "kind": "system-boundary", "label": "Bank"},
             {"op": "add_element", "ref": "w", "kind": "web-application", "label": "UI",
-             "parent_id": "b", "props": {"technology": " Angular ", "scope": "internal"}},
+             "parent_id": "b", "props": {"technology": " Angular ", "color": "orange"}},
             {"op": "add_element", "ref": "d", "kind": "database", "label": "DB",
              "parent_id": "b", "props": {"technology": ""}},
             {"op": "add_connection", "source_id": "w", "target_id": "d",
@@ -699,15 +699,15 @@ fn edited_diagrams_export_valid_files() {
             {"op": "add_element", "ref": "c", "kind": "component", "label": "Sign In",
              "parent_id": "k", "props": {"technology": "Spring MVC"}},
             {"op": "add_element", "ref": "x", "kind": "software-system", "label": "Mail",
-             "props": {"scope": "external"}},
+             "props": {"color": "red"}},
             {"op": "add_connection", "source_id": "c", "target_id": "x"}
         ]),
     );
-    // What doesn't apply is dropped: technology on a context relationship or a system, and
-    // scope on a website.
+    // What doesn't apply is dropped: technology on a context relationship or a system. Every
+    // element takes a colour, such as a website.
     assert!(!diagram_file_json(&context).contains("HTTPS"));
     assert!(!diagram_file_json(&context).contains("Java"));
-    assert!(!diagram_file_json(&container).contains("internal"));
+    assert!(diagram_file_json(&container).contains(r#""color": "orange""#));
     for diagram in [
         conceptual, physical, deployed, context, container, component,
     ] {
