@@ -346,6 +346,9 @@ pub struct KindInfo<K: 'static> {
     pub layer: i32,
     /// Kinds of element this kind can draw arrows to.
     pub connects_to: &'static [K],
+    /// A heading the palette shows above this entry, starting a group of entries, such as a
+    /// C4 diagram's "Containers".
+    pub palette_heading: Option<&'static str>,
 }
 
 impl<K: Copy> KindInfo<K> {
@@ -364,6 +367,7 @@ impl<K: Copy> KindInfo<K> {
             resizable: Resizable::No,
             layer: 0,
             connects_to: &[],
+            palette_heading: None,
         }
     }
 

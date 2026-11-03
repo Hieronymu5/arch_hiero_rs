@@ -603,6 +603,10 @@ impl<T: DiagramView> Editor<T> {
                 .small(),
         );
         for (index, kind) in T::palette().iter().enumerate() {
+            if let Some(text) = kind.palette_heading {
+                ui.add_space(6.0);
+                heading(ui, text);
+            }
             let id = self.salt.with(("palette", index));
             let response = ui
                 .dnd_drag_source(id, PaletteDrag(index), |ui| {

@@ -498,6 +498,12 @@ pub(crate) mod tests {
                 "Database"
             ]
         );
+        // The kinds of container come under a heading of their own.
+        let headings: Vec<(&str, &str)> = PALETTE
+            .iter()
+            .filter_map(|k| Some((k.palette_heading?, k.label)))
+            .collect();
+        assert_eq!(headings, [("Containers", "Website")]);
         // The kinds themselves are still five.
         let kinds: Vec<C4Kind> = C4::kinds().iter().map(|k| k.kind).collect();
         assert_eq!(

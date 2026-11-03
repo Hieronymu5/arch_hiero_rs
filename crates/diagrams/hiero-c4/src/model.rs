@@ -302,7 +302,11 @@ pub static PALETTE: [KindInfo<C4Kind>; 13] = [
     },
     container(None),
     element(K::Component, "Component", COMPONENT_SIZE),
-    container(Some(ContainerType::WebApplication)),
+    // The kinds of container, under a heading of their own.
+    KindInfo {
+        palette_heading: Some("Containers"),
+        ..container(Some(ContainerType::WebApplication))
+    },
     container(Some(ContainerType::StaticContent)),
     container(Some(ContainerType::Backend)),
     container(Some(ContainerType::Service)),
