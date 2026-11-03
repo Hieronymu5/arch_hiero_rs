@@ -14,7 +14,7 @@ pub use model::{BoundaryType, C4, C4Arrow, C4Kind, C4Props, Color, ContainerType
 /// The editor's instructions, shown above the canvas: the main ways to add, move, edit,
 /// connect, select, and scroll, one per line.
 pub const HELP: &str = concat!(
-    "• Drag an element onto the canvas, or select it to add it. Choose a container's shape with its Container type, and a boundary's with its Boundary type, in its properties; drop elements into a boundary. Choose the diagram's level, context, container, or component, in Edit Details.\n",
+    "• Drag an element onto the canvas, or select it to add it: Container, or one of the kinds of container under it. Change a container's kind with its Container type, and a boundary's with its Boundary type, in its properties; drop elements into a boundary. Choose the diagram's level, context, container, or component, in Edit Details. Add diagram on a system or a container starts a more detailed diagram with a boundary round it.\n",
     "• Drag an element, or use the arrow keys, to move it. Resize elements and boundaries with their handles.\n",
     "• Press Enter to edit an element's properties, such as its colour, and Delete to remove it. Hold Shift, Ctrl, or Cmd as you click, or press Shift+Space on each, to select several and move or remove them together.\n",
     "• Drag from the round handle on the selected element, or use Add arrow in its properties, to draw a relationship. Select a relationship to give it a description and a technology.\n",

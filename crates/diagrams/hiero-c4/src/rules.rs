@@ -3,7 +3,7 @@
 
 use hiero_core::c4::C4Shape;
 use hiero_core::engine::{
-    DiagramType, El, Engine, Laid, list_labels, validate_label, validate_length,
+    Created, DiagramType, El, Engine, Laid, Placement, list_labels, validate_label, validate_length,
 };
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::geometry::Size;
@@ -269,6 +269,38 @@ fn apply_element(
     eng.apply_changes(id, with, parent_id);
 }
 
+/// What a diagram added for `element` starts as, where its kind says: for a system, a
+/// container diagram with a boundary round the system; for a container, a component diagram
+/// with a container boundary round the container. Each boundary is named after the element.
+/// Other elements' diagrams start empty, with no sub type of their own.
+pub fn sub_diagram(element: &El<C4>) -> Option<(&'static str, El<C4>)> {
+    let (subtype, boundary_type) = match element.kind {
+        C4Kind::System => ("container", None),
+        C4Kind::Container => ("component", Some(BoundaryType::Container)),
+        _ => return None,
+    };
+    let boundary = El::<C4> {
+        id: ElementId::new_v4(),
+        kind: C4Kind::Boundary,
+        label: element.label.clone(),
+        description: None,
+        parent_id: None,
+        sub_diagram_id: None,
+        props: C4Props {
+            boundary_type,
+            ..C4Props::default()
+        },
+        width: None,
+        height: None,
+        x: SUB_DIAGRAM_BOUNDARY_AT,
+        y: SUB_DIAGRAM_BOUNDARY_AT,
+    };
+    Some((subtype, boundary))
+}
+
+/// Where the boundary a sub diagram starts with sits: a grid square and more from the corner.
+const SUB_DIAGRAM_BOUNDARY_AT: f64 = 40.0;
+
 fn validate_element(element: &El<C4>) -> Result<(), String> {
     validate_label(&element.label)?;
     validate_length(
@@ -316,6 +348,20 @@ impl DiagramType for C4 {
 
     fn palette() -> &'static [KindInfo<C4Kind>] {
         &PALETTE
+    }
+
+    /// A container from one of the palette's container types starts as that type, named
+    /// after it, such as a Database.
+    fn created(
+        eng: &mut Engine<Self>,
+        kind: &'static KindInfo<C4Kind>,
+        placement: Placement,
+    ) -> Created<Self> {
+        let mut created = eng.base_created(kind, placement);
+        if let Some(first) = created.added.first_mut() {
+            first.props.container_type = ContainerType::of_entry(kind);
+        }
+        created
     }
 
     /// A container's size comes from its type, such as a queue's lower cylinder.
@@ -399,12 +445,28 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_palette_has_five_elements_and_boundaries_take_no_arrows() {
-        let labels: Vec<&str> = PALETTE.iter().map(|k| k.label).collect();
-        assert_eq!(
-            labels,
-            ["Person", "System", "Container", "Component", "Boundary"]
-        );
+    fn a_systems_or_containers_diagram_starts_with_a_boundary_round_it() {
+        let mut e = engine();
+        e.add_at_free_position(C4Kind::System);
+        e.add_entry_at_free_position(PALETTE.iter().find(|k| k.label == "Service").unwrap());
+        e.add_at_free_position(C4Kind::Person);
+        change(&mut e, "id1", |w| w.label = "Internet Banking".into());
+        change(&mut e, "id2", |w| w.label = "Orders API".into());
+        let el = |of: &str| e.element(&id(of)).unwrap().clone();
+        let (subtype, boundary) = sub_diagram(&el("id1")).unwrap();
+        assert_eq!(subtype, "container");
+        assert_eq!(boundary.kind, C4Kind::Boundary);
+        assert_eq!(boundary.label, "Internet Banking");
+        assert_eq!(type_line(&boundary), "[Software System]");
+        let (subtype, boundary) = sub_diagram(&el("id2")).unwrap();
+        assert_eq!(subtype, "component");
+        assert_eq!(boundary.label, "Orders API");
+        assert_eq!(type_line(&boundary), "[Container]");
+        assert!(sub_diagram(&el("id3")).is_none());
+    }
+
+    #[test]
+    fn boundaries_take_no_arrows() {
         let mut e = engine();
         e.add_at_free_position(C4Kind::Person);
         e.add_at_free_position(C4Kind::System);
@@ -413,6 +475,71 @@ pub(crate) mod tests {
         assert!(e.can_connect(&id("id2"), &id("id1")));
         assert!(!e.can_connect(&id("id1"), &id("id3")));
         assert!(!e.can_connect(&id("id3"), &id("id1")));
+    }
+
+    #[test]
+    fn the_palette_offers_container_then_each_kind_of_container() {
+        let labels: Vec<&str> = PALETTE.iter().map(|k| k.label).collect();
+        assert_eq!(
+            labels,
+            [
+                "Person",
+                "System",
+                "Container",
+                "Website",
+                "Static Content",
+                "Backend",
+                "Service",
+                "Queue",
+                "Topic",
+                "Store",
+                "Database",
+                "Component",
+                "Boundary"
+            ]
+        );
+        // The kinds themselves are still five.
+        let kinds: Vec<C4Kind> = C4::kinds().iter().map(|k| k.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                C4Kind::Person,
+                C4Kind::System,
+                C4Kind::Container,
+                C4Kind::Component,
+                C4Kind::Boundary
+            ]
+        );
+        // Each container entry adds a container of its type, named after it; the generic one,
+        // a plain box. Its type can be changed afterwards.
+        let mut e = engine();
+        let entry = |label: &str| PALETTE.iter().find(|k| k.label == label).unwrap();
+        e.add_entry_at_free_position(entry("Database"));
+        e.palette_drop_entry(entry("Queue"), Point::new(800.0, 600.0));
+        e.add_entry_at_free_position(entry("Container"));
+        let el = |e: &Engine<C4>, of: &str| e.element(&id(of)).unwrap().clone();
+        assert_eq!(
+            el(&e, "id1").props.container_type,
+            Some(ContainerType::Database)
+        );
+        assert_eq!(el(&e, "id1").label, "Database");
+        assert_eq!(el(&e, "id1").kind, C4Kind::Container);
+        assert_eq!(
+            el(&e, "id2").props.container_type,
+            Some(ContainerType::Queue)
+        );
+        assert_eq!(e.laid(&id("id2")).unwrap().rect.size(), QUEUE_SIZE);
+        assert_eq!(el(&e, "id3").props.container_type, None);
+        assert_eq!(el(&e, "id3").label, "Container");
+        let laid = e.laid(&id("id1")).unwrap().clone();
+        assert_eq!(C4::kind_description(&e, &laid), "Container (Database)");
+        change(&mut e, "id1", |w| {
+            w.props.container_type = Some(ContainerType::Store);
+        });
+        assert_eq!(
+            el(&e, "id1").props.container_type,
+            Some(ContainerType::Store)
+        );
     }
 
     #[test]

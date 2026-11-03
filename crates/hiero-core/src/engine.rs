@@ -238,6 +238,20 @@ pub trait DiagramType: Sized + 'static {
     /// The elements offered in the palette, in order.
     fn palette() -> &'static [KindInfo<Self::Kind>];
 
+    /// Each kind's first palette entry, in palette order: the kinds themselves, where the
+    /// palette offers a kind more than once, such as a C4 container for each container type.
+    fn kinds() -> Vec<&'static KindInfo<Self::Kind>> {
+        let mut seen = Vec::new();
+        Self::palette()
+            .iter()
+            .filter(|k| {
+                let new = !seen.contains(&k.kind);
+                seen.push(k.kind);
+                new
+            })
+            .collect()
+    }
+
     fn info(kind: Self::Kind) -> &'static KindInfo<Self::Kind> {
         Self::palette()
             .iter()
@@ -719,8 +733,8 @@ impl<T: DiagramType> Engine<T> {
         let Some(kind) = self.selected().map(|s| s.el.kind) else {
             return Vec::new();
         };
-        T::palette()
-            .iter()
+        T::kinds()
+            .into_iter()
             .filter(|k| k.can_contain.contains(&kind))
             .collect()
     }
@@ -809,7 +823,14 @@ impl<T: DiagramType> Engine<T> {
 
     /// Adds an element of `kind` at a free spot, as a palette click does.
     pub fn add_at_free_position(&mut self, kind: T::Kind) {
-        T::add_at_free_position(self, T::info(kind));
+        self.add_entry_at_free_position(T::info(kind));
+    }
+
+    /// Adds an element from the palette entry `entry` at a free spot. A type can offer one
+    /// kind in several entries, such as a C4 container for each container type, and tell
+    /// them apart in its `created` hook.
+    pub fn add_entry_at_free_position(&mut self, entry: &'static KindInfo<T::Kind>) {
+        T::add_at_free_position(self, entry);
     }
 
     pub fn base_add_at_free_position(&mut self, kind: &'static KindInfo<T::Kind>) {
@@ -868,7 +889,11 @@ impl<T: DiagramType> Engine<T> {
 
     /// Adds a kind dropped from the palette, centred on the drop point.
     pub fn palette_drop(&mut self, kind: T::Kind, point: Point) {
-        let kind = T::info(kind);
+        self.palette_drop_entry(T::info(kind), point);
+    }
+
+    /// Adds an element from the palette entry `entry` dropped at `point`, centred on it.
+    pub fn palette_drop_entry(&mut self, kind: &'static KindInfo<T::Kind>, point: Point) {
         let size = T::new_size_of(self, kind);
         let desired = Point::new(point.x - size.width / 2.0, point.y - size.height / 2.0);
         let placement = self.drop_placement(kind, desired);

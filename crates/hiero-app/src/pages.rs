@@ -1245,6 +1245,7 @@ impl App {
             line_weight: Some(open.record.line_weight()),
             canvas: Some(open.record.canvas()),
             subtype: Some(open.record.subtype().to_owned()).filter(|s| !s.is_empty()),
+            starting: None,
             tried: false,
             error: None,
             opened_from: None,

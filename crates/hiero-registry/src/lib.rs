@@ -47,6 +47,14 @@ pub struct PropValue {
     pub group: &'static str,
 }
 
+/// What a diagram added for an element starts as, where the element's type says: its sub type,
+/// and what's on it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubDiagramStart {
+    pub subtype: &'static str,
+    pub content: StoredContent,
+}
+
 /// A diagram type, without its UI.
 pub trait TypeOps: Send + Sync {
     fn id(&self) -> DiagramTypeId;
@@ -88,6 +96,14 @@ pub trait TypeOps: Send + Sync {
     /// Applies agent edits, in order, all or nothing.
     fn apply(&self, diagram: &StoredDiagram, ops: &[EditOp]) -> Result<EditOutcome, EditError>;
 
+    /// What a diagram of this type added for `element`, on a diagram of this type, starts as,
+    /// such as a C4 container diagram with a boundary round the system it was added for. None
+    /// for an element whose diagram starts as any new one does.
+    fn sub_diagram_start(
+        &self,
+        element: &hiero_core::stored::StoredElement,
+    ) -> Option<SubDiagramStart>;
+
     /// The diagram as a draw.io file, with its name and description above it.
     fn to_drawio(&self, diagram: &StoredDiagram) -> Result<String, ContentError>;
 
@@ -105,6 +121,12 @@ pub trait Drawn: DiagramType {
     /// The values that props with a fixed list take, by prop name.
     fn prop_values() -> BTreeMap<&'static str, Vec<PropValue>> {
         BTreeMap::new()
+    }
+    /// The sub type a diagram added for `element` starts as, and the element it starts with.
+    fn sub_diagram(
+        _element: &hiero_core::engine::El<Self>,
+    ) -> Option<(&'static str, hiero_core::engine::El<Self>)> {
+        None
     }
 }
 
@@ -155,6 +177,11 @@ impl Drawn for C4 {
     }
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_c4::scene::scene(eng)
+    }
+    fn sub_diagram(
+        element: &hiero_core::engine::El<Self>,
+    ) -> Option<(&'static str, hiero_core::engine::El<Self>)> {
+        hiero_c4::rules::sub_diagram(element)
     }
     const PROPS_DOC: &'static str = "A C4 diagram's subtype (\"context\", \"container\", or \"component\"; omit for context) only names its level: every diagram has the same five kinds. Element props: every element {color: \"green\" | \"orange\" | \"red\"; omit for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A person's figure is filled in it, a boundary's line drawn in it} and a description (≤ 500). person and system {typeName (≤ 40), shown in square brackets in place of [Person] or [Software System], e.g. \"Customer\"; omit for the usual type}. container {containerType: \"web-application\" (a browser window) | \"static-content\" (a folder) | \"backend\" (a box with a prompt) | \"service\" (a hexagon, 200 × 160: a microservice) | \"queue\" | \"topic\" (a cylinder on its side, 240 × 120: model each queue or topic as its own container, which publishers and subscribers point to) | \"store\" (a bucket) | \"database\" (a cylinder); omit for a plain box; technology (≤ 60), shown as [Container: technology]}. component {technology (≤ 60), shown as [Component: technology]}: a box with two tabs on its left. boundary {boundaryType: \"container\"; omit for a software system}: a line round what it holds, with its name, type, and description in its bottom-left corner; it holds any element, other boundaries too, and takes no arrows. People are drawn as the actor figure with their name, type, and description under it. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Makes API requests to\", technology (≤ 60), e.g. \"JSON/HTTPS\", shown in square brackets}.";
 }
@@ -273,8 +300,8 @@ impl<T: Drawn> TypeOps for Entry<T> {
     }
 
     fn palette(&self) -> Vec<KindDescription> {
-        T::palette()
-            .iter()
+        T::kinds()
+            .into_iter()
             .map(|k| KindDescription {
                 kind: kind_name(&k.kind),
                 label: k.label,
@@ -301,6 +328,25 @@ impl<T: Drawn> TypeOps for Entry<T> {
 
     fn apply(&self, diagram: &StoredDiagram, ops: &[EditOp]) -> Result<EditOutcome, EditError> {
         edit::apply::<T>(diagram, ops)
+    }
+
+    fn sub_diagram_start(
+        &self,
+        element: &hiero_core::stored::StoredElement,
+    ) -> Option<SubDiagramStart> {
+        let alone = StoredContent {
+            elements: vec![hiero_core::stored::StoredElement {
+                parent_id: None,
+                ..element.clone()
+            }],
+            connections: Vec::new(),
+        };
+        let (elements, _) = alone.to_typed::<T::Kind, T::Props, T::Arrow>().ok()?;
+        let (subtype, first) = T::sub_diagram(elements.first()?)?;
+        Some(SubDiagramStart {
+            subtype,
+            content: StoredContent::from_typed::<T::Kind, T::Props, T::Arrow>(&[first], &[]),
+        })
     }
 
     fn to_drawio(&self, diagram: &StoredDiagram) -> Result<String, ContentError> {
@@ -561,6 +607,51 @@ mod tests {
         assert_eq!(
             drawio_with_sub_diagrams(&alone, |_| None).unwrap(),
             ops(DiagramTypeId::Conceptual).to_drawio(&alone).unwrap()
+        );
+    }
+
+    #[test]
+    fn diagrams_added_for_c4_systems_and_containers_start_with_a_boundary() {
+        let element = |json: Value| hiero_core::stored::StoredElement::from_json(&json).unwrap();
+        let c4 = ops(DiagramTypeId::C4);
+        let system = element(serde_json::json!({
+            "id": "s", "kind": "system", "label": "Banking", "x": 0, "y": 0, "parentId": "b"
+        }));
+        let start = c4.sub_diagram_start(&system).unwrap();
+        assert_eq!(start.subtype, "container");
+        let [boundary] = start.content.elements.as_slice() else {
+            panic!("{start:?}");
+        };
+        assert_eq!(
+            (boundary.kind.as_str(), boundary.label.as_str()),
+            ("boundary", "Banking")
+        );
+        assert!(boundary.props.get("boundaryType").is_none());
+        let container = element(serde_json::json!({
+            "id": "c", "kind": "container", "label": "API", "x": 0, "y": 0,
+            "containerType": "service"
+        }));
+        let start = c4.sub_diagram_start(&container).unwrap();
+        assert_eq!(start.subtype, "component");
+        assert_eq!(start.content.elements[0].label, "API");
+        assert_eq!(
+            start.content.elements[0].props.get("boundaryType"),
+            Some(&serde_json::json!("container"))
+        );
+        // It's valid content for a C4 diagram.
+        c4.validate(&start.content).unwrap();
+        // People, and other types' elements, start as any new diagram does.
+        let person = element(serde_json::json!({
+            "id": "p", "kind": "person", "label": "User", "x": 0, "y": 0
+        }));
+        assert!(c4.sub_diagram_start(&person).is_none());
+        let actor = element(serde_json::json!({
+            "id": "a", "kind": "actor", "label": "User", "x": 0, "y": 0
+        }));
+        assert!(
+            ops(DiagramTypeId::Conceptual)
+                .sub_diagram_start(&actor)
+                .is_none()
         );
     }
 

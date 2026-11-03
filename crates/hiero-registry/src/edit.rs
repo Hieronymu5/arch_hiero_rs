@@ -164,8 +164,8 @@ impl<T: DiagramType> Batch<'_, T> {
 
     fn kind(text: &str) -> Result<T::Kind, String> {
         serde_json::from_value(Value::String(text.to_owned())).map_err(|_| {
-            let kinds: Vec<String> = T::palette()
-                .iter()
+            let kinds: Vec<String> = T::kinds()
+                .into_iter()
                 .filter_map(|k| {
                     serde_json::to_value(k.kind)
                         .ok()?

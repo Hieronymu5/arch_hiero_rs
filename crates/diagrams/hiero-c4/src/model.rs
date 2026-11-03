@@ -105,6 +105,18 @@ impl ContainerType {
         }
     }
 
+    /// The type a container added from the palette entry `entry` starts as: the one the entry
+    /// is named after, or none for the generic Container.
+    pub fn of_entry(entry: &KindInfo<C4Kind>) -> Option<Self> {
+        if entry.kind != C4Kind::Container {
+            return None;
+        }
+        Self::CHOICES
+            .into_iter()
+            .flatten()
+            .find(|t| Self::label(Some(*t)) == entry.label)
+    }
+
     /// The size a container of this type takes until it's resized.
     pub const fn size(container_type: Option<Self>) -> Size {
         match container_type {
@@ -252,10 +264,33 @@ const fn element(kind: C4Kind, label: &'static str, size: Size) -> KindInfo<C4Ki
 }
 
 /// The elements offered in a C4 diagram's palette.
-pub static PALETTE: [KindInfo<C4Kind>; 5] = [
+/// A container entry: the generic box, then one for each container type, which a new container
+/// from it starts as (see `ContainerType::of_entry`). Its type can be changed afterwards.
+const fn container(container_type: Option<ContainerType>) -> KindInfo<C4Kind> {
+    element(
+        K::Container,
+        if container_type.is_none() {
+            "Container"
+        } else {
+            ContainerType::label(container_type)
+        },
+        ContainerType::size(container_type),
+    )
+}
+
+/// The elements offered in a C4 diagram's palette: Container, then each kind of container.
+pub static PALETTE: [KindInfo<C4Kind>; 13] = [
     element(K::Person, "Person", PERSON_SIZE),
     element(K::System, "System", SYSTEM_SIZE),
-    element(K::Container, "Container", CONTAINER_SIZE),
+    container(None),
+    container(Some(ContainerType::WebApplication)),
+    container(Some(ContainerType::StaticContent)),
+    container(Some(ContainerType::Backend)),
+    container(Some(ContainerType::Service)),
+    container(Some(ContainerType::Queue)),
+    container(Some(ContainerType::Topic)),
+    container(Some(ContainerType::Store)),
+    container(Some(ContainerType::Database)),
     element(K::Component, "Component", COMPONENT_SIZE),
     KindInfo {
         has_description: true,

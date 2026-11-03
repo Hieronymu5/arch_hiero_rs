@@ -9,7 +9,7 @@ use hiero_core::file::{diagram_to_zip, file_name};
 use hiero_core::geometry::Size;
 use hiero_core::history::{DiagramSnapshot, UndoStack};
 use hiero_core::model::{DiagramId, DiagramTypeId, ElementId, LineWeight};
-use hiero_core::stored::StoredDiagram;
+use hiero_core::stored::{StoredContent, StoredDiagram};
 use hiero_editor::theme::Accent;
 use hiero_editor::{DiagramEditor, DiagramRequest};
 use hiero_store::locations::Locations;
@@ -119,6 +119,9 @@ pub struct DetailsForm {
     /// The kind of diagram within its type, such as a C4 diagram's level, by id. Unset means
     /// the type's first, and for a type without sub types.
     pub subtype: Option<String>,
+    /// What a diagram added for an element starts with, such as a boundary round it, and the
+    /// type that's for: it's used only if the diagram is still of that type.
+    pub starting: Option<(DiagramTypeId, StoredContent)>,
     pub tried: bool,
     pub error: Option<String>,
     /// While adding a diagram for an element: the diagram it's in, and the element.
@@ -365,22 +368,34 @@ impl App {
         match request {
             DiagramRequest::Open { diagram, viewing } => self.open_diagram(&diagram, viewing),
             DiagramRequest::Add { element, name } => {
-                // A sub diagram starts as the same type as the diagram it's in, one level more
-                // detailed where the type has levels, such as a C4 container diagram for a
-                // system on a context diagram.
+                // A sub diagram starts as the same type as the diagram it's in. Its type may
+                // say what it starts as for this element, such as a C4 container diagram with a
+                // boundary round a system; otherwise it's one level more detailed, where the
+                // type has levels.
+                let start = open
+                    .editor
+                    .content()
+                    .elements
+                    .iter()
+                    .find(|e| e.id == element)
+                    .and_then(|e| hiero_registry::ops(diagram_type).sub_diagram_start(e));
                 let subtypes = diagram_type.subtypes();
                 let current = subtypes
                     .iter()
                     .position(|s| s.id == open.record.subtype())
                     .unwrap_or_default();
-                let subtype = subtypes
-                    .get(current + 1)
-                    .or_else(|| subtypes.get(current))
-                    .map(|s| s.id.to_owned());
+                let subtype = match &start {
+                    Some(start) => Some(start.subtype.to_owned()),
+                    None => subtypes
+                        .get(current + 1)
+                        .or_else(|| subtypes.get(current))
+                        .map(|s| s.id.to_owned()),
+                };
                 self.form = DetailsForm {
                     name,
                     diagram_type: Some(diagram_type),
                     subtype,
+                    starting: start.map(|s| (diagram_type, s.content)),
                     opened_from: Some((from, element)),
                     ..DetailsForm::default()
                 };
@@ -651,6 +666,11 @@ impl App {
             hiero_registry::new_diagram(diagram_type, &form.name, Some(form.description.clone()));
         if let Some(subtype) = &form.subtype {
             diagram.set_subtype(subtype);
+        }
+        if let Some((for_type, content)) = &form.starting
+            && Some(*for_type) == form.diagram_type
+        {
+            diagram.content = content.clone();
         }
         // A diagram added for an element is a sub diagram of the element's diagram.
         let parent = form.opened_from.as_ref().map(|(from, _)| from.clone());

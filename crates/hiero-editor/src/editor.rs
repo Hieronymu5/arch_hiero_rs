@@ -610,8 +610,7 @@ impl<T: DiagramView> Editor<T> {
                 })
                 .inner;
             if response.clicked() {
-                let kind = kind.kind;
-                self.act(None, |eng| eng.add_at_free_position(kind));
+                self.act(None, |eng| eng.add_entry_at_free_position(kind));
                 self.focus = Focus::Element(
                     self.eng
                         .selected_id()
@@ -1201,9 +1200,8 @@ impl<T: DiagramView> Editor<T> {
             && let Some(p) = ui.input(|i| i.pointer.interact_pos())
             && let Some(kind) = T::palette().get(payload.0)
         {
-            let kind = kind.kind;
             let world = xf.world(p);
-            self.act(None, |eng| eng.palette_drop(kind, world));
+            self.act(None, |eng| eng.palette_drop_entry(kind, world));
             response.request_focus();
             self.focus = self
                 .eng

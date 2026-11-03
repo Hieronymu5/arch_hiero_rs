@@ -539,8 +539,8 @@ pub fn check_content<T: DiagramType>(
     connections: &[Value],
 ) -> Result<(), String> {
     // 16 to 23. Each element on its own.
-    let kinds: Vec<(String, &'static KindInfo<T::Kind>)> = T::palette()
-        .iter()
+    let kinds: Vec<(String, &'static KindInfo<T::Kind>)> = T::kinds()
+        .into_iter()
         .map(|info| (kind_name(&info.kind), info))
         .collect();
     let checked = elements
