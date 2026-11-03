@@ -610,7 +610,7 @@ impl<T: DiagramView> Editor<T> {
             let id = self.salt.with(("palette", index));
             let response = ui
                 .dnd_drag_source(id, PaletteDrag(index), |ui| {
-                    element_button(ui, kind.label, 28.0)
+                    element_button(ui, kind.entry_label(), 28.0)
                 })
                 .inner;
             if response.clicked() {
@@ -1148,7 +1148,7 @@ impl<T: DiagramView> Editor<T> {
             painter.text(
                 xf.pos(ghost.center()),
                 Align2::CENTER_CENTER,
-                kind.label,
+                kind.entry_label(),
                 egui::FontId::proportional(13.0 * xf.zoom.max(0.6)),
                 selection,
             );

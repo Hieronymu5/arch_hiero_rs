@@ -937,7 +937,7 @@ impl<T: DiagramType> Engine<T> {
         let element = Element {
             id: ElementId(self.new_id()),
             kind: kind.kind,
-            label: kind.label.to_owned(),
+            label: kind.entry_label().to_owned(),
             description: None,
             parent_id: placement.parent_id,
             sub_diagram_id: None,

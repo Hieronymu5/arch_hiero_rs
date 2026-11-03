@@ -145,6 +145,18 @@ impl BoundaryType {
         }
     }
 
+    /// The type a boundary added from the palette entry `entry` starts as: the one the entry
+    /// is named after.
+    pub fn of_entry(entry: &KindInfo<C4Kind>) -> Option<Self> {
+        if entry.kind != C4Kind::Boundary {
+            return None;
+        }
+        Self::CHOICES
+            .into_iter()
+            .find(|t| Self::label(*t) == entry.entry_label())
+            .flatten()
+    }
+
     /// The C4 type shown in square brackets in its corner.
     pub const fn type_name(boundary_type: Option<Self>) -> &'static str {
         match boundary_type {
@@ -264,25 +276,9 @@ const fn element(kind: C4Kind, label: &'static str, size: Size) -> KindInfo<C4Ki
 }
 
 /// The elements offered in a C4 diagram's palette.
-/// A container entry: the generic box, then one for each container type, which a new container
-/// from it starts as (see `ContainerType::of_entry`). Its type can be changed afterwards.
-const fn container(container_type: Option<ContainerType>) -> KindInfo<C4Kind> {
-    element(
-        K::Container,
-        if container_type.is_none() {
-            "Container"
-        } else {
-            ContainerType::label(container_type)
-        },
-        ContainerType::size(container_type),
-    )
-}
-
-/// The elements offered in a C4 diagram's palette: Boundary above Container, Component under
-/// it, then each kind of container.
-pub static PALETTE: [KindInfo<C4Kind>; 13] = [
-    element(K::Person, "Person", PERSON_SIZE),
-    element(K::System, "System", SYSTEM_SIZE),
+/// A boundary entry, named in the palette after its boundary type, such as "System", which a
+/// new boundary from it starts as (see `BoundaryType::of_entry`).
+const fn boundary(boundary_type: Option<BoundaryType>) -> KindInfo<C4Kind> {
     KindInfo {
         has_description: true,
         // Anything, other boundaries too, such as a container's inside its system's.
@@ -298,10 +294,38 @@ pub static PALETTE: [KindInfo<C4Kind>; 13] = [
         footer: Some(BOUNDARY_FOOTER),
         layer: BOUNDARIES,
         size: Some(BOUNDARY_SIZE),
+        palette_label: Some(BoundaryType::label(boundary_type)),
         ..KindInfo::new(K::Boundary, "Boundary")
-    },
+    }
+}
+
+/// A container entry: the generic box, then one for each container type, which a new container
+/// from it starts as (see `ContainerType::of_entry`). Its type can be changed afterwards.
+const fn container(container_type: Option<ContainerType>) -> KindInfo<C4Kind> {
+    element(
+        K::Container,
+        if container_type.is_none() {
+            "Container"
+        } else {
+            ContainerType::label(container_type)
+        },
+        ContainerType::size(container_type),
+    )
+}
+
+/// The elements offered in a C4 diagram's palette: Person, System, Container, and Component,
+/// then the two boundaries and the kinds of container, each under a heading.
+pub static PALETTE: [KindInfo<C4Kind>; 14] = [
+    element(K::Person, "Person", PERSON_SIZE),
+    element(K::System, "System", SYSTEM_SIZE),
     container(None),
     element(K::Component, "Component", COMPONENT_SIZE),
+    // A boundary round a system, then one round a container, under a heading of their own.
+    KindInfo {
+        palette_heading: Some("Boundaries"),
+        ..boundary(None)
+    },
+    boundary(Some(BoundaryType::Container)),
     // The kinds of container, under a heading of their own.
     KindInfo {
         palette_heading: Some("Containers"),

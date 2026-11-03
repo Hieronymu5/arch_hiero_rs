@@ -360,6 +360,7 @@ impl DiagramType for C4 {
         let mut created = eng.base_created(kind, placement);
         if let Some(first) = created.added.first_mut() {
             first.props.container_type = ContainerType::of_entry(kind);
+            first.props.boundary_type = BoundaryType::of_entry(kind);
         }
         created
     }
@@ -479,15 +480,16 @@ pub(crate) mod tests {
 
     #[test]
     fn the_palette_offers_container_then_each_kind_of_container() {
-        let labels: Vec<&str> = PALETTE.iter().map(|k| k.label).collect();
+        let labels: Vec<&str> = PALETTE.iter().map(KindInfo::entry_label).collect();
         assert_eq!(
             labels,
             [
                 "Person",
                 "System",
-                "Boundary",
                 "Container",
                 "Component",
+                "System",
+                "Container",
                 "Website",
                 "Static Content",
                 "Backend",
@@ -498,28 +500,58 @@ pub(crate) mod tests {
                 "Database"
             ]
         );
-        // The kinds of container come under a heading of their own.
+        // The boundaries and the kinds of container each come under a heading of their own.
         let headings: Vec<(&str, &str)> = PALETTE
             .iter()
-            .filter_map(|k| Some((k.palette_heading?, k.label)))
+            .filter_map(|k| Some((k.palette_heading?, k.entry_label())))
             .collect();
-        assert_eq!(headings, [("Containers", "Website")]);
-        // The kinds themselves are still five.
-        let kinds: Vec<C4Kind> = C4::kinds().iter().map(|k| k.kind).collect();
+        assert_eq!(
+            headings,
+            [("Boundaries", "System"), ("Containers", "Website")]
+        );
+        // The kinds themselves are still five, a boundary still called one.
+        let kinds: Vec<(C4Kind, &str)> = C4::kinds().iter().map(|k| (k.kind, k.label)).collect();
         assert_eq!(
             kinds,
             [
-                C4Kind::Person,
-                C4Kind::System,
-                C4Kind::Boundary,
-                C4Kind::Container,
-                C4Kind::Component
+                (C4Kind::Person, "Person"),
+                (C4Kind::System, "System"),
+                (C4Kind::Container, "Container"),
+                (C4Kind::Component, "Component"),
+                (C4Kind::Boundary, "Boundary")
             ]
         );
+        // Each boundary entry adds a boundary of its type, named after it.
+        let mut b = engine();
+        let boundary = |label: &str| {
+            PALETTE
+                .iter()
+                .find(|k| k.kind == C4Kind::Boundary && k.entry_label() == label)
+                .unwrap()
+        };
+        b.add_entry_at_free_position(boundary("System"));
+        b.add_entry_at_free_position(boundary("Container"));
+        let made = |of: &str| b.element(&id(of)).unwrap().clone();
+        assert_eq!(
+            (made("id1").label.as_str(), made("id1").props.boundary_type),
+            ("System", None)
+        );
+        assert_eq!(
+            (made("id2").label.as_str(), made("id2").props.boundary_type),
+            ("Container", Some(BoundaryType::Container))
+        );
+        assert_eq!(type_line(&made("id2")), "[Container]");
+        let laid = b.laid(&id("id2")).unwrap().clone();
+        assert_eq!(C4::kind_description(&b, &laid), "Boundary (Container)");
         // Each container entry adds a container of its type, named after it; the generic one,
         // a plain box. Its type can be changed afterwards.
         let mut e = engine();
-        let entry = |label: &str| PALETTE.iter().find(|k| k.label == label).unwrap();
+        let entry = |label: &str| {
+            PALETTE
+                .iter()
+                .find(|k| k.kind == C4Kind::Container && k.entry_label() == label)
+                .unwrap()
+        };
         e.add_entry_at_free_position(entry("Database"));
         e.palette_drop_entry(entry("Queue"), Point::new(800.0, 600.0));
         e.add_entry_at_free_position(entry("Container"));
@@ -587,7 +619,7 @@ pub(crate) mod tests {
         change(&mut e, "id2", |w| {
             w.props.boundary_type = Some(BoundaryType::Container);
         });
-        assert_eq!(e.announcement, "Boundary set to a container boundary.");
+        assert_eq!(e.announcement, "System set to a container boundary.");
         assert_eq!(
             type_line(e.element(&id("id1")).unwrap()),
             "[Software System]"
@@ -596,7 +628,7 @@ pub(crate) mod tests {
         e.palette_drop(C4Kind::Component, Point::new(400.0, 300.0));
         assert_eq!(e.element(&id("id3")).unwrap().parent_id, Some(id("id2")));
         let outer = e.laid(&id("id1")).unwrap().clone();
-        assert!(e.accessible_label(&outer).contains("around Boundary"));
+        assert!(e.accessible_label(&outer).contains("around System"));
         // The outer boundary can't be put inside the one it holds: it stays where it is.
         e.select(&id("id1"));
         assert!(e.parent_options().is_empty());

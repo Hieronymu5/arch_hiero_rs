@@ -349,6 +349,9 @@ pub struct KindInfo<K: 'static> {
     /// A heading the palette shows above this entry, starting a group of entries, such as a
     /// C4 diagram's "Containers".
     pub palette_heading: Option<&'static str>,
+    /// The entry's text in the palette, and the name of an element added from it, when it
+    /// differs from the kind's label, such as a C4 boundary's "System" under "Boundaries".
+    pub palette_label: Option<&'static str>,
 }
 
 impl<K: Copy> KindInfo<K> {
@@ -368,7 +371,13 @@ impl<K: Copy> KindInfo<K> {
             layer: 0,
             connects_to: &[],
             palette_heading: None,
+            palette_label: None,
         }
+    }
+
+    /// The entry's text in the palette.
+    pub fn entry_label(&self) -> &'static str {
+        self.palette_label.unwrap_or(self.label)
     }
 
     pub fn size(&self) -> Size {
