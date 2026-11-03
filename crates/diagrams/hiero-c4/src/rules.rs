@@ -376,10 +376,7 @@ pub(crate) mod tests {
         e.palette_drop(ComponentKind::Component, Point::new(400.0, 300.0));
         assert_eq!(e.element(&id("id3")).unwrap().parent_id, Some(id("id2")));
         let boundary = e.laid(&id("id1")).unwrap().clone();
-        assert!(
-            e.accessible_label(&boundary)
-                .contains("around Container Boundary")
-        );
+        assert!(e.accessible_label(&boundary).contains("around Container"));
     }
 
     #[test]

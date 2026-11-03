@@ -18,7 +18,7 @@ its name in bold, its type in square brackets with any technology (such as
 |---|---|---|---|---|
 | `person` | Person | 120×80 | – | The actor figure, filled blue, with the name underneath. No description. |
 | `software-system` | Software System | 240×140 | – | A box with round corners, coloured by its **Scope** (as on system context diagrams). |
-| `system-boundary` | System Boundary | 600×400 | web-application, static-content, backend, store, database, service, queue, topic | A blue line with round corners and no fill, around what it holds. Its name, `[Software System]`, and its description (one line) sit in its bottom-left corner. Header 20, footer 60, padding 20. Takes no arrows. |
+| `system-boundary` | System | 600×400 | web-application, static-content, backend, store, database, service, queue, topic | A blue line with round corners and no fill, around what it holds. Its name, `[Software System]`, and its description (one line) sit in its bottom-left corner. Header 20, footer 60, padding 20. Takes no arrows. The palette calls it *System*, as its button is narrow. |
 | `web-application` | Website | 240×160 | – | A browser window: a blue bar across the top with three dots and an address bar. |
 | `static-content` | Static Content | 240×160 | – | A folder, with a tab on its top-left. |
 | `backend` | Backend | 240×160 | – | A box with a prompt (`>_`) in its top-left corner. |

@@ -18,8 +18,8 @@ its name in bold, its type in square brackets with any technology (such as
 |---|---|---|---|---|
 | `person` | Person | 120×80 | – | The actor figure, filled blue, with the name underneath. No description. |
 | `software-system` | Software System | 240×140 | – | A box with round corners, coloured by its **Scope**: blue, orange, or red. |
-| `system-boundary` | System Boundary | 800×560 | container-boundary, web-application, database, store | A blue line around what it holds, with its name, `[Software System]`, and description in its bottom-left corner. Takes no arrows. |
-| `container-boundary` | Container Boundary | 600×400 | component, database, store | The same, with `[Container]`. It can sit inside a system boundary. |
+| `system-boundary` | System | 800×560 | container-boundary, web-application, database, store | A blue line around what it holds, with its name, `[Software System]`, and description in its bottom-left corner. Takes no arrows. |
+| `container-boundary` | Container | 600×400 | component, database, store | The same, with `[Container]`. It can sit inside a system boundary. The palette calls the two *System* and *Container*, as their buttons are narrow. |
 | `web-application` | UI Container | 240×160 | – | A browser window, as on container diagrams, typed `[Container]`. |
 | `component` | Component | 240×140 | – | A box with round corners and two small tabs sticking out of its upper-left edge. |
 | `database` | Database | 240×160 | – | A cylinder, typed `[Container]`. |

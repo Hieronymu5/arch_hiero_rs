@@ -307,7 +307,7 @@ pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 11] = {
         },
         boundary(
             K::SystemBoundary,
-            "System Boundary",
+            "System",
             &[
                 K::WebApplication,
                 K::StaticContent,
@@ -398,7 +398,7 @@ pub static COMPONENT_PALETTE: [KindInfo<ComponentKind>; 8] = {
         },
         boundary(
             K::SystemBoundary,
-            "System Boundary",
+            "System",
             &[
                 K::ContainerBoundary,
                 K::WebApplication,
@@ -410,7 +410,7 @@ pub static COMPONENT_PALETTE: [KindInfo<ComponentKind>; 8] = {
         ),
         boundary(
             K::ContainerBoundary,
-            "Container Boundary",
+            "Container",
             &[K::Component, K::Database, K::Store],
             CONTAINER_BOUNDARIES,
             Size::new(600.0, 400.0),
