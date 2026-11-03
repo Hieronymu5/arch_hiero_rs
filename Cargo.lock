@@ -1835,6 +1835,7 @@ dependencies = [
  "egui",
  "egui_extras",
  "env_logger",
+ "hiero-c4",
  "hiero-conceptual",
  "hiero-core",
  "hiero-deployed",
@@ -1846,6 +1847,17 @@ dependencies = [
  "jiff",
  "log",
  "rfd",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "hiero-c4"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "hiero-core",
+ "hiero-editor",
  "serde",
  "serde_json",
 ]
@@ -1929,6 +1941,7 @@ dependencies = [
 name = "hiero-registry"
 version = "0.1.0"
 dependencies = [
+ "hiero-c4",
  "hiero-conceptual",
  "hiero-core",
  "hiero-deployed",

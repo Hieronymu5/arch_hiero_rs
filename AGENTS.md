@@ -26,6 +26,9 @@ crates/
     hiero-physical/        model.rs, rules.rs (networks and zones), scene.rs + ui.rs
     hiero-deployed/        model.rs, layout.rs, rules.rs, scene.rs, drawio.rs,
                            tech_stack(_data).rs + assets/tech/*.png (generated) + ui.rs
+    hiero-c4/              the three C4 model types (system context, container, component):
+                           model.rs, rules.rs, scene.rs (UI-free) + ui.rs; their shapes are
+                           in hiero-core's c4.rs
   hiero-registry/          UI-free table of types (`TypeOps`) and agent edits (`EditOp`)
   hiero-app/               the GUI binary `arch-hiero`: pages, store thread, dev hooks
   hiero-mcp/               the MCP server binary `arch-hiero-mcp` (stdio)
@@ -42,6 +45,8 @@ SQLite. Read this before working on diagrams:
 
 - `docs/diagrams/{conceptual,physical,deployed-component}.md`: the feature spec and parity
   checklist for each diagram type. Tick a checklist item when it's done.
+- `docs/diagrams/c4-{context,container,component}.md`: the C4 types, which are new in this app
+  (the prototype has none), following <https://c4model.com>.
 
 Crate boundaries:
 
@@ -49,7 +54,9 @@ Crate boundaries:
   `hiero-store` (SQLite) and `hiero-editor` (generic egui engine) ← `diagrams/hiero-*` (one
   crate per diagram type) ← `hiero-app`.
 - **Diagram crates never depend on each other.** When a second type needs some code, move it
-  down into `hiero-core` (UI-free) or `hiero-editor` (egui).
+  down into `hiero-core` (UI-free) or `hiero-editor` (egui). A crate holds one diagram type,
+  or one family of closely related types that share their elements and rules, as `hiero-c4`
+  holds the three C4 types (each with its own kind enum).
 - In a diagram crate, only the `ui` module may use `egui`. The model, rules, scene, and draw.io
   code stay UI-free and unit-tested.
 - `hiero-store` knows nothing about specific diagram types. Type-specific fields go in the JSON

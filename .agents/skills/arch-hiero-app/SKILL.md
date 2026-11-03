@@ -1,18 +1,21 @@
 ---
 name: arch-hiero-app
-description: Build architecture diagrams in Arch Hiero through its local MCP server (arch-hiero-mcp) and export them as SVG and draw.io. Use when the user asks for a conceptual, physical, or deployed component diagram made with Arch Hiero, or to lay out, tidy, or export one.
+description: Build architecture diagrams in Arch Hiero through its local MCP server (arch-hiero-mcp) and export them as SVG and draw.io. Use when the user asks for a conceptual, physical, deployed component, or C4 (system context, container, or component) diagram made with Arch Hiero, or to lay out, tidy, or export one.
 argument-hint: "[the diagram to build, and where to save it]"
 ---
 
 # Arch Hiero diagrams
 
-Arch Hiero is a desktop app that draws three types of architecture diagram. Its MCP server, `arch-hiero-mcp`, reads and edits the same SQLite database as the app, so whatever you build shows up in the app straight away, and the user can undo it there. You build a diagram with a few tool calls, check how it came out, fix it, and export it.
+Arch Hiero is a desktop app that draws six types of architecture diagram. Its MCP server, `arch-hiero-mcp`, reads and edits the same SQLite database as the app, so whatever you build shows up in the app straight away, and the user can undo it there. You build a diagram with a few tool calls, check how it came out, fix it, and export it.
 
 | Type | Shows | Arrows |
 | --- | --- | --- |
 | `conceptual` | Actors, domains, applications, the components, processes, entities, and files in them, and jobs | Labelled, with a connector (interface), manual or automated, one- or two-way |
 | `physical` | Users, servers, databases, load balancers, firewalls, gateways, and storage in zones and networks | Protocol and port |
 | `deployed-component` | Components in layers, such as network zones, with protocols and tech stacks | None |
+| `c4-context` | C4 level 1: people and software systems, coloured blue (in scope), orange (internal), or red (external) | Relationships: dashed, with a description |
+| `c4-container` | C4 level 2: the websites, static content, backends, stores, and databases in a system boundary | Relationships with a description and technology |
+| `c4-component` | C4 level 3: components in a container boundary, inside a system boundary | Relationships with a description and technology |
 
 ## 1. Connect to the server
 
@@ -118,3 +121,11 @@ Start from the example closest to what you're building, in `examples/`.
 - Each line of a component's description is a one-line bullet, so keep lines short and use several.
 - `dependency` is `internal` (yellow) or `external` (red, such as a third-party identity provider), or omitted for a core component (green).
 - `protocols` are drawn across the top of a component, and `techStack` as logos along the bottom. The `techStack` ids, such as `springboot`, `angular`, and `mysql`, are listed under `propValues.techStack` in `list_diagram_types`, grouped by category. An edit with any other id is refused.
+
+### C4 (system context, container, component)
+
+- Follow the C4 model: a system context diagram shows the one system in scope with the people and systems around it; a container diagram opens that system; a component diagram opens one container. Link them with `subDiagramId` so each element opens the next level.
+- Put people at the top, the system in scope (or its boundary) in the middle, and the systems it depends on below or to the right. Leave the in-scope system's `scope` out (blue); use `"internal"` (orange) for the organisation's other systems and `"external"` (red) for ones outside it.
+- A person is the actor figure, 120 × 80, with the name underneath. Everything else is 240 wide (140 tall for systems and components, 160 for containers) with its name, type, and description inside, so keep descriptions to a sentence.
+- Put containers in the `system-boundary`, and components in the `container-boundary`, with `parent_id`. Boundaries keep 60 pixels at their bottom for their name and description, and take no arrows.
+- Give every relationship a `description` that reads as a sentence from source to target, such as "Makes API requests to", and on container and component diagrams a `technology`, such as `JSON/HTTPS`. The text sits on the middle of the arrow, so leave about 120 pixels between elements it joins.

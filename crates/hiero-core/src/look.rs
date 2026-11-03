@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::c4::{self, C4Shape};
 use crate::color::readable_text;
 use crate::figures::{
     self, CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, actor, cloud_path,
@@ -113,6 +114,8 @@ pub enum Shape {
     File,
     /// One of the physical diagram's figures, with the name underneath.
     Physical(PhysicalFigure),
+    /// One of the C4 model's shapes, with its text inside.
+    C4(C4Shape),
 }
 
 /// Where a container's name sits.
@@ -151,6 +154,8 @@ pub struct Look {
     pub figure_text: Option<String>,
     /// A box on the middle of a physical figure, such as a server's instance count.
     pub figure_badge: Option<ArrowTag>,
+    /// A C4 element's type under its name, such as "[Container: Java]".
+    pub type_line: Option<String>,
 }
 
 impl Look {
@@ -170,6 +175,7 @@ impl Look {
             detail_color: None,
             figure_text: None,
             figure_badge: None,
+            type_line: None,
         }
     }
 }
@@ -212,6 +218,73 @@ pub struct ArrowLook {
     /// A box on the middle of the line, such as "Map fields".
     pub transformation: Option<(String, Rect)>,
     pub tag: Option<ArrowTag>,
+    /// Text on the middle of the line, over a gap in it, such as a C4 relationship's.
+    pub caption: Option<Caption>,
+}
+
+/// Text centred on the middle of an arrow: lines of a description, and a technology in square
+/// brackets under them in smaller text.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Caption {
+    pub lines: Vec<String>,
+    pub technology: Option<String>,
+}
+
+/// A caption's description, its technology, and the widest a line of either is.
+pub const CAPTION: TextStyle = TextStyle::new(13.0, Weight::Regular, 17.0, 3);
+pub const CAPTION_TECHNOLOGY: TextStyle = TextStyle::new(11.0, Weight::Regular, 15.0, 1);
+pub const CAPTION_WIDTH: f64 = 180.0;
+
+impl Caption {
+    /// `text` wrapped to the caption's width, with `technology` under it.
+    pub fn new(text: Option<&str>, technology: Option<&str>, measure: &dyn MeasureText) -> Self {
+        Self {
+            lines: text
+                .filter(|t| !t.trim().is_empty())
+                .map(|t| wrap_text(t, CAPTION_WIDTH, CAPTION, measure))
+                .unwrap_or_default(),
+            technology: technology
+                .filter(|t| !t.trim().is_empty())
+                .map(|t| format!("[{}]", t.trim())),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty() && self.technology.is_none()
+    }
+
+    /// The caption's height.
+    pub fn height(&self) -> f64 {
+        self.lines.len() as f64 * CAPTION.line_height
+            + if self.technology.is_some() {
+                CAPTION_TECHNOLOGY.line_height
+            } else {
+                0.0
+            }
+    }
+
+    /// The caption's lines centred on `middle`, with a halo of `background` so they read over
+    /// the line.
+    pub fn nodes(&self, middle: Point, background: &str) -> Vec<Node> {
+        let mut top = middle.y - self.height() / 2.0;
+        let mut nodes = Vec::new();
+        let lines = self.lines.iter().map(|l| (l, CAPTION));
+        let technology = self.technology.iter().map(|t| (t, CAPTION_TECHNOLOGY));
+        for (line, style) in lines.chain(technology) {
+            let baseline = top + (style.line_height - style.size) / 2.0 + style.size * 0.8;
+            nodes.push(Node::Text {
+                at: Point::new(round2(middle.x), round2(baseline)),
+                anchor: Anchor::Middle,
+                size: style.size,
+                weight: style.weight,
+                text: line.clone(),
+                fill: None,
+                halo: Some((background.into(), 4.0)),
+            });
+            top += style.line_height;
+        }
+        nodes
+    }
 }
 
 /// Where the name under a physical figure ends: the figure, the gap, then the name's lines.
@@ -589,6 +662,7 @@ pub fn draw_element(
             nodes
         }
         Shape::Section => draw_section(element, measure, colors, weight),
+        Shape::C4(shape) => c4::draw(element, shape, measure, &colors.borders, weight),
         Shape::Physical(figure) => {
             let size = figure.size();
             let name = wrap_text(&element.label, text_width, FIGURE_NAME, measure);
@@ -926,6 +1000,13 @@ pub fn draw_arrows(
         nodes.extend(tag_nodes(tag, 3.0, weight));
     }
     for a in arrows {
+        if let Some(caption) = &a.caption {
+            let middle = Point::new(
+                f64::midpoint(a.from.x, a.to.x),
+                f64::midpoint(a.from.y, a.to.y),
+            );
+            nodes.extend(caption.nodes(middle, BACKGROUND));
+        }
         let Some(label) = a.label.as_ref().filter(|l| !l.is_empty()) else {
             continue;
         };

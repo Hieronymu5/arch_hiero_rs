@@ -188,7 +188,7 @@ fn the_diagram_s_own_fields() {
     );
     assert_eq!(
         refused(c(), set(D, "type", json!("flowchart"))),
-        "The diagram: “type” must be one of: conceptual, deployed-component, physical."
+        "The diagram: “type” must be one of: conceptual, deployed-component, physical, c4-context, c4-container, c4-component."
     );
     assert_eq!(
         refused(c(), set(D, "description", json!(""))),
@@ -665,7 +665,52 @@ fn edited_diagrams_export_valid_files() {
              "techStack": ["java", "docker", "java"]}}
         ]),
     );
-    for diagram in [conceptual, physical, deployed] {
+    let context = build(
+        fresh(DiagramTypeId::C4Context),
+        json!([
+            {"op": "add_element", "ref": "u", "kind": "person", "label": "Customer"},
+            {"op": "add_element", "ref": "s", "kind": "software-system", "label": "Bank",
+             "description": " ", "props": {"technology": "Java"}},
+            {"op": "add_element", "ref": "e", "kind": "software-system", "label": "Mail",
+             "props": {"scope": "external"}},
+            {"op": "add_connection", "source_id": "u", "target_id": "s",
+             "props": {"description": " Uses ", "technology": "HTTPS"}},
+            {"op": "add_connection", "source_id": "s", "target_id": "e"}
+        ]),
+    );
+    let container = build(
+        fresh(DiagramTypeId::C4Container),
+        json!([
+            {"op": "add_element", "ref": "b", "kind": "system-boundary", "label": "Bank"},
+            {"op": "add_element", "ref": "w", "kind": "web-application", "label": "UI",
+             "parent_id": "b", "props": {"technology": " Angular ", "scope": "internal"}},
+            {"op": "add_element", "ref": "d", "kind": "database", "label": "DB",
+             "parent_id": "b", "props": {"technology": ""}},
+            {"op": "add_connection", "source_id": "w", "target_id": "d",
+             "props": {"description": "Reads", "technology": " SQL "}}
+        ]),
+    );
+    let component = build(
+        fresh(DiagramTypeId::C4Component),
+        json!([
+            {"op": "add_element", "ref": "s", "kind": "system-boundary", "label": "Bank"},
+            {"op": "add_element", "ref": "k", "kind": "container-boundary", "label": "API",
+             "parent_id": "s"},
+            {"op": "add_element", "ref": "c", "kind": "component", "label": "Sign In",
+             "parent_id": "k", "props": {"technology": "Spring MVC"}},
+            {"op": "add_element", "ref": "x", "kind": "software-system", "label": "Mail",
+             "props": {"scope": "external"}},
+            {"op": "add_connection", "source_id": "c", "target_id": "x"}
+        ]),
+    );
+    // What doesn't apply is dropped: technology on a context relationship or a system, and
+    // scope on a website.
+    assert!(!diagram_file_json(&context).contains("HTTPS"));
+    assert!(!diagram_file_json(&context).contains("Java"));
+    assert!(!diagram_file_json(&container).contains("internal"));
+    for diagram in [
+        conceptual, physical, deployed, context, container, component,
+    ] {
         read_diagram_file(&diagram_to_zip(&diagram)).unwrap_or_else(|e| {
             panic!("{e}\n{}", diagram_file_json(&diagram));
         });

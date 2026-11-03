@@ -29,3 +29,30 @@ pub const EXTERNAL_DEPENDENCY: ComponentColors = ComponentColors {
     fill: "#f8cecc",
     border: "#b85450",
 };
+
+/// A light fill with the darker border and text drawn on it, such as a C4 software system's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FillColors {
+    pub fill: &'static str,
+    pub border: &'static str,
+}
+
+/// Blue: a physical diagram's blue zone, and in a C4 diagram the software system in scope and
+/// everything inside it.
+pub const BLUE: FillColors = FillColors {
+    fill: "#dae8fc",
+    border: "#2d5f9e",
+};
+
+/// Orange: in a C4 diagram, another of the organisation's own software systems.
+pub const ORANGE: FillColors = FillColors {
+    fill: "#ffe6cc",
+    border: "#b46504",
+};
+
+/// Red: a physical diagram's red zone, and in a C4 diagram a software system outside the
+/// organisation.
+pub const RED: FillColors = FillColors {
+    fill: EXTERNAL_DEPENDENCY.fill,
+    border: "#9c3530",
+};

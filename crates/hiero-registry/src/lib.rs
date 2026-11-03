@@ -7,6 +7,7 @@ pub mod edit;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 
+use hiero_c4::{C4Component, C4Container, C4Context};
 use hiero_conceptual::Conceptual;
 use hiero_core::engine::{DiagramType, Engine};
 use hiero_core::export::drawio::Heading;
@@ -146,6 +147,36 @@ impl Drawn for DeployedComponent {
             .collect();
         BTreeMap::from([("techStack", tech)])
     }
+}
+
+impl Drawn for C4Context {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
+        hiero_c4::scene::to_drawio(eng, title, Some(heading))
+    }
+    fn scene(eng: &Engine<Self>) -> Scene {
+        hiero_c4::scene::scene(eng)
+    }
+    const PROPS_DOC: &'static str = "Element props: software-system {scope: \"internal\" (orange: another of the organisation's own systems) | \"external\" (red: outside the organisation); omit for the system in scope (blue)} and a description (≤ 500). People are drawn as the actor figure with their name underneath, and have no description. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Views account balances using\"}. System context diagrams leave technology out.";
+}
+
+impl Drawn for C4Container {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
+        hiero_c4::scene::to_drawio(eng, title, Some(heading))
+    }
+    fn scene(eng: &Engine<Self>) -> Scene {
+        hiero_c4::scene::scene(eng)
+    }
+    const PROPS_DOC: &'static str = "Element props: software-system {scope: \"internal\" (orange: another of the organisation's own systems) | \"external\" (red: outside the organisation); omit for the system in scope (blue)}; web-application (a browser window), static-content (a folder), backend (a box with a prompt), store (a bucket), and database (a cylinder) {technology (≤ 60), e.g. \"Java and Spring Boot\", shown as [Container: Java and Spring Boot]}. Every kind but person has a description (≤ 500), shown inside it; a system-boundary shows its name and description in its bottom-left corner, holds the containers, and takes no arrows. People are drawn as the actor figure with their name underneath. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Makes API requests to\", technology (≤ 60), e.g. \"JSON/HTTPS\", shown in square brackets}.";
+}
+
+impl Drawn for C4Component {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
+        hiero_c4::scene::to_drawio(eng, title, Some(heading))
+    }
+    fn scene(eng: &Engine<Self>) -> Scene {
+        hiero_c4::scene::scene(eng)
+    }
+    const PROPS_DOC: &'static str = "Element props: software-system {scope: \"internal\" (orange: another of the organisation's own systems) | \"external\" (red: outside the organisation); omit for the system in scope (blue)}; component (a box with two tabs on its left), web-application (a UI container: a browser window), database (a cylinder), and store (a bucket) {technology (≤ 60), e.g. \"Spring MVC\", shown as [Component: Spring MVC]}. Every kind but person has a description (≤ 500), shown inside it; boundaries show their name and description in their bottom-left corner and take no arrows. A system-boundary holds a container-boundary, web applications, databases, and stores; a container-boundary holds components, databases, and stores. People are drawn as the actor figure with their name underneath. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Validates credentials using\", technology (≤ 60), e.g. \"JSON/HTTPS\", shown in square brackets}.";
 }
 
 struct Entry<T>(PhantomData<fn() -> T>);
@@ -305,10 +336,13 @@ impl<T: Drawn> TypeOps for Entry<T> {
 static CONCEPTUAL: Entry<Conceptual> = Entry(PhantomData);
 static PHYSICAL: Entry<Physical> = Entry(PhantomData);
 static DEPLOYED: Entry<DeployedComponent> = Entry(PhantomData);
+static C4_CONTEXT: Entry<C4Context> = Entry(PhantomData);
+static C4_CONTAINER: Entry<C4Container> = Entry(PhantomData);
+static C4_COMPONENT: Entry<C4Component> = Entry(PhantomData);
 
 /// Every diagram type, in menu order.
-pub fn types() -> [&'static dyn TypeOps; 3] {
-    [&CONCEPTUAL, &DEPLOYED, &PHYSICAL]
+pub fn types() -> [&'static dyn TypeOps; 6] {
+    DiagramTypeId::ALL.map(ops)
 }
 
 /// The operations of a diagram type.
@@ -317,6 +351,9 @@ pub fn ops(id: DiagramTypeId) -> &'static dyn TypeOps {
         DiagramTypeId::Conceptual => &CONCEPTUAL,
         DiagramTypeId::DeployedComponent => &DEPLOYED,
         DiagramTypeId::Physical => &PHYSICAL,
+        DiagramTypeId::C4Context => &C4_CONTEXT,
+        DiagramTypeId::C4Container => &C4_CONTAINER,
+        DiagramTypeId::C4Component => &C4_COMPONENT,
     }
 }
 

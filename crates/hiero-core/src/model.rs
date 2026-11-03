@@ -68,17 +68,33 @@ pub enum DiagramTypeId {
     Conceptual,
     DeployedComponent,
     Physical,
+    /// C4 model: a software system in its context of people and other systems.
+    C4Context,
+    /// C4 model: the containers (applications and data stores) inside a software system.
+    C4Container,
+    /// C4 model: the components inside a container.
+    C4Component,
 }
 
 impl DiagramTypeId {
     /// Every diagram type, in menu order.
-    pub const ALL: [Self; 3] = [Self::Conceptual, Self::DeployedComponent, Self::Physical];
+    pub const ALL: [Self; 6] = [
+        Self::Conceptual,
+        Self::DeployedComponent,
+        Self::Physical,
+        Self::C4Context,
+        Self::C4Container,
+        Self::C4Component,
+    ];
 
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Conceptual => "conceptual",
             Self::DeployedComponent => "deployed-component",
             Self::Physical => "physical",
+            Self::C4Context => "c4-context",
+            Self::C4Container => "c4-container",
+            Self::C4Component => "c4-component",
         }
     }
 
@@ -87,6 +103,9 @@ impl DiagramTypeId {
             Self::Conceptual => "Conceptual",
             Self::DeployedComponent => "Deployed Component",
             Self::Physical => "Physical",
+            Self::C4Context => "C4 - System Context",
+            Self::C4Container => "C4 - Container",
+            Self::C4Component => "C4 - Component",
         }
     }
 
@@ -96,11 +115,12 @@ impl DiagramTypeId {
     }
 
     /// How thick elements' lines are unless a diagram chooses otherwise: deployed component
-    /// diagrams are drawn thin.
+    /// diagrams are drawn thin, and the C4 types, which came after the setting, medium.
     pub const fn default_line_weight(self) -> LineWeight {
         match self {
             Self::DeployedComponent => LineWeight::Thin,
             Self::Conceptual | Self::Physical => LineWeight::Thick,
+            Self::C4Context | Self::C4Container | Self::C4Component => LineWeight::Medium,
         }
     }
 
@@ -523,6 +543,10 @@ mod tests {
             Some(DiagramTypeId::DeployedComponent)
         );
         assert_eq!(DiagramTypeId::parse("nope"), None);
+        assert_eq!(
+            DiagramTypeId::parse("c4-container"),
+            Some(DiagramTypeId::C4Container)
+        );
         assert!(!DiagramTypeId::DeployedComponent.has_arrows());
     }
 }

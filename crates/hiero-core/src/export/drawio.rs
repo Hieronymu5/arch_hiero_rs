@@ -503,6 +503,10 @@ pub fn diagram_to_drawio(
                 }
                 out
             }
+            Shape::C4(shape) => {
+                crate::c4::drawio_cells(e, shape, (left, top), &parent, &colors.borders, weight)
+                    .join("\n")
+            }
             Shape::Section => {
                 let style = base_style(colors, weight)
                     .set("shape", format!("stencil({SECTION_STENCIL})"))
@@ -715,6 +719,20 @@ pub fn diagram_to_drawio(
                 fmt_num(round2(p.anchor.x - a.from.x)),
                 fmt_num(round2(p.anchor.y - a.from.y))
             );
+        }
+        if let Some(caption) = a.caption.as_ref().filter(|c| !c.is_empty()) {
+            let mut html: Vec<String> = caption.lines.iter().map(|l| escape_xml(l)).collect();
+            if let Some(t) = &caption.technology {
+                html.push(format!(
+                    r#"<span style="font-size: 11px">{}</span>"#,
+                    escape_xml(t)
+                ));
+            }
+            style = style
+                .set("fontSize", 13)
+                .set("fontColor", TEXT)
+                .set("labelBackgroundColor", BACKGROUND);
+            value = format!(r#" value="{}""#, escape_xml(&html.join("<br>")));
         }
         if let Some((label, r)) = &a.connector {
             cells.push(cell(

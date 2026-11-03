@@ -123,8 +123,8 @@ pub struct ZoneColorInfo {
 
 pub const BLUE_ZONE: ZoneColorInfo = ZoneColorInfo {
     label: "Blue",
-    fill: "#dae8fc",
-    border: "#2d5f9e",
+    fill: palette::BLUE.fill,
+    border: palette::BLUE.border,
 };
 
 impl ZoneColor {
@@ -134,8 +134,8 @@ impl ZoneColor {
         match self {
             Self::Red => ZoneColorInfo {
                 label: "Red",
-                fill: palette::EXTERNAL_DEPENDENCY.fill,
-                border: "#9c3530",
+                fill: palette::RED.fill,
+                border: palette::RED.border,
             },
             Self::Yellow => ZoneColorInfo {
                 label: "Yellow",

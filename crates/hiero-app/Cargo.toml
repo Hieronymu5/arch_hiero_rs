@@ -19,6 +19,7 @@ hiero-registry.workspace = true
 hiero-conceptual = { workspace = true, features = ["ui"] }
 hiero-physical = { workspace = true, features = ["ui"] }
 hiero-deployed = { workspace = true, features = ["ui"] }
+hiero-c4 = { workspace = true, features = ["ui"] }
 eframe.workspace = true
 egui.workspace = true
 egui_extras.workspace = true

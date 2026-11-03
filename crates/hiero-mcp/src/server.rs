@@ -26,10 +26,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// What the server tells agents about using it.
-pub const INSTRUCTIONS: &str = "Arch Hiero keeps architecture diagrams (conceptual, physical, and deployed component) in a local database that the Arch Hiero app also uses; changes you make show up in the app live and can be undone there. Before editing, call list_diagram_types to learn each type's kinds of element, what they can contain and connect to, and their properties, and read the arch-hiero://types/{type} resource for the full rules. Every edit goes through the type's own rules (for example, zones fill networks and layers stack), so positions you give may be adjusted. Batch related changes into one edit_diagram call; a batch is all or nothing and names the edit that failed and why. Before large changes, call save_version with a description such as \"Before agent edits\" so the user can go back. Your edits leave the diagram a Draft until a version is saved, which makes it a Release. delete_diagram, revert_to_version, and delete_version are destructive.";
+pub const INSTRUCTIONS: &str = "Arch Hiero keeps architecture diagrams (conceptual, physical, deployed component, and the C4 model's system context, container, and component diagrams) in a local database that the Arch Hiero app also uses; changes you make show up in the app live and can be undone there. Before editing, call list_diagram_types to learn each type's kinds of element, what they can contain and connect to, and their properties, and read the arch-hiero://types/{type} resource for the full rules. Every edit goes through the type's own rules (for example, zones fill networks and layers stack), so positions you give may be adjusted. Batch related changes into one edit_diagram call; a batch is all or nothing and names the edit that failed and why. Before large changes, call save_version with a description such as \"Before agent edits\" so the user can go back. Your edits leave the diagram a Draft until a version is saved, which makes it a Release. delete_diagram, revert_to_version, and delete_version are destructive.";
 
 /// The type specs, as resources.
-const SPECS: [(DiagramTypeId, &str); 3] = [
+const SPECS: [(DiagramTypeId, &str); 6] = [
     (
         DiagramTypeId::Conceptual,
         include_str!("../../../docs/diagrams/conceptual.md"),
@@ -41,6 +41,18 @@ const SPECS: [(DiagramTypeId, &str); 3] = [
     (
         DiagramTypeId::DeployedComponent,
         include_str!("../../../docs/diagrams/deployed-component.md"),
+    ),
+    (
+        DiagramTypeId::C4Context,
+        include_str!("../../../docs/diagrams/c4-context.md"),
+    ),
+    (
+        DiagramTypeId::C4Container,
+        include_str!("../../../docs/diagrams/c4-container.md"),
+    ),
+    (
+        DiagramTypeId::C4Component,
+        include_str!("../../../docs/diagrams/c4-component.md"),
     ),
 ];
 
@@ -63,7 +75,8 @@ pub struct GetDiagramParams {
 pub struct CreateParams {
     /// The diagram's name, at most 100 characters.
     pub name: String,
-    /// "conceptual", "physical", or "deployed-component". It can't be changed later.
+    /// "conceptual", "physical", "deployed-component", "c4-context", "c4-container", or
+    /// "c4-component". It can't be changed later.
     #[serde(rename = "type")]
     pub diagram_type: String,
     /// What the diagram shows, at most 1000 characters.
@@ -355,7 +368,7 @@ impl HieroServer {
     pub async fn create_diagram(&self, Parameters(p): Parameters<CreateParams>) -> ToolResult {
         let Some(diagram_type) = DiagramTypeId::parse(&p.diagram_type) else {
             return Ok(failure(
-                "The type must be \"conceptual\", \"physical\", or \"deployed-component\".",
+                "The type must be \"conceptual\", \"physical\", \"deployed-component\", \"c4-context\", \"c4-container\", or \"c4-component\".",
             ));
         };
         if let Err(m) = validate_name(&p.name) {

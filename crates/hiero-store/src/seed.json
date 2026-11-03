@@ -731,5 +731,364 @@
     ],
     "createdAt": "2026-10-01T09:00:00.000Z",
     "updatedAt": "2026-10-30T22:43:34.358Z"
+  },
+  {
+    "id": "6edb8f79-4665-4909-a41d-4100ea2645ec",
+    "name": "Arch Hiero - System Context",
+    "type": "c4-context",
+    "lineWeight": "medium",
+    "description": "Arch Hiero, the people who use it, and the systems it works with",
+    "elements": [
+      {
+        "id": "9ffe1572-e9fd-45f7-a216-ef00ffa496f7",
+        "kind": "person",
+        "label": "Software Architect",
+        "x": 360,
+        "y": 40
+      },
+      {
+        "id": "0991b605-040b-43fc-9871-b36eee94cd37",
+        "kind": "software-system",
+        "label": "Arch Hiero",
+        "x": 300,
+        "y": 240,
+        "description": "Desktop app for drawing architecture diagrams.",
+        "subDiagramId": "496d9b78-92ff-47aa-99e6-6cbd53e4792a"
+      },
+      {
+        "id": "4e715f11-a28f-4b40-a4fb-6e1a1c58d490",
+        "kind": "software-system",
+        "label": "Claude Code",
+        "x": 720,
+        "y": 240,
+        "scope": "external",
+        "description": "Agentic coding tool that draws diagrams for its user."
+      },
+      {
+        "id": "0385edf7-24f9-4ae9-a74f-425558fc35c6",
+        "kind": "software-system",
+        "label": "draw.io",
+        "x": 120,
+        "y": 520,
+        "scope": "external",
+        "description": "Diagram editor that opens exported diagrams."
+      },
+      {
+        "id": "f3c8af9f-67d5-49dd-89a0-9a6e28e502a4",
+        "kind": "software-system",
+        "label": "Architecture Repository",
+        "x": 480,
+        "y": 520,
+        "scope": "internal",
+        "description": "Keeps the organisation's approved diagrams."
+      }
+    ],
+    "connections": [
+      {
+        "id": "261375d9-3698-450b-9b4f-2fdb7aa22379",
+        "sourceId": "9ffe1572-e9fd-45f7-a216-ef00ffa496f7",
+        "targetId": "0991b605-040b-43fc-9871-b36eee94cd37",
+        "description": "Draws and reviews diagrams using"
+      },
+      {
+        "id": "2483feaf-8f8d-40d8-acf0-3520253cda31",
+        "sourceId": "9ffe1572-e9fd-45f7-a216-ef00ffa496f7",
+        "targetId": "4e715f11-a28f-4b40-a4fb-6e1a1c58d490",
+        "description": "Asks for diagrams using"
+      },
+      {
+        "id": "f9b2edbf-7339-46e3-b8c3-a046875fb7b2",
+        "sourceId": "4e715f11-a28f-4b40-a4fb-6e1a1c58d490",
+        "targetId": "0991b605-040b-43fc-9871-b36eee94cd37",
+        "description": "Edits diagrams through"
+      },
+      {
+        "id": "4cc5ca8c-5356-435e-b6e5-5cf212e9a5b4",
+        "sourceId": "0991b605-040b-43fc-9871-b36eee94cd37",
+        "targetId": "0385edf7-24f9-4ae9-a74f-425558fc35c6",
+        "description": "Exports diagrams to"
+      },
+      {
+        "id": "33b26118-566a-4db2-b5ed-485630e620c0",
+        "sourceId": "0991b605-040b-43fc-9871-b36eee94cd37",
+        "targetId": "f3c8af9f-67d5-49dd-89a0-9a6e28e502a4",
+        "description": "Publishes diagrams to"
+      }
+    ],
+    "createdAt": "2026-11-02T09:00:00.000Z",
+    "updatedAt": "2026-11-02T09:00:00.000Z"
+  },
+  {
+    "id": "496d9b78-92ff-47aa-99e6-6cbd53e4792a",
+    "name": "Arch Hiero - Containers",
+    "type": "c4-container",
+    "lineWeight": "medium",
+    "description": "The applications and data stores that make up Arch Hiero",
+    "elements": [
+      {
+        "id": "c2b6fc19-321e-4eea-a440-a96349e44f3d",
+        "kind": "person",
+        "label": "Software Architect",
+        "x": 540,
+        "y": 0
+      },
+      {
+        "id": "69027d82-8437-4fe2-8b56-1803c76917ba",
+        "kind": "system-boundary",
+        "label": "Arch Hiero",
+        "x": 40,
+        "y": 200,
+        "description": "Desktop app for drawing architecture diagrams.",
+        "width": 1100,
+        "height": 600
+      },
+      {
+        "id": "85b4e1df-cc1b-43b9-843b-84cd9d48f9db",
+        "kind": "static-content",
+        "label": "Tech Stack Logos",
+        "x": 80,
+        "y": 240,
+        "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
+        "technology": "PNG",
+        "description": "Logos drawn on deployed component diagrams."
+      },
+      {
+        "id": "eaf6756d-52bd-4261-a94c-c2377771e431",
+        "kind": "web-application",
+        "label": "Diagram Editor",
+        "x": 480,
+        "y": 240,
+        "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
+        "technology": "Rust and egui",
+        "description": "Native editor for drawing and exporting diagrams."
+      },
+      {
+        "id": "3480f03f-0352-4762-a0aa-bb40850c3574",
+        "kind": "backend",
+        "label": "MCP Server",
+        "x": 880,
+        "y": 240,
+        "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
+        "technology": "Rust and rmcp",
+        "description": "Lets agents read and edit diagrams over stdio.",
+        "subDiagramId": "bd8859de-479a-4f6a-bb25-4f5b6f385668"
+      },
+      {
+        "id": "8fb2252b-1529-4edc-9b67-4a987d509669",
+        "kind": "store",
+        "label": "Exports",
+        "x": 280,
+        "y": 560,
+        "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
+        "technology": "File system",
+        "description": "SVG, draw.io, and .zip files."
+      },
+      {
+        "id": "8bc9df39-eca1-4513-a1a4-a672bd6bb154",
+        "kind": "database",
+        "label": "Diagram Database",
+        "x": 680,
+        "y": 560,
+        "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
+        "technology": "SQLite",
+        "description": "Diagrams, their elements, and their versions."
+      },
+      {
+        "id": "30fbe6ac-2554-4cb4-b577-da6566c81cbc",
+        "kind": "software-system",
+        "label": "Claude Code",
+        "x": 1320,
+        "y": 240,
+        "scope": "external",
+        "description": "Agentic coding tool that draws diagrams for its user."
+      }
+    ],
+    "connections": [
+      {
+        "id": "3b9e634c-a18d-4d94-9c75-a00a79d55c6b",
+        "sourceId": "c2b6fc19-321e-4eea-a440-a96349e44f3d",
+        "targetId": "eaf6756d-52bd-4261-a94c-c2377771e431",
+        "description": "Draws diagrams using"
+      },
+      {
+        "id": "3a9a2cf1-5025-42ce-b7d7-2ab256cacfa2",
+        "sourceId": "eaf6756d-52bd-4261-a94c-c2377771e431",
+        "targetId": "85b4e1df-cc1b-43b9-843b-84cd9d48f9db",
+        "description": "Draws logos from",
+        "technology": "PNG"
+      },
+      {
+        "id": "c8ebafb8-86d4-4c59-8edd-bfcdb879c40f",
+        "sourceId": "eaf6756d-52bd-4261-a94c-c2377771e431",
+        "targetId": "8fb2252b-1529-4edc-9b67-4a987d509669",
+        "description": "Writes exports to",
+        "technology": "SVG, draw.io, ZIP"
+      },
+      {
+        "id": "83dd0262-f606-4bb6-a3ed-594ac1dff967",
+        "sourceId": "eaf6756d-52bd-4261-a94c-c2377771e431",
+        "targetId": "8bc9df39-eca1-4513-a1a4-a672bd6bb154",
+        "description": "Reads from and writes to",
+        "technology": "SQL"
+      },
+      {
+        "id": "fb9c1294-726e-4568-a87e-dc0f0a5fc906",
+        "sourceId": "3480f03f-0352-4762-a0aa-bb40850c3574",
+        "targetId": "8bc9df39-eca1-4513-a1a4-a672bd6bb154",
+        "description": "Reads from and writes to",
+        "technology": "SQL"
+      },
+      {
+        "id": "c4720e5b-5410-4ed3-ae0a-3fbe463f945e",
+        "sourceId": "30fbe6ac-2554-4cb4-b577-da6566c81cbc",
+        "targetId": "3480f03f-0352-4762-a0aa-bb40850c3574",
+        "description": "Edits diagrams using",
+        "technology": "MCP over stdio"
+      }
+    ],
+    "createdAt": "2026-11-02T09:00:00.000Z",
+    "updatedAt": "2026-11-02T09:00:00.000Z"
+  },
+  {
+    "id": "bd8859de-479a-4f6a-bb25-4f5b6f385668",
+    "name": "Arch Hiero - MCP Server Components",
+    "type": "c4-component",
+    "lineWeight": "medium",
+    "description": "The components inside Arch Hiero's MCP server",
+    "elements": [
+      {
+        "id": "527db357-6cf2-4b53-8a8c-32428fca9be6",
+        "kind": "software-system",
+        "label": "Claude Code",
+        "x": 100,
+        "y": 0,
+        "scope": "external",
+        "description": "Agentic coding tool that draws diagrams for its user."
+      },
+      {
+        "id": "78996fa6-7585-428f-b01f-83b156a0e90a",
+        "kind": "system-boundary",
+        "label": "Arch Hiero",
+        "x": 40,
+        "y": 240,
+        "description": "Desktop app for drawing architecture diagrams.",
+        "width": 1140,
+        "height": 620
+      },
+      {
+        "id": "67745143-4a53-419d-8aae-1b743c1bcc11",
+        "kind": "container-boundary",
+        "label": "MCP Server",
+        "x": 80,
+        "y": 280,
+        "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
+        "description": "Rust and rmcp, over stdio",
+        "width": 680,
+        "height": 500
+      },
+      {
+        "id": "71997575-424d-4405-a6d1-ead439a8d685",
+        "kind": "component",
+        "label": "Tool Router",
+        "x": 100,
+        "y": 320,
+        "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
+        "technology": "rmcp",
+        "description": "Offers the MCP tools and the type specs."
+      },
+      {
+        "id": "2a742051-bf07-4374-8f77-c3a45e69e661",
+        "kind": "component",
+        "label": "Registry",
+        "x": 500,
+        "y": 320,
+        "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
+        "technology": "hiero-registry",
+        "description": "Applies edits with each diagram type's rules."
+      },
+      {
+        "id": "99db20c5-7d57-4785-a012-9af9f8e286c8",
+        "kind": "component",
+        "label": "Exporter",
+        "x": 100,
+        "y": 560,
+        "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
+        "technology": "hiero-core",
+        "description": "Draws diagrams as SVG and draw.io."
+      },
+      {
+        "id": "a3a63b95-a4a3-4ff3-a4ef-2b6036431e7f",
+        "kind": "component",
+        "label": "Diagram Store",
+        "x": 500,
+        "y": 560,
+        "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
+        "technology": "hiero-store",
+        "description": "Reads and saves diagrams, checking revisions."
+      },
+      {
+        "id": "e9021930-6b5e-4756-b733-cd2ba55be9fc",
+        "kind": "web-application",
+        "label": "Diagram Editor",
+        "x": 920,
+        "y": 320,
+        "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
+        "technology": "Rust and egui",
+        "description": "Native editor for drawing and exporting diagrams."
+      },
+      {
+        "id": "19866f54-e5af-4980-8690-3906b05aeef6",
+        "kind": "database",
+        "label": "Diagram Database",
+        "x": 920,
+        "y": 600,
+        "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
+        "technology": "SQLite",
+        "description": "Diagrams, their elements, and their versions."
+      }
+    ],
+    "connections": [
+      {
+        "id": "a610e179-b5e9-4d4e-a95a-262328d40176",
+        "sourceId": "527db357-6cf2-4b53-8a8c-32428fca9be6",
+        "targetId": "71997575-424d-4405-a6d1-ead439a8d685",
+        "description": "Calls tools on",
+        "technology": "MCP over stdio"
+      },
+      {
+        "id": "09ea4ec3-3af7-48fc-b1c2-346035603bd4",
+        "sourceId": "71997575-424d-4405-a6d1-ead439a8d685",
+        "targetId": "2a742051-bf07-4374-8f77-c3a45e69e661",
+        "description": "Applies edits with"
+      },
+      {
+        "id": "3f143e96-135b-43ed-9867-677dc93cda49",
+        "sourceId": "71997575-424d-4405-a6d1-ead439a8d685",
+        "targetId": "99db20c5-7d57-4785-a012-9af9f8e286c8",
+        "description": "Exports diagrams with"
+      },
+      {
+        "id": "c4f705e3-68bd-4385-a644-b79bbc903aec",
+        "sourceId": "71997575-424d-4405-a6d1-ead439a8d685",
+        "targetId": "a3a63b95-a4a3-4ff3-a4ef-2b6036431e7f",
+        "description": "Reads and saves diagrams with"
+      },
+      {
+        "id": "ff538f92-a756-4b10-890a-32994a910548",
+        "sourceId": "a3a63b95-a4a3-4ff3-a4ef-2b6036431e7f",
+        "targetId": "19866f54-e5af-4980-8690-3906b05aeef6",
+        "description": "Reads from and writes to",
+        "technology": "SQL"
+      },
+      {
+        "id": "665d9769-2702-4549-93b3-0a80a60b2554",
+        "sourceId": "e9021930-6b5e-4756-b733-cd2ba55be9fc",
+        "targetId": "19866f54-e5af-4980-8690-3906b05aeef6",
+        "description": "Reads from and writes to",
+        "technology": "SQL"
+      }
+    ],
+    "createdAt": "2026-11-02T09:00:00.000Z",
+    "updatedAt": "2026-11-02T09:00:00.000Z"
   }
 ]

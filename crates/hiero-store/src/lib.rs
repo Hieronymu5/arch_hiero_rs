@@ -234,6 +234,43 @@ ALTER TABLE diagrams ADD COLUMN canvas_height REAL
   CHECK (canvas_height IS NULL OR canvas_height > 0);
 ";
 
+/// Allows the C4 model's three types. SQLite can't change a column's CHECK, so the table is
+/// rebuilt, keeping its rows; foreign keys are off while it is, so the rows that refer to
+/// diagrams stay. Its trigger and indexes go with the old table and are made again.
+const MIGRATION_6: &str = r"
+CREATE TABLE diagrams_6 (
+  id                TEXT PRIMARY KEY,
+  type              TEXT NOT NULL CHECK (type IN ('conceptual', 'physical', 'deployed-component',
+                                                  'c4-context', 'c4-container', 'c4-component')),
+  name              TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+  description       TEXT CHECK (description IS NULL OR length(description) <= 1000),
+  colors            TEXT CHECK (colors IS NULL OR json_valid(colors)),
+  content_hash      TEXT NOT NULL,
+  revision          INTEGER NOT NULL DEFAULT 0,
+  next_version      INTEGER NOT NULL DEFAULT 1,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  line_weight       TEXT CHECK (line_weight IS NULL OR line_weight IN ('thin', 'medium', 'thick')),
+  parent_diagram_id TEXT REFERENCES diagrams(id) ON DELETE CASCADE,
+  canvas_width      REAL CHECK (canvas_width IS NULL OR canvas_width > 0),
+  canvas_height     REAL CHECK (canvas_height IS NULL OR canvas_height > 0)
+) STRICT;
+INSERT INTO diagrams_6 (id, type, name, description, colors, content_hash, revision,
+                        next_version, created_at, updated_at, line_weight, parent_diagram_id,
+                        canvas_width, canvas_height)
+  SELECT id, type, name, description, colors, content_hash, revision, next_version, created_at,
+         updated_at, line_weight, parent_diagram_id, canvas_width, canvas_height
+  FROM diagrams;
+DROP TABLE diagrams;
+ALTER TABLE diagrams_6 RENAME TO diagrams;
+
+CREATE TRIGGER diagrams_type_is_fixed BEFORE UPDATE OF type ON diagrams
+WHEN NEW.type <> OLD.type
+BEGIN SELECT RAISE(ABORT, 'A diagram''s type can''t be changed.'); END;
+CREATE INDEX diagrams_by_name ON diagrams(name COLLATE NOCASE);
+CREATE INDEX diagrams_by_parent ON diagrams(parent_diagram_id);
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(MIGRATION_1),
@@ -241,6 +278,7 @@ fn migrations() -> Migrations<'static> {
         M::up(MIGRATION_3),
         M::up(MIGRATION_4),
         M::up(MIGRATION_5),
+        M::up(MIGRATION_6),
     ])
 }
 
@@ -325,11 +363,23 @@ impl Store {
 
     fn setup(mut conn: Connection) -> Result<Self> {
         conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        // Off while upgrading, so a migration can rebuild a table others refer to, then
+        // checked before they're on again.
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
         migrations()
             .to_latest(&mut conn)
             .map_err(|e| StoreError::Migration(e.to_string()))?;
+        let broken: i64 =
+            conn.query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |r| {
+                r.get(0)
+            })?;
+        if broken > 0 {
+            return Err(StoreError::Migration(format!(
+                "{broken} rows refer to rows that don't exist"
+            )));
+        }
+        conn.pragma_update(None, "foreign_keys", "ON")?;
         break_parent_loops(&conn)?;
         Ok(Self { conn })
     }
@@ -1152,6 +1202,67 @@ mod tests {
     }
 
     #[test]
+    fn c4_diagrams_can_be_added_to_a_database_from_before_them() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        migrations().to_version(&mut conn, 5).unwrap();
+        conn.execute_batch(
+            "INSERT INTO diagrams (id, type, name, content_hash, created_at, updated_at,
+                                   line_weight, canvas_width, canvas_height)
+             VALUES ('p', 'conceptual', 'Parent', '', '', '', 'thin', 3000, 2000);
+             INSERT INTO diagrams (id, type, name, content_hash, created_at, updated_at,
+                                   parent_diagram_id)
+             VALUES ('s', 'physical', 'Sub', '', '', '', 'p');
+             INSERT INTO elements (diagram_id, id, ord, kind, label, x, y)
+             VALUES ('s', 'e', 0, 'user', 'E', 0, 0);",
+        )
+        .unwrap();
+        let mut store = Store::setup(conn).unwrap();
+        // What was there is kept.
+        let parent = store.get(&"p".into()).unwrap().unwrap().diagram;
+        assert_eq!(parent.line_weight, Some(LineWeight::Thin));
+        assert_eq!(
+            store
+                .get(&"s".into())
+                .unwrap()
+                .unwrap()
+                .diagram
+                .content
+                .elements
+                .len(),
+            1
+        );
+        // C4 diagrams can be made, and a type still can't change.
+        for t in [
+            DiagramTypeId::C4Context,
+            DiagramTypeId::C4Container,
+            DiagramTypeId::C4Component,
+        ] {
+            store.create(&diagram(t.as_str(), t)).unwrap();
+        }
+        assert!(
+            store
+                .conn
+                .execute("UPDATE diagrams SET type = 'c4-context' WHERE id = 'p'", [])
+                .is_err()
+        );
+        // Deleting a diagram still deletes its sub diagrams and their elements.
+        store
+            .conn
+            .execute("DELETE FROM diagrams WHERE id = 'p'", [])
+            .unwrap();
+        let left: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM elements WHERE diagram_id = 's'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(left, 0);
+        assert!(store.get(&"s".into()).unwrap().is_none());
+    }
+
+    #[test]
     fn medium_line_weights_keep_what_the_old_column_held() {
         // A database from before medium existed, with a thin diagram in it.
         let mut conn = Connection::open_in_memory().unwrap();
@@ -1423,13 +1534,13 @@ mod tests {
                 sample.meta.name
             );
         }
-        assert_eq!(seed_diagrams().len(), 3);
+        assert_eq!(seed_diagrams().len(), 6);
     }
 
     #[test]
     fn samples_load_once() {
         let mut store = Store::open_in_memory().unwrap();
-        assert_eq!(store.load_samples().unwrap(), 3);
+        assert_eq!(store.load_samples().unwrap(), 6);
         assert_eq!(store.load_samples().unwrap(), 0);
         let names: Vec<String> = store
             .list()
@@ -1440,6 +1551,9 @@ mod tests {
         assert_eq!(
             names,
             [
+                "Arch Hiero - Containers",
+                "Arch Hiero - MCP Server Components",
+                "Arch Hiero - System Context",
                 "ARCH Hiero MCP Capabilities",
                 "Standard 3 -Tier Application",
                 "Website Example - Active - Active"

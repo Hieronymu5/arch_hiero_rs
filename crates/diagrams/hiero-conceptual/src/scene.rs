@@ -268,6 +268,7 @@ pub fn drawn_arrows(
                     connector: connector.map(|(text, p)| (text, p.rect)),
                     transformation,
                     tag: None,
+                    caption: None,
                 },
                 route,
                 across_y: route.from_side.is_vertical(),
