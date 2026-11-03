@@ -18,12 +18,13 @@ its name in bold, its type in square brackets with any technology (such as
 |---|---|---|---|---|
 | `person` | Person | 120×80 | – | The actor figure, filled blue, with the name underneath. No description. |
 | `software-system` | Software System | 240×140 | – | A box with round corners, coloured by its **Scope** (as on system context diagrams). |
-| `system-boundary` | System Boundary | 600×400 | web-application, static-content, backend, store, database | A blue line with round corners and no fill, around what it holds. Its name, `[Software System]`, and its description (one line) sit in its bottom-left corner. Header 20, footer 60, padding 20. Takes no arrows. |
+| `system-boundary` | System Boundary | 600×400 | web-application, static-content, backend, store, database, service | A blue line with round corners and no fill, around what it holds. Its name, `[Software System]`, and its description (one line) sit in its bottom-left corner. Header 20, footer 60, padding 20. Takes no arrows. |
 | `web-application` | Website | 240×160 | – | A browser window: a blue bar across the top with three dots and an address bar. |
 | `static-content` | Static Content | 240×160 | – | A folder, with a tab on its top-left. |
 | `backend` | Backend | 240×160 | – | A box with a prompt (`>_`) in its top-left corner. |
 | `store` | Store | 240×160 | – | A bucket: an elliptical top, narrowing to the bottom. |
 | `database` | Database | 240×160 | – | A cylinder. |
+| `service` | Service | 240×160 | – | A hexagon, pointed on its left and right, for a microservice or another service that owns one business capability (see <https://c4model.com/abstractions/microservices>). Its points stand out as a regular hexagon's would, but no more than a quarter of its width; its text is inset by half a point. Arrows end on its outline, not its box. |
 
 Containers are blue (fill `#dae8fc`, border `#2d5f9e`). Every element but a person is
 resizable; the boundary grows to fit what it holds. Dropping a container on the boundary puts it
@@ -34,7 +35,7 @@ inside. Arrows go between any two elements but boundaries.
 | Field | Applies to | Rule |
 |---|---|---|
 | Name | all | Required, at most 100 characters |
-| Technology | web-application, static-content, backend, store, database | At most 60 characters. Shown as `[Container: technology]`; without it, `[Container]`. |
+| Technology | web-application, static-content, backend, store, database, service | At most 60 characters. Shown as `[Container: technology]`; without it, `[Container]`. |
 | Description | all but person | At most 500 characters. Inside: as many lines as fit. A boundary: one line. |
 | Scope | software-system | *In scope* (blue), *Internal* (orange), *External* (red), stored as `scope` |
 | Parent | containers | The system boundary, or none |
@@ -54,7 +55,8 @@ As on system context diagrams (dashed black line, text on its middle), plus a te
 - **draw.io:** the boundary is a draw.io container holding its containers, with its text at the
   bottom left. A website is a rounded box with its bar, dots, and address bar as child shapes;
   static content is draw.io's `folder`; a backend a rounded box with a `>_` text child; a store a
-  bucket stencil; a database draw.io's `cylinder3`. Relationships are dashed connectors with
+  bucket stencil; a database draw.io's `cylinder3`; a service draw.io's `hexagon` with a fixed point
+  of the same size. Relationships are dashed connectors with
   their description and technology as the edge label.
 
 ## Stored data
@@ -62,15 +64,15 @@ As on system context diagrams (dashed black line, text on its middle), plus a te
 ```jsonc
 // element props
 { "scope": "internal" }                  // software-system
-{ "technology": "Java and Spring Boot" } // web-application, static-content, backend, store, database
+{ "technology": "Java and Spring Boot" } // web-application, static-content, backend, store, database, service
 // connection props
 { "description": "Makes API requests to", "technology": "JSON/HTTPS" }
 ```
 
 ## Checklist
 
-- [x] Palette with all 8 kinds, the system boundary holding containers
-- [x] Browser, folder, prompt, bucket, and cylinder shapes, with name, type and technology, and description inside
+- [x] Palette with all 9 kinds, the system boundary holding containers
+- [x] Browser, folder, prompt, bucket, cylinder, and hexagon (service) shapes, with name, type and technology, and description inside
 - [x] Boundary text in its bottom-left corner
 - [x] Relationships with description and technology
 - [x] Line thickness, canvas size, view mode, sub diagrams and links, cut/copy/paste (shared)

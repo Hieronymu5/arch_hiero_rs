@@ -14,7 +14,7 @@ Arch Hiero is a desktop app that draws six types of architecture diagram. Its MC
 | `physical` | Users, servers, databases, load balancers, firewalls, gateways, and storage in zones and networks | Protocol and port |
 | `deployed-component` | Components in layers, such as network zones, with protocols and tech stacks | None |
 | `c4-context` | C4 level 1: people and software systems, coloured blue (in scope), orange (internal), or red (external) | Relationships: dashed, with a description |
-| `c4-container` | C4 level 2: the websites, static content, backends, stores, and databases in a system boundary | Relationships with a description and technology |
+| `c4-container` | C4 level 2: the websites, static content, backends, services, stores, and databases in a system boundary | Relationships with a description and technology |
 | `c4-component` | C4 level 3: components in a container boundary, inside a system boundary | Relationships with a description and technology |
 
 ## 1. Connect to the server
@@ -127,5 +127,6 @@ Start from the example closest to what you're building, in `examples/`.
 - Follow the C4 model: a system context diagram shows the one system in scope with the people and systems around it; a container diagram opens that system; a component diagram opens one container. Link them with `subDiagramId` so each element opens the next level.
 - Put people at the top, the system in scope (or its boundary) in the middle, and the systems it depends on below or to the right. Leave the in-scope system's `scope` out (blue); use `"internal"` (orange) for the organisation's other systems and `"external"` (red) for ones outside it.
 - A person is the actor figure, 120 × 80, with the name underneath. Everything else is 240 wide (140 tall for systems and components, 160 for containers) with its name, type, and description inside, so keep descriptions to a sentence.
+- Draw each microservice on a container diagram as a `service` (a hexagon) beside the database it owns, such as "Orders API" reading and writing "Orders database".
 - Put containers in the `system-boundary`, and components in the `container-boundary`, with `parent_id`. Boundaries keep 60 pixels at their bottom for their name and description, and take no arrows.
 - Give every relationship a `description` that reads as a sentence from source to target, such as "Makes API requests to", and on container and component diagrams a `technology`, such as `JSON/HTTPS`. The text sits on the middle of the arrow, so leave about 120 pixels between elements it joins.

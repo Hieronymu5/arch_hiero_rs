@@ -31,6 +31,7 @@ pub enum Role {
     Backend,
     Store,
     Database,
+    Service,
     Component,
 }
 
@@ -46,6 +47,7 @@ impl Role {
             Self::Backend => C4Shape::Terminal,
             Self::Store => C4Shape::Bucket,
             Self::Database => C4Shape::Cylinder,
+            Self::Service => C4Shape::Hexagon,
             Self::Component => C4Shape::Component,
         })
     }
@@ -61,7 +63,8 @@ impl Role {
             | Self::StaticContent
             | Self::Backend
             | Self::Store
-            | Self::Database => Some("Container"),
+            | Self::Database
+            | Self::Service => Some("Container"),
         }
     }
 
@@ -79,6 +82,7 @@ impl Role {
                 | Self::Backend
                 | Self::Store
                 | Self::Database
+                | Self::Service
                 | Self::Component
         )
     }
@@ -257,6 +261,8 @@ pub enum ContainerKind {
     Backend,
     Store,
     Database,
+    /// A microservice, or another service that owns one capability: a hexagon.
+    Service,
 }
 
 const CONTAINER_TARGETS: &[ContainerKind] = {
@@ -269,11 +275,12 @@ const CONTAINER_TARGETS: &[ContainerKind] = {
         K::Backend,
         K::Store,
         K::Database,
+        K::Service,
     ]
 };
 
 /// The elements offered in a container diagram's palette.
-pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 8] = {
+pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 9] = {
     use ContainerKind as K;
     [
         person(K::Person, CONTAINER_TARGETS),
@@ -290,6 +297,7 @@ pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 8] = {
                 K::Backend,
                 K::Store,
                 K::Database,
+                K::Service,
             ],
             SYSTEM_BOUNDARIES,
             Size::new(600.0, 400.0),
@@ -297,6 +305,7 @@ pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 8] = {
         element(K::WebApplication, "Website", CONTAINER_TARGETS),
         element(K::StaticContent, "Static Content", CONTAINER_TARGETS),
         element(K::Backend, "Backend", CONTAINER_TARGETS),
+        element(K::Service, "Service", CONTAINER_TARGETS),
         element(K::Store, "Store", CONTAINER_TARGETS),
         element(K::Database, "Database", CONTAINER_TARGETS),
     ]
@@ -313,6 +322,7 @@ impl C4Type for C4Container {
             ContainerKind::Backend => Role::Backend,
             ContainerKind::Store => Role::Store,
             ContainerKind::Database => Role::Database,
+            ContainerKind::Service => Role::Service,
         }
     }
     const ARROW_TECHNOLOGY: bool = true;

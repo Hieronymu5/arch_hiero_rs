@@ -17,6 +17,8 @@ use hiero_core::routing::{ConnectionEnds, Side, route_connections};
 use hiero_core::scene::Scene;
 use hiero_core::text::MeasureText;
 
+use hiero_core::c4::{C4Shape, hexagon_edge_point};
+
 use crate::model::{C4Type, Role, Scope};
 use crate::rules::type_line;
 
@@ -104,6 +106,17 @@ fn clear_of_name<T: C4Type>(
     }
 }
 
+/// Where an arrow end at `point` on `side` of `element` is drawn: on a service's hexagon
+/// rather than the box around it.
+fn on_outline<T: C4Type>(element: Option<&Laid<T>>, side: Side, point: Point) -> Point {
+    match element {
+        Some(e) if T::role(e.el.kind).shape() == Some(C4Shape::Hexagon) => {
+            hexagon_edge_point(e.rect, side, point)
+        }
+        _ => point,
+    }
+}
+
 /// A relationship as it's drawn.
 #[derive(Debug, Clone)]
 pub struct DrawnArrow {
@@ -150,8 +163,18 @@ pub fn drawn_arrows<T: C4Type>(eng: &Engine<T>, layout: &[Laid<T>]) -> Vec<Drawn
                 source_id: c.source_id.clone(),
                 target_id: c.target_id.clone(),
                 look: ArrowLook {
-                    from: clear_of_name(source, route.from_side, route.from, measure),
-                    to: clear_of_name(target, route.to_side, route.to, measure),
+                    from: clear_of_name(
+                        source,
+                        route.from_side,
+                        on_outline(source, route.from_side, route.from),
+                        measure,
+                    ),
+                    to: clear_of_name(
+                        target,
+                        route.to_side,
+                        on_outline(target, route.to_side, route.to),
+                        measure,
+                    ),
                     dashed: true,
                     caption: (!caption.is_empty()).then_some(caption),
                     ..ArrowLook::default()
@@ -317,6 +340,40 @@ mod tests {
             r#"value="Reads from&lt;br&gt;&lt;span style=&quot;font-size: 11px&quot;&gt;[SQL]&lt;/span&gt;""#
         ));
         assert!(xml.contains("dashed=1"));
+    }
+
+    #[test]
+    fn services_are_hexagons_that_arrows_meet_on_their_outline() {
+        let e = engine::<C4Container>(
+            serde_json::json!([
+                { "id": "b", "kind": "system-boundary", "label": "Shop", "x": 0, "y": 0 },
+                { "id": "s", "kind": "service", "label": "Orders API", "x": 20, "y": 40,
+                  "parentId": "b", "technology": "Spring Boot",
+                  "description": "Implements ordering." },
+                { "id": "d", "kind": "database", "label": "Orders", "x": 400, "y": 40,
+                  "parentId": "b" },
+                { "id": "w", "kind": "web-application", "label": "Shop UI", "x": 800, "y": 400 },
+            ]),
+            serde_json::json!([
+                { "id": "r1", "sourceId": "s", "targetId": "d", "description": "Reads from" },
+                { "id": "r2", "sourceId": "w", "targetId": "s", "description": "Calls" },
+            ]),
+        );
+        let svg = scene_to_svg("Test", &scene(&e));
+        assert!(svg.contains(">[Container: Spring Boot]</text>"));
+        assert!(
+            svg.contains(r#"<path d="M20 120L80 40H200L260 120L200 200H80Z""#),
+            "{svg}"
+        );
+        let arrows = drawn_arrows(&e, e.layout());
+        // Level with the hexagon's right point, the arrow starts at the point.
+        assert_eq!(arrows[0].look.from, Point::new(260.0, 120.0));
+        // One in from below and to the right meets the hexagon's edge, not its box.
+        let to = arrows[1].look.to;
+        let rect = e.laid(&"s".into()).unwrap().rect;
+        assert!(rect.contains_point(to));
+        assert!(to.x < rect.right() || to.y < rect.bottom(), "{to:?}");
+        assert!(to_drawio(&e, "Test", None).contains("shape=hexagon"));
     }
 
     #[test]

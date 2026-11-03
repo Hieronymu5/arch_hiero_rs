@@ -1,7 +1,7 @@
 //! The C4 model's shapes, shared by its three diagram types (system context, container, and
 //! component): a box for a software system, a browser window for a web application, a folder
 //! for static content, a box with a prompt for a backend, a bucket for a store, a cylinder for
-//! a database, a box with two tabs for a component, and a boundary around what a system or
+//! a database, a hexagon for a service, a box with two tabs for a component, and a boundary around what a system or
 //! container holds. Each shows its name, its type (with any technology) in square brackets,
 //! and its description inside it; a boundary shows them in its bottom-left corner.
 //!
@@ -13,6 +13,7 @@ use crate::export::svg::escape_xml;
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::look::{CORNER_NAME, DESCRIPTION, LookElement, NAME, PADDING_X, text_lines};
 use crate::model::LineWeight;
+use crate::routing::Side;
 use crate::scene::{Anchor, Node, Paint};
 use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
 
@@ -31,6 +32,8 @@ pub enum C4Shape {
     Bucket,
     /// A cylinder: a database.
     Cylinder,
+    /// A hexagon with points on its left and right: a service, such as a microservice's API.
+    Hexagon,
     /// A box with two small tabs on its left edge: a component.
     Component,
     /// A line round what a software system or container holds, with its text in the
@@ -75,6 +78,8 @@ impl C4Shape {
             Self::Folder => (FOLDER_TAB_HEIGHT, 0.0, 0.0),
             Self::Terminal => (TERMINAL_TOP, 0.0, 0.0),
             Self::Cylinder => (CYLINDER_RY * 2.0, CYLINDER_RY, 0.0),
+            // Half the point, as the text sits across the hexagon's widest part.
+            Self::Hexagon => (0.0, 0.0, hexagon_point(rect) / 2.0),
             Self::Bucket => (
                 CYLINDER_RY * 2.0,
                 BUCKET_BOTTOM_RY,
@@ -87,6 +92,51 @@ impl C4Shape {
             (rect.width - (PADDING_X + inset) * 2.0).max(0.0),
             (rect.height - top - bottom - 8.0).max(0.0),
         )
+    }
+}
+
+/// How far a hexagon's left and right points stand out from its top and bottom edges: as a
+/// regular hexagon's, but no more than a quarter of its width.
+pub fn hexagon_point(rect: Rect) -> f64 {
+    (rect.height / 2.0 * 30f64.to_radians().tan() * 2.0)
+        .min(rect.width / 4.0)
+        .max(0.0)
+}
+
+/// Where an arrow ending at `point`, on `side` of a hexagon filling `rect`, meets the hexagon:
+/// the point moved straight in until it reaches the outline. Points on its top and bottom
+/// edges, between the slants, stay where they are.
+pub fn hexagon_edge_point(rect: Rect, side: Side, point: Point) -> Point {
+    let inset = hexagon_point(rect);
+    let half = rect.height / 2.0;
+    if inset <= 0.0 || half <= 0.0 {
+        return point;
+    }
+    let middle = rect.y + half;
+    match side {
+        Side::Left | Side::Right => {
+            let into = inset * ((point.y - middle).abs() / half).min(1.0);
+            let x = if side == Side::Left {
+                rect.x + into
+            } else {
+                rect.right() - into
+            };
+            Point::new(x, point.y)
+        }
+        Side::Top | Side::Bottom => {
+            // How far in from the nearer side it is, as a share of the slant's width.
+            let from_side = (point.x - rect.x).min(rect.right() - point.x);
+            if from_side >= inset {
+                return point;
+            }
+            let down = half * (1.0 - (from_side / inset).max(0.0));
+            let y = if side == Side::Top {
+                rect.y + down
+            } else {
+                rect.bottom() - down
+            };
+            Point::new(point.x, y)
+        }
     }
 }
 
@@ -343,6 +393,24 @@ pub fn draw(
                 },
             ]
         }
+        C4Shape::Hexagon => {
+            let inset = hexagon_point(rect);
+            let middle = y + height / 2.0;
+            let outline = format!(
+                "M{} {}L{} {}H{}L{} {}L{} {}H{}Z",
+                f(x),
+                f(middle),
+                f(x + inset),
+                f(y),
+                f(right - inset),
+                f(right),
+                f(middle),
+                f(right - inset),
+                f(bottom),
+                f(x + inset)
+            );
+            vec![Node::path(outline, paint)]
+        }
         C4Shape::Bucket => {
             let (rx, ry) = (width / 2.0, CYLINDER_RY);
             let taper = width * BUCKET_TAPER;
@@ -467,6 +535,11 @@ pub fn drawio_cells(
             .set("backgroundOutline", 1)
             .num("size", CYLINDER_RY),
         C4Shape::Bucket => style.set("shape", format!("stencil({BUCKET_STENCIL})")),
+        C4Shape::Hexagon => style
+            .set("shape", "hexagon")
+            .set("perimeter", "hexagonPerimeter2")
+            .set("fixedSize", 1)
+            .num("size", round2(hexagon_point(rect))),
         C4Shape::Boundary => rounded(style)
             .set("container", 1)
             .set("collapsible", 0)
@@ -636,6 +709,45 @@ mod tests {
         assert_eq!(C4Shape::Cylinder.text_area(rect).bottom(), 144.0);
         let bucket = C4Shape::Bucket.text_area(rect);
         assert_eq!((bucket.x, bucket.width), (34.0, 172.0));
+    }
+
+    #[test]
+    fn services_are_hexagons_that_arrows_meet_on_their_slants() {
+        let rect = Rect::new(0.0, 0.0, 240.0, 160.0);
+        // A regular hexagon's point would be 80 × tan 30° × 2 = 92.38, more than a quarter of
+        // the width.
+        assert_eq!(hexagon_point(rect), 60.0);
+        let out = svg(draw(
+            &element(C4Shape::Hexagon, rect),
+            C4Shape::Hexagon,
+            &EstimateText,
+            "#000000",
+            LineWeight::Medium,
+        ));
+        assert!(
+            out.contains(r#"<path d="M0 80L60 0H180L240 80L180 160H60Z""#),
+            "{out}"
+        );
+        // At the left point, the arrow ends there; halfway up, halfway in; at a corner, all in.
+        let left = |y| hexagon_edge_point(rect, Side::Left, Point::new(0.0, y));
+        assert_eq!(left(80.0), Point::new(0.0, 80.0));
+        assert_eq!(left(40.0), Point::new(30.0, 40.0));
+        assert_eq!(left(0.0), Point::new(60.0, 0.0));
+        // On the top edge between the slants, it stays; over a slant, it moves down onto it.
+        let top = |x| hexagon_edge_point(rect, Side::Top, Point::new(x, 0.0));
+        assert_eq!(top(120.0), Point::new(120.0, 0.0));
+        assert_eq!(top(30.0), Point::new(30.0, 40.0));
+        assert_eq!(top(210.0), Point::new(210.0, 40.0));
+        // draw.io's hexagon with the same point.
+        let cells = drawio_cells(
+            &element(C4Shape::Hexagon, rect),
+            C4Shape::Hexagon,
+            (0.0, 0.0),
+            "1",
+            "#000000",
+            LineWeight::Medium,
+        );
+        assert!(cells[0].contains("shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=60"));
     }
 
     #[test]
