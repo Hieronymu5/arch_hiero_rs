@@ -487,6 +487,7 @@ pub(crate) mod tests {
                 "System",
                 "Boundary",
                 "Container",
+                "Component",
                 "Website",
                 "Static Content",
                 "Backend",
@@ -494,8 +495,7 @@ pub(crate) mod tests {
                 "Queue",
                 "Topic",
                 "Store",
-                "Database",
-                "Component"
+                "Database"
             ]
         );
         // The kinds themselves are still five.
