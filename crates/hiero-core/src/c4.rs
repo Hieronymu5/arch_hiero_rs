@@ -1,5 +1,5 @@
 //! The C4 model's shapes, shared by its three diagram types (system context, container, and
-//! component): a person's figure with its text underneath, a box for a software system, a browser window for a web application, a folder
+//! component): a person's head and shoulders in a circle on top of a box holding their text, a box for a software system, a browser window for a web application, a folder
 //! for static content, a box with a prompt for a backend, a bucket for a store, a cylinder for
 //! a database, a cylinder on its side for a queue or topic, a hexagon for a service, a box with two tabs for a component, and a boundary around what a system or
 //! container holds. Each shows its name, its type (with any technology) in square brackets,
@@ -21,7 +21,8 @@ use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
 /// What a C4 element is drawn as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum C4Shape {
-    /// The actor figure, with the name, type, and description under it: a person.
+    /// A box holding the name, type, and description, with the actor's head and shoulders in
+    /// a circle on its top edge, like a profile picture: a person.
     Person,
     /// A box with round corners: a software system.
     Box,
@@ -74,24 +75,52 @@ const BOUNDARY_TEXT_BOTTOM: f64 = 8.0;
 /// A store drawn as a bucket in draw.io: a stencil, as the other figures' are.
 const BUCKET_STENCIL: &str = "fVLRbsMgDPwaHiOl0EXb49S12m841E1QKESGNunfl9SsWzI1b77z+TgMQu1CCz0KWTo4o1BfQspP0u23QfKJrS+6w5jIVA/cltuScct4U2UMoUcdmbwCGagtcidE8h0O5hjzjHEtknn4qr1QO+2dS7PGuyDkgbkadNeQv7gj4x6m6ak6++uUeGSvfPotp5EPmD2scX+UcjuXvs20QDr1KGs/KtZSFr8zHAsYTSjIR5jSzhJYoAaLZFOcLDSzVhgQ+//0T65NtRZseYm1C2vrAz5RKn63lsBypSdPOMPGWn6rpwVaa/rwct3l6tfICz+8dE/FMkOi+Euq/R0=";
 
-/// How far down its area a person's figure starts, and the gap between the figure and the
-/// text under it.
-pub const PERSON_FIGURE_TOP: f64 = 5.0;
+/// The radius of the circle on a person's top edge, which holds their head and shoulders:
+/// its top is the person's top, and its centre is on the top of their box.
+pub const PERSON_CIRCLE_RADIUS: f64 = 30.0;
+/// How far down the circle the actor figure starts. The figure is lower than centred, so the
+/// circle crops its shoulders.
+pub const PERSON_FIGURE_TOP: f64 = 14.0;
+/// The gap between the circle and the text under it.
 pub const PERSON_TEXT_GAP: f64 = 6.0;
 
-/// A person's figure in draw.io: the actor's head and shoulders in its 48 × 46 box.
-const PERSON_STENCIL: &str = "fZLRbsIwDEW/Jo+VIO0mXifGxG+YYNqIEEdORsvfL5Ej1qBpb773yrcnVlW/jxMEVHrj4Yaq/1Raf7CZjhaZshuQI/ls5nmWeNiJnKp8FwkxoEni3YEtnBxKEhPTFWd7TnXF+gnZppL2B9XvDXmfdy35qPSXeCcw15Hp259Fo3M2xAK6SMl2kPaHSN0w6k3DWGWtzsNr+4UYG22dE+znVoCCX6Yb3VccLcbwtv4SsMkRLy0UP1q9dLDY2DElKDeQsGYOeMQu93QXB2MTxRkxrOxtbasg/3EZRxHX9/h93B8vz8PrfbIl/01/+AE=";
+/// A person's circle in draw.io, 60 × 60: the head, and the shoulders cropped by the circle.
+const PERSON_STENCIL: &str = "3VRBbsMgEHyNj45saKP0WKWJ+o0tXtsoBNBCY+f3BeGmhkpVDu2lt51ZPDMs4Irv3QgWK9ZoOGPFXyrGnkmMrxLJBNYiOaNDARfwQKEb6imt2zYJjjkEZ1H4xPVyxi7RzpM54SQ7v6yXekSSPnb5oeJ7YbQOH0qjXcWOiXsDcRrIvOsuYVRKWhfjzklk8bxm6Md8i3IoSvHeEGZYKnVb/825sG63mTfLvVnmHYXTOG6UhTiWWJ3NZeXSNpvdLjN65JuWrdWAROhSEYuuOZ5rmKWryXiII87mpYAGrINO3SsYspabEO2Kbhe1hB6ePrPcmY4X6fhfprtjdkIZh+s78XUO2en/2+PJtlzcyd97bIVwKMq3Fqj0I+KHDw==";
+
+/// Where a person's shoulders meet their circle, left then right, for a person whose circle
+/// is centred on `center`.
+fn shoulder_corners(center: Point) -> (Point, Point) {
+    let r = PERSON_CIRCLE_RADIUS;
+    let shoulders_r = actor::WIDTH / 2.0 - 4.0;
+    // The shoulders are a half circle on the figure's bottom.
+    let d = PERSON_FIGURE_TOP + actor::HEIGHT - 1.0 - r;
+    let a = (d * d + r * r - shoulders_r * shoulders_r) / (2.0 * d);
+    let h = (r * r - a * a).max(0.0).sqrt();
+    (
+        Point::new(center.x - h, center.y + a),
+        Point::new(center.x + h, center.y + a),
+    )
+}
+
+/// Where an arrow at `point` on the top of a person in `rect` ends: on their circle, or on
+/// the top of their box either side of it.
+pub fn person_top_point(rect: Rect, point: Point) -> Point {
+    let r = PERSON_CIRCLE_RADIUS;
+    let dx = point.x - (rect.x + rect.width / 2.0);
+    let y = if dx.abs() < r {
+        rect.y + r - (r * r - dx * dx).sqrt()
+    } else {
+        rect.y + r
+    };
+    Point::new(point.x, round2(y))
+}
 
 impl C4Shape {
     /// The part of `rect` its text is centred in, clear of what's drawn at its top and bottom.
-    /// A person's text starts at the top of it, under the figure.
+    /// A person's text starts at the top of it, under their circle.
     pub fn text_area(self, rect: Rect) -> Rect {
         let (top, bottom, inset) = match self {
-            Self::Person => (
-                PERSON_FIGURE_TOP + actor::HEIGHT + PERSON_TEXT_GAP - 4.0,
-                0.0,
-                0.0,
-            ),
+            Self::Person => (PERSON_CIRCLE_RADIUS * 2.0 + PERSON_TEXT_GAP - 4.0, 0.0, 0.0),
             Self::Box | Self::Component | Self::Boundary => (0.0, 0.0, 0.0),
             Self::Browser => (BROWSER_BAR, 0.0, 0.0),
             Self::Folder => (FOLDER_TAB_HEIGHT, 0.0, 0.0),
@@ -326,13 +355,6 @@ fn corner_text(element: &LookElement, measure: &dyn MeasureText) -> Text {
     }
 }
 
-/// Where a person's text ends: under the figure, the name, the type, and as much of the
-/// description as fits. An arrow from below ends just under it.
-pub fn person_text_bottom(element: &LookElement, measure: &dyn MeasureText) -> f64 {
-    let area = C4Shape::Person.text_area(element.rect);
-    area.y + inside_text(element, area, measure).height(NAME)
-}
-
 /// The height a boundary keeps below what it holds, for its text.
 pub const BOUNDARY_FOOTER: f64 = 60.0;
 
@@ -372,15 +394,55 @@ pub fn draw(
     let line = weight.width();
     let paint = Paint::fill_stroke(fill.clone(), border.clone(), line);
     let mut nodes = match shape {
-        // The figure in the element's colour, outlined as other figures are.
-        C4Shape::Person => vec![Node::group(
-            Some(Point::new(
-                round2(x + width / 2.0 - actor::WIDTH / 2.0),
-                round2(y + PERSON_FIGURE_TOP),
-            )),
-            paint,
-            crate::look::actor_figure(false),
-        )],
+        // A box, and a circle on its top edge holding the head and the shoulders, which the
+        // circle crops: their bottom has no line of its own.
+        C4Shape::Person => {
+            let r = PERSON_CIRCLE_RADIUS;
+            let center = Point::new(round2(x + width / 2.0), round2(y + r));
+            let figure_top = y + PERSON_FIGURE_TOP;
+            let (left, right) = shoulder_corners(center);
+            let shoulders = actor::WIDTH / 2.0 - 4.0;
+            let arc = format!(
+                "M{} {} A{s} {s} 0 0 1 {} {}",
+                f(left.x),
+                f(left.y),
+                f(right.x),
+                f(right.y),
+                s = f(shoulders),
+            );
+            vec![
+                Node::rect(
+                    Rect::new(x, center.y, width, (height - r).max(0.0)),
+                    CORNER_RADIUS,
+                    paint.clone(),
+                ),
+                Node::Circle {
+                    center,
+                    r,
+                    paint: Paint::fill(fill.clone()),
+                },
+                Node::Circle {
+                    center: Point::new(center.x, round2(figure_top + actor::HEAD_CENTER.y)),
+                    r: actor::HEAD_RADIUS,
+                    paint,
+                },
+                Node::path(
+                    format!(
+                        "{arc} A{r} {r} 0 0 1 {} {} Z",
+                        f(left.x),
+                        f(left.y),
+                        r = f(r)
+                    ),
+                    Paint::fill(fill.clone()),
+                ),
+                Node::path(arc, Paint::fill_stroke("none", border.clone(), line)),
+                Node::Circle {
+                    center,
+                    r,
+                    paint: Paint::fill_stroke("none", border.clone(), line),
+                },
+            ]
+        }
         C4Shape::Box | C4Shape::Boundary => {
             vec![Node::rect(rect, CORNER_RADIUS, paint)]
         }
@@ -655,6 +717,13 @@ pub fn drawio_cells(
             .set("absoluteArcSize", 1)
             .num("arcSize", CORNER_RADIUS * 2.0)
     };
+    // A person's text is in their box, a child drawn over their own cell.
+    let person_box = (shape == C4Shape::Person).then(|| {
+        let r = PERSON_CIRCLE_RADIUS;
+        rounded(style.clone())
+            .set("verticalAlign", "top")
+            .num("spacingTop", area.y - r)
+    });
     style = match shape {
         C4Shape::Box | C4Shape::Component | C4Shape::Browser | C4Shape::Terminal => rounded(style),
         C4Shape::Folder => style
@@ -680,11 +749,8 @@ pub fn drawio_cells(
             .set("perimeter", "hexagonPerimeter2")
             .set("fixedSize", 1)
             .num("size", round2(hexagon_point(rect))),
-        // Only text: the figure is a detail on top of it.
-        C4Shape::Person => style
-            .set("fillColor", "none")
-            .set("strokeColor", "none")
-            .set("verticalAlign", "top"),
+        // Nothing of its own: its box and circle are details on top of it.
+        C4Shape::Person => style.set("fillColor", "none").set("strokeColor", "none"),
         C4Shape::Boundary => rounded(style)
             .set("container", 1)
             .set("collapsible", 0)
@@ -694,9 +760,10 @@ pub fn drawio_cells(
             .num("spacingBottom", BOUNDARY_TEXT_BOTTOM),
     };
     let id = element.id.as_str();
+    let label = escape_xml(&drawio_label(element));
     let mut cells = vec![cell(
         id,
-        &escape_xml(&drawio_label(element)),
+        if person_box.is_some() { "" } else { &label },
         &style.build(),
         parent,
         &rect_attributes(Rect::new(left, top, rect.width, rect.height)),
@@ -723,6 +790,20 @@ pub fn drawio_cells(
     };
     match shape {
         C4Shape::Person => {
+            let r = PERSON_CIRCLE_RADIUS;
+            if let Some(style) = person_box {
+                cells.push(cell(
+                    &format!("{id}-box"),
+                    &label,
+                    &style
+                        .set("connectable", 0)
+                        .set("pointerEvents", 0)
+                        .set("resizable", 0)
+                        .build(),
+                    &escape_xml(id),
+                    &rect_attributes(Rect::new(0.0, r, rect.width, (rect.height - r).max(0.0))),
+                ));
+            }
             cells.push(detail(
                 "figure",
                 Style::new()
@@ -731,12 +812,7 @@ pub fn drawio_cells(
                     .set("fillColor", fill)
                     .set("strokeColor", border)
                     .num("strokeWidth", weight.width()),
-                Rect::new(
-                    rect.width / 2.0 - actor::WIDTH / 2.0,
-                    PERSON_FIGURE_TOP,
-                    actor::WIDTH,
-                    actor::HEIGHT,
-                ),
+                Rect::new(rect.width / 2.0 - r, 0.0, r * 2.0, r * 2.0),
             ));
         }
         C4Shape::Browser => {
@@ -955,13 +1031,12 @@ mod tests {
     }
 
     #[test]
-    fn people_show_their_text_under_the_figure_in_the_usual_sizes() {
+    fn people_are_a_box_with_their_head_and_shoulders_in_a_circle_on_top() {
         let rect = Rect::new(0.0, 0.0, 200.0, 160.0);
         let mut e = element(C4Shape::Person, rect);
         e.label = "Customer".into();
         e.look.type_line = Some("[Person]".into());
         e.description = Some("Banks online.".into());
-        e.look.border_color = None;
         let out = svg(draw(
             &e,
             C4Shape::Person,
@@ -969,21 +1044,39 @@ mod tests {
             "#1e1e1e",
             LineWeight::Medium,
         ));
-        // The figure, centred at the top, in the element's fill with a dark outline.
+        // The box starts at the circle's centre, and the circle sits on its top edge.
         assert!(
-            out.contains(r##"<g transform="translate(76 5)" fill="#dae8fc" stroke="#1e1e1e""##),
+            out.contains(r#"<rect x="0" y="30" width="200" height="130" rx="8""#),
             "{out}"
         );
-        // The name, type, and description in the same sizes as other elements', from the top.
+        assert!(out.contains(r#"<circle cx="100" cy="30" r="30""#), "{out}");
+        // The head, and the shoulders cropped where they meet the circle, with no line of
+        // their own along the bottom.
+        assert!(out.contains(r#"<circle cx="100" cy="26" r="10""#), "{out}");
+        assert!(
+            out.contains(
+                r#"d="M80.88 53.12 A20 20 0 0 1 119.12 53.12 A30 30 0 0 1 80.88 53.12 Z""#
+            ),
+            "{out}"
+        );
+        assert!(out.contains(r#"d="M80.88 53.12 A20 20 0 0 1 119.12 53.12""#));
+        // The name, type, and description in the same sizes as other elements', under it.
         assert!(out.contains(r#"font-size="16" font-weight="700">Customer</text>"#));
         assert!(out.contains(r#"font-size="11" font-weight="400">[Person]</text>"#));
         assert!(out.contains(r#"font-size="13" font-weight="400">Banks online.</text>"#));
-        // Under the figure, and ending after the three lines.
-        let area = C4Shape::Person.text_area(rect);
-        assert_eq!(area.y, 57.0);
+        assert_eq!(C4Shape::Person.text_area(rect).y, 66.0);
+        // An arrow from above ends on the circle, or on the box beside it.
         assert_eq!(
-            person_text_bottom(&e, &EstimateText),
-            57.0 + 24.0 + 2.0 + 15.0 + 2.0 + 17.0
+            person_top_point(rect, Point::new(100.0, 0.0)),
+            Point::new(100.0, 0.0)
+        );
+        assert_eq!(
+            person_top_point(rect, Point::new(118.0, 0.0)),
+            Point::new(118.0, 6.0)
+        );
+        assert_eq!(
+            person_top_point(rect, Point::new(150.0, 0.0)),
+            Point::new(150.0, 30.0)
         );
         let cells = drawio_cells(
             &e,
@@ -993,12 +1086,20 @@ mod tests {
             "#1e1e1e",
             LineWeight::Medium,
         );
-        // Only text, at the top: the figure is drawn by its own cell.
-        for part in ["strokeColor=none", "fillColor=none", "verticalAlign=top"] {
+        // The person's own cell takes arrows; their box holds the text, and the circle is
+        // drawn over it.
+        for part in ["strokeColor=none", "fillColor=none"] {
             assert!(cells[0].contains(part), "{part}: {}", cells[0]);
         }
-        assert!(cells[1].contains(r#"id="e-figure""#));
-        assert!(cells[1].contains(r#"x="76" y="5" width="48" height="46""#));
+        assert!(cells[1].contains(r#"id="e-box""#));
+        assert!(cells[1].contains("Customer"));
+        assert!(
+            cells[1].contains(r#"x="0" y="30" width="200" height="130""#),
+            "{}",
+            cells[1]
+        );
+        assert!(cells[2].contains(r#"id="e-figure""#));
+        assert!(cells[2].contains(r#"x="70" y="0" width="60" height="60""#));
     }
 
     #[test]

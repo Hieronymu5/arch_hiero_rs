@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use hiero_core::c4::{C4Shape, hexagon_edge_point, person_text_bottom, pipe_edge_point};
+use hiero_core::c4::{C4Shape, hexagon_edge_point, person_top_point, pipe_edge_point};
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::export::drawio::{DrawioArrow, Heading, diagram_to_drawio};
 use hiero_core::geometry::{Point, Rect};
@@ -13,7 +13,6 @@ use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::palette::BLUE;
 use hiero_core::routing::{ConnectionEnds, Side, route_connections};
 use hiero_core::scene::Scene;
-use hiero_core::text::MeasureText;
 
 use crate::model::{C4, C4Kind, Color};
 use crate::rules::{shape_of, type_line};
@@ -44,8 +43,7 @@ pub fn look_of(element: &Laid<C4>) -> LookElement {
         look: Look {
             // A boundary is only a line, in its colour.
             fill: (kind != C4Kind::Boundary).then(|| colors.fill.into()),
-            // A person's figure has the usual dark outline, as other figures do.
-            border_color: (kind != C4Kind::Person).then(|| colors.border.into()),
+            border_color: Some(colors.border.into()),
             type_line: Some(type_line(&element.el)),
             ..Look::new(Shape::C4(shape_of(&element.el)))
         },
@@ -53,28 +51,8 @@ pub fn look_of(element: &Laid<C4>) -> LookElement {
     }
 }
 
-/// How far under a person's text an arrow at their bottom starts or ends.
-const TEXT_CLEARANCE: f64 = 2.0;
-
-/// Where an arrow end at `point` on `side` of `element` is drawn: at a person's bottom, just
-/// under their text, as nothing is drawn below it.
-fn under_text(
-    element: Option<&Laid<C4>>,
-    side: Side,
-    point: Point,
-    measure: &dyn MeasureText,
-) -> Point {
-    match element {
-        Some(e) if side == Side::Bottom && e.el.kind == C4Kind::Person => {
-            let bottom = person_text_bottom(&look_of(e), measure) + TEXT_CLEARANCE;
-            Point::new(point.x, point.y.min(bottom))
-        }
-        _ => point,
-    }
-}
-
-/// Where an arrow end at `point` on `side` of `element` is drawn: on a service's hexagon, or
-/// a queue's or topic's cylinder, rather than the box around it.
+/// Where an arrow end at `point` on `side` of `element` is drawn: on a service's hexagon, a
+/// queue's or topic's cylinder, or the circle on a person's top, rather than the box around it.
 fn on_outline(element: Option<&Laid<C4>>, side: Side, point: Point) -> Point {
     let Some(e) = element else {
         return point;
@@ -82,6 +60,7 @@ fn on_outline(element: Option<&Laid<C4>>, side: Side, point: Point) -> Point {
     match shape_of(&e.el) {
         C4Shape::Hexagon => hexagon_edge_point(e.rect, side, point),
         C4Shape::Pipe => pipe_edge_point(e.rect, side, point),
+        C4Shape::Person if side == Side::Top => person_top_point(e.rect, point),
         _ => point,
     }
 }
@@ -124,9 +103,7 @@ pub fn drawn_arrows(eng: &Engine<C4>, layout: &[Laid<C4>]) -> Vec<DrawnArrow> {
                 c.props.technology.as_deref(),
                 measure,
             );
-            let end = |element, side, point| {
-                under_text(element, side, on_outline(element, side, point), measure)
-            };
+            let end = on_outline;
             Some(DrawnArrow {
                 id: c.id.clone(),
                 source_id: c.source_id.clone(),
@@ -241,10 +218,12 @@ mod tests {
         }
         assert!(svg.contains(">[Software System]</text>"));
         assert!(svg.contains(">Lets customers bank online.</text>"));
-        // People are the actor figure, in their colour.
-        assert!(svg.contains(r#"<path d="M4 45 A20 20 0 0 1 44 45 Z"/>"#));
-        assert!(svg.contains(r##"<g transform="translate(116 5)" fill="#dae8fc""##));
-        assert!(svg.contains(r##"<g transform="translate(476 5)" fill="#d5e8d4""##));
+        // People's circles, in their colour.
+        assert!(
+            svg.contains(r##"<circle cx="140" cy="30" r="30" fill="#dae8fc""##),
+            "{svg}"
+        );
+        assert!(svg.contains(r##"<circle cx="500" cy="30" r="30" fill="#d5e8d4""##));
         // A boundary is only a line, in its colour.
         assert!(svg.contains(r##"fill="none" stroke="#9c3530""##));
         // The relationship is dashed and black, with its description on its middle.
@@ -320,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn people_show_their_type_and_description_and_arrows_leave_under_their_text() {
+    fn people_show_their_type_and_description_and_arrows_leave_their_box() {
         let e = engine(
             serde_json::json!([
                 { "id": "u", "kind": "person", "label": "Customer", "x": 0, "y": 0,
@@ -341,11 +320,8 @@ mod tests {
         assert!(svg.contains(">[Bank Staff]</text>"));
         assert!(svg.contains(">[Core System]</text>"));
         assert!(svg.contains(r#"font-size="13" font-weight="400">Banks online.</text>"#));
-        // The arrow down from the customer starts just under their text, not at the bottom
-        // of their area, where nothing is drawn.
+        // The arrow down from the customer starts on the bottom of their box.
         let from = drawn_arrows(&e, e.layout())[0].look.from;
-        let bottom = person_text_bottom(&look_of(person), &ESTIMATE);
-        assert_eq!(from.y, bottom + 2.0);
-        assert!(from.y < person.rect.bottom());
+        assert_eq!(from.y, person.rect.bottom());
     }
 }
