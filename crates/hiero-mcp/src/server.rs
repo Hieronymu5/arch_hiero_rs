@@ -26,10 +26,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// What the server tells agents about using it.
-pub const INSTRUCTIONS: &str = "Arch Hiero keeps architecture diagrams (conceptual, physical, deployed component, and the C4 model's system context, container, and component diagrams) in a local database that the Arch Hiero app also uses; changes you make show up in the app live and can be undone there. Before editing, call list_diagram_types to learn each type's kinds of element, what they can contain and connect to, and their properties, and read the arch-hiero://types/{type} resource for the full rules. Every edit goes through the type's own rules (for example, zones fill networks and layers stack), so positions you give may be adjusted. Batch related changes into one edit_diagram call; a batch is all or nothing and names the edit that failed and why. Before large changes, call save_version with a description such as \"Before agent edits\" so the user can go back. Your edits leave the diagram a Draft until a version is saved, which makes it a Release. delete_diagram, revert_to_version, and delete_version are destructive.";
+pub const INSTRUCTIONS: &str = "Arch Hiero keeps architecture diagrams (conceptual, physical, deployed component, and C4, whose subtype says whether it's a context, container, or component diagram) in a local database that the Arch Hiero app also uses; changes you make show up in the app live and can be undone there. Before editing, call list_diagram_types to learn each type's kinds of element, what they can contain and connect to, and their properties, and read the arch-hiero://types/{type} resource for the full rules. Every edit goes through the type's own rules (for example, zones fill networks and layers stack), so positions you give may be adjusted. Batch related changes into one edit_diagram call; a batch is all or nothing and names the edit that failed and why. Before large changes, call save_version with a description such as \"Before agent edits\" so the user can go back. Your edits leave the diagram a Draft until a version is saved, which makes it a Release. delete_diagram, revert_to_version, and delete_version are destructive.";
 
 /// The type specs, as resources.
-const SPECS: [(DiagramTypeId, &str); 6] = [
+const SPECS: [(DiagramTypeId, &str); 4] = [
     (
         DiagramTypeId::Conceptual,
         include_str!("../../../docs/diagrams/conceptual.md"),
@@ -43,18 +43,29 @@ const SPECS: [(DiagramTypeId, &str); 6] = [
         include_str!("../../../docs/diagrams/deployed-component.md"),
     ),
     (
-        DiagramTypeId::C4Context,
-        include_str!("../../../docs/diagrams/c4-context.md"),
-    ),
-    (
-        DiagramTypeId::C4Container,
-        include_str!("../../../docs/diagrams/c4-container.md"),
-    ),
-    (
-        DiagramTypeId::C4Component,
-        include_str!("../../../docs/diagrams/c4-component.md"),
+        DiagramTypeId::C4,
+        include_str!("../../../docs/diagrams/c4.md"),
     ),
 ];
+
+/// Checks that `subtype` is one of `diagram_type`'s, returning the message for one that isn't.
+fn check_subtype(diagram_type: DiagramTypeId, subtype: &str) -> Result<(), String> {
+    let ids: Vec<String> = diagram_type
+        .subtypes()
+        .iter()
+        .map(|s| format!("\"{}\"", s.id))
+        .collect();
+    if diagram_type.subtype(subtype).is_some() {
+        Ok(())
+    } else if ids.is_empty() {
+        Err(format!(
+            "A {} diagram has no subtypes.",
+            diagram_type.label().to_lowercase()
+        ))
+    } else {
+        Err(format!("The subtype must be one of {}.", ids.join(", ")))
+    }
+}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct DiagramParams {
@@ -75,10 +86,15 @@ pub struct GetDiagramParams {
 pub struct CreateParams {
     /// The diagram's name, at most 100 characters.
     pub name: String,
-    /// "conceptual", "physical", "deployed-component", "c4-context", "c4-container", or
-    /// "c4-component". It can't be changed later.
+    /// "conceptual", "physical", "deployed-component", or "c4". It can't be changed later.
     #[serde(rename = "type")]
     pub diagram_type: String,
+    /// The kind of diagram within its type, from list_diagram_types' subtypes: for "c4",
+    /// "context", "container", or "component", which only names the diagram's level. Unset
+    /// means the type's first. A diagram's JSON has it in "subtype", left out at the first.
+    #[serde(default)]
+    pub subtype: Option<String>,
+
     /// What the diagram shows, at most 1000 characters.
     #[serde(default)]
     pub description: Option<String>,
@@ -118,6 +134,11 @@ pub struct DetailsParams {
     /// the default.
     #[serde(default)]
     pub canvas_height: Option<f64>,
+    /// The kind of diagram within its type, from list_diagram_types' subtypes: for "c4",
+    /// "context", "container", or "component", which only names the diagram's level. Unset
+    /// means the type's first. A diagram's JSON has it in "subtype", left out at the first.
+    #[serde(default)]
+    pub subtype: Option<String>,
     /// The revision from get_diagram. If the diagram changed since, the update is refused.
     #[serde(default)]
     pub expected_revision: Option<i64>,
@@ -308,6 +329,7 @@ impl HieroServer {
                     "type": t.id().as_str(),
                     "label": t.label(),
                     "hasArrows": t.id().has_arrows(),
+                    "subtypes": t.id().subtypes().iter().map(|s| json!({"id": s.id, "label": s.label})).collect::<Vec<_>>(),
                     "kinds": t.palette(),
                     "props": t.props_doc(),
                     "propValues": t.prop_values(),
@@ -330,6 +352,7 @@ impl HieroServer {
                     .map(|s| {
                         json!({
                             "id": s.meta.id, "name": s.meta.name, "type": s.meta.diagram_type.as_str(),
+                            "subtype": s.subtype.clone().or_else(|| s.meta.diagram_type.subtypes().first().map(|f| f.id.to_owned())),
                             "updatedAt": s.meta.updated_at, "status": s.status.label(),
                             "saved": s.status.saved, "latestVersion": s.status.latest, "revision": s.revision,
                             "parentId": s.parent,
@@ -368,7 +391,7 @@ impl HieroServer {
     pub async fn create_diagram(&self, Parameters(p): Parameters<CreateParams>) -> ToolResult {
         let Some(diagram_type) = DiagramTypeId::parse(&p.diagram_type) else {
             return Ok(failure(
-                "The type must be \"conceptual\", \"physical\", \"deployed-component\", \"c4-context\", \"c4-container\", or \"c4-component\".",
+                "The type must be \"conceptual\", \"physical\", \"deployed-component\", or \"c4\".",
             ));
         };
         if let Err(m) = validate_name(&p.name) {
@@ -377,7 +400,13 @@ impl HieroServer {
         if let Err(m) = validate_description(p.description.as_deref().unwrap_or_default()) {
             return Ok(failure(m));
         }
-        let diagram = hiero_registry::new_diagram(diagram_type, &p.name, p.description);
+        let mut diagram = hiero_registry::new_diagram(diagram_type, &p.name, p.description);
+        if let Some(subtype) = &p.subtype {
+            if let Err(m) = check_subtype(diagram_type, subtype) {
+                return Ok(failure(m));
+            }
+            diagram.set_subtype(subtype);
+        }
         let parent = p.parent_id.filter(|p| !p.is_empty()).map(DiagramId);
         match self.with_store(|s| s.create_under(&diagram, parent.as_ref())) {
             Ok(record) => Ok(match self.describe(&record.diagram.meta.id) {
@@ -389,7 +418,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Changes a diagram's name, description, colours, line weight (how thick elements' lines are), or canvas size (the area elements can be placed on). Its type can't be changed."
+        description = "Changes a diagram's name, description, colours, line weight (how thick elements' lines are), canvas size (the area elements can be placed on), or subtype (such as a C4 diagram's level). Its type can't be changed."
     )]
     pub async fn update_diagram_details(
         &self,
@@ -429,6 +458,10 @@ impl HieroServer {
                     .map_err(|e| StoreError::Corrupt(e.0))?;
                 check_canvas(size, min).map_err(StoreError::Corrupt)?;
                 d.set_canvas(size);
+            }
+            if let Some(subtype) = &p.subtype {
+                check_subtype(d.meta.diagram_type, subtype).map_err(StoreError::Corrupt)?;
+                d.set_subtype(subtype);
             }
             store.save(
                 &record.diagram,

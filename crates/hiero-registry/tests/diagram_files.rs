@@ -188,7 +188,36 @@ fn the_diagram_s_own_fields() {
     );
     assert_eq!(
         refused(c(), set(D, "type", json!("flowchart"))),
-        "The diagram: “type” must be one of: conceptual, deployed-component, physical, c4-context, c4-container, c4-component."
+        "The diagram: “type” must be one of: conceptual, deployed-component, physical, c4."
+    );
+    // A sub type: one of the type's, left out at its first, and not on a type without them.
+    let c4 = || {
+        let mut f = c();
+        set(D, "type", json!("c4"))(&mut f);
+        set(D, "elements", json!([]))(&mut f);
+        set(D, "connections", json!([]))(&mut f);
+        remove(D, "colors")(&mut f);
+        f
+    };
+    let read = |f: Value| diagram_from_file(&f).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(read(c4()).subtype(), "context");
+    let component = read({
+        let mut f = c4();
+        set(D, "subtype", json!("component"))(&mut f);
+        f
+    });
+    assert_eq!(component.type_label(), "C4 - Component");
+    assert_eq!(
+        refused(c4(), set(D, "subtype", json!("context"))),
+        "The diagram: “subtype” must be left out when it’s empty or the default."
+    );
+    assert_eq!(
+        refused(c4(), set(D, "subtype", json!("landscape"))),
+        "The diagram: “subtype” must be one of: container, component."
+    );
+    assert_eq!(
+        refused(c(), set(D, "subtype", json!("container"))),
+        "The diagram: “subtype” isn’t a field a diagram has."
     );
     assert_eq!(
         refused(c(), set(D, "description", json!(""))),
@@ -665,52 +694,64 @@ fn edited_diagrams_export_valid_files() {
              "techStack": ["java", "docker", "java"]}}
         ]),
     );
-    let context = build(
-        fresh(DiagramTypeId::C4Context),
+    // A C4 container diagram, with what doesn't apply to an element given anyway: a
+    // technology on a system, a container type on a component, and a type name on a
+    // container. Each is dropped.
+    let c4 = build(
+        {
+            let mut d = fresh(DiagramTypeId::C4);
+            d.set_subtype("container");
+            d
+        },
         json!([
-            {"op": "add_element", "ref": "u", "kind": "person", "label": "Customer"},
-            {"op": "add_element", "ref": "s", "kind": "software-system", "label": "Bank",
-             "description": " ", "props": {"technology": "Java"}},
-            {"op": "add_element", "ref": "e", "kind": "software-system", "label": "Mail",
-             "props": {"color": "red"}},
-            {"op": "add_connection", "source_id": "u", "target_id": "s",
-             "props": {"description": " Uses ", "technology": "HTTPS"}},
-            {"op": "add_connection", "source_id": "s", "target_id": "e"}
-        ]),
-    );
-    let container = build(
-        fresh(DiagramTypeId::C4Container),
-        json!([
-            {"op": "add_element", "ref": "b", "kind": "system-boundary", "label": "Bank"},
-            {"op": "add_element", "ref": "w", "kind": "web-application", "label": "UI",
-             "parent_id": "b", "props": {"technology": " Angular ", "color": "orange"}},
-            {"op": "add_element", "ref": "d", "kind": "database", "label": "DB",
-             "parent_id": "b", "props": {"technology": ""}},
-            {"op": "add_connection", "source_id": "w", "target_id": "d",
-             "props": {"description": "Reads", "technology": " SQL "}}
-        ]),
-    );
-    let component = build(
-        fresh(DiagramTypeId::C4Component),
-        json!([
-            {"op": "add_element", "ref": "s", "kind": "system-boundary", "label": "Bank"},
-            {"op": "add_element", "ref": "k", "kind": "container-boundary", "label": "API",
-             "parent_id": "s"},
+            {"op": "add_element", "ref": "u", "kind": "person", "label": "Customer",
+             "props": {"typeName": " Shopper "}},
+            {"op": "add_element", "ref": "b", "kind": "boundary", "label": "Bank"},
+            {"op": "add_element", "ref": "k", "kind": "boundary", "label": "API",
+             "parent_id": "b", "props": {"boundaryType": "container"}},
+            {"op": "add_element", "ref": "w", "kind": "container", "label": "UI",
+             "parent_id": "b", "props": {"containerType": "web-application",
+             "technology": " Angular ", "color": "orange", "typeName": "App"}},
+            {"op": "add_element", "ref": "d", "kind": "container", "label": "DB",
+             "parent_id": "k", "props": {"containerType": "database", "technology": ""}},
             {"op": "add_element", "ref": "c", "kind": "component", "label": "Sign In",
-             "parent_id": "k", "props": {"technology": "Spring MVC"}},
-            {"op": "add_element", "ref": "x", "kind": "software-system", "label": "Mail",
-             "props": {"color": "red"}},
-            {"op": "add_connection", "source_id": "c", "target_id": "x"}
+             "parent_id": "k", "props": {"technology": "Spring MVC", "containerType": "queue"}},
+            {"op": "add_element", "ref": "s", "kind": "system", "label": "Mail",
+             "description": " ", "props": {"color": "red", "technology": "Java"}},
+            {"op": "add_connection", "source_id": "u", "target_id": "w",
+             "props": {"description": " Uses ", "technology": "HTTPS"}},
+            {"op": "add_connection", "source_id": "c", "target_id": "s"}
         ]),
     );
-    // What doesn't apply is dropped: technology on a context relationship or a system. Every
-    // element takes a colour, such as a website.
-    assert!(!diagram_file_json(&context).contains("HTTPS"));
-    assert!(!diagram_file_json(&context).contains("Java"));
-    assert!(diagram_file_json(&container).contains(r#""color": "orange""#));
-    for diagram in [
-        conceptual, physical, deployed, context, container, component,
+    let json = diagram_file_json(&c4);
+    assert!(json.contains(r#""subtype": "container""#));
+    assert!(json.contains(r#""typeName": "Shopper""#));
+    assert!(json.contains(r#""color": "orange""#));
+    for dropped in [
+        "Java",
+        r#""typeName": "App""#,
+        r#""containerType": "queue""#,
     ] {
+        assert!(!json.contains(dropped), "{dropped}: {json}");
+    }
+    // A boundary can't go inside what it holds.
+    let error = ops(DiagramTypeId::C4)
+        .apply(
+            &c4,
+            &serde_json::from_value::<Vec<EditOp>>(json!([
+                {"op": "update_element", "id": c4.content.elements[1].id.0, "parent_id":
+                 c4.content.elements[2].id.0}
+            ]))
+            .unwrap(),
+        )
+        .unwrap_err();
+    assert!(
+        error
+            .message
+            .contains("can't go inside itself or something it holds"),
+        "{error}"
+    );
+    for diagram in [conceptual, physical, deployed, c4] {
         read_diagram_file(&diagram_to_zip(&diagram)).unwrap_or_else(|e| {
             panic!("{e}\n{}", diagram_file_json(&diagram));
         });

@@ -735,7 +735,7 @@
   {
     "id": "6edb8f79-4665-4909-a41d-4100ea2645ec",
     "name": "Arch Hiero - System Context",
-    "type": "c4-context",
+    "type": "c4",
     "lineWeight": "medium",
     "description": "Arch Hiero, the people who use it, and the systems it works with",
     "elements": [
@@ -749,7 +749,7 @@
       },
       {
         "id": "0991b605-040b-43fc-9871-b36eee94cd37",
-        "kind": "software-system",
+        "kind": "system",
         "label": "Arch Hiero",
         "x": 300,
         "y": 300,
@@ -758,7 +758,7 @@
       },
       {
         "id": "4e715f11-a28f-4b40-a4fb-6e1a1c58d490",
-        "kind": "software-system",
+        "kind": "system",
         "label": "Claude Code",
         "x": 720,
         "y": 300,
@@ -767,7 +767,7 @@
       },
       {
         "id": "0385edf7-24f9-4ae9-a74f-425558fc35c6",
-        "kind": "software-system",
+        "kind": "system",
         "label": "draw.io",
         "x": 120,
         "y": 580,
@@ -776,7 +776,7 @@
       },
       {
         "id": "f3c8af9f-67d5-49dd-89a0-9a6e28e502a4",
-        "kind": "software-system",
+        "kind": "system",
         "label": "Architecture Repository",
         "x": 480,
         "y": 580,
@@ -822,8 +822,9 @@
   {
     "id": "496d9b78-92ff-47aa-99e6-6cbd53e4792a",
     "name": "Arch Hiero - Containers",
-    "type": "c4-container",
+    "type": "c4",
     "lineWeight": "medium",
+    "subtype": "container",
     "description": "The applications and data stores that make up Arch Hiero",
     "elements": [
       {
@@ -836,7 +837,7 @@
       },
       {
         "id": "69027d82-8437-4fe2-8b56-1803c76917ba",
-        "kind": "system-boundary",
+        "kind": "boundary",
         "label": "Arch Hiero",
         "x": 40,
         "y": 200,
@@ -846,58 +847,63 @@
       },
       {
         "id": "85b4e1df-cc1b-43b9-843b-84cd9d48f9db",
-        "kind": "static-content",
+        "kind": "container",
         "label": "Tech Stack Logos",
         "x": 80,
         "y": 240,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "PNG",
-        "description": "Logos drawn on deployed component diagrams."
+        "description": "Logos drawn on deployed component diagrams.",
+        "containerType": "static-content"
       },
       {
         "id": "eaf6756d-52bd-4261-a94c-c2377771e431",
-        "kind": "web-application",
+        "kind": "container",
         "label": "Diagram Editor",
         "x": 480,
         "y": 240,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "Rust and egui",
-        "description": "Native editor for drawing and exporting diagrams."
+        "description": "Native editor for drawing and exporting diagrams.",
+        "containerType": "web-application"
       },
       {
         "id": "3480f03f-0352-4762-a0aa-bb40850c3574",
-        "kind": "backend",
+        "kind": "container",
         "label": "MCP Server",
         "x": 880,
         "y": 240,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "Rust and rmcp",
         "description": "Lets agents read and edit diagrams over stdio.",
-        "subDiagramId": "bd8859de-479a-4f6a-bb25-4f5b6f385668"
+        "subDiagramId": "bd8859de-479a-4f6a-bb25-4f5b6f385668",
+        "containerType": "backend"
       },
       {
         "id": "8fb2252b-1529-4edc-9b67-4a987d509669",
-        "kind": "store",
+        "kind": "container",
         "label": "Exports",
         "x": 280,
         "y": 560,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "File system",
-        "description": "SVG, draw.io, and .zip files."
+        "description": "SVG, draw.io, and .zip files.",
+        "containerType": "store"
       },
       {
         "id": "8bc9df39-eca1-4513-a1a4-a672bd6bb154",
-        "kind": "database",
+        "kind": "container",
         "label": "Diagram Database",
         "x": 680,
         "y": 560,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "SQLite",
-        "description": "Diagrams, their elements, and their versions."
+        "description": "Diagrams, their elements, and their versions.",
+        "containerType": "database"
       },
       {
         "id": "30fbe6ac-2554-4cb4-b577-da6566c81cbc",
-        "kind": "software-system",
+        "kind": "system",
         "label": "Claude Code",
         "x": 1320,
         "y": 240,
@@ -954,13 +960,14 @@
   {
     "id": "bd8859de-479a-4f6a-bb25-4f5b6f385668",
     "name": "Arch Hiero - MCP Server Components",
-    "type": "c4-component",
+    "type": "c4",
     "lineWeight": "medium",
+    "subtype": "component",
     "description": "The components inside Arch Hiero's MCP server",
     "elements": [
       {
         "id": "527db357-6cf2-4b53-8a8c-32428fca9be6",
-        "kind": "software-system",
+        "kind": "system",
         "label": "Claude Code",
         "x": 100,
         "y": 0,
@@ -969,7 +976,7 @@
       },
       {
         "id": "78996fa6-7585-428f-b01f-83b156a0e90a",
-        "kind": "system-boundary",
+        "kind": "boundary",
         "label": "Arch Hiero",
         "x": 40,
         "y": 240,
@@ -979,14 +986,15 @@
       },
       {
         "id": "67745143-4a53-419d-8aae-1b743c1bcc11",
-        "kind": "container-boundary",
+        "kind": "boundary",
         "label": "MCP Server",
         "x": 80,
         "y": 280,
         "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
         "description": "Rust and rmcp, over stdio",
         "width": 680,
-        "height": 500
+        "height": 500,
+        "boundaryType": "container"
       },
       {
         "id": "71997575-424d-4405-a6d1-ead439a8d685",
@@ -1030,23 +1038,25 @@
       },
       {
         "id": "e9021930-6b5e-4756-b733-cd2ba55be9fc",
-        "kind": "web-application",
+        "kind": "container",
         "label": "Diagram Editor",
         "x": 920,
         "y": 320,
         "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
         "technology": "Rust and egui",
-        "description": "Native editor for drawing and exporting diagrams."
+        "description": "Native editor for drawing and exporting diagrams.",
+        "containerType": "web-application"
       },
       {
         "id": "19866f54-e5af-4980-8690-3906b05aeef6",
-        "kind": "database",
+        "kind": "container",
         "label": "Diagram Database",
         "x": 920,
         "y": 600,
         "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
         "technology": "SQLite",
-        "description": "Diagrams, their elements, and their versions."
+        "description": "Diagrams, their elements, and their versions.",
+        "containerType": "database"
       }
     ],
     "connections": [

@@ -1,16 +1,17 @@
-//! The C4 types' rules: what elements and relationships can hold, what screen readers hear
-//! about them, and how they're checked. The three types share them; each fills in its kinds.
+//! The C4 type's rules: what elements and relationships can hold, the shape and type line each
+//! element shows, what screen readers hear about them, and how they're checked.
 
+use hiero_core::c4::C4Shape;
 use hiero_core::engine::{
     DiagramType, El, Engine, Laid, list_labels, validate_label, validate_length,
 };
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
+use hiero_core::geometry::Size;
 use hiero_core::model::{DiagramTypeId, ElementId, KindInfo, NoColors};
 
 use crate::model::{
-    ARROW_DESCRIPTION_MAX, ARROW_TECHNOLOGY_MAX, C4Arrow, C4Component, C4Container, C4Context,
-    C4Props, C4Type, COMPONENT_PALETTE, CONTAINER_PALETTE, CONTEXT_PALETTE, Color, ComponentKind,
-    ContainerKind, ContextKind, DESCRIPTION_MAX, TECHNOLOGY_MAX, TYPE_NAME_MAX,
+    ARROW_DESCRIPTION_MAX, ARROW_TECHNOLOGY_MAX, BoundaryType, C4, C4Arrow, C4Kind, C4Props, Color,
+    ContainerType, DESCRIPTION_MAX, PALETTE, TECHNOLOGY_MAX, TYPE_NAME_MAX,
 };
 
 const COLOR_FIELD: Field = Field {
@@ -37,93 +38,118 @@ const TYPE_NAME_FIELD: Field = Field {
     },
 };
 
-/// Every element has a colour; containers and components also have a technology, and people
-/// and software systems a type of their own.
-const COLOR_FIELDS: &[Field] = &[COLOR_FIELD];
-const COLOR_AND_TECHNOLOGY_FIELDS: &[Field] = &[COLOR_FIELD, TECHNOLOGY_FIELD];
-const COLOR_AND_TYPE_FIELDS: &[Field] = &[COLOR_FIELD, TYPE_NAME_FIELD];
-
-const DESCRIPTION_FIELD: Field = Field {
-    key: "description",
-    rule: FieldRule::Text {
-        name: "Description",
-        max: ARROW_DESCRIPTION_MAX,
+const CONTAINER_TYPE_FIELD: Field = Field {
+    key: "containerType",
+    rule: FieldRule::OneOf {
+        values: &[
+            "web-application",
+            "static-content",
+            "backend",
+            "service",
+            "queue",
+            "topic",
+            "store",
+            "database",
+        ],
+        default: Some("default"),
     },
 };
 
-const ARROW_TECHNOLOGY_FIELD: Field = Field {
-    key: "technology",
-    rule: FieldRule::Text {
-        name: "Technology",
-        max: ARROW_TECHNOLOGY_MAX,
+const BOUNDARY_TYPE_FIELD: Field = Field {
+    key: "boundaryType",
+    rule: FieldRule::OneOf {
+        values: &["container"],
+        default: Some("system"),
     },
 };
 
-/// A system context diagram's relationships have a description only.
-const CONTEXT_ARROW_FIELDS: &[Field] = &[DESCRIPTION_FIELD];
-/// Container and component diagrams' relationships have a technology too.
-const ARROW_FIELDS: &[Field] = &[DESCRIPTION_FIELD, ARROW_TECHNOLOGY_FIELD];
+/// Every element has a colour. People and systems can name their own type; containers have a
+/// type that sets their shape, and a technology, as components do; boundaries say what
+/// they're round.
+const PERSON_FIELDS: &[Field] = &[COLOR_FIELD, TYPE_NAME_FIELD];
+const CONTAINER_FIELDS: &[Field] = &[COLOR_FIELD, CONTAINER_TYPE_FIELD, TECHNOLOGY_FIELD];
+const COMPONENT_FIELDS: &[Field] = &[COLOR_FIELD, TECHNOLOGY_FIELD];
+const BOUNDARY_FIELDS: &[Field] = &[COLOR_FIELD, BOUNDARY_TYPE_FIELD];
 
-/// The fields an element of `kind` has beyond the common ones.
-fn file_fields<T: C4Type>(kind: T::Kind) -> &'static [Field] {
-    let role = T::role(kind);
-    if role.has_technology() {
-        COLOR_AND_TECHNOLOGY_FIELDS
-    } else if role.has_custom_type() {
-        COLOR_AND_TYPE_FIELDS
-    } else {
-        COLOR_FIELDS
-    }
-}
+const ARROW_FIELDS: &[Field] = &[
+    Field {
+        key: "description",
+        rule: FieldRule::Text {
+            name: "Description",
+            max: ARROW_DESCRIPTION_MAX,
+        },
+    },
+    Field {
+        key: "technology",
+        rule: FieldRule::Text {
+            name: "Technology",
+            max: ARROW_TECHNOLOGY_MAX,
+        },
+    },
+];
 
 /// Text as stored: trimmed, and unset when blank.
 fn clean(text: Option<String>) -> Option<String> {
     text.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty())
 }
 
-/// A relationship as stored: its text trimmed, blank text left out, and no technology on a
-/// system context diagram.
-pub fn normalized_arrow<T: C4Type>(arrow: C4Arrow) -> C4Arrow {
+/// A relationship as stored: its text trimmed and blank text left out.
+pub fn normalized_arrow(arrow: C4Arrow) -> C4Arrow {
     C4Arrow {
         description: clean(arrow.description),
-        technology: clean(arrow.technology).filter(|_| T::ARROW_TECHNOLOGY),
+        technology: clean(arrow.technology),
     }
 }
 
-/// The type line an element shows, such as "[Container: Java and Spring Boot]", "[Person]", or
-/// a person's or software system's own type, such as "[Customer]".
-pub fn type_line<T: C4Type>(element: &El<T>) -> Option<String> {
-    let role = T::role(element.kind);
-    if let Some(own) = element
-        .props
+/// The shape an element is drawn as.
+pub fn shape_of(element: &El<C4>) -> C4Shape {
+    match element.kind {
+        C4Kind::Person => C4Shape::Person,
+        C4Kind::System => C4Shape::Box,
+        C4Kind::Container => ContainerType::shape(element.props.container_type),
+        C4Kind::Component => C4Shape::Component,
+        C4Kind::Boundary => C4Shape::Boundary,
+    }
+}
+
+/// The type line an element shows, such as "[Container: Java and Spring Boot]", "[Person]",
+/// a person's or system's own type, such as "[Customer]", or a boundary's "[Container]".
+pub fn type_line(element: &El<C4>) -> String {
+    let props = &element.props;
+    if let Some(own) = props
         .type_name
         .as_deref()
-        .filter(|_| role.has_custom_type())
+        .filter(|_| element.kind.has_custom_type())
     {
-        return Some(format!("[{own}]"));
+        return format!("[{own}]");
     }
-    let name = role.type_name()?;
-    Some(
-        match element
-            .props
-            .technology
-            .as_deref()
-            .filter(|_| role.has_technology())
-        {
-            Some(technology) => format!("[{name}: {technology}]"),
-            None => format!("[{name}]"),
-        },
-    )
+    let name = match element.kind {
+        C4Kind::Person => "Person",
+        C4Kind::System => "Software System",
+        C4Kind::Container => "Container",
+        C4Kind::Component => "Component",
+        C4Kind::Boundary => BoundaryType::type_name(props.boundary_type),
+    };
+    match props
+        .technology
+        .as_deref()
+        .filter(|_| element.kind.has_technology())
+    {
+        Some(technology) => format!("[{name}: {technology}]"),
+        None => format!("[{name}]"),
+    }
 }
 
-/// Such as "Software System (red)", "Database (MySQL)", or "Queue (Kafka, green)": its own
-/// type, the technology, and the colour unless it's blue.
-fn kind_description<T: C4Type>(element: &Laid<T>) -> String {
-    let role = T::role(element.el.kind);
+/// Such as "Container (Database, MySQL, red)" or "Boundary (Container)": what sets it apart.
+fn kind_description(element: &Laid<C4>) -> String {
     let props = &element.el.props;
+    let kind = element.el.kind;
     let details: Vec<String> = [
-        props.type_name.clone().filter(|_| role.has_custom_type()),
-        props.technology.clone().filter(|_| role.has_technology()),
+        (kind == C4Kind::Container && props.container_type.is_some())
+            .then(|| ContainerType::label(props.container_type).to_owned()),
+        (kind == C4Kind::Boundary).then(|| BoundaryType::label(props.boundary_type).to_owned()),
+        props.type_name.clone().filter(|_| kind.has_custom_type()),
+        props.technology.clone().filter(|_| kind.has_technology()),
         props.color.map(|c| Color::label(Some(c)).to_lowercase()),
     ]
     .into_iter()
@@ -162,8 +188,8 @@ pub fn arrow_title(arrow: &C4Arrow, outgoing: bool, other: &str) -> String {
     out
 }
 
-/// The element's relationships, for screen readers.
-fn extra_details<T: C4Type>(eng: &Engine<T>, element: &Laid<T>) -> Vec<String> {
+/// The element's relationships, and what a boundary is round, for screen readers.
+fn extra_details(eng: &Engine<C4>, element: &Laid<C4>) -> Vec<String> {
     let label = |id: &ElementId| eng.label_of(id).unwrap_or_default().to_owned();
     let mut details: Vec<String> = eng
         .connections()
@@ -186,7 +212,7 @@ fn extra_details<T: C4Type>(eng: &Engine<T>, element: &Laid<T>) -> Vec<String> {
             }
         })
         .collect();
-    if T::role(element.el.kind).is_boundary() {
+    if element.el.kind == C4Kind::Boundary {
         let held: Vec<String> = eng
             .elements()
             .iter()
@@ -200,34 +226,50 @@ fn extra_details<T: C4Type>(eng: &Engine<T>, element: &Laid<T>) -> Vec<String> {
     details
 }
 
+/// The element's properties with only those its kind has, and its text trimmed.
+fn kept(kind: C4Kind, props: C4Props) -> C4Props {
+    C4Props {
+        color: props.color,
+        container_type: props.container_type.filter(|_| kind == C4Kind::Container),
+        boundary_type: props.boundary_type.filter(|_| kind == C4Kind::Boundary),
+        technology: clean(props.technology).filter(|_| kind.has_technology()),
+        type_name: clean(props.type_name).filter(|_| kind.has_custom_type()),
+    }
+}
+
 /// Applies an edited element, keeping only the properties its kind has, and saying when its
-/// colour changed.
-fn apply_element<T: C4Type>(
-    eng: &mut Engine<T>,
+/// colour or type changed.
+fn apply_element(
+    eng: &mut Engine<C4>,
     id: &ElementId,
-    mut with: El<T>,
+    mut with: El<C4>,
     parent_id: Option<ElementId>,
 ) {
     let Some(selected) = eng.laid(id).cloned() else {
         return;
     };
-    let role = T::role(selected.el.kind);
-    if !selected.info.has_description {
-        with.description.clone_from(&selected.el.description);
-    }
-    with.props.technology = clean(with.props.technology).filter(|_| role.has_technology());
-    with.props.type_name = clean(with.props.type_name).filter(|_| role.has_custom_type());
-    if with.props.color != selected.el.props.color {
-        eng.announcement = format!(
-            "{} set to {}.",
-            with.label,
-            Color::label(with.props.color).to_lowercase()
-        );
+    let kind = selected.el.kind;
+    with.props = kept(kind, with.props);
+    let before = &selected.el.props;
+    let set_to = if with.props.container_type != before.container_type {
+        Some(ContainerType::label(with.props.container_type).to_lowercase())
+    } else if with.props.boundary_type != before.boundary_type {
+        Some(format!(
+            "a {} boundary",
+            BoundaryType::label(with.props.boundary_type).to_lowercase()
+        ))
+    } else if with.props.color != before.color {
+        Some(Color::label(with.props.color).to_lowercase())
+    } else {
+        None
+    };
+    if let Some(what) = set_to {
+        eng.announcement = format!("{} set to {what}.", with.label);
     }
     eng.apply_changes(id, with, parent_id);
 }
 
-fn validate_element<T: C4Type>(element: &El<T>) -> Result<(), String> {
+fn validate_element(element: &El<C4>) -> Result<(), String> {
     validate_label(&element.label)?;
     validate_length(
         "Description",
@@ -246,107 +288,90 @@ fn validate_element<T: C4Type>(element: &El<T>) -> Result<(), String> {
     )
 }
 
-fn validate_arrow(arrow: &C4Arrow) -> Result<(), String> {
-    validate_length(
-        "Description",
-        arrow.description.as_deref().unwrap_or_default(),
-        ARROW_DESCRIPTION_MAX,
-    )?;
-    validate_length(
-        "Technology",
-        arrow.technology.as_deref().unwrap_or_default(),
-        ARROW_TECHNOLOGY_MAX,
-    )
-}
+impl DiagramType for C4 {
+    const ID: DiagramTypeId = DiagramTypeId::C4;
+    type Kind = C4Kind;
+    type Props = C4Props;
+    type Arrow = C4Arrow;
+    type Colors = NoColors;
 
-/// Implements `DiagramType` for a C4 type with the shared rules.
-macro_rules! c4_type {
-    ($ty:ty, $id:expr, $kind:ty, $palette:expr, $arrow_fields:expr) => {
-        impl DiagramType for $ty {
-            const ID: DiagramTypeId = $id;
-            type Kind = $kind;
-            type Props = C4Props;
-            type Arrow = C4Arrow;
-            type Colors = NoColors;
-
-            const ARROW_FIELDS: &'static [Field] = $arrow_fields;
-            const DESCRIPTION: DescriptionRule = DescriptionRule {
-                max: DESCRIPTION_MAX,
-                max_lines: None,
-            };
-
-            fn file_fields(kind: $kind) -> &'static [Field] {
-                file_fields::<Self>(kind)
-            }
-
-            fn normalized_arrow(arrow: C4Arrow) -> C4Arrow {
-                normalized_arrow::<Self>(arrow)
-            }
-
-            fn palette() -> &'static [KindInfo<$kind>] {
-                &$palette
-            }
-
-            fn kind_description(_eng: &Engine<Self>, element: &Laid<Self>) -> String {
-                kind_description(element)
-            }
-
-            fn extra_details(eng: &Engine<Self>, element: &Laid<Self>) -> Vec<String> {
-                extra_details(eng, element)
-            }
-
-            fn apply_element(
-                eng: &mut Engine<Self>,
-                id: &ElementId,
-                with: El<Self>,
-                parent_id: Option<ElementId>,
-            ) {
-                apply_element(eng, id, with, parent_id);
-            }
-
-            fn validate_element(element: &El<Self>) -> Result<(), String> {
-                validate_element::<Self>(element)
-            }
-
-            fn validate_arrow(arrow: &C4Arrow) -> Result<(), String> {
-                validate_arrow(arrow)
-            }
-        }
+    const ARROW_FIELDS: &'static [Field] = ARROW_FIELDS;
+    const DESCRIPTION: DescriptionRule = DescriptionRule {
+        max: DESCRIPTION_MAX,
+        max_lines: None,
     };
-}
 
-c4_type!(
-    C4Context,
-    DiagramTypeId::C4Context,
-    ContextKind,
-    CONTEXT_PALETTE,
-    CONTEXT_ARROW_FIELDS
-);
-c4_type!(
-    C4Container,
-    DiagramTypeId::C4Container,
-    ContainerKind,
-    CONTAINER_PALETTE,
-    ARROW_FIELDS
-);
-c4_type!(
-    C4Component,
-    DiagramTypeId::C4Component,
-    ComponentKind,
-    COMPONENT_PALETTE,
-    ARROW_FIELDS
-);
+    fn file_fields(kind: C4Kind) -> &'static [Field] {
+        match kind {
+            C4Kind::Person | C4Kind::System => PERSON_FIELDS,
+            C4Kind::Container => CONTAINER_FIELDS,
+            C4Kind::Component => COMPONENT_FIELDS,
+            C4Kind::Boundary => BOUNDARY_FIELDS,
+        }
+    }
+
+    fn normalized_arrow(arrow: C4Arrow) -> C4Arrow {
+        normalized_arrow(arrow)
+    }
+
+    fn palette() -> &'static [KindInfo<C4Kind>] {
+        &PALETTE
+    }
+
+    /// A container's size comes from its type, such as a queue's lower cylinder.
+    fn natural_size(element: &El<Self>, info: &'static KindInfo<C4Kind>) -> Size {
+        if element.kind == C4Kind::Container {
+            ContainerType::size(element.props.container_type)
+        } else {
+            info.size()
+        }
+    }
+
+    fn kind_description(_eng: &Engine<Self>, element: &Laid<Self>) -> String {
+        kind_description(element)
+    }
+
+    fn extra_details(eng: &Engine<Self>, element: &Laid<Self>) -> Vec<String> {
+        extra_details(eng, element)
+    }
+
+    fn apply_element(
+        eng: &mut Engine<Self>,
+        id: &ElementId,
+        with: El<Self>,
+        parent_id: Option<ElementId>,
+    ) {
+        apply_element(eng, id, with, parent_id);
+    }
+
+    fn validate_element(element: &El<Self>) -> Result<(), String> {
+        validate_element(element)
+    }
+
+    fn validate_arrow(arrow: &C4Arrow) -> Result<(), String> {
+        validate_length(
+            "Description",
+            arrow.description.as_deref().unwrap_or_default(),
+            ARROW_DESCRIPTION_MAX,
+        )?;
+        validate_length(
+            "Technology",
+            arrow.technology.as_deref().unwrap_or_default(),
+            ARROW_TECHNOLOGY_MAX,
+        )
+    }
+}
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::model::{QUEUE_SIZE, SERVICE_SIZE};
     use hiero_core::geometry::Point;
-    use hiero_core::model::NoColors;
     use hiero_core::text::EstimateText;
 
     static ESTIMATE: EstimateText = EstimateText;
 
-    pub(crate) fn engine<T: C4Type>() -> Engine<T> {
+    pub(crate) fn engine() -> Engine<C4> {
         let mut n = 0;
         Engine::new(Vec::new(), Vec::new(), NoColors {})
             .with_measure(&ESTIMATE)
@@ -360,144 +385,131 @@ pub(crate) mod tests {
         s.into()
     }
 
+    /// Applies `change` to element `of`, as its properties panel does.
+    fn change(e: &mut Engine<C4>, of: &str, change: impl FnOnce(&mut El<C4>)) {
+        let mut with = e.element(&id(of)).unwrap().clone();
+        change(&mut with);
+        e.select(&id(of));
+        C4::apply_element(
+            e,
+            &id(of),
+            with,
+            e.element(&id(of)).unwrap().parent_id.clone(),
+        );
+    }
+
     #[test]
-    fn people_and_systems_relate_to_each_other() {
-        let mut e = engine::<C4Context>();
-        e.add_at_free_position(ContextKind::Person);
-        e.add_at_free_position(ContextKind::SoftwareSystem);
-        e.add_at_free_position(ContextKind::SoftwareSystem);
+    fn the_palette_has_five_elements_and_boundaries_take_no_arrows() {
+        let labels: Vec<&str> = PALETTE.iter().map(|k| k.label).collect();
+        assert_eq!(
+            labels,
+            ["Person", "System", "Container", "Component", "Boundary"]
+        );
+        let mut e = engine();
+        e.add_at_free_position(C4Kind::Person);
+        e.add_at_free_position(C4Kind::System);
+        e.add_at_free_position(C4Kind::Boundary);
         assert!(e.can_connect(&id("id1"), &id("id2")));
         assert!(e.can_connect(&id("id2"), &id("id1")));
-        assert!(e.can_connect(&id("id2"), &id("id3")));
-        let system = e.laid(&id("id2")).unwrap().clone();
-        assert_eq!(C4Context::kind_description(&e, &system), "Software System");
-    }
-
-    #[test]
-    fn containers_go_in_a_system_boundary_which_takes_no_arrows() {
-        let mut e = engine::<C4Container>();
-        e.palette_drop(ContainerKind::SystemBoundary, Point::new(400.0, 300.0));
-        e.palette_drop(ContainerKind::Backend, Point::new(300.0, 200.0));
-        assert_eq!(e.element(&id("id2")).unwrap().parent_id, Some(id("id1")));
-        e.add_at_free_position(ContainerKind::Person);
-        assert!(e.can_connect(&id("id3"), &id("id2")));
+        assert!(!e.can_connect(&id("id1"), &id("id3")));
         assert!(!e.can_connect(&id("id3"), &id("id1")));
-        let boundary = e.laid(&id("id1")).unwrap();
-        assert!(boundary.is_region);
-        // The backend sits clear of the boundary's text at its bottom.
-        let backend = e.laid(&id("id2")).unwrap().rect;
-        assert!(backend.bottom() + 60.0 <= boundary.rect.bottom());
     }
 
     #[test]
-    fn a_system_boundary_holds_a_container_boundary_which_holds_components() {
-        let mut e = engine::<C4Component>();
-        e.palette_drop(ComponentKind::SystemBoundary, Point::new(600.0, 400.0));
-        e.palette_drop(ComponentKind::ContainerBoundary, Point::new(500.0, 350.0));
-        assert_eq!(e.element(&id("id2")).unwrap().parent_id, Some(id("id1")));
-        e.palette_drop(ComponentKind::Component, Point::new(400.0, 300.0));
-        assert_eq!(e.element(&id("id3")).unwrap().parent_id, Some(id("id2")));
-        let boundary = e.laid(&id("id1")).unwrap().clone();
-        assert!(e.accessible_label(&boundary).contains("around Container"));
-    }
-
-    #[test]
-    fn technology_shows_in_the_type_line_and_colour_changes_are_announced() {
-        let mut e = engine::<C4Container>();
-        e.add_at_free_position(ContainerKind::Database);
-        e.add_at_free_position(ContainerKind::SoftwareSystem);
-        e.select(&id("id1"));
-        let mut with = e.element(&id("id1")).unwrap().clone();
-        with.props.technology = Some("  MySQL  ".into());
-        with.props.color = Some(Color::Green);
-        C4Container::apply_element(&mut e, &id("id1"), with, None);
-        assert_eq!(e.announcement, "Database set to green.");
-        let database = e.element(&id("id1")).unwrap();
-        assert_eq!(database.props.technology.as_deref(), Some("MySQL"));
-        assert_eq!(database.props.color, Some(Color::Green));
+    fn a_containers_type_sets_its_shape_size_and_reading() {
+        let mut e = engine();
+        e.add_at_free_position(C4Kind::Container);
+        let el = |e: &Engine<C4>| e.element(&id("id1")).unwrap().clone();
+        assert_eq!(shape_of(&el(&e)), C4Shape::Box);
+        assert_eq!(type_line(&el(&e)), "[Container]");
+        change(&mut e, "id1", |w| {
+            w.props.container_type = Some(ContainerType::Queue);
+            w.props.technology = Some(" Kafka ".into());
+            w.props.type_name = Some("Bus".into());
+        });
+        assert_eq!(e.announcement, "Container set to queue.");
+        assert_eq!(shape_of(&el(&e)), C4Shape::Pipe);
+        assert_eq!(type_line(&el(&e)), "[Container: Kafka]");
+        // A container can't rename its type.
+        assert_eq!(el(&e).props.type_name, None);
+        assert_eq!(e.laid(&id("id1")).unwrap().rect.size(), QUEUE_SIZE);
+        change(&mut e, "id1", |w| {
+            w.props.container_type = Some(ContainerType::Service);
+        });
+        assert_eq!(e.laid(&id("id1")).unwrap().rect.size(), SERVICE_SIZE);
+        change(&mut e, "id1", |w| w.props.color = Some(Color::Red));
         let laid = e.laid(&id("id1")).unwrap().clone();
         assert_eq!(
-            C4Container::kind_description(&e, &laid),
-            "Database (MySQL, green)"
-        );
-        assert_eq!(
-            type_line::<C4Container>(database).as_deref(),
-            Some("[Container: MySQL]")
-        );
-        let mut with = e.element(&id("id2")).unwrap().clone();
-        with.props.color = Some(Color::Red);
-        // A software system has no technology.
-        with.props.technology = Some("Java".into());
-        C4Container::apply_element(&mut e, &id("id2"), with, None);
-        assert_eq!(e.announcement, "Software System set to red.");
-        assert_eq!(e.element(&id("id2")).unwrap().props.technology, None);
-        assert_eq!(
-            type_line::<C4Container>(e.element(&id("id2")).unwrap()).as_deref(),
-            Some("[Software System]")
+            C4::kind_description(&e, &laid),
+            "Container (Service, Kafka, red)"
         );
     }
 
     #[test]
-    fn people_and_software_systems_can_name_their_own_type() {
-        let mut e = engine::<C4Context>();
-        e.add_at_free_position(ContextKind::Person);
-        e.add_at_free_position(ContextKind::SoftwareSystem);
-        let type_of = |e: &Engine<C4Context>, id: &str| {
-            type_line::<C4Context>(e.element(&id.into()).unwrap())
-        };
-        // [Person] and [Software System] unless they say otherwise.
-        assert_eq!(type_of(&e, "id1").as_deref(), Some("[Person]"));
-        assert_eq!(type_of(&e, "id2").as_deref(), Some("[Software System]"));
-        for (id, own) in [("id1", " Customer "), ("id2", "External System")] {
-            let mut with = e.element(&id.into()).unwrap().clone();
-            with.props.type_name = Some(own.into());
-            C4Context::apply_element(&mut e, &id.into(), with, None);
-        }
-        assert_eq!(type_of(&e, "id1").as_deref(), Some("[Customer]"));
-        assert_eq!(type_of(&e, "id2").as_deref(), Some("[External System]"));
-        let laid = e.laid(&"id2".into()).unwrap().clone();
+    fn boundaries_are_round_a_system_or_a_container_and_nest() {
+        let mut e = engine();
+        e.palette_drop(C4Kind::Boundary, Point::new(600.0, 400.0));
+        e.palette_drop(C4Kind::Boundary, Point::new(500.0, 350.0));
+        assert_eq!(e.element(&id("id2")).unwrap().parent_id, Some(id("id1")));
+        change(&mut e, "id2", |w| {
+            w.props.boundary_type = Some(BoundaryType::Container);
+        });
+        assert_eq!(e.announcement, "Boundary set to a container boundary.");
         assert_eq!(
-            C4Context::kind_description(&e, &laid),
-            "Software System (External System)"
+            type_line(e.element(&id("id1")).unwrap()),
+            "[Software System]"
         );
-        // Blank goes back to the usual type.
-        let mut with = e.element(&"id1".into()).unwrap().clone();
-        with.props.type_name = Some("  ".into());
-        C4Context::apply_element(&mut e, &"id1".into(), with, None);
-        assert_eq!(type_of(&e, "id1").as_deref(), Some("[Person]"));
-        // People have a description, and other kinds can't name their type.
-        assert!(e.laid(&"id1".into()).unwrap().info.has_description);
-        let mut c = engine::<C4Container>();
-        c.add_at_free_position(ContainerKind::Backend);
-        let mut with = c.element(&"id1".into()).unwrap().clone();
-        with.props.type_name = Some("API".into());
-        C4Container::apply_element(&mut c, &"id1".into(), with, None);
-        assert_eq!(c.element(&"id1".into()).unwrap().props.type_name, None);
-        let mut long = e.element(&"id2".into()).unwrap().clone();
+        assert_eq!(type_line(e.element(&id("id2")).unwrap()), "[Container]");
+        e.palette_drop(C4Kind::Component, Point::new(400.0, 300.0));
+        assert_eq!(e.element(&id("id3")).unwrap().parent_id, Some(id("id2")));
+        let outer = e.laid(&id("id1")).unwrap().clone();
+        assert!(e.accessible_label(&outer).contains("around Boundary"));
+        // The outer boundary can't be put inside the one it holds: it stays where it is.
+        e.select(&id("id1"));
+        assert!(e.parent_options().is_empty());
+        let with = e.element(&id("id1")).unwrap().clone();
+        C4::apply_element(&mut e, &id("id1"), with, Some(id("id2")));
+        assert_eq!(e.element(&id("id1")).unwrap().parent_id, None);
+        assert_eq!(e.element(&id("id2")).unwrap().parent_id, Some(id("id1")));
+    }
+
+    #[test]
+    fn people_and_systems_can_name_their_own_type() {
+        let mut e = engine();
+        e.add_at_free_position(C4Kind::Person);
+        e.add_at_free_position(C4Kind::System);
+        let type_of = |e: &Engine<C4>, of: &str| type_line(e.element(&id(of)).unwrap());
+        assert_eq!(type_of(&e, "id1"), "[Person]");
+        assert_eq!(type_of(&e, "id2"), "[Software System]");
+        change(&mut e, "id1", |w| {
+            w.props.type_name = Some(" Customer ".into());
+        });
+        change(&mut e, "id2", |w| {
+            w.props.type_name = Some("External System".into());
+            w.props.technology = Some("Java".into());
+        });
+        assert_eq!(type_of(&e, "id1"), "[Customer]");
+        assert_eq!(type_of(&e, "id2"), "[External System]");
+        // A system has no technology.
+        assert_eq!(e.element(&id("id2")).unwrap().props.technology, None);
+        change(&mut e, "id1", |w| w.props.type_name = Some("  ".into()));
+        assert_eq!(type_of(&e, "id1"), "[Person]");
+        let mut long = e.element(&id("id2")).unwrap().clone();
         long.props.type_name = Some("x".repeat(41));
         assert_eq!(
-            C4Context::validate_element(&long).unwrap_err(),
+            C4::validate_element(&long).unwrap_err(),
             "Type must be 40 characters or fewer."
         );
     }
 
     #[test]
-    fn context_relationships_leave_technology_out() {
-        let arrow = C4Arrow {
+    fn relationships_are_trimmed_and_described() {
+        let arrow = normalized_arrow(C4Arrow {
             description: Some(" Uses ".into()),
-            technology: Some("HTTPS".into()),
-        };
-        assert_eq!(
-            normalized_arrow::<C4Context>(arrow.clone()),
-            C4Arrow {
-                description: Some("Uses".into()),
-                technology: None
-            }
-        );
-        assert_eq!(
-            normalized_arrow::<C4Container>(arrow).technology.as_deref(),
-            Some("HTTPS")
-        );
+            technology: Some(" ".into()),
+        });
+        assert_eq!(arrow.description.as_deref(), Some("Uses"));
+        assert_eq!(arrow.technology, None);
         assert_eq!(
             arrow_title(
                 &C4Arrow {
@@ -509,22 +521,10 @@ pub(crate) mod tests {
             ),
             "To Database [SQL]: Reads from"
         );
-    }
-
-    #[test]
-    fn validation_limits_lengths() {
-        let mut e = engine::<C4Container>();
-        e.add_at_free_position(ContainerKind::Backend);
-        let mut el = e.elements()[0].clone();
-        el.props.technology = Some("x".repeat(61));
-        assert_eq!(
-            C4Container::validate_element(&el).unwrap_err(),
-            "Technology must be 60 characters or fewer."
-        );
-        let arrow = C4Arrow {
+        let long = C4Arrow {
             description: Some("x".repeat(151)),
             technology: None,
         };
-        assert!(C4Container::validate_arrow(&arrow).is_err());
+        assert!(C4::validate_arrow(&long).is_err());
     }
 }

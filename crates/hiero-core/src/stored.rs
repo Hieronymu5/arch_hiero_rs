@@ -66,6 +66,9 @@ pub struct StoredDiagram {
     pub line_weight: Option<LineWeight>,
     /// The size of the drawing area, when it's been made bigger than the default.
     pub canvas: Option<Size>,
+    /// The kind of diagram within its type, such as a C4 diagram's level, when it isn't the
+    /// type's first.
+    pub subtype: Option<String>,
     pub content: StoredContent,
 }
 
@@ -90,6 +93,30 @@ impl StoredDiagram {
     /// Sizes the drawing area, keeping the size only when it differs from the default.
     pub fn set_canvas(&mut self, size: Size) {
         self.canvas = (size != DEFAULT_CANVAS).then_some(size);
+    }
+
+    /// The diagram's sub type, such as "container", or the type's first; empty for a type
+    /// without sub types.
+    pub fn subtype(&self) -> &str {
+        let ty = self.meta.diagram_type;
+        self.subtype
+            .as_deref()
+            .filter(|s| ty.subtype(s).is_some())
+            .or_else(|| ty.subtypes().first().map(|s| s.id))
+            .unwrap_or_default()
+    }
+
+    /// Sets the sub type, keeping it only when it's one of the type's and not its first.
+    pub fn set_subtype(&mut self, id: &str) {
+        let ty = self.meta.diagram_type;
+        self.subtype = (ty.subtype(id).is_some()
+            && ty.subtypes().first().map(|s| s.id) != Some(id))
+        .then(|| id.to_owned());
+    }
+
+    /// The type's name with the diagram's sub type, such as "C4 - Container".
+    pub fn type_label(&self) -> String {
+        self.meta.diagram_type.label_with(self.subtype.as_deref())
     }
 }
 

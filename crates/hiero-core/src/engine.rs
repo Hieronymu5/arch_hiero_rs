@@ -726,15 +726,17 @@ impl<T: DiagramType> Engine<T> {
     }
 
     /// Containers the selected element could sit in, naming their kind when it could sit in
-    /// more than one, such as "CRM (Application)".
+    /// more than one, such as "CRM (Application)". Not itself, nor anything it holds, where a
+    /// kind can hold its own kind.
     pub fn parent_options(&self) -> Vec<(ElementId, String)> {
         let Some(selected) = self.selected() else {
             return Vec::new();
         };
         let mixed = self.parent_kinds().len() > 1;
+        let inside = descendant_ids(&self.elements, selected.id());
         self.containers_for(selected.el.kind, &self.layout)
             .into_iter()
-            .filter(|c| c.el.id != selected.el.id)
+            .filter(|c| c.el.id != selected.el.id && !inside.contains(&c.el.id))
             .map(|c| {
                 let label = if mixed {
                     format!("{} ({})", c.el.label, c.info.label)
@@ -764,7 +766,11 @@ impl<T: DiagramType> Engine<T> {
         let Some(selected) = self.laid(id).cloned() else {
             return;
         };
-        if parent_id == selected.el.parent_id {
+        // An element can't go inside itself or what it holds: it stays where it is.
+        let into_itself = parent_id
+            .as_ref()
+            .is_some_and(|p| p == id || descendant_ids(&self.elements, id).contains(p));
+        if parent_id == selected.el.parent_id || into_itself {
             self.replace(id, |_| with);
             return;
         }

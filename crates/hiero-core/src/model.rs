@@ -68,33 +68,76 @@ pub enum DiagramTypeId {
     Conceptual,
     DeployedComponent,
     Physical,
-    /// C4 model: a software system in its context of people and other systems.
-    C4Context,
-    /// C4 model: the containers (applications and data stores) inside a software system.
-    C4Container,
-    /// C4 model: the components inside a container.
-    C4Component,
+    /// The C4 model's diagrams: its sub type says which level, context, container, or
+    /// component, a diagram shows.
+    C4,
 }
+
+/// A kind of diagram within a type, such as a C4 diagram's level: it names the diagram, and
+/// is chosen in Edit Details.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Subtype {
+    /// As stored and in files.
+    pub id: &'static str,
+    pub label: &'static str,
+}
+
+/// A C4 diagram's levels, the first the default.
+const C4_SUBTYPES: &[Subtype] = &[
+    Subtype {
+        id: "context",
+        label: "Context",
+    },
+    Subtype {
+        id: "container",
+        label: "Container",
+    },
+    Subtype {
+        id: "component",
+        label: "Component",
+    },
+];
 
 impl DiagramTypeId {
     /// Every diagram type, in menu order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 4] = [
         Self::Conceptual,
         Self::DeployedComponent,
         Self::Physical,
-        Self::C4Context,
-        Self::C4Container,
-        Self::C4Component,
+        Self::C4,
     ];
+
+    /// The kinds of diagram of this type, the first the default. Empty for a type without.
+    pub const fn subtypes(self) -> &'static [Subtype] {
+        match self {
+            Self::C4 => C4_SUBTYPES,
+            _ => &[],
+        }
+    }
+
+    /// The sub type `id` names, if this type has it.
+    pub fn subtype(self, id: &str) -> Option<Subtype> {
+        self.subtypes().iter().copied().find(|s| s.id == id)
+    }
+
+    /// The type's name with a diagram's sub type, such as "C4 - Container", or the type's own
+    /// for a type without one.
+    pub fn label_with(self, subtype: Option<&str>) -> String {
+        let chosen = subtype
+            .and_then(|id| self.subtype(id))
+            .or_else(|| self.subtypes().first().copied());
+        match chosen {
+            Some(s) => format!("{} - {}", self.label(), s.label),
+            None => self.label().to_owned(),
+        }
+    }
 
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Conceptual => "conceptual",
             Self::DeployedComponent => "deployed-component",
             Self::Physical => "physical",
-            Self::C4Context => "c4-context",
-            Self::C4Container => "c4-container",
-            Self::C4Component => "c4-component",
+            Self::C4 => "c4",
         }
     }
 
@@ -103,9 +146,7 @@ impl DiagramTypeId {
             Self::Conceptual => "Conceptual",
             Self::DeployedComponent => "Deployed Component",
             Self::Physical => "Physical",
-            Self::C4Context => "C4 - System Context",
-            Self::C4Container => "C4 - Container",
-            Self::C4Component => "C4 - Component",
+            Self::C4 => "C4",
         }
     }
 
@@ -120,7 +161,7 @@ impl DiagramTypeId {
         match self {
             Self::DeployedComponent => LineWeight::Thin,
             Self::Conceptual | Self::Physical => LineWeight::Thick,
-            Self::C4Context | Self::C4Container | Self::C4Component => LineWeight::Medium,
+            Self::C4 => LineWeight::Medium,
         }
     }
 
@@ -543,10 +584,15 @@ mod tests {
             Some(DiagramTypeId::DeployedComponent)
         );
         assert_eq!(DiagramTypeId::parse("nope"), None);
-        assert_eq!(
-            DiagramTypeId::parse("c4-container"),
-            Some(DiagramTypeId::C4Container)
-        );
+        assert_eq!(DiagramTypeId::parse("c4"), Some(DiagramTypeId::C4));
+        assert_eq!(DiagramTypeId::parse("c4-container"), None);
+        // A C4 diagram is named after its level, the first the default.
+        let c4 = DiagramTypeId::C4;
+        assert_eq!(c4.label_with(Some("container")), "C4 - Container");
+        assert_eq!(c4.label_with(None), "C4 - Context");
+        assert_eq!(c4.label_with(Some("nope")), "C4 - Context");
+        assert_eq!(DiagramTypeId::Physical.label_with(None), "Physical");
+        assert!(DiagramTypeId::Conceptual.subtypes().is_empty());
         assert!(!DiagramTypeId::DeployedComponent.has_arrows());
     }
 }

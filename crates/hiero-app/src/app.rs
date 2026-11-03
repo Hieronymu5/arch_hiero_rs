@@ -116,6 +116,9 @@ pub struct DetailsForm {
     pub line_weight: Option<LineWeight>,
     /// The canvas's size. Unset while adding a diagram.
     pub canvas: Option<Size>,
+    /// The kind of diagram within its type, such as a C4 diagram's level, by id. Unset means
+    /// the type's first, and for a type without sub types.
+    pub subtype: Option<String>,
     pub tried: bool,
     pub error: Option<String>,
     /// While adding a diagram for an element: the diagram it's in, and the element.
@@ -362,10 +365,22 @@ impl App {
         match request {
             DiagramRequest::Open { diagram, viewing } => self.open_diagram(&diagram, viewing),
             DiagramRequest::Add { element, name } => {
-                // A sub diagram starts as the same type as the diagram it's in.
+                // A sub diagram starts as the same type as the diagram it's in, one level more
+                // detailed where the type has levels, such as a C4 container diagram for a
+                // system on a context diagram.
+                let subtypes = diagram_type.subtypes();
+                let current = subtypes
+                    .iter()
+                    .position(|s| s.id == open.record.subtype())
+                    .unwrap_or_default();
+                let subtype = subtypes
+                    .get(current + 1)
+                    .or_else(|| subtypes.get(current))
+                    .map(|s| s.id.to_owned());
                 self.form = DetailsForm {
                     name,
                     diagram_type: Some(diagram_type),
+                    subtype,
                     opened_from: Some((from, element)),
                     ..DetailsForm::default()
                 };
@@ -632,8 +647,11 @@ impl App {
         let Some(diagram_type) = form.diagram_type else {
             return;
         };
-        let diagram =
+        let mut diagram =
             hiero_registry::new_diagram(diagram_type, &form.name, Some(form.description.clone()));
+        if let Some(subtype) = &form.subtype {
+            diagram.set_subtype(subtype);
+        }
         // A diagram added for an element is a sub diagram of the element's diagram.
         let parent = form.opened_from.as_ref().map(|(from, _)| from.clone());
         match self.worker.call(|reply| Request::Create {
@@ -698,6 +716,9 @@ impl App {
         if let Some(size) = form.canvas {
             open.record.set_canvas(size);
             open.editor.set_canvas(size);
+        }
+        if let Some(subtype) = &form.subtype {
+            open.record.set_subtype(subtype);
         }
         if DiagramSnapshot::of(&open.record) != before {
             let stack = self.undo_stack(&id);

@@ -67,7 +67,7 @@ and say you skipped them.
 | `core` | `hiero-core` |
 | `store` | `hiero-store` |
 | `editor` | `hiero-editor` |
-| `conceptual`, `physical`, `deployed`, `c4` | the diagram crates (`c4` is `hiero-c4`, the three C4 types) |
+| `conceptual`, `physical`, `deployed`, `c4` | the diagram crates (`c4` is `hiero-c4`, the C4 type) |
 | `registry` | `hiero-registry` |
 | `app` | `hiero-app` |
 | `mcp` | `hiero-mcp` |

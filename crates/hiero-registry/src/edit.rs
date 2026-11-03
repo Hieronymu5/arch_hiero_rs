@@ -425,6 +425,14 @@ impl<T: DiagramType> Batch<'_, T> {
         }
         T::validate_element(&with)?;
         if let Some(Some(parent)) = &parent {
+            if parent == id
+                || hiero_core::engine::descendant_ids(self.eng.elements(), id).contains(parent)
+            {
+                return Err(format!(
+                    "“{}” can't go inside itself or something it holds",
+                    current.label
+                ));
+            }
             let holder = self.eng.element(parent).map(|e| e.kind);
             if !holder.is_some_and(|h| T::info(h).can_contain.contains(&current.kind)) {
                 return Err(format!(

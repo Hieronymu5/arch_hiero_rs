@@ -781,7 +781,7 @@ impl App {
                             self.open_diagram(&id, true);
                         }
                     });
-                    ui.label(row.meta.diagram_type.label());
+                    ui.label(row.type_label());
                     ui.label(date(&row.meta.updated_at));
                     status_badge(ui, row.status);
                     ui.horizontal(|ui| {
@@ -909,6 +909,7 @@ impl App {
                 .form
                 .diagram_type
                 .map_or("Select a diagram type", DiagramTypeId::label);
+            let before = self.form.diagram_type;
             egui::ComboBox::from_id_salt("diagram-type")
                 .selected_text(selected)
                 .width(420.0)
@@ -917,6 +918,10 @@ impl App {
                         ui.selectable_value(&mut self.form.diagram_type, Some(t), t.label());
                     }
                 });
+            // Another type starts at its first sub type.
+            if self.form.diagram_type != before {
+                self.form.subtype = None;
+            }
             if tried && self.form.diagram_type.is_none() {
                 ui.label(error_text(ui, "Select a diagram type."));
             }
@@ -924,6 +929,26 @@ impl App {
             ui.label(
                 RichText::new(self.form.diagram_type.map_or("", DiagramTypeId::label)).strong(),
             );
+        }
+        // The kind of diagram within its type, such as a C4 diagram's level, which names it.
+        let subtypes = self
+            .form
+            .diagram_type
+            .map_or(&[][..], DiagramTypeId::subtypes);
+        if let Some(first) = subtypes.first() {
+            ui.add_space(FIELD_GAP);
+            field_label(ui, "Sub type", false);
+            let mut chosen = self
+                .form
+                .subtype
+                .clone()
+                .unwrap_or_else(|| first.id.to_owned());
+            ui.horizontal(|ui| {
+                for s in subtypes {
+                    ui.radio_value(&mut chosen, s.id.to_owned(), s.label);
+                }
+            });
+            self.form.subtype = Some(chosen);
         }
         ui.add_space(FIELD_GAP);
         field_label(ui, "Description", false);
@@ -1106,7 +1131,6 @@ impl App {
         let (can_undo, can_redo) = (self.can_undo(), self.can_redo());
         let mut action: Option<&'static str> = None;
         if let Some(open) = &mut self.open {
-            let meta = open.record.meta.clone();
             // The top bar shows the name, description, and status.
             under_logo(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -1167,7 +1191,7 @@ impl App {
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.label(
-                            RichText::new(format!("{} diagram", meta.diagram_type.label()))
+                            RichText::new(format!("{} diagram", open.record.type_label()))
                                 .font(fonts::bold(16.0))
                                 .color(ui.visuals().strong_text_color()),
                         );
@@ -1220,6 +1244,7 @@ impl App {
             colors: open.record.colors.clone(),
             line_weight: Some(open.record.line_weight()),
             canvas: Some(open.record.canvas()),
+            subtype: Some(open.record.subtype().to_owned()).filter(|s| !s.is_empty()),
             tried: false,
             error: None,
             opened_from: None,

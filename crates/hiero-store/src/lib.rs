@@ -119,6 +119,16 @@ pub struct Summary {
     /// The diagram this one was added as a sub diagram of, if any. Deleting that one deletes
     /// this one with it.
     pub parent: Option<DiagramId>,
+    /// The kind of diagram within its type, such as a C4 diagram's level, when it isn't the
+    /// type's first.
+    pub subtype: Option<String>,
+}
+
+impl Summary {
+    /// The type's name with the diagram's sub type, such as "C4 - Container".
+    pub fn type_label(&self) -> String {
+        self.meta.diagram_type.label_with(self.subtype.as_deref())
+    }
 }
 
 /// A row in a diagram's history.
@@ -271,6 +281,56 @@ CREATE INDEX diagrams_by_name ON diagrams(name COLLATE NOCASE);
 CREATE INDEX diagrams_by_parent ON diagrams(parent_diagram_id);
 ";
 
+/// Replaces the three C4 types with one, whose diagrams choose their level as a sub type kept
+/// in a new column. Diagrams of the three old types are deleted, with their versions; a sub
+/// diagram of one stays, as a diagram of its own. The table is rebuilt to change its CHECK, as
+/// migration 6 did.
+const MIGRATION_7: &str = r"
+UPDATE diagrams SET parent_diagram_id = NULL
+  WHERE parent_diagram_id IN (SELECT id FROM diagrams
+                              WHERE type IN ('c4-context', 'c4-container', 'c4-component'));
+DELETE FROM elements WHERE diagram_id IN (
+  SELECT id FROM diagrams WHERE type IN ('c4-context', 'c4-container', 'c4-component'));
+DELETE FROM connections WHERE diagram_id IN (
+  SELECT id FROM diagrams WHERE type IN ('c4-context', 'c4-container', 'c4-component'));
+DELETE FROM diagram_versions WHERE diagram_id IN (
+  SELECT id FROM diagrams WHERE type IN ('c4-context', 'c4-container', 'c4-component'));
+DELETE FROM diagrams WHERE type IN ('c4-context', 'c4-container', 'c4-component');
+
+CREATE TABLE diagrams_7 (
+  id                TEXT PRIMARY KEY,
+  type              TEXT NOT NULL CHECK (type IN ('conceptual', 'physical', 'deployed-component',
+                                                  'c4')),
+  name              TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+  description       TEXT CHECK (description IS NULL OR length(description) <= 1000),
+  colors            TEXT CHECK (colors IS NULL OR json_valid(colors)),
+  content_hash      TEXT NOT NULL,
+  revision          INTEGER NOT NULL DEFAULT 0,
+  next_version      INTEGER NOT NULL DEFAULT 1,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  line_weight       TEXT CHECK (line_weight IS NULL OR line_weight IN ('thin', 'medium', 'thick')),
+  parent_diagram_id TEXT REFERENCES diagrams(id) ON DELETE CASCADE,
+  canvas_width      REAL CHECK (canvas_width IS NULL OR canvas_width > 0),
+  canvas_height     REAL CHECK (canvas_height IS NULL OR canvas_height > 0),
+  subtype           TEXT CHECK (subtype IS NULL OR length(subtype) > 0)
+) STRICT;
+INSERT INTO diagrams_7 (id, type, name, description, colors, content_hash, revision,
+                        next_version, created_at, updated_at, line_weight, parent_diagram_id,
+                        canvas_width, canvas_height)
+  SELECT id, type, name, description, colors, content_hash, revision, next_version, created_at,
+         updated_at, line_weight, parent_diagram_id, canvas_width, canvas_height
+  FROM diagrams;
+DROP TABLE diagrams;
+ALTER TABLE diagrams_7 RENAME TO diagrams;
+
+CREATE TRIGGER diagrams_type_is_fixed BEFORE UPDATE OF type ON diagrams
+WHEN NEW.type <> OLD.type
+BEGIN SELECT RAISE(ABORT, 'A diagram''s type can''t be changed.'); END;
+CREATE INDEX diagrams_by_name ON diagrams(name COLLATE NOCASE);
+CREATE INDEX diagrams_by_parent ON diagrams(parent_diagram_id);
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(MIGRATION_1),
@@ -279,6 +339,7 @@ fn migrations() -> Migrations<'static> {
         M::up(MIGRATION_4),
         M::up(MIGRATION_5),
         M::up(MIGRATION_6),
+        M::up(MIGRATION_7),
     ])
 }
 
@@ -416,7 +477,7 @@ impl Store {
                     (SELECT v.content_hash FROM diagram_versions v WHERE v.diagram_id = d.id
                      ORDER BY v.version DESC LIMIT 1),
                     (SELECT MAX(v.version) FROM diagram_versions v WHERE v.diagram_id = d.id),
-                    d.parent_diagram_id
+                    d.parent_diagram_id, d.subtype
              FROM diagrams d ORDER BY d.name COLLATE NOCASE, d.id",
         )?;
         let rows = statement.query_map([], |row| {
@@ -432,6 +493,7 @@ impl Store {
                 row.get::<_, Option<String>>(8)?,
                 row.get::<_, Option<i64>>(9)?,
                 row.get::<_, Option<String>>(10)?,
+                row.get::<_, Option<String>>(11)?,
             ))
         })?;
         rows.map(|row| {
@@ -447,6 +509,7 @@ impl Store {
                 latest_hash,
                 latest,
                 parent,
+                subtype,
             ) = row?;
             Ok(Summary {
                 meta: DiagramMeta {
@@ -463,6 +526,7 @@ impl Store {
                 },
                 revision,
                 parent: parent.map(DiagramId),
+                subtype,
             })
         })
         .collect()
@@ -811,7 +875,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
     let row = conn
         .query_row(
             "SELECT type, name, description, colors, created_at, updated_at, revision,
-                    line_weight, canvas_width, canvas_height
+                    line_weight, canvas_width, canvas_height, subtype
              FROM diagrams WHERE id = ?1",
             params![id.0],
             |row| {
@@ -826,6 +890,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
                     row.get::<_, Option<String>>(7)?,
                     row.get::<_, Option<f64>>(8)?,
                     row.get::<_, Option<f64>>(9)?,
+                    row.get::<_, Option<String>>(10)?,
                 ))
             },
         )
@@ -841,6 +906,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
         line_weight,
         canvas_width,
         canvas_height,
+        subtype,
     )) = row
     else {
         return Ok(None);
@@ -914,6 +980,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
             colors,
             line_weight,
             canvas,
+            subtype,
             content: StoredContent {
                 elements,
                 connections,
@@ -928,8 +995,8 @@ fn insert_diagram(tx: &Transaction<'_>, diagram: &StoredDiagram) -> Result<()> {
     tx.execute(
         "INSERT INTO diagrams (id, type, name, description, colors, line_weight, content_hash,
                                revision, next_version, created_at, updated_at,
-                               canvas_width, canvas_height)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 1, ?8, ?9, ?10, ?11)",
+                               canvas_width, canvas_height, subtype)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 1, ?8, ?9, ?10, ?11, ?12)",
         params![
             m.id.0,
             m.diagram_type.as_str(),
@@ -942,6 +1009,7 @@ fn insert_diagram(tx: &Transaction<'_>, diagram: &StoredDiagram) -> Result<()> {
             m.updated_at,
             diagram.canvas.map(|c| c.width),
             diagram.canvas.map(|c| c.height),
+            diagram.subtype,
         ],
     )?;
     insert_content(tx, &m.id, &diagram.content)
@@ -992,7 +1060,7 @@ fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) ->
     let changed = tx.execute(
         "UPDATE diagrams SET name = ?2, description = ?3, colors = ?4, line_weight = ?5,
                 content_hash = ?6, revision = revision + 1, updated_at = ?7,
-                canvas_width = ?9, canvas_height = ?10
+                canvas_width = ?9, canvas_height = ?10, subtype = ?11
          WHERE id = ?1 AND revision = ?8",
         params![
             m.id.0,
@@ -1005,6 +1073,7 @@ fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) ->
             revision,
             diagram.canvas.map(|c| c.width),
             diagram.canvas.map(|c| c.height),
+            diagram.subtype,
         ],
     )?;
     if changed == 0 {
@@ -1069,6 +1138,7 @@ mod tests {
             colors: BTreeMap::new(),
             line_weight: None,
             canvas: None,
+            subtype: None,
             content: StoredContent {
                 elements: vec![
                     StoredElement::from_json(&json!({"id": "a", "kind": "actor", "label": "A", "x": 40, "y": 40})).unwrap(),
@@ -1202,64 +1272,76 @@ mod tests {
     }
 
     #[test]
-    fn c4_diagrams_can_be_added_to_a_database_from_before_them() {
+    fn the_three_c4_types_give_way_to_one_with_a_sub_type() {
+        // A database from before, with a diagram of an old C4 type that has a version and a
+        // sub diagram, beside a diagram of another type.
         let mut conn = Connection::open_in_memory().unwrap();
-        migrations().to_version(&mut conn, 5).unwrap();
+        migrations().to_version(&mut conn, 6).unwrap();
         conn.execute_batch(
             "INSERT INTO diagrams (id, type, name, content_hash, created_at, updated_at,
                                    line_weight, canvas_width, canvas_height)
-             VALUES ('p', 'conceptual', 'Parent', '', '', '', 'thin', 3000, 2000);
+             VALUES ('p', 'conceptual', 'Keep', '', '', '', 'thin', 3000, 2000),
+                    ('old', 'c4-container', 'Old', '', '', '', NULL, NULL, NULL);
              INSERT INTO diagrams (id, type, name, content_hash, created_at, updated_at,
                                    parent_diagram_id)
-             VALUES ('s', 'physical', 'Sub', '', '', '', 'p');
+             VALUES ('s', 'physical', 'Sub', '', '', '', 'old');
              INSERT INTO elements (diagram_id, id, ord, kind, label, x, y)
-             VALUES ('s', 'e', 0, 'user', 'E', 0, 0);",
+             VALUES ('s', 'e', 0, 'user', 'E', 0, 0),
+                    ('old', 'e', 0, 'database', 'DB', 0, 0);
+             INSERT INTO diagram_versions (diagram_id, version, saved_at, content_hash, snapshot)
+             VALUES ('old', 1, '', '', '{}');",
         )
         .unwrap();
         let mut store = Store::setup(conn).unwrap();
-        // What was there is kept.
-        let parent = store.get(&"p".into()).unwrap().unwrap().diagram;
-        assert_eq!(parent.line_weight, Some(LineWeight::Thin));
+        // The old C4 diagram is gone, with its elements and versions; the rest are kept, the
+        // sub diagram now on its own.
+        assert!(store.get(&"old".into()).unwrap().is_none());
+        let count = |store: &Store, sql: &str| -> i64 {
+            store.conn.query_row(sql, [], |r| r.get(0)).unwrap()
+        };
         assert_eq!(
-            store
-                .get(&"s".into())
-                .unwrap()
-                .unwrap()
-                .diagram
-                .content
-                .elements
-                .len(),
-            1
+            count(
+                &store,
+                "SELECT count(*) FROM elements WHERE diagram_id = 'old'"
+            ),
+            0
         );
-        // C4 diagrams can be made, and a type still can't change.
-        for t in [
-            DiagramTypeId::C4Context,
-            DiagramTypeId::C4Container,
-            DiagramTypeId::C4Component,
-        ] {
-            store.create(&diagram(t.as_str(), t)).unwrap();
-        }
+        assert_eq!(
+            count(
+                &store,
+                "SELECT count(*) FROM diagram_versions WHERE diagram_id = 'old'"
+            ),
+            0
+        );
+        let kept = store.get(&"p".into()).unwrap().unwrap().diagram;
+        assert_eq!(kept.line_weight, Some(LineWeight::Thin));
+        let sub = store.get(&"s".into()).unwrap().unwrap();
+        assert_eq!(sub.diagram.content.elements.len(), 1);
+        assert_eq!(store.list().unwrap().len(), 2);
+        // A C4 diagram keeps its sub type in its record and its versions.
+        let mut c4 = diagram("c", DiagramTypeId::C4);
+        c4.content = StoredContent::default();
+        let record = store.create(&c4).unwrap();
+        assert_eq!(record.diagram.subtype(), "context");
+        let mut container = record.diagram.clone();
+        container.set_subtype("container");
+        store.save(&container, Some(record.revision)).unwrap();
+        let got = store.get(&"c".into()).unwrap().unwrap().diagram;
+        assert_eq!(got.subtype.as_deref(), Some("container"));
+        assert_eq!(got.type_label(), "C4 - Container");
+        assert_eq!(store.status(&"c".into()).unwrap().label(), "Draft · v1");
+        assert_eq!(store.save_version(&"c".into(), None).unwrap(), Some(2));
+        let v2 = store.get_version(&"c".into(), 2).unwrap().unwrap();
+        assert_eq!(v2.subtype(), "container");
+        let (reverted, _) = store.revert_to_version(&"c".into(), 1, None).unwrap();
+        assert_eq!(reverted.diagram.subtype, None);
+        // A type still can't change.
         assert!(
             store
                 .conn
-                .execute("UPDATE diagrams SET type = 'c4-context' WHERE id = 'p'", [])
+                .execute("UPDATE diagrams SET type = 'c4' WHERE id = 'p'", [])
                 .is_err()
         );
-        // Deleting a diagram still deletes its sub diagrams and their elements.
-        store
-            .conn
-            .execute("DELETE FROM diagrams WHERE id = 'p'", [])
-            .unwrap();
-        let left: i64 = store
-            .conn
-            .query_row(
-                "SELECT count(*) FROM elements WHERE diagram_id = 's'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(left, 0);
-        assert!(store.get(&"s".into()).unwrap().is_none());
     }
 
     #[test]

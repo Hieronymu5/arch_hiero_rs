@@ -473,6 +473,21 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
         }
     }
 
+    // 11, continued. The kind of diagram within its type, such as a C4 diagram's level: one of
+    // the type's, left out at its first.
+    if let Some(value) = diagram.get("subtype") {
+        let subtypes = T::ID.subtypes();
+        let Some((first, rest)) = subtypes.split_first() else {
+            return Err(at("“subtype” isn’t a field a diagram has.".into()));
+        };
+        let ids: Vec<&str> = rest.iter().map(|s| s.id).collect();
+        match value.as_str() {
+            Some(id) if id == first.id => return Err(at(left_out("subtype"))),
+            Some(id) if ids.contains(&id) => {}
+            _ => return Err(at(one_of("subtype", &ids))),
+        }
+    }
+
     // 12. The dates.
     for key in ["createdAt", "updatedAt"] {
         let text = match diagram.get(key) {
@@ -509,6 +524,7 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
                 | "lineWeight"
                 | "canvasWidth"
                 | "canvasHeight"
+                | "subtype"
         ) || (has_colors && k == colors_key)
     };
     if let Some(key) = first_unknown(diagram, allowed) {

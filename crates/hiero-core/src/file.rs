@@ -62,6 +62,10 @@ struct FileDiagram<'a> {
         with = "crate::model::num::opt"
     )]
     canvas_height: Option<f64>,
+    /// The kind of diagram within its type, such as a C4 diagram's level, left out at the
+    /// type's first.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subtype: Option<&'a str>,
     elements: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     connections: Option<Vec<Value>>,
@@ -96,6 +100,7 @@ fn file_diagram(diagram: &StoredDiagram) -> FileDiagram<'_> {
         line_weight: diagram.line_weight(),
         canvas_width: Some(diagram.canvas().width).filter(|w| *w != DEFAULT_CANVAS.width),
         canvas_height: Some(diagram.canvas().height).filter(|h| *h != DEFAULT_CANVAS.height),
+        subtype: diagram.subtype.as_deref(),
         elements: diagram
             .content
             .elements
@@ -246,6 +251,10 @@ pub fn diagram_from_json(diagram: &Value) -> Result<StoredDiagram, DiagramFileEr
         colors,
         line_weight,
         canvas: (canvas != DEFAULT_CANVAS).then_some(canvas),
+        subtype: text("subtype").filter(|s| {
+            diagram_type.subtype(s).is_some()
+                && diagram_type.subtypes().first().map(|f| f.id) != Some(s.as_str())
+        }),
         content: StoredContent {
             elements,
             connections,

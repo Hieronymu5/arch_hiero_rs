@@ -28,7 +28,7 @@ impl Column {
     fn compare(self, a: &Summary, b: &Summary) -> Ordering {
         match self {
             Self::Name => a.meta.name.to_lowercase().cmp(&b.meta.name.to_lowercase()),
-            Self::Type => a.meta.diagram_type.label().cmp(b.meta.diagram_type.label()),
+            Self::Type => a.type_label().cmp(&b.type_label()),
             // RFC 3339 UTC timestamps sort as text.
             Self::Updated => a.meta.updated_at.cmp(&b.meta.updated_at),
             // Drafts before releases, then by the latest version.
@@ -175,6 +175,7 @@ mod tests {
             },
             revision: 0,
             parent: None,
+            subtype: None,
         }
     }
 

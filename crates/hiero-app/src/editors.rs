@@ -1,6 +1,6 @@
 //! The one place the app names every diagram type's editor.
 
-use hiero_c4::{C4Component, C4Container, C4Context};
+use hiero_c4::C4;
 use hiero_conceptual::Conceptual;
 use hiero_core::model::DiagramTypeId;
 use hiero_core::stored::{ContentError, StoredDiagram};
@@ -22,15 +22,7 @@ pub fn editor_for(diagram: &StoredDiagram) -> Result<Box<dyn DiagramEditor>, Con
         DiagramTypeId::DeployedComponent => Box::new(Editor::<DeployedComponent>::from_stored(
             content, colors, salt,
         )?),
-        DiagramTypeId::C4Context => {
-            Box::new(Editor::<C4Context>::from_stored(content, colors, salt)?)
-        }
-        DiagramTypeId::C4Container => {
-            Box::new(Editor::<C4Container>::from_stored(content, colors, salt)?)
-        }
-        DiagramTypeId::C4Component => {
-            Box::new(Editor::<C4Component>::from_stored(content, colors, salt)?)
-        }
+        DiagramTypeId::C4 => Box::new(Editor::<C4>::from_stored(content, colors, salt)?),
     };
     editor.set_line_weight(diagram.line_weight());
     editor.set_canvas(diagram.canvas());

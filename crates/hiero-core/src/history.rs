@@ -33,6 +33,7 @@ pub struct DiagramSnapshot {
     pub colors: BTreeMap<String, String>,
     pub line_weight: Option<LineWeight>,
     pub canvas: Option<Size>,
+    pub subtype: Option<String>,
     pub content: StoredContent,
 }
 
@@ -44,6 +45,7 @@ impl DiagramSnapshot {
             colors: diagram.colors.clone(),
             line_weight: diagram.line_weight,
             canvas: diagram.canvas,
+            subtype: diagram.subtype.clone(),
             content: diagram.content.clone(),
         }
     }
@@ -55,6 +57,7 @@ impl DiagramSnapshot {
         diagram.colors.clone_from(&self.colors);
         diagram.line_weight = self.line_weight;
         diagram.canvas = self.canvas;
+        diagram.subtype.clone_from(&self.subtype);
         diagram.content.clone_from(&self.content);
     }
 
@@ -74,6 +77,10 @@ impl DiagramSnapshot {
         if let Some(canvas) = self.canvas {
             value["canvasWidth"] = json!(canvas.width);
             value["canvasHeight"] = json!(canvas.height);
+        }
+        // Left out at the type's first, for the same reason.
+        if let Some(subtype) = &self.subtype {
+            value["subtype"] = json!(subtype);
         }
         value
     }
@@ -193,6 +200,7 @@ mod tests {
             colors: BTreeMap::new(),
             line_weight: None,
             canvas: None,
+            subtype: None,
             content: StoredContent {
                 elements: vec![
                     StoredElement::from_json(&json!({
@@ -221,6 +229,14 @@ mod tests {
         assert_eq!(content_hash(&a), content_hash(&d));
         d.set_canvas(crate::geometry::Size::new(4800.0, 1600.0));
         assert_ne!(content_hash(&a), content_hash(&d));
+        // A sub type changes the hash, but only where it's not the type's first.
+        let mut c4 = a.clone();
+        c4.meta.diagram_type = crate::model::DiagramTypeId::C4;
+        let first = content_hash(&c4);
+        c4.set_subtype("context");
+        assert_eq!(content_hash(&c4), first);
+        c4.set_subtype("component");
+        assert_ne!(content_hash(&c4), first);
         assert_eq!(content_hash(&a).len(), 64);
     }
 

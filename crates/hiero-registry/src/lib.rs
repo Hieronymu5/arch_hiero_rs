@@ -7,7 +7,7 @@ pub mod edit;
 use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 
-use hiero_c4::{C4Component, C4Container, C4Context};
+use hiero_c4::C4;
 use hiero_conceptual::Conceptual;
 use hiero_core::engine::{DiagramType, Engine};
 use hiero_core::export::drawio::Heading;
@@ -149,34 +149,14 @@ impl Drawn for DeployedComponent {
     }
 }
 
-impl Drawn for C4Context {
+impl Drawn for C4 {
     fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
         hiero_c4::scene::to_drawio(eng, title, Some(heading))
     }
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_c4::scene::scene(eng)
     }
-    const PROPS_DOC: &'static str = "Element props: every element {color: \"green\" | \"orange\" | \"red\"; omit for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A person's figure is filled in it, a boundary's line drawn in it}; software-system a description (≤ 500). People are drawn as the actor figure with their name, type, and description (≤ 500) under it. person and software-system {typeName (≤ 40), shown in square brackets in place of [Person] or [Software System], e.g. \"Customer\"; omit for the usual type}. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Views account balances using\"}. System context diagrams leave technology out.";
-}
-
-impl Drawn for C4Container {
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
-        hiero_c4::scene::to_drawio(eng, title, Some(heading))
-    }
-    fn scene(eng: &Engine<Self>) -> Scene {
-        hiero_c4::scene::scene(eng)
-    }
-    const PROPS_DOC: &'static str = "Element props: every element {color: \"green\" | \"orange\" | \"red\"; omit for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A person's figure is filled in it, a boundary's line drawn in it}; web-application (a browser window), static-content (a folder), backend (a box with a prompt), store (a bucket), database (a cylinder), service (a hexagon: a microservice, or another service that owns one capability), queue and topic (a cylinder on its side: model each queue or topic as its own container, which publishers and subscribers point to) {technology (≤ 60), e.g. \"Java and Spring Boot\", shown as [Container: Java and Spring Boot]}. Every kind but person has a description (≤ 500), shown inside it; a system-boundary shows its name and description in its bottom-left corner, holds the containers, and takes no arrows. People are drawn as the actor figure with their name, type, and description (≤ 500) under it. person and software-system {typeName (≤ 40), shown in square brackets in place of [Person] or [Software System], e.g. \"Customer\"; omit for the usual type}. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Makes API requests to\", technology (≤ 60), e.g. \"JSON/HTTPS\", shown in square brackets}.";
-}
-
-impl Drawn for C4Component {
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
-        hiero_c4::scene::to_drawio(eng, title, Some(heading))
-    }
-    fn scene(eng: &Engine<Self>) -> Scene {
-        hiero_c4::scene::scene(eng)
-    }
-    const PROPS_DOC: &'static str = "Element props: every element {color: \"green\" | \"orange\" | \"red\"; omit for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A person's figure is filled in it, a boundary's line drawn in it}; component (a box with two tabs on its left), web-application (a UI container: a browser window), database (a cylinder), and store (a bucket) {technology (≤ 60), e.g. \"Spring MVC\", shown as [Component: Spring MVC]}. Every kind but person has a description (≤ 500), shown inside it; boundaries show their name and description in their bottom-left corner and take no arrows. A system-boundary holds a container-boundary, web applications, databases, and stores; a container-boundary holds components, databases, and stores. People are drawn as the actor figure with their name, type, and description (≤ 500) under it. person and software-system {typeName (≤ 40), shown in square brackets in place of [Person] or [Software System], e.g. \"Customer\"; omit for the usual type}. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Validates credentials using\", technology (≤ 60), e.g. \"JSON/HTTPS\", shown in square brackets}.";
+    const PROPS_DOC: &'static str = "A C4 diagram's subtype (\"context\", \"container\", or \"component\"; omit for context) only names its level: every diagram has the same five kinds. Element props: every element {color: \"green\" | \"orange\" | \"red\"; omit for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A person's figure is filled in it, a boundary's line drawn in it} and a description (≤ 500). person and system {typeName (≤ 40), shown in square brackets in place of [Person] or [Software System], e.g. \"Customer\"; omit for the usual type}. container {containerType: \"web-application\" (a browser window) | \"static-content\" (a folder) | \"backend\" (a box with a prompt) | \"service\" (a hexagon, 200 × 160: a microservice) | \"queue\" | \"topic\" (a cylinder on its side, 240 × 120: model each queue or topic as its own container, which publishers and subscribers point to) | \"store\" (a bucket) | \"database\" (a cylinder); omit for a plain box; technology (≤ 60), shown as [Container: technology]}. component {technology (≤ 60), shown as [Component: technology]}: a box with two tabs on its left. boundary {boundaryType: \"container\"; omit for a software system}: a line round what it holds, with its name, type, and description in its bottom-left corner; it holds any element, other boundaries too, and takes no arrows. People are drawn as the actor figure with their name, type, and description under it. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Makes API requests to\", technology (≤ 60), e.g. \"JSON/HTTPS\", shown in square brackets}.";
 }
 
 struct Entry<T>(PhantomData<fn() -> T>);
@@ -336,12 +316,10 @@ impl<T: Drawn> TypeOps for Entry<T> {
 static CONCEPTUAL: Entry<Conceptual> = Entry(PhantomData);
 static PHYSICAL: Entry<Physical> = Entry(PhantomData);
 static DEPLOYED: Entry<DeployedComponent> = Entry(PhantomData);
-static C4_CONTEXT: Entry<C4Context> = Entry(PhantomData);
-static C4_CONTAINER: Entry<C4Container> = Entry(PhantomData);
-static C4_COMPONENT: Entry<C4Component> = Entry(PhantomData);
+static C4_TYPE: Entry<C4> = Entry(PhantomData);
 
 /// Every diagram type, in menu order.
-pub fn types() -> [&'static dyn TypeOps; 6] {
+pub fn types() -> [&'static dyn TypeOps; 4] {
     DiagramTypeId::ALL.map(ops)
 }
 
@@ -351,9 +329,7 @@ pub fn ops(id: DiagramTypeId) -> &'static dyn TypeOps {
         DiagramTypeId::Conceptual => &CONCEPTUAL,
         DiagramTypeId::DeployedComponent => &DEPLOYED,
         DiagramTypeId::Physical => &PHYSICAL,
-        DiagramTypeId::C4Context => &C4_CONTEXT,
-        DiagramTypeId::C4Container => &C4_CONTAINER,
-        DiagramTypeId::C4Component => &C4_COMPONENT,
+        DiagramTypeId::C4 => &C4_TYPE,
     }
 }
 
@@ -481,6 +457,7 @@ pub fn new_diagram(
         colors: BTreeMap::new(),
         line_weight: None,
         canvas: None,
+        subtype: None,
         content: ops(diagram_type).new_content(),
     };
     diagram.set_line_weight(LineWeight::Medium);

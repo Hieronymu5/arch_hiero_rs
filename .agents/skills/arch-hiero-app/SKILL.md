@@ -6,16 +6,14 @@ argument-hint: "[the diagram to build, and where to save it]"
 
 # Arch Hiero diagrams
 
-Arch Hiero is a desktop app that draws six types of architecture diagram. Its MCP server, `arch-hiero-mcp`, reads and edits the same SQLite database as the app, so whatever you build shows up in the app straight away, and the user can undo it there. You build a diagram with a few tool calls, check how it came out, fix it, and export it.
+Arch Hiero is a desktop app that draws four types of architecture diagram. Its MCP server, `arch-hiero-mcp`, reads and edits the same SQLite database as the app, so whatever you build shows up in the app straight away, and the user can undo it there. You build a diagram with a few tool calls, check how it came out, fix it, and export it.
 
 | Type | Shows | Arrows |
 | --- | --- | --- |
 | `conceptual` | Actors, domains, applications, the components, processes, entities, and files in them, and jobs | Labelled, with a connector (interface), manual or automated, one- or two-way |
 | `physical` | Users, servers, databases, load balancers, firewalls, gateways, and storage in zones and networks | Protocol and port |
 | `deployed-component` | Components in layers, such as network zones, with protocols and tech stacks | None |
-| `c4-context` | C4 level 1: people and software systems, each blue, green, orange, or red | Relationships: dashed, with a description |
-| `c4-container` | C4 level 2: the websites, static content, backends, services, queues, topics, stores, and databases in a system boundary | Relationships with a description and technology |
-| `c4-component` | C4 level 3: components in a container boundary, inside a system boundary | Relationships with a description and technology |
+| `c4` | The C4 model: people, systems, containers (websites, services, queues, databases, and more), and components, in boundaries. Its `subtype` (`context`, `container`, or `component`) names the level | Relationships: dashed, with a description and technology |
 
 ## 1. Connect to the server
 
@@ -122,12 +120,13 @@ Start from the example closest to what you're building, in `examples/`.
 - `dependency` is `internal` (yellow) or `external` (red, such as a third-party identity provider), or omitted for a core component (green).
 - `protocols` are drawn across the top of a component, and `techStack` as logos along the bottom. The `techStack` ids, such as `springboot`, `angular`, and `mysql`, are listed under `propValues.techStack` in `list_diagram_types`, grouped by category. An edit with any other id is refused.
 
-### C4 (system context, container, component)
+### C4
 
-- Follow the C4 model: a system context diagram shows the one system in scope with the people and systems around it; a container diagram opens that system; a component diagram opens one container. Link them with `subDiagramId` so each element opens the next level.
+- Follow the C4 model: a context diagram (`"subtype"` left out) shows the one system in scope with the people and systems around it; a container diagram (`"subtype": "container"`) opens that system; a component diagram (`"subtype": "component"`) opens one container. Set the subtype with `create_diagram` or `update_diagram_details`; it only names the diagram, as every level has the same five kinds. Link the levels with `subDiagramId` so each element opens the next.
+- The kinds are `person`, `system`, `container`, `component`, and `boundary`. A container's `containerType` sets its shape: `web-application` (a browser window), `static-content` (a folder), `backend` (a box with a prompt), `service` (a hexagon), `queue` or `topic` (a cylinder on its side), `store` (a bucket), or `database` (a cylinder); leave it out for a plain box.
 - Put people at the top, the system in scope (or its boundary) in the middle, and the systems it depends on below or to the right. Every element takes a `color`: leave it out for blue, the system in scope and what's in it; use `"orange"` for the organisation's other systems, `"red"` for ones outside it, and `"green"` for anything else worth setting apart.
-- A person is the actor figure with its name, `[Person]` (or its own `typeName`, such as "Customer"), and description under it, 200 × 160. A software system can name its type too, such as "External System". Everything else is 240 wide (140 tall for systems and components, 160 for containers), except a service, 200 × 160, with its name, type, and description inside, so keep descriptions to a sentence.
-- Draw each microservice on a container diagram as a `service` (a hexagon) beside the database it owns, such as "Orders API" reading and writing "Orders database".
-- Model each message queue or topic as its own `queue` or `topic` container (a cylinder on its side, 240 × 120), not the message bus as one. Put publishers on its left with "Publishes messages to" and subscribers on its right pointing back at it with "Subscribes to messages from". For a simple point-to-point coupling you can instead leave the queue out and set the relationship's `technology` to `via Queue X`.
-- Put containers in the `system-boundary`, and components in the `container-boundary`, with `parent_id`. Boundaries keep 60 pixels at their bottom for their name and description, and take no arrows.
+- A person is the actor figure with its name, `[Person]` (or its own `typeName`, such as "Customer"), and description under it, 200 × 160. A system can name its type too, such as "External System". Everything else is 240 wide (140 tall for systems and components, 160 for containers) with its name, type, and description inside, so keep descriptions to a sentence; a service is 200 × 160, and a queue or topic 240 × 120.
+- Draw each microservice as a `service` container beside the `database` container it owns, such as "Orders API" reading and writing "Orders database".
+- Model each message queue or topic as its own `queue` or `topic` container, not the message bus as one. Put publishers on its left with "Publishes messages to" and subscribers on its right pointing back at it with "Subscribes to messages from". For a simple point-to-point coupling you can instead leave the queue out and set the relationship's `technology` to `via Queue X`.
+- Put containers in a `boundary` round their system, and components in a `boundary` with `"boundaryType": "container"`, with `parent_id`; a container boundary can sit inside its system's. Boundaries keep 60 pixels at their bottom for their name and description, and take no arrows.
 - Give every relationship a `description` that reads as a sentence from source to target, such as "Makes API requests to", and on container and component diagrams a `technology`, such as `JSON/HTTPS`. The text sits on the middle of the arrow, so leave about 120 pixels between elements it joins.
