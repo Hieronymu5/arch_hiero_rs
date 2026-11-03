@@ -17,7 +17,7 @@ use hiero_core::routing::{ConnectionEnds, Side, route_connections};
 use hiero_core::scene::Scene;
 use hiero_core::text::MeasureText;
 
-use hiero_core::c4::{C4Shape, hexagon_edge_point};
+use hiero_core::c4::{C4Shape, hexagon_edge_point, pipe_edge_point};
 
 use crate::model::{C4Type, Role, Scope};
 use crate::rules::type_line;
@@ -106,13 +106,15 @@ fn clear_of_name<T: C4Type>(
     }
 }
 
-/// Where an arrow end at `point` on `side` of `element` is drawn: on a service's hexagon
-/// rather than the box around it.
+/// Where an arrow end at `point` on `side` of `element` is drawn: on a service's hexagon, or
+/// a queue's or topic's cylinder, rather than the box around it.
 fn on_outline<T: C4Type>(element: Option<&Laid<T>>, side: Side, point: Point) -> Point {
-    match element {
-        Some(e) if T::role(e.el.kind).shape() == Some(C4Shape::Hexagon) => {
-            hexagon_edge_point(e.rect, side, point)
-        }
+    let Some(e) = element else {
+        return point;
+    };
+    match T::role(e.el.kind).shape() {
+        Some(C4Shape::Hexagon) => hexagon_edge_point(e.rect, side, point),
+        Some(C4Shape::Pipe) => pipe_edge_point(e.rect, side, point),
         _ => point,
     }
 }
@@ -374,6 +376,42 @@ mod tests {
         assert!(rect.contains_point(to));
         assert!(to.x < rect.right() || to.y < rect.bottom(), "{to:?}");
         assert!(to_drawio(&e, "Test", None).contains("shape=hexagon"));
+    }
+
+    #[test]
+    fn queues_and_topics_are_containers_on_their_side() {
+        let e = engine::<C4Container>(
+            serde_json::json!([
+                { "id": "a", "kind": "service", "label": "Service A", "x": 0, "y": 0 },
+                { "id": "q", "kind": "queue", "label": "Queue X", "x": 400, "y": 20,
+                  "technology": "RabbitMQ" },
+                { "id": "t", "kind": "topic", "label": "Topic Y", "x": 400, "y": 400 },
+                { "id": "c", "kind": "service", "label": "Service C", "x": 800, "y": 0 },
+            ]),
+            serde_json::json!([
+                { "id": "r1", "sourceId": "a", "targetId": "q", "description": "Publishes messages to" },
+                { "id": "r2", "sourceId": "c", "targetId": "q", "description": "Subscribes to messages from" },
+                { "id": "r3", "sourceId": "a", "targetId": "t" },
+            ]),
+        );
+        let queue = e.laid(&"q".into()).unwrap();
+        assert_eq!(queue.rect.size(), crate::model::QUEUE_SIZE);
+        assert_eq!(
+            <C4Container as hiero_core::engine::DiagramType>::kind_description(&e, queue),
+            "Queue (RabbitMQ)"
+        );
+        let svg = scene_to_svg("Test", &scene(&e));
+        assert!(svg.contains(">[Container: RabbitMQ]</text>"));
+        assert!(
+            svg.contains(r#"<ellipse cx="414" cy="80" rx="14" ry="60""#),
+            "{svg}"
+        );
+        let arrows = drawn_arrows(&e, e.layout());
+        // Level with the middle, in at the left end's outer point and out of the right end's.
+        assert_eq!(arrows[0].look.to, Point::new(400.0, 80.0));
+        assert_eq!(arrows[1].look.to, Point::new(640.0, 80.0));
+        // From above, between the ends, at the top.
+        assert_eq!(arrows[2].look.to.y, 400.0);
     }
 
     #[test]

@@ -32,6 +32,8 @@ pub enum Role {
     Store,
     Database,
     Service,
+    Queue,
+    Topic,
     Component,
 }
 
@@ -48,6 +50,7 @@ impl Role {
             Self::Store => C4Shape::Bucket,
             Self::Database => C4Shape::Cylinder,
             Self::Service => C4Shape::Hexagon,
+            Self::Queue | Self::Topic => C4Shape::Pipe,
             Self::Component => C4Shape::Component,
         })
     }
@@ -64,7 +67,9 @@ impl Role {
             | Self::Backend
             | Self::Store
             | Self::Database
-            | Self::Service => Some("Container"),
+            | Self::Service
+            | Self::Queue
+            | Self::Topic => Some("Container"),
         }
     }
 
@@ -83,6 +88,8 @@ impl Role {
                 | Self::Store
                 | Self::Database
                 | Self::Service
+                | Self::Queue
+                | Self::Topic
                 | Self::Component
         )
     }
@@ -170,6 +177,8 @@ pub const CONTAINER_SIZE: Size = Size::new(240.0, 160.0);
 pub const COMPONENT_SIZE: Size = Size::new(240.0, 140.0);
 /// A service's hexagon is narrower than the other containers' boxes.
 pub const SERVICE_SIZE: Size = Size::new(200.0, 160.0);
+/// A queue's or topic's cylinder lies on its side, so it's lower than the other containers.
+pub const QUEUE_SIZE: Size = Size::new(240.0, 120.0);
 
 /// The drawing order of elements not in a boundary: system boundaries at the back, then
 /// container boundaries, then everything else.
@@ -265,6 +274,10 @@ pub enum ContainerKind {
     Database,
     /// A microservice, or another service that owns one capability: a hexagon.
     Service,
+    /// A message queue, which one consumer takes each message from: a cylinder on its side.
+    Queue,
+    /// A topic, which every subscriber gets each message from: a cylinder on its side.
+    Topic,
 }
 
 const CONTAINER_TARGETS: &[ContainerKind] = {
@@ -278,11 +291,13 @@ const CONTAINER_TARGETS: &[ContainerKind] = {
         K::Store,
         K::Database,
         K::Service,
+        K::Queue,
+        K::Topic,
     ]
 };
 
 /// The elements offered in a container diagram's palette.
-pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 9] = {
+pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 11] = {
     use ContainerKind as K;
     [
         person(K::Person, CONTAINER_TARGETS),
@@ -300,6 +315,8 @@ pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 9] = {
                 K::Store,
                 K::Database,
                 K::Service,
+                K::Queue,
+                K::Topic,
             ],
             SYSTEM_BOUNDARIES,
             Size::new(600.0, 400.0),
@@ -310,6 +327,14 @@ pub static CONTAINER_PALETTE: [KindInfo<ContainerKind>; 9] = {
         KindInfo {
             size: Some(SERVICE_SIZE),
             ..element(K::Service, "Service", CONTAINER_TARGETS)
+        },
+        KindInfo {
+            size: Some(QUEUE_SIZE),
+            ..element(K::Queue, "Queue", CONTAINER_TARGETS)
+        },
+        KindInfo {
+            size: Some(QUEUE_SIZE),
+            ..element(K::Topic, "Topic", CONTAINER_TARGETS)
         },
         element(K::Store, "Store", CONTAINER_TARGETS),
         element(K::Database, "Database", CONTAINER_TARGETS),
@@ -328,6 +353,8 @@ impl C4Type for C4Container {
             ContainerKind::Store => Role::Store,
             ContainerKind::Database => Role::Database,
             ContainerKind::Service => Role::Service,
+            ContainerKind::Queue => Role::Queue,
+            ContainerKind::Topic => Role::Topic,
         }
     }
     const ARROW_TECHNOLOGY: bool = true;

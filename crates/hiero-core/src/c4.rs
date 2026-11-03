@@ -1,7 +1,7 @@
 //! The C4 model's shapes, shared by its three diagram types (system context, container, and
 //! component): a box for a software system, a browser window for a web application, a folder
 //! for static content, a box with a prompt for a backend, a bucket for a store, a cylinder for
-//! a database, a hexagon for a service, a box with two tabs for a component, and a boundary around what a system or
+//! a database, a cylinder on its side for a queue or topic, a hexagon for a service, a box with two tabs for a component, and a boundary around what a system or
 //! container holds. Each shows its name, its type (with any technology) in square brackets,
 //! and its description inside it; a boundary shows them in its bottom-left corner.
 //!
@@ -32,6 +32,8 @@ pub enum C4Shape {
     Bucket,
     /// A cylinder: a database.
     Cylinder,
+    /// A cylinder lying on its side, its open end on the left: a queue or a topic.
+    Pipe,
     /// A hexagon with points on its left and right: a service, such as a microservice's API.
     Hexagon,
     /// A box with two small tabs on its left edge: a component.
@@ -78,6 +80,7 @@ impl C4Shape {
             Self::Folder => (FOLDER_TAB_HEIGHT, 0.0, 0.0),
             Self::Terminal => (TERMINAL_TOP, 0.0, 0.0),
             Self::Cylinder => (CYLINDER_RY * 2.0, CYLINDER_RY, 0.0),
+            Self::Pipe => return pipe_text_area(rect),
             // Half the point, as the text sits across the hexagon's widest part.
             Self::Hexagon => (0.0, 0.0, hexagon_point(rect) / 2.0),
             Self::Bucket => (
@@ -98,6 +101,70 @@ impl C4Shape {
             (rect.width - (padding + inset) * 2.0).max(0.0),
             (rect.height - top - bottom - 8.0).max(0.0),
         )
+    }
+}
+
+/// How wide the ellipse at each end of a pipe is, at most: half its width.
+pub const PIPE_RX: f64 = 14.0;
+
+/// Half the width of the ellipses at a pipe's ends.
+pub fn pipe_rx(rect: Rect) -> f64 {
+    PIPE_RX.min(rect.width / 4.0).max(0.0)
+}
+
+/// A pipe's text sits between its left end's ellipse and its right end's curve.
+fn pipe_text_area(rect: Rect) -> Rect {
+    let rx = pipe_rx(rect);
+    Rect::new(
+        rect.x + rx * 2.0 + 4.0,
+        rect.y + 4.0,
+        (rect.width - rx * 3.0 - 8.0).max(0.0),
+        (rect.height - 8.0).max(0.0),
+    )
+}
+
+/// How far in from `edge` an ellipse `rx` wide and `ry` tall, centred `rx` in, is at `offset`
+/// from its middle across it.
+fn ellipse_depth(rx: f64, ry: f64, offset: f64) -> f64 {
+    if ry <= 0.0 {
+        return rx;
+    }
+    let t = (offset / ry).clamp(-1.0, 1.0);
+    rx * (1.0 - (1.0 - t * t).sqrt())
+}
+
+/// Where an arrow ending at `point`, on `side` of a pipe filling `rect`, meets the pipe: on
+/// the curve of its left or right end, or on its top or bottom, curving round the ends.
+pub fn pipe_edge_point(rect: Rect, side: Side, point: Point) -> Point {
+    let rx = pipe_rx(rect);
+    let ry = rect.height / 2.0;
+    if rx <= 0.0 || ry <= 0.0 {
+        return point;
+    }
+    let middle = rect.y + ry;
+    match side {
+        Side::Left | Side::Right => {
+            let into = ellipse_depth(rx, ry, point.y - middle);
+            let x = if side == Side::Left {
+                rect.x + into
+            } else {
+                rect.right() - into
+            };
+            Point::new(x, point.y)
+        }
+        Side::Top | Side::Bottom => {
+            let from_side = (point.x - rect.x).min(rect.right() - point.x);
+            if from_side >= rx {
+                return point;
+            }
+            let down = ellipse_depth(ry, rx, rx - from_side.max(0.0));
+            let y = if side == Side::Top {
+                rect.y + down
+            } else {
+                rect.bottom() - down
+            };
+            Point::new(point.x, y)
+        }
     }
 }
 
@@ -399,6 +466,29 @@ pub fn draw(
                 },
             ]
         }
+        C4Shape::Pipe => {
+            let (rx, ry) = (pipe_rx(rect), height / 2.0);
+            let body = format!(
+                "M{} {}H{}A{} {} 0 0 1 {} {}H{}Z",
+                f(x + rx),
+                f(y),
+                f(right - rx),
+                f(rx),
+                f(ry),
+                f(right - rx),
+                f(bottom),
+                f(x + rx)
+            );
+            vec![
+                Node::path(body, paint.clone()),
+                Node::Ellipse {
+                    center: Point::new(x + rx, y + ry),
+                    rx,
+                    ry,
+                    paint,
+                },
+            ]
+        }
         C4Shape::Hexagon => {
             let inset = hexagon_point(rect);
             let middle = y + height / 2.0;
@@ -541,6 +631,13 @@ pub fn drawio_cells(
             .set("backgroundOutline", 1)
             .num("size", CYLINDER_RY),
         C4Shape::Bucket => style.set("shape", format!("stencil({BUCKET_STENCIL})")),
+        // draw.io's cylinder turned so its top faces left; its text stays level.
+        C4Shape::Pipe => style
+            .set("shape", "cylinder3")
+            .set("direction", "north")
+            .set("boundedLbl", 1)
+            .set("backgroundOutline", 1)
+            .num("size", pipe_rx(rect)),
         C4Shape::Hexagon => style
             .set("shape", "hexagon")
             .set("perimeter", "hexagonPerimeter2")
@@ -754,6 +851,48 @@ mod tests {
             LineWeight::Medium,
         );
         assert!(cells[0].contains("shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;size=60"));
+    }
+
+    #[test]
+    fn queues_are_cylinders_on_their_side_that_arrows_meet_on_their_ends() {
+        let rect = Rect::new(0.0, 0.0, 240.0, 140.0);
+        let out = svg(draw(
+            &element(C4Shape::Pipe, rect),
+            C4Shape::Pipe,
+            &EstimateText,
+            "#000000",
+            LineWeight::Medium,
+        ));
+        assert!(
+            out.contains(r#"<path d="M14 0H226A14 70 0 0 1 226 140H14Z""#),
+            "{out}"
+        );
+        assert!(
+            out.contains(r#"<ellipse cx="14" cy="70" rx="14" ry="70""#),
+            "{out}"
+        );
+        // Text clear of the left end's ellipse and the right end's curve.
+        let area = C4Shape::Pipe.text_area(rect);
+        assert_eq!((area.x, area.right()), (32.0, 222.0));
+        // Level with the middle, arrows end at the ends' outer points; near a corner, in on the
+        // curve; on the top, between the ends, where they are.
+        let left = |y| pipe_edge_point(rect, Side::Left, Point::new(0.0, y));
+        assert_eq!(left(70.0), Point::new(0.0, 70.0));
+        assert!((left(10.0).x - 6.79).abs() < 0.01, "{:?}", left(10.0));
+        let right = pipe_edge_point(rect, Side::Right, Point::new(240.0, 0.0));
+        assert_eq!(right, Point::new(226.0, 0.0));
+        let top = |x| pipe_edge_point(rect, Side::Top, Point::new(x, 0.0));
+        assert_eq!(top(120.0), Point::new(120.0, 0.0));
+        assert!(top(2.0).y > 30.0, "{:?}", top(2.0));
+        let cells = drawio_cells(
+            &element(C4Shape::Pipe, rect),
+            C4Shape::Pipe,
+            (0.0, 0.0),
+            "1",
+            "#000000",
+            LineWeight::Medium,
+        );
+        assert!(cells[0].contains("shape=cylinder3;direction=north;"));
     }
 
     #[test]

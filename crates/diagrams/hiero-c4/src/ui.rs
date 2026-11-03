@@ -214,7 +214,7 @@ c4_view!(
 c4_view!(
     C4Container,
     help!(
-        "Drop websites, static content, backends, services, stores, and databases into the system boundary.",
+        "Drop websites, static content, backends, services, queues, topics, stores, and databases into the system boundary.",
         "Resize elements and the system boundary with their handles."
     )
 );
