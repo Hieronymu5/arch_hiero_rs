@@ -1,5 +1,5 @@
 //! The C4 model's shapes, shared by its three diagram types (system context, container, and
-//! component): a box for a software system, a browser window for a web application, a folder
+//! component): a person's figure with its text underneath, a box for a software system, a browser window for a web application, a folder
 //! for static content, a box with a prompt for a backend, a bucket for a store, a cylinder for
 //! a database, a cylinder on its side for a queue or topic, a hexagon for a service, a box with two tabs for a component, and a boundary around what a system or
 //! container holds. Each shows its name, its type (with any technology) in square brackets,
@@ -10,6 +10,7 @@
 
 use crate::export::drawio::{Style, cell, rect_attributes};
 use crate::export::svg::escape_xml;
+use crate::figures::actor;
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::look::{CORNER_NAME, DESCRIPTION, LookElement, NAME, PADDING_X, text_lines};
 use crate::model::LineWeight;
@@ -20,6 +21,8 @@ use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
 /// What a C4 element is drawn as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum C4Shape {
+    /// The actor figure, with the name, type, and description under it: a person.
+    Person,
     /// A box with round corners: a software system.
     Box,
     /// A browser window, with a bar of three dots and an address across its top.
@@ -71,10 +74,24 @@ const BOUNDARY_TEXT_BOTTOM: f64 = 8.0;
 /// A store drawn as a bucket in draw.io: a stencil, as the other figures' are.
 const BUCKET_STENCIL: &str = "fVLRbsMgDPwaHiOl0EXb49S12m841E1QKESGNunfl9SsWzI1b77z+TgMQu1CCz0KWTo4o1BfQspP0u23QfKJrS+6w5jIVA/cltuScct4U2UMoUcdmbwCGagtcidE8h0O5hjzjHEtknn4qr1QO+2dS7PGuyDkgbkadNeQv7gj4x6m6ak6++uUeGSvfPotp5EPmD2scX+UcjuXvs20QDr1KGs/KtZSFr8zHAsYTSjIR5jSzhJYoAaLZFOcLDSzVhgQ+//0T65NtRZseYm1C2vrAz5RKn63lsBypSdPOMPGWn6rpwVaa/rwct3l6tfICz+8dE/FMkOi+Euq/R0=";
 
+/// How far down its area a person's figure starts, and the gap between the figure and the
+/// text under it.
+pub const PERSON_FIGURE_TOP: f64 = 5.0;
+pub const PERSON_TEXT_GAP: f64 = 6.0;
+
+/// A person's figure in draw.io: the actor's head and shoulders in its 48 × 46 box.
+const PERSON_STENCIL: &str = "fZLRbsIwDEW/Jo+VIO0mXifGxG+YYNqIEEdORsvfL5Ej1qBpb773yrcnVlW/jxMEVHrj4Yaq/1Raf7CZjhaZshuQI/ls5nmWeNiJnKp8FwkxoEni3YEtnBxKEhPTFWd7TnXF+gnZppL2B9XvDXmfdy35qPSXeCcw15Hp259Fo3M2xAK6SMl2kPaHSN0w6k3DWGWtzsNr+4UYG22dE+znVoCCX6Yb3VccLcbwtv4SsMkRLy0UP1q9dLDY2DElKDeQsGYOeMQu93QXB2MTxRkxrOxtbasg/3EZRxHX9/h93B8vz8PrfbIl/01/+AE=";
+
 impl C4Shape {
     /// The part of `rect` its text is centred in, clear of what's drawn at its top and bottom.
+    /// A person's text starts at the top of it, under the figure.
     pub fn text_area(self, rect: Rect) -> Rect {
         let (top, bottom, inset) = match self {
+            Self::Person => (
+                PERSON_FIGURE_TOP + actor::HEIGHT + PERSON_TEXT_GAP - 4.0,
+                0.0,
+                0.0,
+            ),
             Self::Box | Self::Component | Self::Boundary => (0.0, 0.0, 0.0),
             Self::Browser => (BROWSER_BAR, 0.0, 0.0),
             Self::Folder => (FOLDER_TAB_HEIGHT, 0.0, 0.0),
@@ -309,6 +326,13 @@ fn corner_text(element: &LookElement, measure: &dyn MeasureText) -> Text {
     }
 }
 
+/// Where a person's text ends: under the figure, the name, the type, and as much of the
+/// description as fits. An arrow from below ends just under it.
+pub fn person_text_bottom(element: &LookElement, measure: &dyn MeasureText) -> f64 {
+    let area = C4Shape::Person.text_area(element.rect);
+    area.y + inside_text(element, area, measure).height(NAME)
+}
+
 /// The height a boundary keeps below what it holds, for its text.
 pub const BOUNDARY_FOOTER: f64 = 60.0;
 
@@ -348,6 +372,15 @@ pub fn draw(
     let line = weight.width();
     let paint = Paint::fill_stroke(fill.clone(), border.clone(), line);
     let mut nodes = match shape {
+        // The figure in the element's colour, outlined as other figures are.
+        C4Shape::Person => vec![Node::group(
+            Some(Point::new(
+                round2(x + width / 2.0 - actor::WIDTH / 2.0),
+                round2(y + PERSON_FIGURE_TOP),
+            )),
+            paint,
+            crate::look::actor_figure(false),
+        )],
         C4Shape::Box | C4Shape::Boundary => {
             vec![Node::rect(rect, CORNER_RADIUS, paint)]
         }
@@ -541,7 +574,11 @@ pub fn draw(
     } else {
         let area = shape.text_area(rect);
         let text = inside_text(element, area, measure);
-        let top = area.y + ((area.height - text.height(NAME)) / 2.0).max(0.0);
+        let top = if shape == C4Shape::Person {
+            area.y
+        } else {
+            area.y + ((area.height - text.height(NAME)) / 2.0).max(0.0)
+        };
         text.nodes(area.x + area.width / 2.0, top, NAME, Anchor::Middle)
     };
     if !text.is_empty() {
@@ -643,6 +680,11 @@ pub fn drawio_cells(
             .set("perimeter", "hexagonPerimeter2")
             .set("fixedSize", 1)
             .num("size", round2(hexagon_point(rect))),
+        // Only text: the figure is a detail on top of it.
+        C4Shape::Person => style
+            .set("fillColor", "none")
+            .set("strokeColor", "none")
+            .set("verticalAlign", "top"),
         C4Shape::Boundary => rounded(style)
             .set("container", 1)
             .set("collapsible", 0)
@@ -680,6 +722,23 @@ pub fn drawio_cells(
             .set("strokeColor", "none")
     };
     match shape {
+        C4Shape::Person => {
+            cells.push(detail(
+                "figure",
+                Style::new()
+                    .set("shape", format!("stencil({PERSON_STENCIL})"))
+                    .set("html", 1)
+                    .set("fillColor", fill)
+                    .set("strokeColor", border)
+                    .num("strokeWidth", weight.width()),
+                Rect::new(
+                    rect.width / 2.0 - actor::WIDTH / 2.0,
+                    PERSON_FIGURE_TOP,
+                    actor::WIDTH,
+                    actor::HEIGHT,
+                ),
+            ));
+        }
         C4Shape::Browser => {
             cells.push(detail(
                 "bar",
@@ -893,6 +952,53 @@ mod tests {
             LineWeight::Medium,
         );
         assert!(cells[0].contains("shape=cylinder3;direction=north;"));
+    }
+
+    #[test]
+    fn people_show_their_text_under_the_figure_in_the_usual_sizes() {
+        let rect = Rect::new(0.0, 0.0, 200.0, 160.0);
+        let mut e = element(C4Shape::Person, rect);
+        e.label = "Customer".into();
+        e.look.type_line = Some("[Person]".into());
+        e.description = Some("Banks online.".into());
+        e.look.border_color = None;
+        let out = svg(draw(
+            &e,
+            C4Shape::Person,
+            &EstimateText,
+            "#1e1e1e",
+            LineWeight::Medium,
+        ));
+        // The figure, centred at the top, in the element's fill with a dark outline.
+        assert!(
+            out.contains(r##"<g transform="translate(76 5)" fill="#dae8fc" stroke="#1e1e1e""##),
+            "{out}"
+        );
+        // The name, type, and description in the same sizes as other elements', from the top.
+        assert!(out.contains(r#"font-size="16" font-weight="700">Customer</text>"#));
+        assert!(out.contains(r#"font-size="11" font-weight="400">[Person]</text>"#));
+        assert!(out.contains(r#"font-size="13" font-weight="400">Banks online.</text>"#));
+        // Under the figure, and ending after the three lines.
+        let area = C4Shape::Person.text_area(rect);
+        assert_eq!(area.y, 57.0);
+        assert_eq!(
+            person_text_bottom(&e, &EstimateText),
+            57.0 + 24.0 + 2.0 + 15.0 + 2.0 + 17.0
+        );
+        let cells = drawio_cells(
+            &e,
+            C4Shape::Person,
+            (0.0, 0.0),
+            "1",
+            "#1e1e1e",
+            LineWeight::Medium,
+        );
+        // Only text, at the top: the figure is drawn by its own cell.
+        for part in ["strokeColor=none", "fillColor=none", "verticalAlign=top"] {
+            assert!(cells[0].contains(part), "{part}: {}", cells[0]);
+        }
+        assert!(cells[1].contains(r#"id="e-figure""#));
+        assert!(cells[1].contains(r#"x="76" y="5" width="48" height="46""#));
     }
 
     #[test]

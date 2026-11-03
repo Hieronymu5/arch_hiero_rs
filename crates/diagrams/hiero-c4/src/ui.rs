@@ -2,7 +2,6 @@
 
 use egui::Ui;
 use hiero_core::engine::{Conn, Engine, Laid, validate_length};
-use hiero_core::geometry::Rect;
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
 use hiero_editor::widgets::{self, text_field};
@@ -10,10 +9,10 @@ use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
 use crate::model::{
     ARROW_DESCRIPTION_MAX, ARROW_TECHNOLOGY_MAX, C4Component, C4Container, C4Context, C4Type,
-    Color, DESCRIPTION_MAX, TECHNOLOGY_MAX,
+    Color, DESCRIPTION_MAX, TECHNOLOGY_MAX, TYPE_NAME_MAX,
 };
 use crate::rules::{arrow_title, normalized_arrow};
-use crate::scene::{drawn_arrows, drawn_rect, scene_of};
+use crate::scene::{drawn_arrows, scene_of};
 
 fn arrow_lines<T: C4Type>(eng: &Engine<T>, layout: &[Laid<T>]) -> Vec<ArrowLine> {
     drawn_arrows(eng, layout)
@@ -37,6 +36,20 @@ fn element_properties<T: C4Type + DiagramView>(
     let mut field = None;
     if cx.name_field(ui, element, &mut with) {
         field = Some("label");
+    }
+    // Blank shows the usual type, such as [Person], which the label names.
+    if role.has_custom_type()
+        && let Some(type_name) = text_field(
+            ui,
+            cx.field_id(element.id(), "type"),
+            &format!("Type (blank for {})", role.type_name().unwrap_or_default()),
+            element.el.props.type_name.as_deref().unwrap_or_default(),
+            false,
+            |t| validate_length("Type", t, TYPE_NAME_MAX),
+        )
+    {
+        with.props.type_name = Some(type_name).filter(|t| !t.trim().is_empty());
+        field = Some("type");
     }
     if role.has_technology()
         && let Some(technology) = text_field(
@@ -167,10 +180,6 @@ macro_rules! c4_view {
                 _slide: Option<(&ConnectionId, f64)>,
             ) -> Vec<ArrowLine> {
                 arrow_lines(eng, layout)
-            }
-
-            fn drawn_rect(eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
-                drawn_rect(eng, element)
             }
 
             fn element_properties(ui: &mut Ui, cx: &mut PropsCx<'_, Self>, element: &Laid<Self>) {

@@ -14,7 +14,7 @@ All sizes are in canvas pixels and multiples of the 20 px grid.
 
 | Kind | Label | Default size | Has a description | Arrows to | Notes |
 |---|---|---|---|---|---|
-| `person` | Person | 120×80 | no | person, software-system | A user, actor, role, or persona. Drawn as the actor figure (as on conceptual diagrams), filled blue, with the name underneath. |
+| `person` | Person | 200×160 | yes | person, software-system | A user, actor, role, or persona. The actor figure, filled in the person's colour, with the name, the type (`[Person]` unless set), and the description under it, in the same sizes as other elements' (bold 16, 11, and 13). Resizable. |
 | `software-system` | Software System | 240×140 | yes | person, software-system | A box with round corners, its name in bold, `[Software System]`, and its description inside. Resizable. |
 
 ## Element properties
@@ -22,7 +22,8 @@ All sizes are in canvas pixels and multiples of the 20 px grid.
 | Field | Applies to | Rule |
 |---|---|---|
 | Name | all | Required, at most 100 characters |
-| Description | software-system | At most 500 characters, shown inside under the type, keeping line breaks; as many lines as fit |
+| Description | person, software-system | At most 500 characters, shown under the type, keeping line breaks; as many lines as fit |
+| Type | person, software-system | At most 40 characters, shown in square brackets in place of `[Person]` or `[Software System]`, such as `[Customer]` or `[External System]`. Blank shows the usual type. Stored as `typeName`. |
 | Colour | all | Radio: *Blue*, *Green*, *Orange*, or *Red*. Stored as `color`: `"green"`, `"orange"`, or `"red"`, left out for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A diagram from before every element had a colour stored a software system's `scope` instead: `"internal"` is read as orange and `"external"` as red, and written back as `color`. |
 | Arrows list, Add arrow to | all | As on the other types |
 
@@ -45,7 +46,7 @@ line is drawn in their colour.
 
 - **Drawing:** drag from the round handle on the selected element to another element, or use
   *Add arrow to*. Routing is the shared side-to-side routing: straight where the two elements'
-  facing sides overlap. An arrow at a person's bottom ends just under their name.
+  facing sides overlap. An arrow at a person's bottom ends just under their text.
 - **Look:** a black (`#1e1e1e`) dashed line, 2 px, with a filled head. Its description sits
   centred on the middle of the line, wrapped to 180 px, over a white halo.
 - **Properties:** *Description* (`description`, at most 150 characters), such as "Views account
@@ -57,7 +58,8 @@ Removing an element removes its relationships.
 ## Export
 
 - **SVG:** the shared scene.
-- **draw.io:** software systems are rounded boxes with HTML text (bold name, the type at 11 px,
+- **draw.io:** a person is a text cell with the figure as its child; software systems are
+  rounded boxes. Both have HTML text (bold name, the type at 11 px,
   the description at 13 px); people use the actor stencil. Relationships are attached dashed
   connectors with their text as the edge label on the middle, on a white background.
 
@@ -66,6 +68,7 @@ Removing an element removes its relationships.
 ```jsonc
 // element props
 { "color": "red" }                 // any element: "green" | "orange" | "red"; omit for blue
+{ "typeName": "Customer" }         // person, software-system; omit for the usual type
 // connection props
 { "description": "Sends e-mails to" }
 ```

@@ -10,13 +10,13 @@ it belongs to, with the other containers, people, and software systems they work
 
 ## Elements
 
-All sizes are in canvas pixels and multiples of the 20 px grid. Everything but a person shows
+All sizes are in canvas pixels and multiples of the 20 px grid. Everything but a boundary shows
 its name in bold, its type in square brackets with any technology (such as
 `[Component: Spring MVC]`), and its description inside it.
 
 | Kind | Label | Default size | Can contain | Drawn as |
 |---|---|---|---|---|
-| `person` | Person | 120×80 | – | The actor figure, filled blue, with the name underneath. No description. |
+| `person` | Person | 200×160 | – | The actor figure, filled in the person's colour, with the name, the type (`[Person]` unless set), and the description under it, in the same sizes as other elements'. Resizable. |
 | `software-system` | Software System | 240×140 | – | A box with round corners. |
 | `system-boundary` | System | 800×560 | container-boundary, web-application, database, store | A blue line around what it holds, with its name, `[Software System]`, and description in its bottom-left corner. Takes no arrows. |
 | `container-boundary` | Container | 600×400 | component, database, store | The same, with `[Container]`. It can sit inside a system boundary. The palette calls the two *System* and *Container*, as their buttons are narrow. |
@@ -26,8 +26,8 @@ its name in bold, its type in square brackets with any technology (such as
 | `store` | Store | 240×160 | – | A bucket, typed `[Container]`. |
 
 Boundaries have header 20, footer 60, and padding 20, are drawn behind what they hold (system
-boundaries behind container boundaries), and grow to fit it. Everything but a person and the
-boundaries' own minimum is resizable. Arrows go between any two elements but boundaries.
+boundaries behind container boundaries), and grow to fit it. Everything is resizable, boundaries no smaller than
+what they hold. Arrows go between any two elements but boundaries.
 
 ## Element properties
 
@@ -35,8 +35,9 @@ boundaries' own minimum is resizable. Arrows go between any two elements but bou
 |---|---|---|
 | Name | all | Required, at most 100 characters |
 | Technology | web-application, component, database, store | At most 60 characters, shown in the type line |
-| Description | all but person | At most 500 characters |
+| Description | all | At most 500 characters |
 | Colour | all | Radio: *Blue*, *Green*, *Orange*, or *Red*. Stored as `color`: `"green"`, `"orange"`, or `"red"`, left out for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. A diagram from before every element had a colour stored a software system's `scope` instead: `"internal"` is read as orange and `"external"` as red, and written back as `color`. |
+| Type | person, software-system | At most 40 characters, shown in square brackets in place of `[Person]` or `[Software System]`, such as `[Customer]` or `[External System]`. Blank shows the usual type. Stored as `typeName`. |
 | Parent | what a boundary can hold | The boundary it sits in, or none |
 
 ## Relationships (arrows)
@@ -55,6 +56,7 @@ its middle and its technology (≤ 60) in square brackets under it.
 ```jsonc
 // element props
 { "color": "red" }               // any element: "green" | "orange" | "red"; omit for blue
+{ "typeName": "Customer" }               // person, software-system; omit for the usual type
 { "technology": "Spring Bean" }  // web-application, component, database, store
 // connection props
 { "description": "Validates credentials using", "technology": "JSON/HTTPS" }

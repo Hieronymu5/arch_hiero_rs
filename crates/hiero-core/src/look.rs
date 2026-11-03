@@ -369,7 +369,7 @@ fn r(x: f64, y: f64, w: f64, h: f64) -> Rect {
 }
 
 /// An actor's head and body in its own coordinates.
-fn actor_figure(agent: bool) -> Vec<Node> {
+pub(crate) fn actor_figure(agent: bool) -> Vec<Node> {
     if agent {
         vec![
             Node::rect(actor::BOT_HEAD, actor::BOT_CORNER, Paint::default()),

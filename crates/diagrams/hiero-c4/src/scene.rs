@@ -1,5 +1,5 @@
-//! How a C4 diagram is drawn: people as the actor figure, everything else in the C4 shapes in
-//! blue, orange, or red, and relationships as dashed black arrows with their description and
+//! How a C4 diagram is drawn: people as the actor figure with their text underneath, everything
+//! else in the C4 shapes, each in its colour, and relationships as dashed black arrows with their description and
 //! technology on the middle of the line.
 
 use std::collections::HashMap;
@@ -7,17 +7,14 @@ use std::collections::HashMap;
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::export::drawio::{DrawioArrow, Heading, diagram_to_drawio};
 use hiero_core::geometry::{Point, Rect};
-use hiero_core::look::{
-    ArrowLook, Caption, DiagramColors, Look, LookElement, Shape, component_name_bottom,
-    draw_diagram,
-};
+use hiero_core::look::{ArrowLook, Caption, DiagramColors, Look, LookElement, Shape, draw_diagram};
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::palette::BLUE;
 use hiero_core::routing::{ConnectionEnds, Side, route_connections};
 use hiero_core::scene::Scene;
 use hiero_core::text::MeasureText;
 
-use hiero_core::c4::{C4Shape, hexagon_edge_point, pipe_edge_point};
+use hiero_core::c4::{C4Shape, hexagon_edge_point, person_text_bottom, pipe_edge_point};
 
 use crate::model::{C4Type, Color, Role};
 use crate::rules::type_line;
@@ -40,19 +37,13 @@ pub fn colors() -> DiagramColors {
 pub fn look_of<T: C4Type>(element: &Laid<T>) -> LookElement {
     let role = T::role(element.el.kind);
     let colors = Color::colors(element.el.props.color);
-    let look = match role.shape() {
-        // A person's figure is filled in their colour, with the usual dark outline.
-        None => Look {
-            fill: Some(colors.fill.into()),
-            ..Look::new(Shape::Actor)
-        },
+    let look = Look {
         // A boundary is only a line, in its colour.
-        Some(shape) => Look {
-            fill: (!role.is_boundary()).then(|| colors.fill.into()),
-            border_color: Some(colors.border.into()),
-            type_line: type_line::<T>(&element.el),
-            ..Look::new(Shape::C4(shape))
-        },
+        fill: (!role.is_boundary()).then(|| colors.fill.into()),
+        // A person's figure has the usual dark outline, as other figures do.
+        border_color: (role != Role::Person).then(|| colors.border.into()),
+        type_line: type_line::<T>(&element.el),
+        ..Look::new(Shape::C4(role.shape()))
     };
     LookElement {
         id: element.el.id.clone(),
@@ -68,39 +59,21 @@ pub fn look_of<T: C4Type>(element: &Laid<T>) -> LookElement {
     }
 }
 
-/// How far under a person's name an arrow at their bottom ends.
-const NAME_CLEARANCE: f64 = 2.0;
+/// How far under a person's text an arrow at their bottom starts or ends.
+const TEXT_CLEARANCE: f64 = 2.0;
 
-fn is_person<T: C4Type>(element: &Laid<T>) -> bool {
-    T::role(element.el.kind) == Role::Person
-}
-
-/// The area an element is drawn in: a person's reaches down to the end of their name, which
-/// goes below the area when it takes two lines.
-pub fn drawn_rect<T: C4Type>(eng: &Engine<T>, element: &Laid<T>) -> Rect {
-    let rect = element.rect;
-    if !is_person(element) {
-        return rect;
-    }
-    let bottom = component_name_bottom(rect, &element.el.label, Shape::Actor, eng.measure());
-    Rect {
-        height: rect.height.max(bottom - rect.y),
-        ..rect
-    }
-}
-
-/// Where an arrow end at `point` on `side` of `element` is drawn: at a person's bottom, under
-/// their name.
-fn clear_of_name<T: C4Type>(
+/// Where an arrow end at `point` on `side` of `element` is drawn: at a person's bottom, just
+/// under their text, as nothing is drawn below it.
+fn under_text<T: C4Type>(
     element: Option<&Laid<T>>,
     side: Side,
     point: Point,
     measure: &dyn MeasureText,
 ) -> Point {
     match element {
-        Some(e) if side == Side::Bottom && is_person(e) => {
-            let bottom = component_name_bottom(e.rect, &e.el.label, Shape::Actor, measure);
-            Point::new(point.x, point.y.max(bottom + NAME_CLEARANCE))
+        Some(e) if side == Side::Bottom && T::role(e.el.kind) == Role::Person => {
+            let bottom = person_text_bottom(&look_of(e), measure) + TEXT_CLEARANCE;
+            Point::new(point.x, point.y.min(bottom))
         }
         _ => point,
     }
@@ -113,8 +86,8 @@ fn on_outline<T: C4Type>(element: Option<&Laid<T>>, side: Side, point: Point) ->
         return point;
     };
     match T::role(e.el.kind).shape() {
-        Some(C4Shape::Hexagon) => hexagon_edge_point(e.rect, side, point),
-        Some(C4Shape::Pipe) => pipe_edge_point(e.rect, side, point),
+        C4Shape::Hexagon => hexagon_edge_point(e.rect, side, point),
+        C4Shape::Pipe => pipe_edge_point(e.rect, side, point),
         _ => point,
     }
 }
@@ -165,13 +138,13 @@ pub fn drawn_arrows<T: C4Type>(eng: &Engine<T>, layout: &[Laid<T>]) -> Vec<Drawn
                 source_id: c.source_id.clone(),
                 target_id: c.target_id.clone(),
                 look: ArrowLook {
-                    from: clear_of_name(
+                    from: under_text(
                         source,
                         route.from_side,
                         on_outline(source, route.from_side, route.from),
                         measure,
                     ),
-                    to: clear_of_name(
+                    to: under_text(
                         target,
                         route.to_side,
                         on_outline(target, route.to_side, route.to),
@@ -285,10 +258,10 @@ mod tests {
         // People are the actor figure, in their colour.
         assert!(svg.contains(r#"<path d="M4 45 A20 20 0 0 1 44 45 Z"/>"#));
         assert!(
-            svg.contains(r##"<g transform="translate(76 5)" fill="#dae8fc""##),
+            svg.contains(r##"<g transform="translate(116 5)" fill="#dae8fc""##),
             "{svg}"
         );
-        assert!(svg.contains(r##"<g transform="translate(436 5)" fill="#d5e8d4""##));
+        assert!(svg.contains(r##"<g transform="translate(476 5)" fill="#d5e8d4""##));
         // The relationship is dashed and black, with its description on its middle.
         assert!(svg.contains(r##"stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4""##));
         assert!(svg.contains(">Views balances using</text>"));
@@ -449,17 +422,32 @@ mod tests {
     }
 
     #[test]
-    fn a_persons_drawn_area_reaches_the_end_of_a_long_name() {
+    fn people_show_their_type_and_description_and_arrows_leave_under_their_text() {
         let e = engine::<C4Context>(
             serde_json::json!([
-                { "id": "u", "kind": "person", "label": "Personal Banking Customer", "x": 0, "y": 0 },
-                { "id": "a", "kind": "software-system", "label": "A", "x": 0, "y": 300 },
+                { "id": "u", "kind": "person", "label": "Customer", "x": 0, "y": 0,
+                  "description": "Banks online." },
+                { "id": "v", "kind": "person", "label": "Clerk", "x": 400, "y": 0,
+                  "typeName": "Bank Staff" },
+                { "id": "a", "kind": "software-system", "label": "Banking", "x": 0, "y": 400,
+                  "typeName": "Core System" },
             ]),
-            serde_json::json!([]),
+            serde_json::json!([
+                { "id": "r", "sourceId": "u", "targetId": "a" },
+            ]),
         );
         let person = e.laid(&"u".into()).unwrap();
-        assert!(drawn_rect(&e, person).height > person.rect.height);
-        let system = e.laid(&"a".into()).unwrap();
-        assert_eq!(drawn_rect(&e, system), system.rect);
+        assert_eq!(person.rect.size(), crate::model::PERSON_SIZE);
+        let svg = scene_to_svg("Test", &scene(&e));
+        assert!(svg.contains(r#"font-size="11" font-weight="400">[Person]</text>"#));
+        assert!(svg.contains(">[Bank Staff]</text>"));
+        assert!(svg.contains(">[Core System]</text>"));
+        assert!(svg.contains(r#"font-size="13" font-weight="400">Banks online.</text>"#));
+        // The arrow down from the customer starts just under their text, not at the bottom
+        // of their area, where nothing is drawn.
+        let from = drawn_arrows(&e, e.layout())[0].look.from;
+        let bottom = person_text_bottom(&look_of(person), &ESTIMATE);
+        assert_eq!(from.y, bottom + 2.0);
+        assert!(from.y < person.rect.bottom());
     }
 }

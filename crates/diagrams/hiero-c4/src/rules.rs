@@ -10,7 +10,7 @@ use hiero_core::model::{DiagramTypeId, ElementId, KindInfo, NoColors};
 use crate::model::{
     ARROW_DESCRIPTION_MAX, ARROW_TECHNOLOGY_MAX, C4Arrow, C4Component, C4Container, C4Context,
     C4Props, C4Type, COMPONENT_PALETTE, CONTAINER_PALETTE, CONTEXT_PALETTE, Color, ComponentKind,
-    ContainerKind, ContextKind, DESCRIPTION_MAX, TECHNOLOGY_MAX,
+    ContainerKind, ContextKind, DESCRIPTION_MAX, TECHNOLOGY_MAX, TYPE_NAME_MAX,
 };
 
 const COLOR_FIELD: Field = Field {
@@ -29,9 +29,19 @@ const TECHNOLOGY_FIELD: Field = Field {
     },
 };
 
-/// Every element has a colour; containers and components also have a technology.
+const TYPE_NAME_FIELD: Field = Field {
+    key: "typeName",
+    rule: FieldRule::Text {
+        name: "Type",
+        max: TYPE_NAME_MAX,
+    },
+};
+
+/// Every element has a colour; containers and components also have a technology, and people
+/// and software systems a type of their own.
 const COLOR_FIELDS: &[Field] = &[COLOR_FIELD];
 const COLOR_AND_TECHNOLOGY_FIELDS: &[Field] = &[COLOR_FIELD, TECHNOLOGY_FIELD];
+const COLOR_AND_TYPE_FIELDS: &[Field] = &[COLOR_FIELD, TYPE_NAME_FIELD];
 
 const DESCRIPTION_FIELD: Field = Field {
     key: "description",
@@ -56,8 +66,11 @@ const ARROW_FIELDS: &[Field] = &[DESCRIPTION_FIELD, ARROW_TECHNOLOGY_FIELD];
 
 /// The fields an element of `kind` has beyond the common ones.
 fn file_fields<T: C4Type>(kind: T::Kind) -> &'static [Field] {
-    if T::role(kind).has_technology() {
+    let role = T::role(kind);
+    if role.has_technology() {
         COLOR_AND_TECHNOLOGY_FIELDS
+    } else if role.has_custom_type() {
+        COLOR_AND_TYPE_FIELDS
     } else {
         COLOR_FIELDS
     }
@@ -77,9 +90,18 @@ pub fn normalized_arrow<T: C4Type>(arrow: C4Arrow) -> C4Arrow {
     }
 }
 
-/// The type line an element shows, such as "[Container: Java and Spring Boot]".
+/// The type line an element shows, such as "[Container: Java and Spring Boot]", "[Person]", or
+/// a person's or software system's own type, such as "[Customer]".
 pub fn type_line<T: C4Type>(element: &El<T>) -> Option<String> {
     let role = T::role(element.kind);
+    if let Some(own) = element
+        .props
+        .type_name
+        .as_deref()
+        .filter(|_| role.has_custom_type())
+    {
+        return Some(format!("[{own}]"));
+    }
     let name = role.type_name()?;
     Some(
         match element
@@ -94,12 +116,13 @@ pub fn type_line<T: C4Type>(element: &El<T>) -> Option<String> {
     )
 }
 
-/// Such as "Software System (red)", "Database (MySQL)", or "Queue (Kafka, green)": the
-/// technology, and the colour unless it's blue.
+/// Such as "Software System (red)", "Database (MySQL)", or "Queue (Kafka, green)": its own
+/// type, the technology, and the colour unless it's blue.
 fn kind_description<T: C4Type>(element: &Laid<T>) -> String {
     let role = T::role(element.el.kind);
     let props = &element.el.props;
     let details: Vec<String> = [
+        props.type_name.clone().filter(|_| role.has_custom_type()),
         props.technology.clone().filter(|_| role.has_technology()),
         props.color.map(|c| Color::label(Some(c)).to_lowercase()),
     ]
@@ -193,6 +216,7 @@ fn apply_element<T: C4Type>(
         with.description.clone_from(&selected.el.description);
     }
     with.props.technology = clean(with.props.technology).filter(|_| role.has_technology());
+    with.props.type_name = clean(with.props.type_name).filter(|_| role.has_custom_type());
     if with.props.color != selected.el.props.color {
         eng.announcement = format!(
             "{} set to {}.",
@@ -214,6 +238,11 @@ fn validate_element<T: C4Type>(element: &El<T>) -> Result<(), String> {
         "Technology",
         element.props.technology.as_deref().unwrap_or_default(),
         TECHNOLOGY_MAX,
+    )?;
+    validate_length(
+        "Type",
+        element.props.type_name.as_deref().unwrap_or_default(),
+        TYPE_NAME_MAX,
     )
 }
 
@@ -405,6 +434,50 @@ pub(crate) mod tests {
         assert_eq!(
             type_line::<C4Container>(e.element(&id("id2")).unwrap()).as_deref(),
             Some("[Software System]")
+        );
+    }
+
+    #[test]
+    fn people_and_software_systems_can_name_their_own_type() {
+        let mut e = engine::<C4Context>();
+        e.add_at_free_position(ContextKind::Person);
+        e.add_at_free_position(ContextKind::SoftwareSystem);
+        let type_of = |e: &Engine<C4Context>, id: &str| {
+            type_line::<C4Context>(e.element(&id.into()).unwrap())
+        };
+        // [Person] and [Software System] unless they say otherwise.
+        assert_eq!(type_of(&e, "id1").as_deref(), Some("[Person]"));
+        assert_eq!(type_of(&e, "id2").as_deref(), Some("[Software System]"));
+        for (id, own) in [("id1", " Customer "), ("id2", "External System")] {
+            let mut with = e.element(&id.into()).unwrap().clone();
+            with.props.type_name = Some(own.into());
+            C4Context::apply_element(&mut e, &id.into(), with, None);
+        }
+        assert_eq!(type_of(&e, "id1").as_deref(), Some("[Customer]"));
+        assert_eq!(type_of(&e, "id2").as_deref(), Some("[External System]"));
+        let laid = e.laid(&"id2".into()).unwrap().clone();
+        assert_eq!(
+            C4Context::kind_description(&e, &laid),
+            "Software System (External System)"
+        );
+        // Blank goes back to the usual type.
+        let mut with = e.element(&"id1".into()).unwrap().clone();
+        with.props.type_name = Some("  ".into());
+        C4Context::apply_element(&mut e, &"id1".into(), with, None);
+        assert_eq!(type_of(&e, "id1").as_deref(), Some("[Person]"));
+        // People have a description, and other kinds can't name their type.
+        assert!(e.laid(&"id1".into()).unwrap().info.has_description);
+        let mut c = engine::<C4Container>();
+        c.add_at_free_position(ContainerKind::Backend);
+        let mut with = c.element(&"id1".into()).unwrap().clone();
+        with.props.type_name = Some("API".into());
+        C4Container::apply_element(&mut c, &"id1".into(), with, None);
+        assert_eq!(c.element(&"id1".into()).unwrap().props.type_name, None);
+        let mut long = e.element(&"id2".into()).unwrap().clone();
+        long.props.type_name = Some("x".repeat(41));
+        assert_eq!(
+            C4Context::validate_element(&long).unwrap_err(),
+            "Type must be 40 characters or fewer."
         );
     }
 

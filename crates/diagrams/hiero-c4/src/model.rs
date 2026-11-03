@@ -38,10 +38,10 @@ pub enum Role {
 }
 
 impl Role {
-    /// The shape it's drawn as. A person is drawn as the actor figure instead.
-    pub const fn shape(self) -> Option<C4Shape> {
-        Some(match self {
-            Self::Person => return None,
+    /// The shape it's drawn as.
+    pub const fn shape(self) -> C4Shape {
+        match self {
+            Self::Person => C4Shape::Person,
             Self::SoftwareSystem => C4Shape::Box,
             Self::SystemBoundary | Self::ContainerBoundary => C4Shape::Boundary,
             Self::WebApplication => C4Shape::Browser,
@@ -52,13 +52,13 @@ impl Role {
             Self::Service => C4Shape::Hexagon,
             Self::Queue | Self::Topic => C4Shape::Pipe,
             Self::Component => C4Shape::Component,
-        })
+        }
     }
 
     /// The C4 type shown in square brackets under its name, with any technology.
     pub const fn type_name(self) -> Option<&'static str> {
         match self {
-            Self::Person => None,
+            Self::Person => Some("Person"),
             Self::SoftwareSystem | Self::SystemBoundary => Some("Software System"),
             Self::Component => Some("Component"),
             Self::ContainerBoundary
@@ -71,6 +71,12 @@ impl Role {
             | Self::Queue
             | Self::Topic => Some("Container"),
         }
+    }
+
+    /// Whether its type can be named, in place of `type_name`, such as a person who's a
+    /// "Customer" or a software system that's an "External System".
+    pub const fn has_custom_type(self) -> bool {
+        matches!(self, Self::Person | Self::SoftwareSystem)
     }
 
     /// Whether it names the technology it's built with.
@@ -149,6 +155,10 @@ pub struct C4Props {
     /// What a container or component is built with, such as "Java and Spring Boot".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub technology: Option<String>,
+    /// A person's or software system's type, shown in square brackets in place of the usual
+    /// "Person" or "Software System".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_name: Option<String>,
 }
 
 /// `C4Props` as read, also taking an older diagram's `scope`.
@@ -161,6 +171,8 @@ struct StoredProps {
     scope: Option<Scope>,
     #[serde(default)]
     technology: Option<String>,
+    #[serde(default)]
+    type_name: Option<String>,
 }
 
 impl From<StoredProps> for C4Props {
@@ -172,6 +184,7 @@ impl From<StoredProps> for C4Props {
                 None => None,
             }),
             technology: stored.technology,
+            type_name: stored.type_name,
         }
     }
 }
@@ -192,6 +205,8 @@ pub struct C4Arrow {
 /// The longest element description, technology, and relationship description and technology.
 pub const DESCRIPTION_MAX: usize = 500;
 pub const TECHNOLOGY_MAX: usize = 60;
+/// The longest type in place of a person's or software system's usual one.
+pub const TYPE_NAME_MAX: usize = 40;
 pub const ARROW_DESCRIPTION_MAX: usize = 150;
 pub const ARROW_TECHNOLOGY_MAX: usize = 60;
 
@@ -205,7 +220,8 @@ pub trait C4Type: DiagramType<Props = C4Props, Arrow = C4Arrow, Colors = NoColor
 }
 
 /// The size of a person, a software system, a container, and a component.
-pub const PERSON_SIZE: Size = Size::new(120.0, 80.0);
+/// A person's figure, name, type, and three lines of description.
+pub const PERSON_SIZE: Size = Size::new(200.0, 160.0);
 pub const SYSTEM_SIZE: Size = Size::new(240.0, 140.0);
 pub const CONTAINER_SIZE: Size = Size::new(240.0, 160.0);
 pub const COMPONENT_SIZE: Size = Size::new(240.0, 140.0);
@@ -233,10 +249,8 @@ const fn element<K: Copy>(kind: K, label: &'static str, connects_to: &'static [K
 
 const fn person<K: Copy>(kind: K, connects_to: &'static [K]) -> KindInfo<K> {
     KindInfo {
-        connects_to,
-        layer: ELEMENTS,
         size: Some(PERSON_SIZE),
-        ..KindInfo::new(kind, "Person")
+        ..element(kind, "Person", connects_to)
     }
 }
 
