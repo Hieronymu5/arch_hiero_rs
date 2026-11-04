@@ -1020,8 +1020,12 @@ impl App {
                         ui.radio_value(weight, option, option.label());
                     }
                 });
+                let arrows = meta.diagram_type.arrow_noun().many_capitalized();
                 ui.label(
-                    RichText::new("The lines of elements. Arrows keep their own thickness.").weak(),
+                    RichText::new(format!(
+                        "The lines of elements. {arrows} keep their own thickness."
+                    ))
+                    .weak(),
                 );
             }
             if let Some(canvas) = &mut self.form.canvas {

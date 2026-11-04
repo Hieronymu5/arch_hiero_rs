@@ -648,7 +648,7 @@ impl<T: DiagramView> Editor<T> {
             ui.label(RichText::new(title).strong());
             T::arrow_properties(ui, &mut cx, &connection);
             ui.add_space(6.0);
-            if page_button(ui, "Remove arrow", false).clicked() {
+            if page_button(ui, &format!("Remove {}", T::ID.arrow_noun().one), false).clicked() {
                 remove_arrow = Some(id);
             }
         } else if let Some(element) = cx.eng.selected().cloned() {
@@ -715,7 +715,7 @@ impl<T: DiagramView> Editor<T> {
                 let can_draw = Engine::<T>::can_connect_from(&element);
                 if !arrows.is_empty() || can_draw {
                     ui.add_space(5.0);
-                    heading(ui, "Arrows");
+                    heading(ui, &T::ID.arrow_noun().many_capitalized());
                 }
                 for (connection, outgoing, other) in arrows {
                     let title = T::arrow_title(cx.eng, connection, outgoing, &other);
@@ -732,7 +732,7 @@ impl<T: DiagramView> Editor<T> {
                         if let Some(choice) = select(
                             ui,
                             target_id.with("select"),
-                            "Add arrow to",
+                            &format!("Add {} to", T::ID.arrow_noun().one),
                             &target,
                             Some("Select a target"),
                             &options,
@@ -741,7 +741,7 @@ impl<T: DiagramView> Editor<T> {
                         }
                         ui.data_mut(|d| d.insert_temp(target_id, target.clone()));
                         let add = ui.add_enabled_ui(target.is_some(), |ui| {
-                            page_button(ui, "Add arrow", false)
+                            page_button(ui, &format!("Add {}", T::ID.arrow_noun().one), false)
                         });
                         if add.inner.clicked()
                             && let Some(target) = target

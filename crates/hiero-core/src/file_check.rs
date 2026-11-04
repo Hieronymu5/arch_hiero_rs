@@ -719,16 +719,18 @@ fn check_arrow<'a, T: DiagramType>(
     let ends = text("sourceId")
         .and_then(|s| by_id.get(s))
         .zip(text("targetId").and_then(|t| by_id.get(t)));
+    let noun = T::ID.arrow_noun();
+    let arrow = noun.one;
     let prefix = match (ends, text("id")) {
         (Some((source, target)), _) => {
-            format!("The arrow from “{}” to “{}”", source.label, target.label)
+            format!("The {arrow} from “{}” to “{}”", source.label, target.label)
         }
-        (None, Some(id)) => format!("The arrow {id}"),
-        (None, None) => "An arrow".into(),
+        (None, Some(id)) => format!("The {arrow} {id}"),
+        (None, None) => noun.with_capital_article(),
     };
     let at = |message: String| format!("{prefix}: {message}");
     // 26.
-    let object = object.ok_or_else(|| "An arrow must be an object.".to_owned())?;
+    let object = object.ok_or_else(|| format!("{prefix} must be an object."))?;
     let id = required_text(object, "id").map_err(at)?;
     if !ids.insert(id) {
         return Err(format!("The id {id} is used twice."));
@@ -744,21 +746,25 @@ fn check_arrow<'a, T: DiagramType>(
     let (source, target) = (by_id[source_id], by_id[target_id]);
     // 28 to 30.
     if source_id == target_id {
-        return Err(at(
-            "An arrow can’t point to the element it starts from.".into()
-        ));
+        return Err(at(format!(
+            "{} can’t point to the element it starts from.",
+            noun.with_capital_article()
+        )));
     }
     if !source.info.connects_to.contains(&target.info.kind) {
         return Err(at(format!(
-            "{} can’t have an arrow to {}.",
+            "{} can’t have {} to {}.",
             capital_a(source.info.label),
+            noun.with_article(),
             a(target.info.label)
         )));
     }
     if !pairs.insert((source_id, target_id)) {
         return Err(at(format!(
-            "There’s already an arrow from “{}” to “{}”.",
-            source.label, target.label
+            "There’s already {} from “{}” to “{}”.",
+            noun.with_article(),
+            source.label,
+            target.label
         )));
     }
     // 31.
@@ -766,7 +772,10 @@ fn check_arrow<'a, T: DiagramType>(
         matches!(k, "id" | "sourceId" | "targetId") || T::ARROW_FIELDS.iter().any(|f| f.key == k)
     };
     if let Some(key) = first_unknown(object, allowed) {
-        return Err(at(format!("“{key}” isn’t a field an arrow has.")));
+        return Err(at(format!(
+            "“{key}” isn’t a field {} has.",
+            noun.with_article()
+        )));
     }
     // 32.
     for f in T::ARROW_FIELDS {

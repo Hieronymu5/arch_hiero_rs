@@ -157,7 +157,7 @@ impl<T: DiagramType> Batch<'_, T> {
                 .unwrap_or_else(|| text.to_owned()),
         );
         if self.eng.connection(&id).is_none() {
-            return Err(format!("there's no arrow “{text}”"));
+            return Err(format!("there's no {} “{text}”", T::ID.arrow_noun().one));
         }
         Ok(id)
     }
@@ -353,21 +353,28 @@ impl<T: DiagramType> Batch<'_, T> {
                 props,
             } => {
                 if !T::ID.has_arrows() {
-                    return Err(format!("{} diagrams have no arrows", T::ID.label()));
+                    return Err(format!(
+                        "{} diagrams have no {}",
+                        T::ID.label(),
+                        T::ID.arrow_noun().many
+                    ));
                 }
                 let source = self.element_id(source_id)?;
                 let target = self.element_id(target_id)?;
                 if !self.eng.can_connect(&source, &target) {
                     return Err(format!(
-                        "an arrow can't go from “{}” to “{}”",
+                        "{} can't go from “{}” to “{}”",
+                        T::ID.arrow_noun().with_article(),
                         self.eng.label_of(&source).unwrap_or_default(),
                         self.eng.label_of(&target).unwrap_or_default()
                     ));
                 }
-                let id = self
-                    .eng
-                    .add_connection(&source, &target)
-                    .ok_or("there's already an arrow between them")?;
+                let id = self.eng.add_connection(&source, &target).ok_or_else(|| {
+                    format!(
+                        "there's already {} between them",
+                        T::ID.arrow_noun().with_article()
+                    )
+                })?;
                 if let Some(r) = reference {
                     self.refs.insert(r.clone(), id.0.clone());
                 }
@@ -384,7 +391,7 @@ impl<T: DiagramType> Batch<'_, T> {
             EditOp::UpdateConnection { id, props } => {
                 let id = self.connection_id(id)?;
                 self.update_connection(&id, props)?;
-                Ok("Arrow updated.".into())
+                Ok(format!("{} updated.", T::ID.arrow_noun().one_capitalized()))
             }
             EditOp::RemoveConnection { id } => {
                 let id = self.connection_id(id)?;
@@ -457,7 +464,7 @@ impl<T: DiagramType> Batch<'_, T> {
             .eng
             .connection(id)
             .cloned()
-            .ok_or("there's no such arrow")?;
+            .ok_or_else(|| format!("there's no such {}", T::ID.arrow_noun().one))?;
         let merged = merge_props(&current.props, props)?;
         T::validate_arrow(&merged)?;
         self.eng.set_connection_props(id, merged);

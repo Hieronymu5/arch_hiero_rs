@@ -692,4 +692,18 @@ pub(crate) mod tests {
         };
         assert!(C4::validate_arrow(&long).is_err());
     }
+
+    #[test]
+    fn arrows_are_called_relationships() {
+        let mut e = engine();
+        e.add_at_free_position(C4Kind::Person);
+        e.add_at_free_position(C4Kind::System);
+        change(&mut e, "id1", |w| w.label = "Customer".into());
+        change(&mut e, "id2", |w| w.label = "Banking".into());
+        e.add_connection(&id("id1"), &id("id2")).unwrap();
+        assert_eq!(
+            e.announcement,
+            "Relationship from Customer to Banking added."
+        );
+    }
 }

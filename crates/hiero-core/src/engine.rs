@@ -1538,7 +1538,8 @@ impl<T: DiagramType> Engine<T> {
 
     pub fn arrow_name(&self, source: &ElementId, target: &ElementId) -> String {
         format!(
-            "Arrow from {} to {}",
+            "{} from {} to {}",
+            T::ID.arrow_noun().one_capitalized(),
             self.label_of(source).unwrap_or("?"),
             self.label_of(target).unwrap_or("?")
         )

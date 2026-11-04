@@ -17,7 +17,7 @@ pub const HELP: &str = concat!(
     "• Drag an element onto the canvas, or select it to add it: Container, or one of the kinds of container under it. Change a container's kind with its Container type, and a boundary's with its Boundary type, in its properties; drop elements into a boundary. Choose the diagram's level, context, container, or component, in Edit Details. Add diagram on a system or a container starts a more detailed diagram with a boundary round it.\n",
     "• Drag an element, or use the arrow keys, to move it. Resize elements and boundaries with their handles.\n",
     "• Press Enter to edit an element's properties, such as its colour, and Delete to remove it. Hold Shift, Ctrl, or Cmd as you click, or press Shift+Space on each, to select several and move or remove them together.\n",
-    "• Drag from the round handle on the selected element, or use Add arrow in its properties, to draw a relationship. Select a relationship to give it a description and a technology.\n",
+    "• Drag from the round handle on the selected element, or use Add relationship in its properties, to draw a relationship. Select a relationship to give it a description and a technology.\n",
     "• Cut, copy, and paste elements with Cmd or Ctrl and X, C, and V, with what they hold and the relationships between them.\n",
     "• Drag an empty part of the canvas to draw a box around elements and select them, holding Shift, Ctrl, or Cmd to add them to the selection.\n",
     "• Drag with the right mouse button, or scroll with a trackpad or with Shift and the scroll wheel, to move around. Use the scroll wheel, a pinch on a trackpad, or the Zoom slider in the canvas's corner to zoom."

@@ -155,6 +155,14 @@ impl DiagramTypeId {
         !matches!(self, Self::DeployedComponent)
     }
 
+    /// What the type calls its arrows: C4 calls them relationships.
+    pub const fn arrow_noun(self) -> Noun {
+        match self {
+            Self::C4 => Noun::new("relationship", "relationships"),
+            _ => Noun::new("arrow", "arrows"),
+        }
+    }
+
     /// How thick elements' lines are unless a diagram chooses otherwise: deployed component
     /// diagrams are drawn thin, and the C4 types, which came after the setting, medium.
     pub const fn default_line_weight(self) -> LineWeight {
@@ -503,6 +511,48 @@ pub fn validate_description(description: &str) -> Result<(), &'static str> {
     }
 }
 
+/// A word in its singular and plural, in lower case, such as "arrow" and "arrows".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Noun {
+    pub one: &'static str,
+    pub many: &'static str,
+}
+
+impl Noun {
+    pub const fn new(one: &'static str, many: &'static str) -> Self {
+        Self { one, many }
+    }
+
+    /// The singular after "a" or "an", such as "an arrow".
+    pub fn with_article(self) -> String {
+        let an = self.one.starts_with(['a', 'e', 'i', 'o', 'u']);
+        format!("{} {}", if an { "an" } else { "a" }, self.one)
+    }
+
+    /// The singular after "A" or "An", to start a sentence, such as "An arrow".
+    pub fn with_capital_article(self) -> String {
+        capitalized(&self.with_article())
+    }
+
+    /// The singular with a capital, such as "Arrow", to start a sentence or a button.
+    pub fn one_capitalized(self) -> String {
+        capitalized(self.one)
+    }
+
+    /// The plural with a capital, such as "Arrows", for a heading.
+    pub fn many_capitalized(self) -> String {
+        capitalized(self.many)
+    }
+}
+
+fn capitalized(word: &str) -> String {
+    let mut chars = word.chars();
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -604,6 +654,11 @@ mod tests {
         assert_eq!(c4.label_with(Some("container")), "C4 - Container");
         assert_eq!(c4.label_with(None), "C4 - Context");
         assert_eq!(c4.label_with(Some("nope")), "C4 - Context");
+        assert_eq!(c4.arrow_noun().one_capitalized(), "Relationship");
+        assert_eq!(
+            DiagramTypeId::Physical.arrow_noun().many_capitalized(),
+            "Arrows"
+        );
         assert_eq!(DiagramTypeId::Physical.label_with(None), "Physical");
         assert!(DiagramTypeId::Conceptual.subtypes().is_empty());
         assert!(!DiagramTypeId::DeployedComponent.has_arrows());
