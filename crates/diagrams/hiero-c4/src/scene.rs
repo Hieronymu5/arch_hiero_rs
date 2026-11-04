@@ -225,6 +225,12 @@ mod tests {
         // The relationship is dashed and black, with its description on its middle.
         assert!(svg.contains(r##"stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4""##));
         assert!(svg.contains(">Views balances using</text>"));
+        // On a white box that hides the line under it, drawn before the text.
+        let text = svg.find(">Views balances using</text>").unwrap();
+        let before = &svg[..text];
+        let box_at = before.rfind("<rect ").unwrap();
+        assert!(before[box_at..].contains(r##"fill="#ffffff""##));
+        assert!(!before[box_at..].contains("stroke="));
     }
 
     #[test]

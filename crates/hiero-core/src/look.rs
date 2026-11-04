@@ -235,6 +235,8 @@ pub const CAPTION: TextStyle = TextStyle::new(13.0, Weight::Regular, 17.0, 3);
 pub const CAPTION_TECHNOLOGY: TextStyle = TextStyle::new(11.0, Weight::Regular, 15.0, 1);
 /// The most characters on a line of a caption's description: a longer one is split evenly.
 pub const CAPTION_LINE_CHARS: usize = 20;
+/// The space left and right, and above and below, a caption's text on the box behind it.
+pub const CAPTION_MARGIN: (f64, f64) = (4.0, 2.0);
 
 impl Caption {
     /// `text` split evenly into lines of at most [`CAPTION_LINE_CHARS`], with `technology`
@@ -270,14 +272,39 @@ impl Caption {
             }
     }
 
-    /// The caption's lines centred on `middle`, with a halo of `background` so they read over
-    /// the line.
-    pub fn nodes(&self, middle: Point, background: &str) -> Vec<Node> {
-        let mut top = middle.y - self.height() / 2.0;
-        let mut nodes = Vec::new();
+    /// The caption's lines and technology, each with its style.
+    fn styled_lines(&self) -> impl Iterator<Item = (&String, TextStyle)> {
         let lines = self.lines.iter().map(|l| (l, CAPTION));
         let technology = self.technology.iter().map(|t| (t, CAPTION_TECHNOLOGY));
-        for (line, style) in lines.chain(technology) {
+        lines.chain(technology)
+    }
+
+    /// The box the caption covers when centred on `middle`, with a margin round its text.
+    pub fn rect(&self, middle: Point, measure: &dyn MeasureText) -> Rect {
+        let width = self
+            .styled_lines()
+            .map(|(line, style)| measure.width(line, style.size, style.weight))
+            .fold(0.0, f64::max)
+            + CAPTION_MARGIN.0 * 2.0;
+        let height = self.height() + CAPTION_MARGIN.1 * 2.0;
+        Rect::new(
+            round2(middle.x - width / 2.0),
+            round2(middle.y - height / 2.0),
+            round2(width),
+            round2(height),
+        )
+    }
+
+    /// The caption's lines centred on `middle`, on a box of `background` that hides the line
+    /// under them.
+    pub fn nodes(&self, middle: Point, background: &str, measure: &dyn MeasureText) -> Vec<Node> {
+        let mut top = middle.y - self.height() / 2.0;
+        let mut nodes = vec![Node::rect(
+            self.rect(middle, measure),
+            0.0,
+            Paint::fill(background),
+        )];
+        for (line, style) in self.styled_lines() {
             let baseline = top + (style.line_height - style.size) / 2.0 + style.size * 0.8;
             nodes.push(Node::Text {
                 at: Point::new(round2(middle.x), round2(baseline)),
@@ -286,7 +313,7 @@ impl Caption {
                 weight: style.weight,
                 text: line.clone(),
                 fill: None,
-                halo: Some((background.into(), 4.0)),
+                halo: None,
             });
             top += style.line_height;
         }
@@ -950,7 +977,7 @@ pub fn draw_diagram(
     for e in elements.iter().filter(|e| e.look.on_top) {
         nodes.extend(draw_element(e, measure, colors, weight));
     }
-    nodes.extend(draw_arrows(elements, arrows, colors, weight));
+    nodes.extend(draw_arrows(elements, arrows, measure, colors, weight));
     Scene {
         nodes,
         bounds: bounds_of(elements, arrows),
@@ -965,6 +992,7 @@ pub fn draw_diagram(
 pub fn draw_arrows(
     elements: &[LookElement],
     arrows: &[ArrowLook],
+    measure: &dyn MeasureText,
     colors: &DiagramColors,
     weight: LineWeight,
 ) -> Vec<Node> {
@@ -1040,7 +1068,7 @@ pub fn draw_arrows(
                 f64::midpoint(a.from.x, a.to.x),
                 f64::midpoint(a.from.y, a.to.y),
             );
-            nodes.extend(caption.nodes(middle, BACKGROUND));
+            nodes.extend(caption.nodes(middle, BACKGROUND, measure));
         }
         let Some(label) = a.label.as_ref().filter(|l| !l.is_empty()) else {
             continue;
