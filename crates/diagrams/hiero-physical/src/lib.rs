@@ -19,5 +19,5 @@ pub const HELP: &str = concat!(
     "• Drag from the round handle on the selected element, or use Add arrow in its properties, to draw an arrow. Select an arrow to set its protocol and port.\n",
     "• Cut, copy, and paste elements with Cmd or Ctrl and X, C, and V, with what they hold and the arrows between them. They paste into the selected element when it can hold them, or else beside where they were copied from.\n",
     "• Drag an empty part of the canvas to draw a box around elements and select them, holding Shift, Ctrl, or Cmd to add them to the selection.\n",
-    "• Drag with the right mouse button, or scroll with a trackpad or with Shift and the scroll wheel, to move around. Use the scroll wheel, a pinch on a trackpad, or the Zoom slider in the canvas's corner to zoom."
+    "• Drag with the right or middle mouse button, or scroll (with Shift to scroll sideways), to move around. Scroll with Cmd or Ctrl held, pinch on a trackpad, press Cmd or Ctrl and + or -, or use the Zoom slider in the canvas's corner to zoom."
 );

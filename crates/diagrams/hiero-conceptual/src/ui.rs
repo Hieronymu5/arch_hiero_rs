@@ -378,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn the_scroll_wheel_zooms_and_trackpads_scroll() {
+    fn the_scroll_wheel_scrolls_and_zooms_with_cmd_or_ctrl() {
         use egui::{MouseWheelSource as Source, MouseWheelUnit as Unit};
 
         let scroll = |w: &mut Window, unit, source, y: f32, modifiers: Modifiers| {
@@ -391,7 +391,7 @@ mod tests {
             };
             let at = w.screen(Point::new(400.0, 400.0), w.editor.view().scroll);
             w.frame(vec![Event::PointerMoved(at), wheel], modifiers);
-            // Mouse wheels' steps are spread over a few frames.
+            // Zooming with the wheel is spread over a few frames.
             for _ in 0..30 {
                 w.frame(vec![], modifiers);
             }
@@ -399,15 +399,11 @@ mod tests {
         };
         let mut w = Window::new();
         let start = w.editor.view();
-        // A mouse wheel turned towards the user zooms out, and back the other way zooms in.
-        let out = scroll(&mut w, Unit::Line, Source::Wheel, -1.0, Modifiers::NONE);
-        assert!(out.zoom < start.zoom, "{out:?}");
-        let back = scroll(&mut w, Unit::Line, Source::Wheel, 1.0, Modifiers::NONE);
-        assert!(back.zoom > out.zoom, "{back:?}");
-        // Where the platform doesn't say, a wheel is told apart by scrolling in lines.
-        let unknown = scroll(&mut w, Unit::Line, Source::Unknown, -1.0, Modifiers::NONE);
-        assert!(unknown.zoom < back.zoom, "{unknown:?}");
-        // A trackpad scrolls, as does the wheel with Shift (sideways), and neither zooms.
+        // A mouse wheel turned towards the user scrolls down, as does a trackpad, and neither
+        // zooms.
+        let down = scroll(&mut w, Unit::Line, Source::Wheel, -1.0, Modifiers::NONE);
+        assert_eq!(down.zoom, start.zoom);
+        assert!(down.scroll.y < start.scroll.y, "{down:?}");
         let pad = scroll(
             &mut w,
             Unit::Point,
@@ -415,40 +411,67 @@ mod tests {
             -30.0,
             Modifiers::NONE,
         );
-        assert_eq!(pad.zoom, unknown.zoom);
-        assert!(pad.scroll.y < unknown.scroll.y, "{pad:?}");
+        assert_eq!(pad.zoom, start.zoom);
+        assert!(pad.scroll.y < down.scroll.y, "{pad:?}");
+        // With Shift it scrolls sideways.
         let sideways = scroll(&mut w, Unit::Line, Source::Wheel, -1.0, Modifiers::SHIFT);
-        assert_eq!(sideways.zoom, pad.zoom);
+        assert_eq!(sideways.zoom, start.zoom);
         assert!(sideways.scroll.x < pad.scroll.x, "{sideways:?}");
+        // With Cmd, or Ctrl, it zooms out towards the user and in the other way.
+        let out = scroll(&mut w, Unit::Line, Source::Wheel, -1.0, Modifiers::COMMAND);
+        assert!(out.zoom < start.zoom, "{out:?}");
+        let back = scroll(&mut w, Unit::Line, Source::Wheel, 1.0, Modifiers::CTRL);
+        assert!(back.zoom > out.zoom, "{back:?}");
+        let ctrl = scroll(&mut w, Unit::Line, Source::Wheel, -1.0, Modifiers::CTRL);
+        assert!(ctrl.zoom < back.zoom, "{ctrl:?}");
+    }
 
-        // Each notch zooms in the frame it comes, however slowly the wheel turns and however
-        // small the notch, zooming in as well as out.
-        let notch = |w: &mut Window, y: f32| {
-            let at = w.screen(Point::new(400.0, 400.0), w.editor.view().scroll);
-            let wheel = Event::MouseWheel {
-                unit: Unit::Line,
-                delta: Vec2::new(0.0, y),
-                phase: egui::TouchPhase::Move,
-                source: Source::Wheel,
-                modifiers: Modifiers::NONE,
+    #[test]
+    fn cmd_or_ctrl_and_plus_or_minus_zoom() {
+        let key = |w: &mut Window, key, modifiers| {
+            let press = Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
             };
-            w.frame(vec![Event::PointerMoved(at)], Modifiers::NONE);
-            let before = w.editor.view().zoom;
-            w.frame(vec![wheel], Modifiers::NONE);
-            (before, w.editor.view().zoom)
+            w.frame(vec![press], modifiers);
+            w.frame(vec![], Modifiers::NONE);
+            w.editor.view().zoom
         };
         let mut w = Window::new();
-        let (before, after) = notch(&mut w, -0.1);
-        assert!(after < before, "{before} {after}");
-        for _ in 0..3 {
-            notch(&mut w, -1.0);
-        }
-        for _ in 0..3 {
-            for _ in 0..20 {
-                w.frame(vec![], Modifiers::NONE);
-            }
-            let (before, after) = notch(&mut w, 0.1);
-            assert!(after > before, "{before} {after}");
+        w.frame(vec![], Modifiers::NONE);
+        let start = w.editor.view().zoom;
+        let out = key(&mut w, egui::Key::Minus, Modifiers::COMMAND);
+        assert!(out < start, "{out}");
+        let further = key(&mut w, egui::Key::Minus, Modifiers::CTRL);
+        assert!(further < out, "{further}");
+        let back = key(&mut w, egui::Key::Plus, Modifiers::COMMAND);
+        assert!((back - out).abs() < 1e-4, "{back}");
+        let equals = key(&mut w, egui::Key::Equals, Modifiers::CTRL);
+        assert!((equals - start).abs() < 1e-4, "{equals}");
+        // The window itself isn't scaled.
+        assert_eq!(w.ctx.zoom_factor(), 1.0);
+        // Without Cmd or Ctrl, the keys don't zoom.
+        assert_eq!(key(&mut w, egui::Key::Minus, Modifiers::NONE), equals);
+    }
+
+    #[test]
+    fn dragging_with_the_middle_button_moves_the_canvas() {
+        for viewing in [false, true] {
+            let mut w = Window::new();
+            w.editor.set_viewing(viewing);
+            w.frame(vec![], Modifiers::NONE);
+            let u1 = w.editor.eng.laid(&"u1".into()).unwrap().rect;
+            let start = w.editor.view().scroll;
+            // From over an element, which stays where it is.
+            let from = w.screen(u1.center(), start);
+            let pan = Vec2::new(-100.0, -50.0);
+            w.drag(from, from + pan, PointerButton::Middle, Modifiers::NONE);
+            assert_eq!(w.editor.view().scroll, start + pan, "viewing: {viewing}");
+            assert_eq!(w.editor.eng.laid(&"u1".into()).unwrap().rect, u1);
+            assert!(w.selection().is_empty());
         }
     }
 

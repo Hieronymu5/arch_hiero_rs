@@ -158,6 +158,6 @@ Rust shape: `Element<DeployedKind, DeployedProps>`, with `DeployedProps { charac
 - [x] 92-item tech stack picker with grouped, collapsible categories
 - [x] Dependency colours
 - [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
-- [x] View mode, the default when opening from the list: no palette, properties, or grid; drag with either button, scroll, zoom, and export (beyond the prototype)
+- [x] View mode, the default when opening from the list: no palette, properties, or grid; drag with any button, scroll, zoom, and export (beyond the prototype)
 - [x] Sub diagrams and links: an element can link to any other diagram, picked in its properties, or add a new one as a sub diagram of its diagram, and opens it by clicking it in view mode; many elements can link to one diagram, and removing a link keeps the diagram. Edit Details lists a diagram's sub diagrams and deletes them; the list shows them under their diagram, and deleting a diagram deletes them. A link to a deleted diagram is dead: it counts as no link, exports leave it out, and saving a version drops it. draw.io exports add linked diagrams, then any other sub diagrams, as linked pages, and .zip exports hold the sub diagrams, which import back under their parents (beyond the prototype)
 - [ ] Custom SVG and draw.io export that match the prototype — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*
