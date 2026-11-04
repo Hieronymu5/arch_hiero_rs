@@ -230,18 +230,25 @@ pub struct Caption {
     pub technology: Option<String>,
 }
 
-/// A caption's description, its technology, and the widest a line of either is.
+/// A caption's description and its technology.
 pub const CAPTION: TextStyle = TextStyle::new(13.0, Weight::Regular, 17.0, 3);
 pub const CAPTION_TECHNOLOGY: TextStyle = TextStyle::new(11.0, Weight::Regular, 15.0, 1);
-pub const CAPTION_WIDTH: f64 = 180.0;
+/// The most characters on a line of a caption's description: a longer one is split evenly.
+pub const CAPTION_LINE_CHARS: usize = 20;
 
 impl Caption {
-    /// `text` wrapped to the caption's width, with `technology` under it.
-    pub fn new(text: Option<&str>, technology: Option<&str>, measure: &dyn MeasureText) -> Self {
+    /// `text` split evenly into lines of at most [`CAPTION_LINE_CHARS`], with `technology`
+    /// under it.
+    pub fn new(text: Option<&str>, technology: Option<&str>) -> Self {
         Self {
             lines: text
                 .filter(|t| !t.trim().is_empty())
-                .map(|t| wrap_text(t, CAPTION_WIDTH, CAPTION, measure))
+                .map(|t| {
+                    t.trim()
+                        .lines()
+                        .flat_map(|p| split_evenly(p, CAPTION_LINE_CHARS))
+                        .collect()
+                })
                 .unwrap_or_default(),
             technology: technology
                 .filter(|t| !t.trim().is_empty())
@@ -285,6 +292,34 @@ impl Caption {
         }
         nodes
     }
+}
+
+/// `text` split at spaces into the fewest lines of at most `max` characters, as even as they
+/// can be: text a little over `max` is split in the middle. A word longer than `max` keeps a
+/// line to itself.
+fn split_evenly(text: &str, max: usize) -> Vec<String> {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let length = |words: &[&str]| -> usize {
+        words.iter().map(|w| w.chars().count()).sum::<usize>() + words.len().saturating_sub(1)
+    };
+    let mut rest = &words[..];
+    let parts = length(rest).div_ceil(max).clamp(1, words.len().max(1));
+    let mut lines = Vec::with_capacity(parts);
+    for left in (2..=parts).rev() {
+        // Break where this line comes closest to an even share of what's left, leaving a
+        // word for each line after it.
+        let share = length(rest) as f64 / left as f64;
+        let take = (1..=rest.len() - (left - 1))
+            .min_by(|&a, &b| {
+                let off = |k: usize| (length(&rest[..k]) as f64 - share).abs();
+                off(a).total_cmp(&off(b))
+            })
+            .unwrap_or(1);
+        lines.push(rest[..take].join(" "));
+        rest = &rest[take..];
+    }
+    lines.push(rest.join(" "));
+    lines
 }
 
 /// Where the name under a physical figure ends: the figure, the gap, then the name's lines.
@@ -1032,6 +1067,25 @@ mod tests {
     use super::*;
     use crate::export::svg::scene_to_svg;
     use crate::text::EstimateText;
+
+    #[test]
+    fn a_caption_over_twenty_characters_is_split_evenly() {
+        let lines = |t: &str| Caption::new(Some(t), None).lines;
+        assert_eq!(lines("Views balances using"), ["Views balances using"]);
+        assert_eq!(
+            lines("Sends e-mails to customers"),
+            ["Sends e-mails", "to customers"]
+        );
+        assert_eq!(
+            lines("Reads from and writes to the main customer database"),
+            ["Reads from and", "writes to the main", "customer database"]
+        );
+        assert_eq!(
+            lines("Uses\nhttps://example.com/a-very-long-path"),
+            ["Uses", "https://example.com/a-very-long-path"]
+        );
+        assert!(Caption::new(Some("  "), Some("SQL")).lines.is_empty());
+    }
 
     fn element(shape: Shape, rect: Rect) -> LookElement {
         LookElement {

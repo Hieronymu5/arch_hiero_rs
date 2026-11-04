@@ -91,7 +91,6 @@ pub fn drawn_arrows(eng: &Engine<C4>, layout: &[Laid<C4>]) -> Vec<DrawnArrow> {
         .collect();
     let routes = route_connections(&rects, &ends);
     let by_id: HashMap<&ElementId, &Laid<C4>> = layout.iter().map(|e| (&e.el.id, e)).collect();
-    let measure = eng.measure();
     eng.connections()
         .iter()
         .filter_map(|c| {
@@ -101,7 +100,6 @@ pub fn drawn_arrows(eng: &Engine<C4>, layout: &[Laid<C4>]) -> Vec<DrawnArrow> {
             let caption = Caption::new(
                 c.props.description.as_deref(),
                 c.props.technology.as_deref(),
-                measure,
             );
             let end = on_outline;
             Some(DrawnArrow {
