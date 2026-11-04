@@ -744,7 +744,7 @@
         "kind": "person",
         "label": "Software Architect",
         "x": 360,
-        "y": 0,
+        "y": 20,
         "description": "Designs systems and records them as diagrams."
       },
       {
@@ -752,7 +752,7 @@
         "kind": "system",
         "label": "Arch Hiero",
         "x": 300,
-        "y": 300,
+        "y": 320,
         "description": "Desktop app for drawing architecture diagrams.",
         "subDiagramId": "496d9b78-92ff-47aa-99e6-6cbd53e4792a"
       },
@@ -761,7 +761,7 @@
         "kind": "system",
         "label": "Claude Code",
         "x": 720,
-        "y": 300,
+        "y": 320,
         "description": "Agentic coding tool that draws diagrams for its user.",
         "color": "red"
       },
@@ -770,7 +770,7 @@
         "kind": "system",
         "label": "draw.io",
         "x": 120,
-        "y": 580,
+        "y": 600,
         "description": "Diagram editor that opens exported diagrams.",
         "color": "red"
       },
@@ -779,7 +779,7 @@
         "kind": "system",
         "label": "Architecture Repository",
         "x": 480,
-        "y": 580,
+        "y": 600,
         "description": "Keeps the organisation's approved diagrams.",
         "color": "orange"
       }
@@ -832,7 +832,7 @@
         "kind": "person",
         "label": "Software Architect",
         "x": 540,
-        "y": 0,
+        "y": 20,
         "description": "Designs systems and records them as diagrams."
       },
       {
@@ -840,7 +840,7 @@
         "kind": "boundary",
         "label": "Arch Hiero",
         "x": 40,
-        "y": 200,
+        "y": 220,
         "description": "Desktop app for drawing architecture diagrams.",
         "width": 1100,
         "height": 600
@@ -850,7 +850,7 @@
         "kind": "container",
         "label": "Tech Stack Logos",
         "x": 80,
-        "y": 240,
+        "y": 260,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "PNG",
         "description": "Logos drawn on deployed component diagrams.",
@@ -861,7 +861,7 @@
         "kind": "container",
         "label": "Diagram Editor",
         "x": 480,
-        "y": 240,
+        "y": 260,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "Rust and egui",
         "description": "Native editor for drawing and exporting diagrams.",
@@ -872,7 +872,7 @@
         "kind": "container",
         "label": "MCP Server",
         "x": 880,
-        "y": 240,
+        "y": 260,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "Rust and rmcp",
         "description": "Lets agents read and edit diagrams over stdio.",
@@ -884,7 +884,7 @@
         "kind": "container",
         "label": "Exports",
         "x": 280,
-        "y": 560,
+        "y": 580,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "File system",
         "description": "SVG, draw.io, and .zip files.",
@@ -895,7 +895,7 @@
         "kind": "container",
         "label": "Diagram Database",
         "x": 680,
-        "y": 560,
+        "y": 580,
         "parentId": "69027d82-8437-4fe2-8b56-1803c76917ba",
         "technology": "SQLite",
         "description": "Diagrams, their elements, and their versions.",
@@ -906,7 +906,7 @@
         "kind": "system",
         "label": "Claude Code",
         "x": 1320,
-        "y": 240,
+        "y": 260,
         "description": "Agentic coding tool that draws diagrams for its user.",
         "color": "red"
       }
@@ -970,7 +970,7 @@
         "kind": "system",
         "label": "Claude Code",
         "x": 100,
-        "y": 0,
+        "y": 20,
         "description": "Agentic coding tool that draws diagrams for its user.",
         "color": "red"
       },
@@ -979,7 +979,7 @@
         "kind": "boundary",
         "label": "Arch Hiero",
         "x": 40,
-        "y": 240,
+        "y": 260,
         "description": "Desktop app for drawing architecture diagrams.",
         "width": 1140,
         "height": 620
@@ -989,7 +989,7 @@
         "kind": "boundary",
         "label": "MCP Server",
         "x": 80,
-        "y": 280,
+        "y": 300,
         "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
         "description": "Rust and rmcp, over stdio",
         "width": 680,
@@ -1001,7 +1001,7 @@
         "kind": "component",
         "label": "Tool Router",
         "x": 100,
-        "y": 320,
+        "y": 340,
         "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
         "technology": "rmcp",
         "description": "Offers the MCP tools and the type specs."
@@ -1011,7 +1011,7 @@
         "kind": "component",
         "label": "Registry",
         "x": 500,
-        "y": 320,
+        "y": 340,
         "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
         "technology": "hiero-registry",
         "description": "Applies edits with each diagram type's rules."
@@ -1021,7 +1021,7 @@
         "kind": "component",
         "label": "Exporter",
         "x": 100,
-        "y": 560,
+        "y": 580,
         "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
         "technology": "hiero-core",
         "description": "Draws diagrams as SVG and draw.io."
@@ -1031,7 +1031,7 @@
         "kind": "component",
         "label": "Diagram Store",
         "x": 500,
-        "y": 560,
+        "y": 580,
         "parentId": "67745143-4a53-419d-8aae-1b743c1bcc11",
         "technology": "hiero-store",
         "description": "Reads and saves diagrams, checking revisions."
@@ -1041,7 +1041,7 @@
         "kind": "container",
         "label": "Diagram Editor",
         "x": 920,
-        "y": 320,
+        "y": 340,
         "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
         "technology": "Rust and egui",
         "description": "Native editor for drawing and exporting diagrams.",
@@ -1052,7 +1052,7 @@
         "kind": "container",
         "label": "Diagram Database",
         "x": 920,
-        "y": 600,
+        "y": 620,
         "parentId": "78996fa6-7585-428f-b01f-83b156a0e90a",
         "technology": "SQLite",
         "description": "Diagrams, their elements, and their versions.",
