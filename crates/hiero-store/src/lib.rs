@@ -363,6 +363,41 @@ pub fn seed_diagrams() -> Vec<StoredDiagram> {
         .unwrap_or_default()
 }
 
+/// `diagrams`, each with the diagram it's a sub diagram of: the first other one with an
+/// element that opens it. They're put in an order that adds each after its parent; one whose
+/// parents would loop has none.
+fn with_parents(diagrams: Vec<StoredDiagram>) -> Vec<(StoredDiagram, Option<DiagramId>)> {
+    let mut parent_of: BTreeMap<DiagramId, DiagramId> = BTreeMap::new();
+    for d in &diagrams {
+        let opened = d
+            .content
+            .elements
+            .iter()
+            .filter_map(|e| e.props.get(SUB_DIAGRAM)?.as_str());
+        for target in opened {
+            let target = DiagramId(target.to_owned());
+            if target != d.meta.id && diagrams.iter().any(|o| o.meta.id == target) {
+                parent_of.entry(target).or_insert_with(|| d.meta.id.clone());
+            }
+        }
+    }
+    let mut pending = diagrams;
+    let mut ordered: Vec<(StoredDiagram, Option<DiagramId>)> = Vec::new();
+    while !pending.is_empty() {
+        let added = |id: &DiagramId| ordered.iter().any(|(d, _)| d.meta.id == *id);
+        let ready = pending
+            .iter()
+            .position(|d| parent_of.get(&d.meta.id).is_none_or(added));
+        // Only parents that loop are left: the first is added on its own.
+        let (index, parent) = match ready {
+            Some(i) => (i, parent_of.get(&pending[i].meta.id).cloned()),
+            None => (0, None),
+        };
+        ordered.push((pending.remove(index), parent));
+    }
+    ordered
+}
+
 /// Whether a database is empty or already holds diagrams. A file that isn't SQLite at all
 /// fails the query, so it isn't ours either.
 fn is_ours(conn: &Connection) -> bool {
@@ -463,8 +498,8 @@ impl Store {
         }
         let seeds = seed_diagrams();
         let n = seeds.len();
-        for diagram in seeds {
-            self.create(&diagram)?;
+        for (diagram, parent) in with_parents(seeds) {
+            self.create_under(&diagram, parent.as_ref())?;
         }
         Ok(n)
     }
@@ -1749,6 +1784,67 @@ mod tests {
                 "ARCH Hiero MCP Capabilities",
                 "Standard 3 -Tier Application",
                 "Website Example - Active - Active"
+            ]
+        );
+    }
+
+    #[test]
+    fn the_c4_samples_are_a_diagram_with_sub_diagrams() {
+        let mut store = Store::open_in_memory().unwrap();
+        store.load_samples().unwrap();
+        let named = |name: &str| {
+            store
+                .list()
+                .unwrap()
+                .into_iter()
+                .find(|s| s.meta.name == name)
+                .unwrap()
+        };
+        let context = named("Arch Hiero - System Context");
+        let containers = named("Arch Hiero - Containers");
+        let components = named("Arch Hiero - MCP Server Components");
+        assert_eq!(context.parent, None);
+        assert_eq!(containers.parent, Some(context.meta.id.clone()));
+        assert_eq!(components.parent, Some(containers.meta.id.clone()));
+        assert_eq!(
+            store.sub_diagrams(&context.meta.id).unwrap(),
+            [containers.meta.id, components.meta.id]
+        );
+    }
+
+    #[test]
+    fn parents_come_first_and_loops_have_none() {
+        let diagram = |id: &str, opens: &[&str]| {
+            let mut d = diagram(id, DiagramTypeId::Conceptual);
+            d.content.elements = opens
+                .iter()
+                .map(|o| {
+                    StoredElement::from_json(&json!({
+                        "id": format!("{id}-{o}"), "kind": "domain", "label": "D", "x": 0, "y": 0,
+                        "subDiagramId": o
+                    }))
+                    .unwrap()
+                })
+                .collect();
+            d
+        };
+        let ordered = with_parents(vec![
+            diagram("child", &[]),
+            diagram("top", &["child", "gone"]),
+            diagram("a", &["b"]),
+            diagram("b", &["a"]),
+        ]);
+        let pairs: Vec<(&str, Option<&str>)> = ordered
+            .iter()
+            .map(|(d, p)| (d.meta.id.as_str(), p.as_ref().map(DiagramId::as_str)))
+            .collect();
+        assert_eq!(
+            pairs,
+            [
+                ("top", None),
+                ("child", Some("top")),
+                ("a", None),
+                ("b", Some("a"))
             ]
         );
     }
