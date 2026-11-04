@@ -1,7 +1,7 @@
 [
   {
     "id": "01f93d16-5581-4cb9-a7db-6449f0e9dfe7",
-    "name": "ARCH Hiero MCP Capabilities",
+    "name": "Arch Hiero MCP Capabilities",
     "type": "conceptual",
     "lineWeight": "medium",
     "description": "Teaching an Agent to create Diagrams",
@@ -33,7 +33,7 @@
         "description": "[Angular]\nDiagram Tool",
         "id": "a0e39f87-c93e-4ae6-9f59-8860c46f7d1d",
         "kind": "application",
-        "label": "ARCH Hiero",
+        "label": "Arch Hiero",
         "x": 300,
         "y": 240
       },
@@ -70,7 +70,7 @@
         "description": "[RUST]",
         "id": "61d351e8-0115-4f28-96cf-057d691fe8fd",
         "kind": "application",
-        "label": "ARCH Hiero",
+        "label": "Arch Hiero",
         "x": 820,
         "y": 240
       },
@@ -107,7 +107,7 @@
         "description": "[RUST]",
         "id": "eb1a7b06-8348-4aac-a3ab-eb733a68a878",
         "kind": "application",
-        "label": "ARCH Hiero",
+        "label": "Arch Hiero",
         "x": 300,
         "y": 620
       },
@@ -146,7 +146,7 @@
         "description": "[Angular]\nDiagram Tool",
         "id": "a4370faf-a457-43ff-9dd6-4b9182a38659",
         "kind": "application",
-        "label": "ARCH Hiero",
+        "label": "Arch Hiero",
         "x": 820,
         "y": 620
       },
