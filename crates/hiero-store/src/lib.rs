@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 pub mod locations;
 
-use hiero_core::file::{diagram_from_json, diagram_to_json};
+use hiero_core::file::{SubDiagram, diagram_from_json, diagram_to_json};
 use hiero_core::geometry::Size;
 use hiero_core::history::{DiagramSnapshot, content_hash};
 use hiero_core::model::{
@@ -618,6 +618,25 @@ impl Store {
         Ok(descendants(&self.conn, id)?.into_iter().skip(1).collect())
     }
 
+    /// A diagram's sub diagrams, and theirs, each with the diagram it's a sub diagram of:
+    /// parents before their sub diagrams, and sorted by name among those as deep.
+    pub fn sub_diagram_tree(&self, id: &DiagramId) -> Result<Vec<(DiagramId, DiagramId)>> {
+        let mut statement = self.conn.prepare(
+            "WITH RECURSIVE below(id, parent, depth) AS (
+               SELECT id, parent_diagram_id, 0 FROM diagrams WHERE id = ?1
+               UNION SELECT d.id, d.parent_diagram_id, b.depth + 1
+                 FROM diagrams d JOIN below b ON d.parent_diagram_id = b.id
+             )
+             SELECT b.id, b.parent FROM below b JOIN diagrams d ON d.id = b.id
+             WHERE b.depth > 0
+             ORDER BY b.depth, d.name COLLATE NOCASE, b.id",
+        )?;
+        let rows = statement.query_map(params![id.0], |row| {
+            Ok((DiagramId(row.get(0)?), DiagramId(row.get(1)?)))
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// A diagram's own sub diagrams, not theirs, with their names, sorted by name.
     pub fn children(&self, id: &DiagramId) -> Result<Vec<(DiagramId, String)>> {
         let mut statement = self.conn.prepare(
@@ -643,16 +662,52 @@ impl Store {
     /// Saves a diagram from a file: it replaces the diagram with the same id, every field of
     /// it, or else is added with that id. An existing diagram of another type is refused.
     pub fn import(&mut self, diagram: &StoredDiagram) -> Result<Imported> {
+        self.import_under(diagram, None)
+    }
+
+    /// Imports a diagram from a file, as `import` does, then the sub diagrams in the file
+    /// with it, in order. One that's new is added as a sub diagram of its parent in the file;
+    /// one that's here already is replaced and stays where it is. Nothing is imported when
+    /// any of them would change a diagram's type. Returns what each import did, the
+    /// diagram's first.
+    pub fn import_with_sub_diagrams(
+        &mut self,
+        diagram: &StoredDiagram,
+        subs: &[SubDiagram],
+    ) -> Result<Vec<Imported>> {
+        let all = std::iter::once(diagram).chain(subs.iter().map(|s| &s.diagram));
+        for incoming in all {
+            self.check_import_type(incoming)?;
+        }
+        let mut imported = vec![self.import(diagram)?];
+        for sub in subs {
+            imported.push(self.import_under(&sub.diagram, Some(&sub.parent))?);
+        }
+        Ok(imported)
+    }
+
+    fn check_import_type(&self, diagram: &StoredDiagram) -> Result<Option<Record>> {
         let existing = self.get(&diagram.meta.id)?;
-        match existing {
-            Some(existing) => {
-                if existing.diagram.meta.diagram_type != diagram.meta.diagram_type {
-                    return Err(StoreError::TypeMismatch {
-                        name: existing.diagram.meta.name,
-                        existing: existing.diagram.meta.diagram_type,
-                        incoming: diagram.meta.diagram_type,
-                    });
-                }
+        if let Some(existing) = &existing
+            && existing.diagram.meta.diagram_type != diagram.meta.diagram_type
+        {
+            return Err(StoreError::TypeMismatch {
+                name: existing.diagram.meta.name.clone(),
+                existing: existing.diagram.meta.diagram_type,
+                incoming: diagram.meta.diagram_type,
+            });
+        }
+        Ok(existing)
+    }
+
+    /// Imports `diagram`, added under `parent` when it's new.
+    fn import_under(
+        &mut self,
+        diagram: &StoredDiagram,
+        parent: Option<&DiagramId>,
+    ) -> Result<Imported> {
+        match self.check_import_type(diagram)? {
+            Some(_) => {
                 let record = self.save(diagram, None)?;
                 Ok(Imported {
                     record,
@@ -662,7 +717,7 @@ impl Store {
             None => {
                 let mut fresh = diagram.clone();
                 fresh.meta.created_at = String::new();
-                let record = self.create(&fresh)?;
+                let record = self.create_under(&fresh, parent)?;
                 Ok(Imported {
                     record,
                     replaced: false,
@@ -1563,6 +1618,61 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "“Imported” is a conceptual diagram, but the file holds a physical diagram."
+        );
+    }
+
+    #[test]
+    fn imports_bring_sub_diagrams_under_their_parents() {
+        let mut store = Store::open_in_memory().unwrap();
+        store
+            .create(&diagram("top", DiagramTypeId::Conceptual))
+            .unwrap();
+        let mut named = |id: &str, name: &str, parent: &str| {
+            let mut d = diagram(id, DiagramTypeId::Conceptual);
+            d.meta.name = name.into();
+            store
+                .create_under(&d, Some(&DiagramId(parent.into())))
+                .unwrap();
+        };
+        named("b", "Beta", "top");
+        named("a", "Alpha", "top");
+        named("a1", "Deep", "a");
+        let tree = store.sub_diagram_tree(&DiagramId("top".into())).unwrap();
+        let pairs: Vec<(&str, &str)> = tree.iter().map(|(i, p)| (i.as_str(), p.as_str())).collect();
+        assert_eq!(pairs, [("a", "top"), ("b", "top"), ("a1", "a")]);
+        // Into another database: the sub diagrams come back under their parents.
+        let subs: Vec<SubDiagram> = tree
+            .iter()
+            .map(|(id, parent)| SubDiagram {
+                parent: parent.clone(),
+                diagram: store.get(id).unwrap().unwrap().diagram,
+            })
+            .collect();
+        let top = store
+            .get(&DiagramId("top".into()))
+            .unwrap()
+            .unwrap()
+            .diagram;
+        let mut other = Store::open_in_memory().unwrap();
+        let imported = other.import_with_sub_diagrams(&top, &subs).unwrap();
+        assert_eq!(imported.len(), 4);
+        assert!(imported.iter().all(|i| !i.replaced));
+        assert_eq!(other.sub_diagram_tree(&top.meta.id).unwrap(), tree);
+        // Again: each is replaced.
+        let again = other.import_with_sub_diagrams(&top, &subs).unwrap();
+        assert!(again.iter().all(|i| i.replaced));
+        // A sub diagram that would change type stops the whole import.
+        let mut wrong = subs.clone();
+        wrong[2].diagram.meta.diagram_type = DiagramTypeId::Physical;
+        let mut renamed = top.clone();
+        renamed.meta.name = "Renamed".into();
+        assert!(matches!(
+            other.import_with_sub_diagrams(&renamed, &wrong),
+            Err(StoreError::TypeMismatch { .. })
+        ));
+        assert_eq!(
+            other.get(&top.meta.id).unwrap().unwrap().diagram.meta.name,
+            top.meta.name
         );
     }
 

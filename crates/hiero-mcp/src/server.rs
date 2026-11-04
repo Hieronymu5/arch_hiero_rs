@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use hiero_core::file::{diagram_to_json, diagram_to_zip};
+use hiero_core::file::{SubDiagram, diagram_to_json, diagram_with_sub_diagrams_to_zip};
 use hiero_core::geometry::Size;
 use hiero_core::layout::check_canvas;
 use hiero_core::model::{
@@ -636,7 +636,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A drawio file of the current diagram adds the diagrams its elements open (subDiagramId) as more pages, each such element linking to its page; a version's comes alone. Links to deleted diagrams are left out. Won't replace a file unless overwrite is true.",
+        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A zip of the current diagram holds its sub diagrams too (the diagrams added from its elements, and theirs), which import_diagram brings back under it. A drawio file of the current diagram adds the diagrams its elements open (subDiagramId), then any of its sub diagrams none opens, as more pages, each such element linking to its page. A version's zip or drawio comes alone. Links to deleted diagrams are left out. Won't replace a file unless overwrite is true.",
         annotations(read_only_hint = true)
     )]
     pub async fn export_diagram(&self, Parameters(p): Parameters<ExportParams>) -> ToolResult {
@@ -658,9 +658,24 @@ impl HieroServer {
         if let Err(e) = self.with_store(|s| s.drop_dead_links(&mut diagram.content)) {
             return Ok(store_failure(&e));
         }
+        // The current diagram comes with its sub diagrams, and theirs; a saved version comes
+        // alone, as it was.
+        let subs = match p.version {
+            Some(_) => Ok(Vec::new()),
+            None => self.with_store(|s| sub_diagrams_to_export(s, &id)),
+        };
+        let subs = match subs {
+            Ok(subs) => subs,
+            Err(e) => return Ok(store_failure(&e)),
+        };
+        let sub_ids: Vec<DiagramId> = subs.iter().map(|s| s.diagram.meta.id.clone()).collect();
         let t = ops(diagram.meta.diagram_type);
         let (bytes, extension, as_text) = match p.format.as_str() {
-            "zip" => (diagram_to_zip(&diagram), "zip", None),
+            "zip" => (
+                diagram_with_sub_diagrams_to_zip(&diagram, &subs),
+                "zip",
+                None,
+            ),
             "svg" => match t.to_svg(&diagram) {
                 Ok(s) => (s.clone().into_bytes(), "svg", Some(s)),
                 Err(e) => return Ok(failure(e.0)),
@@ -668,7 +683,7 @@ impl HieroServer {
             "drawio" => match match p.version {
                 // A saved version comes alone, as it was.
                 Some(_) => t.to_drawio(&diagram),
-                None => hiero_registry::drawio_with_sub_diagrams(&diagram, |id| {
+                None => hiero_registry::drawio_with_sub_diagrams(&diagram, &sub_ids, |id| {
                     self.with_store(|s| s.get(id))
                         .ok()
                         .flatten()
@@ -703,7 +718,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Imports a .zip diagram file: it replaces the diagram with the same id (which must be the same type), or is added as a new diagram. A file that breaks a rule is refused with the first problem, such as a field an element's kind doesn't have."
+        description = "Imports a .zip diagram file: it replaces the diagram with the same id (which must be the same type), or is added as a new diagram. Sub diagrams in the file are imported the same way, a new one under its parent; nothing is imported if any would change a diagram's type. A file that breaks a rule is refused with the first problem, such as a field an element's kind doesn't have."
     )]
     pub async fn import_diagram(&self, Parameters(p): Parameters<ImportParams>) -> ToolResult {
         let path = PathBuf::from(&p.path);
@@ -715,20 +730,32 @@ impl HieroServer {
         }
         let diagram = match std::fs::read(&path)
             .map_err(|e| e.to_string())
-            .and_then(|b| hiero_registry::read_diagram_file(&b).map_err(|e| e.0))
+            .and_then(|b| hiero_registry::read_diagram_files(&b).map_err(|e| e.0))
         {
             Ok(d) => d,
             Err(m) => return Ok(failure(m)),
         };
-        Ok(match self.with_store(|s| s.import(&diagram)) {
-            Ok(i) => text(format!(
-                "{} “{}” ({}).",
-                if i.replaced { "Updated" } else { "Imported" },
-                i.record.diagram.meta.name,
-                i.record.diagram.meta.id
-            )),
-            Err(e) => store_failure(&e),
-        })
+        Ok(
+            match self
+                .with_store(|s| s.import_with_sub_diagrams(&diagram.diagram, &diagram.sub_diagrams))
+            {
+                Ok(imported) => text(
+                    imported
+                        .iter()
+                        .map(|i| {
+                            format!(
+                                "{} “{}” ({}).",
+                                if i.replaced { "Updated" } else { "Imported" },
+                                i.record.diagram.meta.name,
+                                i.record.diagram.meta.id
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                ),
+                Err(e) => store_failure(&e),
+            },
+        )
     }
 }
 
@@ -829,4 +856,21 @@ impl ServerHandler for HieroServer {
         };
         Ok(ReadResourceResult::new(vec![ResourceContents::text(body, uri.clone())]).into())
     }
+}
+
+/// A diagram's sub diagrams, and theirs, as they are now, each under its parent, with links
+/// to diagrams that are gone left out.
+fn sub_diagrams_to_export(
+    store: &Store,
+    id: &DiagramId,
+) -> Result<Vec<SubDiagram>, hiero_store::StoreError> {
+    let mut subs = Vec::new();
+    for (sub, parent) in store.sub_diagram_tree(id)? {
+        if let Some(record) = store.get(&sub)? {
+            let mut diagram = record.diagram;
+            store.drop_dead_links(&mut diagram.content)?;
+            subs.push(SubDiagram { parent, diagram });
+        }
+    }
+    Ok(subs)
 }

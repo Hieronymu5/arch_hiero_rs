@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
 
+use hiero_core::file::SubDiagram;
 use hiero_core::model::DiagramId;
 use hiero_core::stored::StoredDiagram;
 use hiero_store::{Imported, Record, Store, StoreError};
@@ -34,9 +35,12 @@ pub enum Request {
         id: DiagramId,
         reply: Sender<Result<Vec<DiagramId>, StoreError>>,
     },
+    /// Imports a diagram and the sub diagrams from its file, answering with what each import
+    /// did, the diagram's first.
     Import {
         diagram: StoredDiagram,
-        reply: Sender<Result<Imported, StoreError>>,
+        sub_diagrams: Vec<SubDiagram>,
+        reply: Sender<Result<Vec<Imported>, StoreError>>,
     },
     /// Adds the sample diagrams, when there are none yet.
     LoadSamples {
@@ -215,9 +219,13 @@ fn handle(
             }
             let _ = reply.send(result);
         }
-        Request::Import { diagram, reply } => {
-            let result = store.import(&diagram);
-            if let Ok(i) = &result {
+        Request::Import {
+            diagram,
+            sub_diagrams,
+            reply,
+        } => {
+            let result = store.import_with_sub_diagrams(&diagram, &sub_diagrams);
+            for i in result.iter().flatten() {
                 remember(known, &i.record);
             }
             let _ = reply.send(result);

@@ -367,8 +367,14 @@ pub fn check_file(file: &Value) -> Result<(&Object, DiagramTypeId), String> {
                 .into(),
         );
     }
-    if let Some(key) = first_unknown(file, |k| matches!(k, "format" | "version" | "diagram")) {
+    if let Some(key) = first_unknown(file, |k| {
+        matches!(k, "format" | "version" | "parentId" | "diagram")
+    }) {
         return Err(format!("The file has a field “{key}” that isn’t known."));
+    }
+    // A sub diagram's file names the diagram it's a sub diagram of.
+    if file.contains_key("parentId") {
+        required_text(file, "parentId")?;
     }
     let diagram = file
         .get("diagram")

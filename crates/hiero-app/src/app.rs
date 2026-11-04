@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use hiero_core::file::{diagram_to_zip, file_name};
+use hiero_core::file::{SubDiagram, diagram_with_sub_diagrams_to_zip, file_name};
 use hiero_core::geometry::Size;
 use hiero_core::history::{DiagramSnapshot, UndoStack};
 use hiero_core::model::{DiagramId, DiagramTypeId, ElementId, LineWeight};
@@ -13,7 +13,7 @@ use hiero_core::stored::{StoredContent, StoredDiagram};
 use hiero_editor::theme::Accent;
 use hiero_editor::{DiagramEditor, DiagramRequest};
 use hiero_store::locations::Locations;
-use hiero_store::{Record, Status, Store, StoreError, Summary};
+use hiero_store::{Imported, Record, Status, Store, StoreError, Summary};
 
 use crate::editors::editor_for;
 use crate::list_sort::ListSort;
@@ -811,35 +811,46 @@ impl App {
             .map_or_else(String::new, |f| f.to_string_lossy().into_owned());
         let result = std::fs::read(&path)
             .map_err(|e| e.to_string())
-            .and_then(|bytes| hiero_registry::read_diagram_file(&bytes).map_err(|e| e.0));
-        let diagram = match result {
+            .and_then(|bytes| hiero_registry::read_diagram_files(&bytes).map_err(|e| e.0));
+        let read = match result {
             Ok(d) => d,
             Err(reason) => {
                 self.outcome = Some(Outcome::error(format!("{file} wasn’t imported. {reason}")));
                 return;
             }
         };
-        let id = diagram.meta.id.clone();
-        let before = self.store.get(&id).ok().flatten();
-        match self.worker.call(|reply| Request::Import { diagram, reply }) {
+        let ids: Vec<DiagramId> = std::iter::once(&read.diagram)
+            .chain(read.sub_diagrams.iter().map(|s| &s.diagram))
+            .map(|d| d.meta.id.clone())
+            .collect();
+        let before: Vec<Option<StoredDiagram>> = ids
+            .iter()
+            .map(|id| self.store.get(id).ok().flatten().map(|r| r.diagram))
+            .collect();
+        match self.worker.call(|reply| Request::Import {
+            diagram: read.diagram,
+            sub_diagrams: read.sub_diagrams,
+            reply,
+        }) {
             Ok(imported) => {
-                let name = imported.record.diagram.meta.name.clone();
-                if let Some(before) = before {
-                    let stack = self.undo_stack(&id);
-                    stack.break_group();
-                    stack.push(DiagramSnapshot::of(&before.diagram));
+                // Each diagram replaced can be undone back to what it was.
+                for (imported, before) in imported.iter().zip(before) {
+                    let id = &imported.record.diagram.meta.id;
+                    if let Some(before) = before {
+                        let stack = self.undo_stack(id);
+                        stack.break_group();
+                        stack.push(DiagramSnapshot::of(&before));
+                    }
+                    if self.open.as_ref().is_some_and(|o| o.record.meta.id == *id) {
+                        self.accept_external(
+                            imported.record.clone(),
+                            "This diagram was replaced by an import. Undo brings back what it was.",
+                        );
+                    }
                 }
-                if self.open.as_ref().is_some_and(|o| o.record.meta.id == id) {
-                    self.accept_external(
-                        imported.record.clone(),
-                        "This diagram was replaced by an import. Undo brings back what it was.",
-                    );
-                }
-                self.outcome = Some(Outcome::ok(if imported.replaced {
-                    format!("Updated “{name}” from {file}.")
-                } else {
-                    format!("Imported “{name}” from {file} as a new diagram.")
-                }));
+                self.outcome = imported
+                    .first()
+                    .map(|first| Outcome::ok(import_message(first, imported.len() - 1, &file)));
             }
             Err(e) => self.outcome = Some(Outcome::error(format!("{file} wasn’t imported. {e}"))),
         }
@@ -1114,18 +1125,29 @@ impl App {
             Some(v) => format!("{} v{v}", diagram.meta.name),
             None => diagram.meta.name.clone(),
         };
+        // The current diagram comes with its sub diagrams, and theirs; a saved version comes
+        // alone, as it was.
+        let tree = match version {
+            Some(_) => Vec::new(),
+            None => self.store.sub_diagram_tree(id).unwrap_or_default(),
+        };
         let ops = hiero_registry::ops(diagram.meta.diagram_type);
         let result: Result<Vec<u8>, String> = match format {
-            ExportFormat::Zip => Ok(diagram_to_zip(&diagram)),
+            ExportFormat::Zip => self
+                .sub_diagrams_to_export(&tree)
+                .map(|subs| diagram_with_sub_diagrams_to_zip(&diagram, &subs)),
             ExportFormat::Svg => ops
                 .to_svg(&diagram)
                 .map(String::into_bytes)
                 .map_err(|e| e.0),
-            // The current diagram comes with the diagrams its elements open as more pages; a
-            // saved version comes alone, as it was.
+            // The current diagram comes with the diagrams its elements open, and its sub
+            // diagrams, as more pages; a saved version comes alone, as it was.
             ExportFormat::Drawio => match version {
                 Some(_) => ops.to_drawio(&diagram),
-                None => hiero_registry::drawio_with_sub_diagrams(&diagram, |id| self.current(id)),
+                None => {
+                    let subs: Vec<DiagramId> = tree.iter().map(|(id, _)| id.clone()).collect();
+                    hiero_registry::drawio_with_sub_diagrams(&diagram, &subs, |id| self.current(id))
+                }
             }
             .map(String::into_bytes)
             .map_err(|e| e.0),
@@ -1138,6 +1160,44 @@ impl App {
                 )));
             }
         }
+    }
+}
+
+impl App {
+    /// The sub diagrams in `tree` as they are now, each under its parent, with links to
+    /// diagrams that are gone left out.
+    fn sub_diagrams_to_export(
+        &self,
+        tree: &[(DiagramId, DiagramId)],
+    ) -> Result<Vec<SubDiagram>, String> {
+        tree.iter()
+            .filter_map(|(id, parent)| Some((self.current(id)?, parent)))
+            .map(|(mut diagram, parent)| {
+                self.store
+                    .drop_dead_links(&mut diagram.content)
+                    .map_err(|e| e.to_string())?;
+                Ok(SubDiagram {
+                    parent: parent.clone(),
+                    diagram,
+                })
+            })
+            .collect()
+    }
+}
+
+/// What importing a file did, such as "Imported “Shop” from shop.zip as a new diagram, with
+/// 2 sub diagrams."
+fn import_message(first: &Imported, sub_diagrams: usize, file: &str) -> String {
+    let name = &first.record.diagram.meta.name;
+    let with = match sub_diagrams {
+        0 => String::new(),
+        1 => ", with its sub diagram".to_owned(),
+        n => format!(", with its {n} sub diagrams"),
+    };
+    if first.replaced {
+        format!("Updated “{name}” from {file}{with}.")
+    } else {
+        format!("Imported “{name}” from {file} as a new diagram{with}.")
     }
 }
 

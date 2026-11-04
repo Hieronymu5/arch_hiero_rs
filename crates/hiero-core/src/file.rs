@@ -1,6 +1,10 @@
 //! A diagram as a file to export and import again, on this machine or another: a zip holding
 //! one JSON file with every field of the diagram. The same format as the prototype's, so its
 //! files import unchanged. A port of `utils/diagram-file.ts`.
+//!
+//! The zip also holds the diagram's sub diagrams, and theirs, each as a file of its own in
+//! `sub-diagrams/`, with the id of the diagram it's a sub diagram of. They come after their
+//! parents. The prototype, which has no sub diagrams, reads only `diagram.json`.
 
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Write};
@@ -19,6 +23,8 @@ pub const DIAGRAM_FILE_FORMAT: &str = "arch-hiero-diagram";
 pub const DIAGRAM_FILE_VERSION: u64 = 1;
 /// The JSON file's name in the zip.
 pub const DIAGRAM_FILE_ENTRY: &str = "diagram.json";
+/// The folder in the zip holding the sub diagrams' files.
+pub const SUB_DIAGRAMS_DIR: &str = "sub-diagrams/";
 
 /// A file that can't be imported as a diagram, with a message saying why.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,10 +80,21 @@ struct FileDiagram<'a> {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct FileOut<'a> {
     format: &'static str,
     version: u64,
+    /// The diagram a sub diagram's file is a sub diagram of.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent_id: Option<&'a DiagramId>,
     diagram: FileDiagram<'a>,
+}
+
+/// A sub diagram to export with a diagram, under the diagram with id `parent`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubDiagram {
+    pub parent: DiagramId,
+    pub diagram: StoredDiagram,
 }
 
 /// The diagram as the JSON object a file's `diagram` key holds.
@@ -123,9 +140,14 @@ fn file_diagram(diagram: &StoredDiagram) -> FileDiagram<'_> {
 
 /// The diagram file's JSON text: `{format, version, diagram}`, indented by two spaces.
 pub fn diagram_file_json(diagram: &StoredDiagram) -> String {
+    file_json(diagram, None)
+}
+
+fn file_json(diagram: &StoredDiagram, parent: Option<&DiagramId>) -> String {
     let file = FileOut {
         format: DIAGRAM_FILE_FORMAT,
         version: DIAGRAM_FILE_VERSION,
+        parent_id: parent,
         diagram: file_diagram(diagram),
     };
     serde_json::to_string_pretty(&file).expect("diagram files serialise")
@@ -133,7 +155,12 @@ pub fn diagram_file_json(diagram: &StoredDiagram) -> String {
 
 /// `diagram` as a zipped JSON file.
 pub fn diagram_to_zip(diagram: &StoredDiagram) -> Vec<u8> {
-    let json = diagram_file_json(diagram);
+    diagram_with_sub_diagrams_to_zip(diagram, &[])
+}
+
+/// `diagram` as a zipped JSON file, with `subs` as more files after it, in their order: put
+/// each after its parent.
+pub fn diagram_with_sub_diagrams_to_zip(diagram: &StoredDiagram, subs: &[SubDiagram]) -> Vec<u8> {
     let mut out = Cursor::new(Vec::new());
     {
         let mut zip = zip::ZipWriter::new(&mut out);
@@ -142,9 +169,17 @@ pub fn diagram_to_zip(diagram: &StoredDiagram) -> Vec<u8> {
         if let Some(time) = local_zip_time() {
             options = options.last_modified_time(time);
         }
-        zip.start_file(DIAGRAM_FILE_ENTRY, options)
-            .expect("zip entries start");
-        zip.write_all(json.as_bytes()).expect("zip entries write");
+        let entries = std::iter::once((DIAGRAM_FILE_ENTRY.to_owned(), file_json(diagram, None)))
+            .chain(subs.iter().map(|s| {
+                (
+                    format!("{SUB_DIAGRAMS_DIR}{}.json", s.diagram.meta.id),
+                    file_json(&s.diagram, Some(&s.parent)),
+                )
+            }));
+        for (name, json) in entries {
+            zip.start_file(name, options).expect("zip entries start");
+            zip.write_all(json.as_bytes()).expect("zip entries write");
+        }
         zip.finish().expect("zips finish");
     }
     out.into_inner()
@@ -166,20 +201,51 @@ fn local_zip_time() -> Option<zip::DateTime> {
 /// The parsed JSON of a diagram file's `diagram.json` (checks 1 to 3 of `file_check`).
 /// `file_check` then decides whether it's a diagram that can be imported.
 pub fn read_zip_json(bytes: &[u8]) -> Result<Value, DiagramFileError> {
+    Ok(read_zip_files(bytes)?.0)
+}
+
+/// The parsed JSON of a diagram file's `diagram.json`, and of its sub diagrams' files in the
+/// order the zip holds them.
+pub fn read_zip_files(bytes: &[u8]) -> Result<(Value, Vec<Value>), DiagramFileError> {
     let mut archive =
         zip::ZipArchive::new(Cursor::new(bytes)).map_err(|_| err("The file isn’t a zip file."))?;
-    let mut entry = archive
-        .by_name(DIAGRAM_FILE_ENTRY)
-        .map_err(|error| match error {
-            zip::result::ZipError::FileNotFound => err("The zip file has no diagram.json in it."),
-            zip::result::ZipError::UnsupportedArchive(message) if message.contains("assword") => {
-                err("The zip file is encrypted.")
-            }
-            zip::result::ZipError::UnsupportedArchive(_) => {
-                err("The zip file uses a compression method that isn’t supported.")
-            }
-            _ => err("The zip file is damaged."),
-        })?;
+    let top = read_entry(&mut archive, DIAGRAM_FILE_ENTRY)?;
+    // In the zip's order, which puts parents first.
+    let names: Vec<String> = (0..archive.len())
+        .filter_map(|i| {
+            archive
+                .name_for_index(i)?
+                .ok()
+                .map(std::borrow::Cow::into_owned)
+        })
+        .filter(|n| {
+            n.starts_with(SUB_DIAGRAMS_DIR)
+                && std::path::Path::new(n)
+                    .extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("json"))
+        })
+        .collect();
+    let subs = names
+        .iter()
+        .map(|name| read_entry(&mut archive, name))
+        .collect::<Result<_, _>>()?;
+    Ok((top, subs))
+}
+
+fn read_entry(
+    archive: &mut zip::ZipArchive<Cursor<&[u8]>>,
+    name: &str,
+) -> Result<Value, DiagramFileError> {
+    let mut entry = archive.by_name(name).map_err(|error| match error {
+        zip::result::ZipError::FileNotFound => err("The zip file has no diagram.json in it."),
+        zip::result::ZipError::UnsupportedArchive(message) if message.contains("assword") => {
+            err("The zip file is encrypted.")
+        }
+        zip::result::ZipError::UnsupportedArchive(_) => {
+            err("The zip file uses a compression method that isn’t supported.")
+        }
+        _ => err("The zip file is damaged."),
+    })?;
     if entry.encrypted() {
         return Err(err("The zip file is encrypted."));
     }

@@ -12,7 +12,7 @@ use hiero_conceptual::Conceptual;
 use hiero_core::engine::{DiagramType, Engine};
 use hiero_core::export::drawio::Heading;
 use hiero_core::export::svg::scene_to_svg;
-use hiero_core::file::{DiagramFileError, diagram_from_json, read_zip_json};
+use hiero_core::file::{DiagramFileError, SubDiagram, diagram_from_json, read_zip_files};
 use hiero_core::file_check;
 use hiero_core::geometry::{Rect, Size};
 use hiero_core::model::{ColorScheme, DiagramId, DiagramTypeId, ElementId, LineWeight, Resizable};
@@ -390,11 +390,13 @@ pub fn sub_diagram_of(element: &hiero_core::stored::StoredElement) -> Option<Dia
 }
 
 /// A diagram as a draw.io file, with the diagrams its elements open (and the ones theirs open)
-/// as more pages after it. Each such element links to its diagram's page. `load` gives a
-/// diagram by id; one it can't give, or that can't be drawn, is left out, with no link to it.
-/// Only the first diagram's own problems are errors.
+/// as more pages after it, then any of `sub_diagrams` (its sub diagrams, and theirs) no
+/// element opens. Each such element links to its diagram's page. `load` gives a diagram by
+/// id; one it can't give, or that can't be drawn, is left out, with no link to it. Only the
+/// first diagram's own problems are errors.
 pub fn drawio_with_sub_diagrams(
     diagram: &StoredDiagram,
+    sub_diagrams: &[DiagramId],
     load: impl Fn(&DiagramId) -> Option<StoredDiagram>,
 ) -> Result<String, ContentError> {
     use hiero_core::export::drawio::{DrawioPage, FIRST_PAGE_ID, combine_pages};
@@ -403,14 +405,25 @@ pub fn drawio_with_sub_diagrams(
     let mut pages: Vec<(StoredDiagram, String)> = vec![(diagram.clone(), first)];
     let mut seen: BTreeSet<DiagramId> = BTreeSet::from([diagram.meta.id.clone()]);
     let mut next = 0;
-    while let Some((current, _)) = pages.get(next) {
-        let targets: Vec<DiagramId> = current
-            .content
-            .elements
-            .iter()
-            .filter_map(sub_diagram_of)
-            .collect();
-        next += 1;
+    let mut unlinked = sub_diagrams.iter();
+    loop {
+        // What the next page links to; once every page's links are followed, the next sub
+        // diagram nothing links to, with what it links to after it.
+        let targets: Vec<DiagramId> = match pages.get(next) {
+            Some((current, _)) => {
+                next += 1;
+                current
+                    .content
+                    .elements
+                    .iter()
+                    .filter_map(sub_diagram_of)
+                    .collect()
+            }
+            None => match unlinked.find(|id| !seen.contains(*id)) {
+                Some(id) => vec![id.clone()],
+                None => break,
+            },
+        };
         for target in targets {
             if !seen.insert(target.clone()) {
                 continue;
@@ -479,7 +492,46 @@ pub fn diagram_from_file(file: &Value) -> Result<StoredDiagram, DiagramFileError
 
 /// The diagram in a `.zip` diagram file, checked as `diagram_from_file` checks it.
 pub fn read_diagram_file(bytes: &[u8]) -> Result<StoredDiagram, DiagramFileError> {
-    diagram_from_file(&read_zip_json(bytes)?)
+    Ok(read_diagram_files(bytes)?.diagram)
+}
+
+/// What a `.zip` diagram file holds: its diagram, and the sub diagrams exported with it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DiagramFile {
+    pub diagram: StoredDiagram,
+    /// Each after the diagram it's a sub diagram of.
+    pub sub_diagrams: Vec<SubDiagram>,
+}
+
+/// The diagram in a `.zip` diagram file and its sub diagrams, each checked as
+/// `diagram_from_file` checks it. Each sub diagram must be one of the diagram's, or of a sub
+/// diagram before it.
+pub fn read_diagram_files(bytes: &[u8]) -> Result<DiagramFile, DiagramFileError> {
+    let (top, subs) = read_zip_files(bytes)?;
+    let diagram = diagram_from_file(&top)?;
+    let mut ids: BTreeSet<DiagramId> = BTreeSet::from([diagram.meta.id.clone()]);
+    let mut sub_diagrams = Vec::with_capacity(subs.len());
+    for file in &subs {
+        let name = file["diagram"]["name"].as_str().unwrap_or("?");
+        let at = |message: &str| DiagramFileError(format!("The sub diagram “{name}”: {message}"));
+        let sub = diagram_from_file(file).map_err(|e| at(&e.0))?;
+        let parent = file["parentId"]
+            .as_str()
+            .map(|p| DiagramId(p.to_owned()))
+            .filter(|p| ids.contains(p))
+            .ok_or_else(|| at("It isn’t under the diagram or another of its sub diagrams."))?;
+        if !ids.insert(sub.meta.id.clone()) {
+            return Err(at(&format!("The id {} is used twice.", sub.meta.id)));
+        }
+        sub_diagrams.push(SubDiagram {
+            parent,
+            diagram: sub,
+        });
+    }
+    Ok(DiagramFile {
+        diagram,
+        sub_diagrams,
+    })
 }
 
 /// A new diagram of `diagram_type`, with what it starts with. Its lines are medium; the type's
@@ -585,9 +637,10 @@ mod tests {
         };
         let top = file("d1", "Top", Some("d2"));
         let detail = file("d2", "Detail", Some("d1"));
-        let xml =
-            drawio_with_sub_diagrams(&top, |id| (id.as_str() == "d2").then(|| detail.clone()))
-                .unwrap();
+        let xml = drawio_with_sub_diagrams(&top, &[], |id| {
+            (id.as_str() == "d2").then(|| detail.clone())
+        })
+        .unwrap();
         assert!(xml.contains(r#"<diagram id="archhiero-diagram" name="Top">"#));
         assert!(xml.contains(r#"<diagram id="d2" name="Detail">"#));
         assert!(xml.contains(r#"link="data:page/id,d2""#));
@@ -599,14 +652,69 @@ mod tests {
         broken.content.elements[0].kind = "spaceship".into();
         let top = file("d5", "Top", Some("d4"));
         assert_eq!(
-            drawio_with_sub_diagrams(&top, |_| Some(broken.clone())).unwrap(),
+            drawio_with_sub_diagrams(&top, &[], |_| Some(broken.clone())).unwrap(),
             ops(DiagramTypeId::Conceptual).to_drawio(&top).unwrap()
         );
         // Without sub diagrams, it's the diagram's own file.
         let alone = file("d3", "Alone", Some("missing"));
         assert_eq!(
-            drawio_with_sub_diagrams(&alone, |_| None).unwrap(),
+            drawio_with_sub_diagrams(&alone, &[], |_| None).unwrap(),
             ops(DiagramTypeId::Conceptual).to_drawio(&alone).unwrap()
+        );
+        // A sub diagram no element opens any more comes after the linked ones.
+        let loose = file("d6", "Loose", None);
+        let top = file("d1", "Top", Some("d2"));
+        let subs = [DiagramId("d6".into()), DiagramId("d2".into())];
+        let xml = drawio_with_sub_diagrams(&top, &subs, |id| match id.as_str() {
+            "d2" => Some(detail.clone()),
+            "d6" => Some(loose.clone()),
+            _ => None,
+        })
+        .unwrap();
+        let (d2, d6) = (xml.find(r#"name="Detail""#), xml.find(r#"name="Loose""#));
+        assert!(d2.unwrap() < d6.unwrap());
+        assert_eq!(xml.matches("<diagram ").count(), 3);
+    }
+
+    #[test]
+    fn zips_hold_sub_diagrams_under_their_parents() {
+        use hiero_core::file::{diagram_to_zip, diagram_with_sub_diagrams_to_zip, read_zip_json};
+        let file = |id: &str, name: &str| {
+            hiero_core::file::diagram_from_json(&serde_json::json!({
+                "id": id, "name": name, "type": "conceptual", "lineWeight": "medium",
+                "elements": [{"id": "a", "kind": "domain", "label": "Sales", "x": 40, "y": 40}]
+            }))
+            .unwrap()
+        };
+        let sub = |id: &str, name: &str, parent: &str| SubDiagram {
+            parent: DiagramId(parent.into()),
+            diagram: file(id, name),
+        };
+        let top = file("d1", "Top");
+        let subs = vec![sub("d2", "Detail", "d1"), sub("d3", "Deeper", "d2")];
+        let zip = diagram_with_sub_diagrams_to_zip(&top, &subs);
+        let read = read_diagram_files(&zip).unwrap();
+        assert_eq!(read.diagram, top);
+        assert_eq!(read.sub_diagrams, subs);
+        // The prototype reads only diagram.json, which is as it was.
+        assert_eq!(
+            read_zip_json(&zip).unwrap(),
+            read_zip_json(&diagram_to_zip(&top)).unwrap()
+        );
+        // A sub diagram must come after its parent.
+        let wrong = vec![sub("d3", "Deeper", "d2"), sub("d2", "Detail", "d1")];
+        assert_eq!(
+            read_diagram_files(&diagram_with_sub_diagrams_to_zip(&top, &wrong))
+                .unwrap_err()
+                .0,
+            "The sub diagram “Deeper”: It isn’t under the diagram or another of its sub diagrams."
+        );
+        let twice = vec![sub("d1", "Again", "d1")];
+        assert_eq!(
+            read_diagram_files(&diagram_with_sub_diagrams_to_zip(&top, &twice))
+                .unwrap_err()
+                .0,
+            "The sub diagram “Again”: The id d1 is used twice."
         );
     }
 

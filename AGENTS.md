@@ -66,7 +66,9 @@ Crate boundaries:
   `cargo tree -p hiero-mcp -i egui` must find nothing.
 - **One SQLite database** is shared by the GUI (`arch-hiero`) and the local MCP server
   (`arch-hiero-mcp`, stdio). Every write checks `revision` for conflicts.
-  Diagrams move between machines only as zipped JSON (`.zip` holding `diagram.json`).
+  Diagrams move between machines only as zipped JSON (`.zip` holding `diagram.json`, and
+  each sub diagram in `sub-diagrams/<id>.json` with its `parentId`, parents first).
+  Exporting the current diagram includes its sub diagrams; a saved version's comes alone.
 - MCP edits must go through `hiero-registry`, so each type's rules apply. Never write element
   rows directly from `hiero-mcp`. When you add or change a feature, update the matching MCP tool
   and its schema too.
