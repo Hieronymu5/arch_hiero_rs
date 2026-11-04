@@ -3,6 +3,7 @@
 //!
 //! Usage: `cargo run -p hiero-registry --example render_samples -- <output folder>`
 
+use hiero_core::export::drawio::Stamp;
 use hiero_core::model::DiagramTypeId;
 use hiero_registry::{EditOp, new_diagram, ops};
 use serde_json::json;
@@ -55,8 +56,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let outcome = t.apply(&diagram, &edits(ops_json))?;
         diagram.content = outcome.content;
         let base = out.join(diagram_type.as_str());
-        std::fs::write(base.with_extension("svg"), t.to_svg(&diagram)?)?;
-        std::fs::write(base.with_extension("drawio"), t.to_drawio(&diagram)?)?;
+        std::fs::write(
+            base.with_extension("svg"),
+            t.to_svg(&diagram, Some(&Stamp::today("Version 1")))?,
+        )?;
+        std::fs::write(
+            base.with_extension("drawio"),
+            t.to_drawio(&diagram, Some(&Stamp::today("Version 1")))?,
+        )?;
         println!("{}", base.display());
     }
     Ok(())

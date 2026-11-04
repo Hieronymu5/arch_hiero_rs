@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use hiero_c4::C4;
 use hiero_conceptual::Conceptual;
 use hiero_core::engine::{DiagramType, Engine};
-use hiero_core::export::drawio::Heading;
+use hiero_core::export::drawio::{Heading, Stamp};
 use hiero_core::export::svg::scene_to_svg;
 use hiero_core::file::{DiagramFileError, SubDiagram, diagram_from_json, read_zip_files};
 use hiero_core::file_check;
@@ -104,19 +104,32 @@ pub trait TypeOps: Send + Sync {
         element: &hiero_core::stored::StoredElement,
     ) -> Option<SubDiagramStart>;
 
-    /// The diagram as a draw.io file, with its name and description above it.
-    fn to_drawio(&self, diagram: &StoredDiagram) -> Result<String, ContentError>;
+    /// The diagram as a draw.io file, with its name and description above it, and, for a type
+    /// with a legend, given a `stamp`, a legend under it saying when the file was made and
+    /// which version it shows.
+    fn to_drawio(
+        &self,
+        diagram: &StoredDiagram,
+        stamp: Option<&Stamp>,
+    ) -> Result<String, ContentError>;
 
-    /// The diagram as an SVG document.
-    fn to_svg(&self, diagram: &StoredDiagram) -> Result<String, ContentError> {
-        Ok(scene_to_svg(&diagram.meta.name, &self.scene(diagram)?))
-    }
+    /// The diagram as an SVG document, and, for a type with a legend, given a `stamp`, a
+    /// legend in its lower-right corner, as in its draw.io file.
+    fn to_svg(
+        &self,
+        diagram: &StoredDiagram,
+        stamp: Option<&Stamp>,
+    ) -> Result<String, ContentError>;
 }
 
 /// The scene and agent docs a type adds to its rules.
 pub trait Drawn: DiagramType {
     fn scene(eng: &Engine<Self>) -> Scene;
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String;
+    /// Adds the type's legend, stamped with `stamp`, under the drawing in `scene`, for a type
+    /// that has one.
+    fn add_legend(_eng: &Engine<Self>, _scene: &mut Scene, _stamp: Stamp) {}
+    /// The diagram as a draw.io file. A type with a legend draws one given a `stamp`.
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, stamp: Option<&Stamp>) -> String;
     const PROPS_DOC: &'static str;
     /// The values that props with a fixed list take, by prop name.
     fn prop_values() -> BTreeMap<&'static str, Vec<PropValue>> {
@@ -131,8 +144,16 @@ pub trait Drawn: DiagramType {
 }
 
 impl Drawn for Conceptual {
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
-        hiero_conceptual::scene::to_drawio(eng, title, Some(heading))
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, stamp: Option<&Stamp>) -> String {
+        hiero_conceptual::scene::to_drawio(eng, title, Some(heading), stamp.cloned())
+    }
+    fn add_legend(eng: &Engine<Self>, scene: &mut Scene, stamp: Stamp) {
+        let colors = eng.colors();
+        hiero_conceptual::scene::legend(colors, stamp).add_to(
+            scene,
+            &colors.lines,
+            &colors.borders,
+        );
     }
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_conceptual::scene::scene(eng)
@@ -141,7 +162,7 @@ impl Drawn for Conceptual {
 }
 
 impl Drawn for Physical {
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, _: Option<&Stamp>) -> String {
         hiero_physical::scene::to_drawio(eng, title, Some(heading))
     }
     fn scene(eng: &Engine<Self>) -> Scene {
@@ -151,7 +172,7 @@ impl Drawn for Physical {
 }
 
 impl Drawn for DeployedComponent {
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, _: Option<&Stamp>) -> String {
         hiero_deployed::drawio::to_drawio(eng, title, Some(heading))
     }
     fn scene(eng: &Engine<Self>) -> Scene {
@@ -172,7 +193,7 @@ impl Drawn for DeployedComponent {
 }
 
 impl Drawn for C4 {
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading) -> String {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, _: Option<&Stamp>) -> String {
         hiero_c4::scene::to_drawio(eng, title, Some(heading))
     }
     fn scene(eng: &Engine<Self>) -> Scene {
@@ -299,6 +320,19 @@ impl<T: Drawn> TypeOps for Entry<T> {
         Ok(T::scene(&eng))
     }
 
+    fn to_svg(
+        &self,
+        diagram: &StoredDiagram,
+        stamp: Option<&Stamp>,
+    ) -> Result<String, ContentError> {
+        let eng = drawing_engine::<T>(diagram)?;
+        let mut scene = T::scene(&eng);
+        if let Some(stamp) = stamp {
+            T::add_legend(&eng, &mut scene, stamp.clone());
+        }
+        Ok(scene_to_svg(&diagram.meta.name, &scene))
+    }
+
     fn palette(&self) -> Vec<KindDescription> {
         T::kinds()
             .into_iter()
@@ -349,13 +383,17 @@ impl<T: Drawn> TypeOps for Entry<T> {
         })
     }
 
-    fn to_drawio(&self, diagram: &StoredDiagram) -> Result<String, ContentError> {
+    fn to_drawio(
+        &self,
+        diagram: &StoredDiagram,
+        stamp: Option<&Stamp>,
+    ) -> Result<String, ContentError> {
         let eng = drawing_engine::<T>(diagram)?;
         let heading = Heading {
             name: diagram.meta.name.clone(),
             description: diagram.meta.description.clone(),
         };
-        Ok(T::drawio(&eng, &diagram.meta.name, &heading))
+        Ok(T::drawio(&eng, &diagram.meta.name, &heading, stamp))
     }
 }
 
@@ -392,15 +430,16 @@ pub fn sub_diagram_of(element: &hiero_core::stored::StoredElement) -> Option<Dia
 /// A diagram as a draw.io file, with the diagrams its elements open (and the ones theirs open)
 /// as more pages after it, then any of `sub_diagrams` (its sub diagrams, and theirs) no
 /// element opens. Each such element links to its diagram's page. `load` gives a diagram by
-/// id; one it can't give, or that can't be drawn, is left out, with no link to it. Only the
-/// first diagram's own problems are errors.
+/// id, with the stamp for its legend; one it can't give, or that can't be drawn, is left out,
+/// with no link to it. Only the first diagram's own problems are errors.
 pub fn drawio_with_sub_diagrams(
     diagram: &StoredDiagram,
+    stamp: Option<&Stamp>,
     sub_diagrams: &[DiagramId],
-    load: impl Fn(&DiagramId) -> Option<StoredDiagram>,
+    load: impl Fn(&DiagramId) -> Option<(StoredDiagram, Option<Stamp>)>,
 ) -> Result<String, ContentError> {
     use hiero_core::export::drawio::{DrawioPage, FIRST_PAGE_ID, combine_pages};
-    let first = ops(diagram.meta.diagram_type).to_drawio(diagram)?;
+    let first = ops(diagram.meta.diagram_type).to_drawio(diagram, stamp)?;
     // Every diagram reached, in order, drawn; ones that can't be drawn are dropped.
     let mut pages: Vec<(StoredDiagram, String)> = vec![(diagram.clone(), first)];
     let mut seen: BTreeSet<DiagramId> = BTreeSet::from([diagram.meta.id.clone()]);
@@ -428,8 +467,8 @@ pub fn drawio_with_sub_diagrams(
             if !seen.insert(target.clone()) {
                 continue;
             }
-            if let Some(found) = load(&target)
-                && let Ok(file) = ops(found.meta.diagram_type).to_drawio(&found)
+            if let Some((found, stamp)) = load(&target)
+                && let Ok(file) = ops(found.meta.diagram_type).to_drawio(&found, stamp.as_ref())
             {
                 pages.push((found, file));
             }
@@ -600,7 +639,9 @@ mod tests {
             "id": "d", "name": "T", "type": "conceptual",
             "elements": [{"id": "a", "kind": "domain", "label": "Sales", "x": 40, "y": 40}]
         })) {
-            let svg = ops(diagram.meta.diagram_type).to_svg(&diagram).unwrap();
+            let svg = ops(diagram.meta.diagram_type)
+                .to_svg(&diagram, None)
+                .unwrap();
             assert!(svg.contains(">Sales</text>"));
         }
     }
@@ -614,11 +655,15 @@ mod tests {
         .unwrap();
         let ops = ops(diagram.meta.diagram_type);
         assert!(
-            ops.to_svg(&diagram)
+            ops.to_svg(&diagram, None)
                 .unwrap()
                 .contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="1""##)
         );
-        assert!(ops.to_drawio(&diagram).unwrap().contains("strokeWidth=1;"));
+        assert!(
+            ops.to_drawio(&diagram, None)
+                .unwrap()
+                .contains("strokeWidth=1;")
+        );
     }
 
     #[test]
@@ -637,8 +682,8 @@ mod tests {
         };
         let top = file("d1", "Top", Some("d2"));
         let detail = file("d2", "Detail", Some("d1"));
-        let xml = drawio_with_sub_diagrams(&top, &[], |id| {
-            (id.as_str() == "d2").then(|| detail.clone())
+        let xml = drawio_with_sub_diagrams(&top, None, &[], |id| {
+            (id.as_str() == "d2").then(|| (detail.clone(), None))
         })
         .unwrap();
         assert!(xml.contains(r#"<diagram id="archhiero-diagram" name="Top">"#));
@@ -652,28 +697,91 @@ mod tests {
         broken.content.elements[0].kind = "spaceship".into();
         let top = file("d5", "Top", Some("d4"));
         assert_eq!(
-            drawio_with_sub_diagrams(&top, &[], |_| Some(broken.clone())).unwrap(),
-            ops(DiagramTypeId::Conceptual).to_drawio(&top).unwrap()
+            drawio_with_sub_diagrams(&top, None, &[], |_| Some((broken.clone(), None))).unwrap(),
+            ops(DiagramTypeId::Conceptual)
+                .to_drawio(&top, None)
+                .unwrap()
         );
         // Without sub diagrams, it's the diagram's own file.
         let alone = file("d3", "Alone", Some("missing"));
         assert_eq!(
-            drawio_with_sub_diagrams(&alone, &[], |_| None).unwrap(),
-            ops(DiagramTypeId::Conceptual).to_drawio(&alone).unwrap()
+            drawio_with_sub_diagrams(&alone, None, &[], |_| None).unwrap(),
+            ops(DiagramTypeId::Conceptual)
+                .to_drawio(&alone, None)
+                .unwrap()
         );
         // A sub diagram no element opens any more comes after the linked ones.
         let loose = file("d6", "Loose", None);
         let top = file("d1", "Top", Some("d2"));
         let subs = [DiagramId("d6".into()), DiagramId("d2".into())];
-        let xml = drawio_with_sub_diagrams(&top, &subs, |id| match id.as_str() {
-            "d2" => Some(detail.clone()),
-            "d6" => Some(loose.clone()),
-            _ => None,
+        let stamp = |version: &str| Stamp {
+            generated: "4 Nov 2026".into(),
+            version: version.into(),
+        };
+        let xml = drawio_with_sub_diagrams(&top, Some(&stamp("Version 2")), &subs, |id| {
+            match id.as_str() {
+                "d2" => Some((detail.clone(), Some(stamp("Version 7")))),
+                "d6" => Some((loose.clone(), None)),
+                _ => None,
+            }
         })
         .unwrap();
         let (d2, d6) = (xml.find(r#"name="Detail""#), xml.find(r#"name="Loose""#));
         assert!(d2.unwrap() < d6.unwrap());
         assert_eq!(xml.matches("<diagram ").count(), 3);
+        // Each conceptual page given a stamp has its own legend, with its own version.
+        assert_eq!(xml.matches(r#"value="Legend""#).count(), 2);
+        assert!(xml.contains(r#"value="Version 2""#) && xml.contains(r#"value="Version 7""#));
+    }
+
+    #[test]
+    fn svg_exports_of_conceptual_diagrams_have_a_legend_given_a_stamp() {
+        let diagram = |kind: &str, type_name: &str| {
+            hiero_core::file::diagram_from_json(&serde_json::json!({
+                "id": "d1", "name": "Sales", "type": type_name,
+                "elements": [{"id": "a", "kind": kind, "label": "Sales", "x": 40, "y": 40}]
+            }))
+            .unwrap()
+        };
+        let stamp = Stamp {
+            generated: "4 Nov 2026".into(),
+            version: "Draft after version 2".into(),
+        };
+        let conceptual = diagram("domain", "conceptual");
+        let t = ops(DiagramTypeId::Conceptual);
+        let plain = t.to_svg(&conceptual, None).unwrap();
+        assert!(!plain.contains(">Legend</text>"));
+        let svg = t.to_svg(&conceptual, Some(&stamp)).unwrap();
+        for text in [
+            "Legend",
+            "Automated",
+            "Manual",
+            "Domain",
+            "Application",
+            "Component",
+            "Interface",
+            "Entity",
+            "Process",
+            "Generated 4 Nov 2026",
+            "Draft after version 2",
+        ] {
+            assert!(svg.contains(&format!(">{text}</text>")), "{text}");
+        }
+        // Both lines end in an arrowhead; the manual one is dashed as the diagram's are.
+        assert_eq!(svg.matches(r#"marker-end="url(#arrowhead)""#).count(), 2);
+        assert_eq!(svg.matches(r#"stroke-dasharray="8 4""#).count(), 1);
+        // The image grows to hold it.
+        let height = |svg: &str| -> f64 {
+            let at = svg.find(r#"height=""#).unwrap() + 8;
+            svg[at..].split('"').next().unwrap().parse().unwrap()
+        };
+        assert!(height(&svg) > height(&plain) + 150.0);
+        // Other types have none.
+        let physical = diagram("firewall", "physical");
+        let svg = ops(DiagramTypeId::Physical)
+            .to_svg(&physical, Some(&stamp))
+            .unwrap();
+        assert!(!svg.contains(">Legend</text>"));
     }
 
     #[test]

@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use hiero_core::export::drawio::Stamp;
 use hiero_core::file::{SubDiagram, diagram_to_json, diagram_with_sub_diagrams_to_zip};
 use hiero_core::geometry::Size;
 use hiero_core::layout::check_canvas;
@@ -636,7 +637,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A zip of the current diagram holds its sub diagrams too (the diagrams added from its elements, and theirs), which import_diagram brings back under it. A drawio file of the current diagram adds the diagrams its elements open (subDiagramId), then any of its sub diagrams none opens, as more pages, each such element linking to its page. A version's zip or drawio comes alone. Links to deleted diagrams are left out. Won't replace a file unless overwrite is true.",
+        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A zip of the current diagram holds its sub diagrams too (the diagrams added from its elements, and theirs), which import_diagram brings back under it. A drawio file of the current diagram adds the diagrams its elements open (subDiagramId), then any of its sub diagrams none opens, as more pages, each such element linking to its page. A version's zip or drawio comes alone. A conceptual diagram's svg, and its drawio pages, have a legend in the lower-right corner: what the solid (automated) and dashed (manual) lines and the colours of domains, applications, components, entities, and processes mean, the date of the export, and the version shown (\"Version 3\", or \"Draft after version 3\" when it has changed since). Links to deleted diagrams are left out. Won't replace a file unless overwrite is true.",
         annotations(read_only_hint = true)
     )]
     pub async fn export_diagram(&self, Parameters(p): Parameters<ExportParams>) -> ToolResult {
@@ -669,6 +670,12 @@ impl HieroServer {
             Err(e) => return Ok(store_failure(&e)),
         };
         let sub_ids: Vec<DiagramId> = subs.iter().map(|s| s.diagram.meta.id.clone()).collect();
+        // For the legend: today, and the version exported, or the one the diagram matches or
+        // follows.
+        let stamp = match p.version {
+            Some(v) => Stamp::today(format!("Version {v}")),
+            None => self.with_store(|s| export_stamp(s, &id)),
+        };
         let t = ops(diagram.meta.diagram_type);
         let (bytes, extension, as_text) = match p.format.as_str() {
             "zip" => (
@@ -676,19 +683,24 @@ impl HieroServer {
                 "zip",
                 None,
             ),
-            "svg" => match t.to_svg(&diagram) {
+            "svg" => match t.to_svg(&diagram, Some(&stamp)) {
                 Ok(s) => (s.clone().into_bytes(), "svg", Some(s)),
                 Err(e) => return Ok(failure(e.0)),
             },
             "drawio" => match match p.version {
                 // A saved version comes alone, as it was.
-                Some(_) => t.to_drawio(&diagram),
-                None => hiero_registry::drawio_with_sub_diagrams(&diagram, &sub_ids, |id| {
-                    self.with_store(|s| s.get(id))
-                        .ok()
-                        .flatten()
-                        .map(|r| r.diagram)
-                }),
+                Some(_) => t.to_drawio(&diagram, Some(&stamp)),
+                None => hiero_registry::drawio_with_sub_diagrams(
+                    &diagram,
+                    Some(&stamp),
+                    &sub_ids,
+                    |id| {
+                        self.with_store(|s| {
+                            let diagram = s.get(id).ok().flatten()?.diagram;
+                            Some((diagram, Some(export_stamp(s, id))))
+                        })
+                    },
+                ),
             } {
                 Ok(s) => (s.clone().into_bytes(), "drawio", Some(s)),
                 Err(e) => return Ok(failure(e.0)),
@@ -834,7 +846,7 @@ impl ServerHandler for HieroServer {
                     .flatten()
                     .ok_or_else(not_found)?;
                 ops(diagram.diagram.meta.diagram_type)
-                    .to_svg(&diagram.diagram)
+                    .to_svg(&diagram.diagram, None)
                     .map_err(|e| ErrorData::internal_error(e.0, None))?
             }
             [id] => {
@@ -856,6 +868,16 @@ impl ServerHandler for HieroServer {
         };
         Ok(ReadResourceResult::new(vec![ResourceContents::text(body, uri.clone())]).into())
     }
+}
+
+/// The stamp for the legend of an export of a diagram as it is now: today, and the version it
+/// matches or follows.
+fn export_stamp(store: &Store, id: &DiagramId) -> Stamp {
+    Stamp::today(
+        store
+            .status(id)
+            .map_or_else(|_| "Draft".into(), hiero_store::Status::version_text),
+    )
 }
 
 /// A diagram's sub diagrams, and theirs, as they are now, each under its parent, with links

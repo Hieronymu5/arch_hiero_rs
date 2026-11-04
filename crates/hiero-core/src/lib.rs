@@ -13,6 +13,7 @@ pub mod file_check;
 pub mod geometry;
 pub mod history;
 pub mod layout;
+pub mod legend;
 pub mod look;
 pub mod model;
 pub mod palette;

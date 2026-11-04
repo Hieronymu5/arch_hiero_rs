@@ -460,6 +460,7 @@ pub fn to_drawio(
         &elements,
         &arrows,
         heading,
+        None,
         &base_colors(eng),
         eng.line_weight(),
     )

@@ -140,7 +140,16 @@ shared editor engine (`hiero-editor`).
   section, actor, database, storage, or file.
 - **draw.io:** uses the shared writer. Containers become draw.io containers and arrows become
   attached connectors. Connector and transformation boxes become labelled cells. The heading
-  (diagram name and description) goes in the top-left corner.
+  (diagram name and description) goes in the top-left corner. A legend goes in the
+  lower-right corner, 40 px under the drawing and lined up with its right edge (beyond the
+  prototype): a 260 px wide rounded card with a grey band holding "Legend", the solid
+  (Automated) and dashed (Manual) arrow lines on one row, square swatches two to a row
+  (Domain and Application, Component and Interface, Entity and Process) in the diagram's own
+  colours (Interface in the connector colour), and a grey band at the bottom with "Generated
+  <date>" on the left and, in bold on the right, the version shown: "Version 3", "Draft
+  after version 3" when the diagram has changed since, or "Draft" before its first version.
+  Each conceptual page of a multi-page export has its own. The SVG export draws the same
+  legend in its lower-right corner.
 
 ## Stored data (`elements.props` / `connections.props` JSON)
 

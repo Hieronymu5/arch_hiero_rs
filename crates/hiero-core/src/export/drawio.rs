@@ -8,6 +8,11 @@ use std::fmt::Write as _;
 use crate::color::readable_text;
 use crate::figures::{CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, database};
 use crate::geometry::{Point, Rect, Size, fmt_num, round2};
+use crate::legend::{
+    LEGEND_BAND, LEGEND_BORDER, LEGEND_COLUMN, LEGEND_FOOTER, LEGEND_GAP, LEGEND_HEADER,
+    LEGEND_MUTED, LEGEND_PADDING, LEGEND_ROW, LEGEND_WIDTH,
+};
+pub use crate::legend::{Legend, LegendLine, Stamp};
 use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
 use crate::model::{ConnectionId, ElementId, LineWeight};
 use crate::routing::{
@@ -47,6 +52,153 @@ pub const HEADING_GAP: f64 = 20.0;
 pub struct Heading {
     pub name: String,
     pub description: Option<String>,
+}
+
+impl Legend {
+    /// The legend's cells, with its top-left corner at `at`, its lines drawn in `line_color`.
+    pub fn cells(&self, at: Point, line_color: &str, border: &str) -> Vec<String> {
+        let (x, y, w, h) = (at.x, at.y, LEGEND_WIDTH, self.height());
+        let text =
+            |id: &str, r: Rect, value: &str, size: f64, align: &str, color: &str, bold: bool| {
+                let style = Style::new()
+                    .set("text", 1)
+                    .set("html", 1)
+                    .set("whiteSpace", "wrap")
+                    .set("align", align)
+                    .set("verticalAlign", "middle")
+                    .set("spacing", 0)
+                    .set("strokeColor", "none")
+                    .set("fillColor", "none")
+                    .set("fontColor", color)
+                    .num("fontSize", size)
+                    .set("fontStyle", u8::from(bold));
+                cell(
+                    id,
+                    &escape_xml(&escape_xml(value)),
+                    &style.build(),
+                    "1",
+                    &rect_attributes(r),
+                )
+            };
+        let band = |id: &str, top: f64, height: f64, value: &str| {
+            let style = Style::new()
+                .set("html", 1)
+                .set("rounded", 0)
+                .set("fillColor", LEGEND_BAND)
+                .set("strokeColor", "none")
+                .set("fontColor", TEXT)
+                .set("fontSize", 14)
+                .set("fontStyle", 1);
+            cell(
+                id,
+                &escape_xml(value),
+                &style.build(),
+                "1",
+                &rect_attributes(Rect::new(x + 1.0, top, w - 2.0, height)),
+            )
+        };
+        let frame = rounded(Style::new().set("html", 1))
+            .set("fillColor", BACKGROUND)
+            .set("strokeColor", LEGEND_BORDER)
+            .set("strokeWidth", 1);
+        let mut cells = vec![
+            cell(
+                "legend",
+                "",
+                &frame.build(),
+                "1",
+                &rect_attributes(Rect::new(x, y, w, h)),
+            ),
+            band("legend-title", y + 1.0, LEGEND_HEADER - 1.0, "Legend"),
+            band(
+                "legend-footer",
+                y + h - LEGEND_FOOTER,
+                LEGEND_FOOTER - 1.0,
+                "",
+            ),
+        ];
+        let mut top = y + LEGEND_HEADER + 12.0;
+        for (i, l) in self.lines.iter().enumerate() {
+            let left = x + LEGEND_PADDING + i as f64 * LEGEND_COLUMN;
+            let mut style = Style::new()
+                .set("html", 1)
+                .set("rounded", 0)
+                .set("endArrow", "block")
+                .set("endFill", 1)
+                .set("endSize", 5)
+                .set("strokeColor", line_color)
+                .set("strokeWidth", 2);
+            if l.dashed {
+                style = style.set("dashed", 1).set("dashPattern", "4 2 4 2");
+            }
+            let middle = fmt_num(round2(top + 9.0));
+            cells.push(format!(
+                "        <mxCell id=\"legend-line-{i}\" value=\"\" style=\"{}\" edge=\"1\" parent=\"1\">\n          <mxGeometry relative=\"1\" as=\"geometry\">\n            <mxPoint x=\"{}\" y=\"{middle}\" as=\"sourcePoint\" />\n            <mxPoint x=\"{}\" y=\"{middle}\" as=\"targetPoint\" />\n          </mxGeometry>\n        </mxCell>",
+                style.build(),
+                fmt_num(round2(left)),
+                fmt_num(round2(left + 36.0)),
+            ));
+            cells.push(text(
+                &format!("legend-line-{i}-label"),
+                Rect::new(left + 44.0, top, LEGEND_COLUMN - 46.0, 18.0),
+                &l.label,
+                11.0,
+                "left",
+                TEXT,
+                false,
+            ));
+        }
+        if !self.lines.is_empty() {
+            top += 32.0;
+        }
+        for (i, (label, fill)) in self.swatches.iter().enumerate() {
+            let left = x + LEGEND_PADDING + (i % 2) as f64 * LEGEND_COLUMN;
+            let row = top + (i / 2) as f64 * LEGEND_ROW;
+            let style = Style::new()
+                .set("html", 1)
+                .set("rounded", 0)
+                .set("fillColor", fill)
+                .set("strokeColor", border)
+                .set("strokeWidth", 1);
+            cells.push(cell(
+                &format!("legend-swatch-{i}"),
+                "",
+                &style.build(),
+                "1",
+                &rect_attributes(Rect::new(left, row, 14.0, 14.0)),
+            ));
+            cells.push(text(
+                &format!("legend-swatch-{i}-label"),
+                Rect::new(left + 22.0, row - 2.0, LEGEND_COLUMN - 24.0, 18.0),
+                label,
+                11.0,
+                "left",
+                TEXT,
+                false,
+            ));
+        }
+        let footer = y + h - LEGEND_FOOTER + 7.0;
+        let half = w / 2.0 - LEGEND_PADDING;
+        cells.push(text(
+            "legend-generated",
+            Rect::new(x + LEGEND_PADDING, footer, half, 16.0),
+            &format!("Generated {}", self.stamp.generated),
+            10.0,
+            "left",
+            LEGEND_MUTED,
+            false,
+        ));
+        cells.push(text(
+            "legend-version",
+            Rect::new(x + w / 2.0, footer, half, 16.0),
+            &self.stamp.version,
+            10.0,
+            "right",
+            TEXT,
+            true,
+        ));
+        cells
+    }
 }
 
 /// An arrow to export, between two elements.
@@ -365,6 +517,7 @@ pub fn diagram_to_drawio(
     elements: &[LookElement],
     arrows: &[DrawioArrow],
     heading: Option<&Heading>,
+    legend: Option<&Legend>,
     colors: &DiagramColors,
     weight: LineWeight,
 ) -> String {
@@ -859,7 +1012,7 @@ pub fn diagram_to_drawio(
             )),
         ));
     }
-    let page = Size::new(
+    let mut page = Size::new(
         (max_x - min_x).max(if heading.is_some() {
             HEADING_MIN_WIDTH
         } else {
@@ -867,6 +1020,16 @@ pub fn diagram_to_drawio(
         }),
         bottom + offset_y - ORIGIN,
     );
+    // Under the drawing, lined up with its right edge, and as wide as the page at least.
+    if let Some(legend) = legend {
+        page.width = page.width.max(LEGEND_WIDTH);
+        let at = Point::new(
+            ORIGIN + page.width - LEGEND_WIDTH,
+            ORIGIN + page.height + LEGEND_GAP,
+        );
+        cells.extend(legend.cells(at, &colors.lines, &colors.borders));
+        page.height += LEGEND_GAP + legend.height();
+    }
     wrap(title, page, &cells)
 }
 
@@ -924,6 +1087,7 @@ mod tests {
             &elements,
             &arrows,
             Some(&heading),
+            None,
             &DiagramColors::default(),
             LineWeight::Thick,
         );
@@ -954,6 +1118,7 @@ mod tests {
                 elements,
                 &[],
                 heading,
+                None,
                 &DiagramColors::default(),
                 LineWeight::Thin,
             )
@@ -1013,6 +1178,7 @@ mod tests {
             &[crm],
             &[],
             None,
+            None,
             &DiagramColors::default(),
             LineWeight::Thick,
         );
@@ -1030,6 +1196,7 @@ mod tests {
             "T",
             &[blank],
             &[],
+            None,
             None,
             &DiagramColors::default(),
             LineWeight::Thick,
@@ -1052,6 +1219,7 @@ mod tests {
             "T",
             &elements,
             &[],
+            None,
             None,
             &DiagramColors::default(),
             LineWeight::Thick,

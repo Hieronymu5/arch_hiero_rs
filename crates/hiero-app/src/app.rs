@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use hiero_core::export::drawio::Stamp;
 use hiero_core::file::{SubDiagram, diagram_with_sub_diagrams_to_zip, file_name};
 use hiero_core::geometry::Size;
 use hiero_core::history::{DiagramSnapshot, UndoStack};
@@ -1131,22 +1132,30 @@ impl App {
             Some(_) => Vec::new(),
             None => self.store.sub_diagram_tree(id).unwrap_or_default(),
         };
+        // For the legend: today, and the version exported, or the one the diagram matches or
+        // follows.
+        let stamp = match version {
+            Some(v) => Stamp::today(format!("Version {v}")),
+            None => self.export_stamp(id),
+        };
         let ops = hiero_registry::ops(diagram.meta.diagram_type);
         let result: Result<Vec<u8>, String> = match format {
             ExportFormat::Zip => self
                 .sub_diagrams_to_export(&tree)
                 .map(|subs| diagram_with_sub_diagrams_to_zip(&diagram, &subs)),
             ExportFormat::Svg => ops
-                .to_svg(&diagram)
+                .to_svg(&diagram, Some(&stamp))
                 .map(String::into_bytes)
                 .map_err(|e| e.0),
             // The current diagram comes with the diagrams its elements open, and its sub
             // diagrams, as more pages; a saved version comes alone, as it was.
             ExportFormat::Drawio => match version {
-                Some(_) => ops.to_drawio(&diagram),
+                Some(_) => ops.to_drawio(&diagram, Some(&stamp)),
                 None => {
                     let subs: Vec<DiagramId> = tree.iter().map(|(id, _)| id.clone()).collect();
-                    hiero_registry::drawio_with_sub_diagrams(&diagram, &subs, |id| self.current(id))
+                    hiero_registry::drawio_with_sub_diagrams(&diagram, Some(&stamp), &subs, |id| {
+                        Some((self.current(id)?, Some(self.export_stamp(id))))
+                    })
                 }
             }
             .map(String::into_bytes)
@@ -1164,6 +1173,16 @@ impl App {
 }
 
 impl App {
+    /// The stamp for the legend of an export of a diagram as it is now: today, and the
+    /// version it matches or follows.
+    fn export_stamp(&self, id: &DiagramId) -> Stamp {
+        let status = match self.open.as_ref().filter(|o| o.record.meta.id == *id) {
+            Some(open) => Some(open.status),
+            None => self.store.status(id).ok(),
+        };
+        Stamp::today(status.map_or_else(|| "Draft".into(), Status::version_text))
+    }
+
     /// The sub diagrams in `tree` as they are now, each under its parent, with links to
     /// diagrams that are gone left out.
     fn sub_diagrams_to_export(

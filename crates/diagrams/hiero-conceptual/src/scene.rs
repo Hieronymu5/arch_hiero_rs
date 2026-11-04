@@ -5,9 +5,12 @@ use std::collections::HashMap;
 
 use hiero_core::color::readable_text;
 use hiero_core::engine::{Engine, Laid};
+use hiero_core::export::drawio::{Legend, LegendLine, Stamp};
 use hiero_core::figures::cloud_edge_point;
 use hiero_core::geometry::{Point, Rect};
-use hiero_core::look::{ArrowLook, Look, LookElement, Shape, component_name_bottom, draw_diagram};
+use hiero_core::look::{
+    ArrowLook, DiagramColors, Look, LookElement, Shape, component_name_bottom, draw_diagram,
+};
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
     CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, Route, Side, connector_placement, route_connections,
@@ -304,11 +307,40 @@ pub fn scene(eng: &Engine<Conceptual>) -> Scene {
 }
 
 /// The diagram as a draw.io file, with `heading` above it.
+/// The legend under a conceptual diagram: its automated and manual lines, and the colours of
+/// its domains, applications, components, interfaces (connectors), entities, and processes,
+/// two to a row.
+pub fn legend(colors: &DiagramColors, stamp: Stamp) -> Legend {
+    let line = |label: &str, dashed| LegendLine {
+        label: label.into(),
+        dashed,
+    };
+    Legend {
+        lines: vec![line("Automated", false), line("Manual", true)],
+        swatches: [
+            ("Domain", &colors.domains),
+            ("Application", &colors.applications),
+            ("Component", &colors.components),
+            ("Interface", &colors.connectors),
+            ("Entity", &colors.data),
+            ("Process", &colors.processes),
+        ]
+        .into_iter()
+        .map(|(label, fill)| (label.to_owned(), fill.clone()))
+        .collect(),
+        stamp,
+    }
+}
+
+/// The diagram as a draw.io file, with `heading` above it and, given a `stamp`, a legend in
+/// the lower-right corner.
 pub fn to_drawio(
     eng: &Engine<Conceptual>,
     title: &str,
     heading: Option<&hiero_core::export::drawio::Heading>,
+    stamp: Option<Stamp>,
 ) -> String {
+    let legend = stamp.map(|s| legend(eng.colors(), s));
     let elements: Vec<LookElement> = eng.layout().iter().map(|e| look_of(eng, e)).collect();
     let arrows: Vec<hiero_core::export::drawio::DrawioArrow> =
         drawn_arrows(eng, eng.layout(), None)
@@ -325,6 +357,7 @@ pub fn to_drawio(
         &elements,
         &arrows,
         heading,
+        legend.as_ref(),
         eng.colors(),
         eng.line_weight(),
     )
@@ -505,7 +538,69 @@ mod tests {
         assert!(svg.contains(r#"<line x1="20" y1="9" x2="34" y2="9"/>"#));
         assert!(svg.contains(r#"<line x1="14" y1="37" x2="34" y2="37"/>"#));
         assert!(svg.contains(">File</text>"));
-        let drawio = to_drawio(&e, "Test", None);
+        let drawio = to_drawio(&e, "Test", None, None);
         assert!(drawio.contains("stencil(pZTdbsMgDIWfhvsEt812"));
+    }
+
+    #[test]
+    fn drawio_exports_with_a_stamp_have_a_legend_in_the_lower_right_corner() {
+        let mut e = Engine::<Conceptual>::new(Vec::new(), Vec::new(), DiagramColors::default())
+            .with_measure(&ESTIMATE)
+            .with_ids(|| "a1".into());
+        e.add_at_free_position(ConceptualKind::Application);
+        let plain = to_drawio(&e, "Test", None, None);
+        assert!(!plain.contains("legend"));
+        let stamp = Stamp {
+            generated: "4 Nov 2026".into(),
+            version: "Version 3".into(),
+        };
+        let xml = to_drawio(&e, "Test", None, Some(stamp));
+        assert!(xml.contains(r#"id="legend-title" value="Legend""#));
+        // The two lines: solid for automated activity, dashed for manual.
+        assert!(xml.contains(r#"value="Automated""#) && xml.contains(r#"value="Manual""#));
+        assert_eq!(xml.matches(r#"edge="1" parent="1">"#).count(), 2);
+        assert_eq!(xml.matches("dashPattern=4 2 4 2").count(), 1);
+        // A swatch in each kind's colour.
+        for (label, fill) in [
+            ("Domain", "#f5f5f5"),
+            ("Application", "#d0e6fb"),
+            ("Component", "#a1c6e9"),
+            ("Interface", "#cfd4da"),
+            ("Entity", "#ffe599"),
+            ("Process", "#1466b3"),
+        ] {
+            assert!(xml.contains(&format!(r#"value="{label}""#)), "{label}");
+            assert!(
+                xml.contains(&format!("fillColor={fill};strokeColor=#1e1e1e")),
+                "{fill}"
+            );
+        }
+        // Two to a row: Interface beside Component, Entity beside Process on the bottom row.
+        let row_of = |label: &str| {
+            let geometry = &xml[xml.find(&format!(r#"value="{label}""#)).unwrap()..];
+            let y = geometry.find(r#" y=""#).unwrap() + 4;
+            geometry[y..]
+                .split('"')
+                .next()
+                .unwrap()
+                .parse::<f64>()
+                .unwrap()
+        };
+        assert_eq!(row_of("Component"), row_of("Interface"));
+        assert_eq!(row_of("Entity"), row_of("Process"));
+        assert!(row_of("Entity") > row_of("Interface"));
+        assert!(xml.contains(r#"value="Generated 4 Nov 2026""#));
+        assert!(xml.contains(r#"id="legend-version" value="Version 3""#));
+        // Under the drawing, lined up with its right edge, and the page grows to hold it.
+        let page = |xml: &str| -> (f64, f64) {
+            let num = |key: &str| {
+                let at = xml.find(&format!(r#"{key}=""#)).unwrap() + key.len() + 2;
+                xml[at..].split('"').next().unwrap().parse().unwrap()
+            };
+            (num("pageWidth"), num("pageHeight"))
+        };
+        let ((w0, h0), (w1, h1)) = (page(&plain), page(&xml));
+        assert_eq!(w1, w0.max(260.0 + 80.0));
+        assert!(h1 > h0 + 40.0 + 150.0);
     }
 }

@@ -156,6 +156,7 @@ pub fn to_drawio(eng: &Engine<C4>, title: &str, heading: Option<&Heading>) -> St
         &elements,
         &arrows,
         heading,
+        None,
         &colors(),
         eng.line_weight(),
     )

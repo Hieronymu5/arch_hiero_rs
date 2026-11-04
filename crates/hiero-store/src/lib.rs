@@ -108,6 +108,17 @@ impl Status {
             (_, None) => "Draft · no versions".into(),
         }
     }
+
+    /// Which version an export of the current diagram shows, for its legend: "Version 4"
+    /// when it matches its latest version, "Draft after version 4" when it has changed since,
+    /// or "Draft" before its first.
+    pub fn version_text(self) -> String {
+        match (self.saved, self.latest) {
+            (true, Some(v)) => format!("Version {v}"),
+            (false, Some(v)) => format!("Draft after version {v}"),
+            (_, None) => "Draft".into(),
+        }
+    }
 }
 
 /// A row in the list of diagrams.
