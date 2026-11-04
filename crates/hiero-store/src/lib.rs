@@ -1790,9 +1790,9 @@ mod tests {
             names,
             [
                 "Arch Hiero - Containers",
+                "Arch Hiero - MCP Capabilities",
                 "Arch Hiero - MCP Server Components",
                 "Arch Hiero - System Context",
-                "Arch Hiero MCP Capabilities",
                 "Standard 3 -Tier Application",
                 "Website Example - Active - Active"
             ]
