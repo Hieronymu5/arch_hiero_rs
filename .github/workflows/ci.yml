@@ -25,7 +25,7 @@ jobs:
       - run: cargo test --workspace
       # Each diagram type's rules build and pass without its UI.
       - run: |
-          for c in hiero-conceptual hiero-physical hiero-deployed hiero-c4; do
+          for c in hiero-conceptual hiero-physical hiero-deployed hiero-c4 hiero-flowchart; do
             cargo test -p "$c" --no-default-features
           done
       - name: The MCP server and registry don't depend on egui
@@ -37,8 +37,8 @@ jobs:
           done
       - name: Diagram crates don't depend on each other
         run: |
-          for c in hiero-conceptual hiero-physical hiero-deployed hiero-c4; do
-            for other in hiero-conceptual hiero-physical hiero-deployed hiero-c4; do
+          for c in hiero-conceptual hiero-physical hiero-deployed hiero-c4 hiero-flowchart; do
+            for other in hiero-conceptual hiero-physical hiero-deployed hiero-c4 hiero-flowchart; do
               [ "$c" = "$other" ] && continue
               if cargo tree -p "$c" -e normal --prefix none | grep -q "^$other "; then
                 echo "$c depends on $other"; exit 1

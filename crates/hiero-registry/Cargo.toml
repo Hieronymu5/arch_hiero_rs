@@ -13,6 +13,7 @@ hiero-conceptual.workspace = true
 hiero-physical.workspace = true
 hiero-deployed.workspace = true
 hiero-c4.workspace = true
+hiero-flowchart.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

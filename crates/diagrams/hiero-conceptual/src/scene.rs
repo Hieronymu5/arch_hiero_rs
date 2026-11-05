@@ -272,6 +272,7 @@ pub fn drawn_arrows(
                     transformation,
                     tag: None,
                     caption: None,
+                    annotation: false,
                 },
                 route,
                 across_y: route.from_side.is_vertical(),

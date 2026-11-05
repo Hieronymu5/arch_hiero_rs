@@ -10,6 +10,7 @@ use crate::figures::{
     self, CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, actor, cloud_path,
     component, figure_rect,
 };
+use crate::flowchart::{self, FlowShape};
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::model::{ColorScheme, ElementId, LineWeight};
 use crate::routing::{
@@ -94,6 +95,8 @@ pub const SECTION_NAME: TextStyle = CONTAINER_NAME;
 pub const SECTION_GAP: f64 = 8.0;
 /// An arrow's text size.
 pub const ARROW_LABEL_SIZE: f64 = 13.0;
+/// The dots and gaps of an annotation's line.
+pub const ANNOTATION_DASH: (f64, f64) = (2.0, 4.0);
 
 /// What an element is drawn as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +119,8 @@ pub enum Shape {
     Physical(PhysicalFigure),
     /// One of the C4 model's shapes, with its text inside.
     C4(C4Shape),
+    /// One of the flowchart's shapes, with its name inside.
+    Flow(FlowShape),
 }
 
 /// Where a container's name sits.
@@ -156,6 +161,8 @@ pub struct Look {
     pub figure_badge: Option<ArrowTag>,
     /// A C4 element's type under its name, such as "[Container: Java]".
     pub type_line: Option<String>,
+    /// Draws its outline twice as thick, such as a flowchart's end.
+    pub bold_border: bool,
 }
 
 impl Look {
@@ -176,6 +183,7 @@ impl Look {
             figure_text: None,
             figure_badge: None,
             type_line: None,
+            bold_border: false,
         }
     }
 }
@@ -220,6 +228,8 @@ pub struct ArrowLook {
     pub tag: Option<ArrowTag>,
     /// Text on the middle of the line, over a gap in it, such as a C4 relationship's.
     pub caption: Option<Caption>,
+    /// A dotted line with no head, such as a flowchart note's to what it's about.
+    pub annotation: bool,
 }
 
 /// Text centred on the middle of an arrow: lines of a description, and a technology in square
@@ -774,6 +784,7 @@ pub fn draw_element(
         }
         Shape::Section => draw_section(element, measure, colors, weight),
         Shape::C4(shape) => c4::draw(element, shape, measure, &colors.borders, weight),
+        Shape::Flow(shape) => flowchart::draw(element, shape, measure, &colors.borders, weight),
         Shape::Physical(figure) => {
             let size = figure.size();
             let name = wrap_text(&element.label, text_width, FIGURE_NAME, measure);
@@ -1047,12 +1058,17 @@ pub fn draw_arrows(
 ) -> Vec<Node> {
     let mut nodes: Vec<Node> = Vec::new();
     for a in arrows {
-        let paint = Paint::stroke(colors.lines.clone(), 2.0).dashed(a.dashed.then_some((8.0, 4.0)));
+        let dash = if a.annotation {
+            Some(ANNOTATION_DASH)
+        } else {
+            a.dashed.then_some((8.0, 4.0))
+        };
+        let paint = Paint::stroke(colors.lines.clone(), 2.0).dashed(dash);
         let line = |from: Point, to: Point| Node::Line {
             from: Point::new(round2(from.x), round2(from.y)),
             to: Point::new(round2(to.x), round2(to.y)),
             paint: paint.clone(),
-            marker: Some(Marker::Arrowhead),
+            marker: (!a.annotation).then_some(Marker::Arrowhead),
         };
         if a.two_heads {
             // Two halves from the middle, each with its head.

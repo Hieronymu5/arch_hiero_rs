@@ -71,6 +71,8 @@ pub enum DiagramTypeId {
     /// The C4 model's diagrams: its sub type says which level, context, container, or
     /// component, a diagram shows.
     C4,
+    /// A process mapped out step by step, free-form or in swimlanes.
+    Flowchart,
 }
 
 /// A kind of diagram within a type, such as a C4 diagram's level: it names the diagram, and
@@ -100,11 +102,12 @@ const C4_SUBTYPES: &[Subtype] = &[
 
 impl DiagramTypeId {
     /// Every diagram type, in menu order.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Conceptual,
         Self::DeployedComponent,
         Self::Physical,
         Self::C4,
+        Self::Flowchart,
     ];
 
     /// The kinds of diagram of this type, the first the default. Empty for a type without.
@@ -138,6 +141,7 @@ impl DiagramTypeId {
             Self::DeployedComponent => "deployed-component",
             Self::Physical => "physical",
             Self::C4 => "c4",
+            Self::Flowchart => "flowchart",
         }
     }
 
@@ -147,6 +151,7 @@ impl DiagramTypeId {
             Self::DeployedComponent => "Deployed Component",
             Self::Physical => "Physical",
             Self::C4 => "C4",
+            Self::Flowchart => "Flowchart",
         }
     }
 
@@ -164,12 +169,13 @@ impl DiagramTypeId {
     }
 
     /// How thick elements' lines are unless a diagram chooses otherwise: deployed component
-    /// diagrams are drawn thin, and the C4 types, which came after the setting, medium.
+    /// diagrams are drawn thin, and the C4 and flowchart types, which came after the setting,
+    /// medium.
     pub const fn default_line_weight(self) -> LineWeight {
         match self {
             Self::DeployedComponent => LineWeight::Thin,
             Self::Conceptual | Self::Physical => LineWeight::Thick,
-            Self::C4 => LineWeight::Medium,
+            Self::C4 | Self::Flowchart => LineWeight::Medium,
         }
     }
 
@@ -649,6 +655,11 @@ mod tests {
         assert_eq!(DiagramTypeId::parse("nope"), None);
         assert_eq!(DiagramTypeId::parse("c4"), Some(DiagramTypeId::C4));
         assert_eq!(DiagramTypeId::parse("c4-container"), None);
+        assert_eq!(
+            DiagramTypeId::parse("flowchart"),
+            Some(DiagramTypeId::Flowchart)
+        );
+        assert_eq!(DiagramTypeId::Flowchart.label_with(None), "Flowchart");
         // A C4 diagram is named after its level, the first the default.
         let c4 = DiagramTypeId::C4;
         assert_eq!(c4.label_with(Some("container")), "C4 - Container");

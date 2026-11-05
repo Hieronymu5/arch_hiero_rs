@@ -1840,6 +1840,7 @@ dependencies = [
  "hiero-core",
  "hiero-deployed",
  "hiero-editor",
+ "hiero-flowchart",
  "hiero-physical",
  "hiero-registry",
  "hiero-store",
@@ -1912,6 +1913,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hiero-flowchart"
+version = "0.2.1"
+dependencies = [
+ "egui",
+ "hiero-core",
+ "hiero-editor",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "hiero-mcp"
 version = "0.2.1"
 dependencies = [
@@ -1945,6 +1957,7 @@ dependencies = [
  "hiero-conceptual",
  "hiero-core",
  "hiero-deployed",
+ "hiero-flowchart",
  "hiero-physical",
  "serde",
  "serde_json",

@@ -10,6 +10,7 @@ pub mod export;
 pub mod figures;
 pub mod file;
 pub mod file_check;
+pub mod flowchart;
 pub mod geometry;
 pub mod history;
 pub mod layout;

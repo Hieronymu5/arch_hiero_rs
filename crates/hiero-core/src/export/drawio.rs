@@ -660,6 +660,14 @@ pub fn diagram_to_drawio(
                 crate::c4::drawio_cells(e, shape, (left, top), &parent, &colors.borders, weight)
                     .join("\n")
             }
+            Shape::Flow(shape) => crate::flowchart::drawio_cell(
+                e,
+                shape,
+                (left, top),
+                &parent,
+                &colors.borders,
+                weight,
+            ),
             Shape::Section => {
                 let style = base_style(colors, weight)
                     .set("shape", format!("stencil({SECTION_STENCIL})"))
@@ -819,6 +827,12 @@ pub fn diagram_to_drawio(
             .set("strokeWidth", 2);
         if a.dashed {
             style = style.set("dashed", 1).set("dashPattern", "4 2 4 2");
+        }
+        if a.annotation {
+            style = style
+                .set("dashed", 1)
+                .set("dashPattern", "1 2")
+                .set("endArrow", "none");
         }
         if a.two_heads {
             style = style.set("startArrow", "block").set("startFill", 1);

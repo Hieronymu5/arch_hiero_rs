@@ -34,15 +34,71 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (
             DiagramTypeId::Conceptual,
             json!([
-                {"op": "add_element", "ref": "d", "kind": "domain", "label": "Sales", "x": 40, "y": 40},
+                {"op": "add_element", "ref": "d", "kind": "domain", "label": "Sales", "x": 320, "y": 230},
                 {"op": "add_element", "ref": "a", "kind": "application", "label": "CRM", "parent_id": "d", "description": "Customer records", "props": {"cloudHosted": true}},
                 {"op": "add_element", "ref": "b", "kind": "application", "label": "Billing", "parent_id": "d"},
                 {"op": "add_element", "ref": "u", "kind": "actor", "label": "Customer", "x": 700, "y": 60},
                 {"op": "add_element", "ref": "bot", "kind": "actor", "label": "Assistant", "x": 700, "y": 220, "props": {"agent": true}},
-                {"op": "add_element", "ref": "db", "kind": "component", "label": "Ledger", "x": 360, "y": 360, "props": {"componentType": "database"}},
+                {"op": "add_element", "ref": "db", "kind": "component", "label": "Ledger", "x": 80, "y": 420, "props": {"componentType": "database"}},
                 {"op": "add_connection", "source_id": "a", "target_id": "b", "props": {"label": "Invoices", "connector": "API", "transformation": "Map fields", "bidirectional": true}},
                 {"op": "add_connection", "source_id": "u", "target_id": "a", "props": {"mode": "manual"}},
                 {"op": "add_connection", "source_id": "b", "target_id": "db"}
+            ]),
+        ),
+        (
+            // Below the Start and End a new flowchart has, every other shape and arrow.
+            DiagramTypeId::Flowchart,
+            json!([
+                {"op": "add_element", "ref": "io", "kind": "input-output", "label": "Receive order", "x": 80, "y": 240},
+                {"op": "add_element", "ref": "d", "kind": "decision", "label": "In stock?", "x": 320, "y": 220},
+                {"op": "add_element", "ref": "db", "kind": "data-store", "label": "Inventory", "x": 80, "y": 420},
+                {"op": "add_element", "ref": "m", "kind": "manual", "label": "Pick and pack", "x": 580, "y": 240},
+                {"op": "add_element", "ref": "w", "kind": "delay", "label": "Wait for courier", "x": 560, "y": 420},
+                {"op": "add_element", "ref": "sub", "kind": "subprocess", "label": "Reorder stock", "x": 320, "y": 600},
+                {"op": "add_element", "ref": "doc", "kind": "document", "label": "Invoice", "x": 820, "y": 420},
+                {"op": "add_element", "ref": "c", "kind": "connector", "label": "A", "x": 620, "y": 620},
+                {"op": "add_element", "ref": "n", "kind": "note", "label": "The courier comes at 4 pm", "x": 820, "y": 240},
+                {"op": "add_element", "ref": "p", "kind": "process", "label": "Notify customer", "x": 320, "y": 780},
+                {"op": "add_connection", "source_id": "io", "target_id": "d"},
+                {"op": "add_connection", "source_id": "d", "target_id": "m"},
+                {"op": "add_connection", "source_id": "d", "target_id": "sub"},
+                {"op": "add_connection", "source_id": "db", "target_id": "d"},
+                {"op": "add_connection", "source_id": "m", "target_id": "w"},
+                {"op": "add_connection", "source_id": "w", "target_id": "c"},
+                {"op": "add_connection", "source_id": "w", "target_id": "doc"},
+                {"op": "add_connection", "source_id": "sub", "target_id": "p"},
+                {"op": "add_connection", "source_id": "n", "target_id": "m"}
+            ]),
+        ),
+        (
+            // A pool of swimlanes, below the Start and End: steps handed from lane to lane.
+            DiagramTypeId::Flowchart,
+            json!([
+                {"op": "add_element", "ref": "pool", "kind": "pool", "label": "Order fulfilment", "x": 40, "y": 200},
+                {"op": "add_element", "ref": "l3", "kind": "lane", "label": "Warehouse", "parent_id": "pool"},
+                {"op": "add_element", "ref": "a", "kind": "input-output", "label": "Submit order", "x": 100, "y": 280},
+                {"op": "add_element", "ref": "b", "kind": "process", "label": "Validate order", "x": 360, "y": 500},
+                {"op": "add_element", "ref": "c", "kind": "decision", "label": "Valid?", "x": 620, "y": 480},
+                {"op": "add_element", "ref": "d", "kind": "process", "label": "Pick and pack", "x": 880, "y": 680},
+                {"op": "add_connection", "source_id": "a", "target_id": "b"},
+                {"op": "add_connection", "source_id": "b", "target_id": "c"},
+                {"op": "add_connection", "source_id": "c", "target_id": "d"}
+            ]),
+        ),
+        (
+            // The same, with the lanes turned to run vertically.
+            DiagramTypeId::Flowchart,
+            json!([
+                {"op": "add_element", "ref": "pool", "kind": "pool", "label": "Order fulfilment", "x": 40, "y": 200},
+                {"op": "add_element", "ref": "l3", "kind": "lane", "label": "Warehouse", "parent_id": "pool"},
+                {"op": "add_element", "ref": "a", "kind": "input-output", "label": "Submit order", "x": 100, "y": 280},
+                {"op": "add_element", "ref": "b", "kind": "process", "label": "Validate order", "x": 360, "y": 500},
+                {"op": "add_element", "ref": "c", "kind": "decision", "label": "Valid?", "x": 620, "y": 480},
+                {"op": "add_element", "ref": "d", "kind": "process", "label": "Pick and pack", "x": 880, "y": 680},
+                {"op": "add_connection", "source_id": "a", "target_id": "b"},
+                {"op": "add_connection", "source_id": "b", "target_id": "c"},
+                {"op": "add_connection", "source_id": "c", "target_id": "d"},
+                {"op": "update_element", "id": "pool", "props": {"orientation": "vertical"}}
             ]),
         ),
     ];
@@ -55,7 +111,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let t = ops(diagram_type);
         let outcome = t.apply(&diagram, &edits(ops_json))?;
         diagram.content = outcome.content;
-        let base = out.join(diagram_type.as_str());
+        let mut base = out.join(diagram_type.as_str());
+        while base.with_extension("svg").exists() {
+            base = base.with_file_name(format!(
+                "{}-2",
+                base.file_name().unwrap_or_default().to_string_lossy()
+            ));
+        }
         std::fs::write(
             base.with_extension("svg"),
             t.to_svg(&diagram, Some(&Stamp::today("Version 1")))?,

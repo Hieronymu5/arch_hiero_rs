@@ -19,6 +19,7 @@ use hiero_core::model::{ColorScheme, DiagramId, DiagramTypeId, ElementId, LineWe
 use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent, StoredDiagram};
 use hiero_deployed::DeployedComponent;
+use hiero_flowchart::Flowchart;
 use hiero_physical::Physical;
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -205,6 +206,16 @@ impl Drawn for C4 {
         hiero_c4::rules::sub_diagram(element)
     }
     const PROPS_DOC: &'static str = "A C4 diagram's subtype (\"context\", \"container\", or \"component\"; omit for context) only names its level: every diagram has the same five kinds. Element props: every element {color: \"green\" | \"orange\" | \"red\"; omit for blue. By C4's custom, blue is the software system in scope and what's in it, orange another of the organisation's own systems, and red a system outside it. a boundary's line is drawn in it} and a description (≤ 500). person and system {typeName (≤ 40), shown in square brackets in place of [Person] or [Software System], e.g. \"Customer\"; omit for the usual type}. container {containerType: \"web-application\" (a browser window) | \"static-content\" (a folder) | \"backend\" (a box with a prompt) | \"service\" (a hexagon, 200 × 160: a microservice) | \"queue\" | \"topic\" (a cylinder on its side, 240 × 120: model each queue or topic as its own container, which publishers and subscribers point to) | \"store\" (a bucket) | \"database\" (a cylinder); omit for a plain box; technology (≤ 60), shown as [Container: technology]}. component {technology (≤ 60), shown as [Component: technology]}: a box with two tabs on its left. boundary {boundaryType: \"container\"; omit for a software system}: a line round what it holds, with its name, type, and description in its bottom-left corner; it holds any element, other boundaries too, and takes no relationships. People are drawn as a box holding their name, type, and description (two lines of it), with their head and shoulders in a white circle on its top edge. Arrows are relationships, drawn dashed with their text on the middle: {description (≤ 150), e.g. \"Makes API requests to\", technology (≤ 60), e.g. \"JSON/HTTPS\", shown in square brackets}.";
+}
+
+impl Drawn for Flowchart {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, _: Option<&Stamp>) -> String {
+        hiero_flowchart::scene::to_drawio(eng, title, Some(heading))
+    }
+    fn scene(eng: &Engine<Self>) -> Scene {
+        hiero_flowchart::scene::scene(eng)
+    }
+    const PROPS_DOC: &'static str = "A flowchart maps out a process. A new one starts with a start and an end. Elements have only a name, drawn inside their shape: start and end (pills; nothing leads into a start or out of an end), process (box), decision (diamond; its name is a question, and each arrow out is labelled), input-output (parallelogram), subprocess (box with doubled sides; it can open another flowchart), document (wavy bottom), data-store (cylinder), manual (trapezoid), delay (D shape), connector (40 × 40 circle; its name is at most 3 characters, such as \"A\", and matches its other end), note (folded corner; linked to at most one element). For swimlanes, add a pool (a frame named after the process; it starts with two lanes, \"Lane 1\" and \"Lane 2\") and name its lanes after who does the steps; put each step in its lane with parent_id. A lane added with parent_id of a pool goes after its last lane; lanes fill their pool and stack in order, so positions only set their order. Pool props: {orientation: \"vertical\" (lanes are columns and the flow goes down; omit for rows, the flow going right)}; changing it turns the lanes and keeps each step's place along the flow. Steps have no props; a flowchart can mix steps in lanes with steps outside any pool. Pools and lanes take no arrows. Arrow props: {label (≤ 40), such as \"Yes\" or \"No\"}; a decision's first two arrows out start as Yes and No. Arrows to or from a data store or document are drawn dashed (data), and a note's dotted with no head.";
 }
 
 struct Entry<T>(PhantomData<fn() -> T>);
@@ -401,9 +412,10 @@ static CONCEPTUAL: Entry<Conceptual> = Entry(PhantomData);
 static PHYSICAL: Entry<Physical> = Entry(PhantomData);
 static DEPLOYED: Entry<DeployedComponent> = Entry(PhantomData);
 static C4_TYPE: Entry<C4> = Entry(PhantomData);
+static FLOWCHART: Entry<Flowchart> = Entry(PhantomData);
 
 /// Every diagram type, in menu order.
-pub fn types() -> [&'static dyn TypeOps; 4] {
+pub fn types() -> [&'static dyn TypeOps; 5] {
     DiagramTypeId::ALL.map(ops)
 }
 
@@ -414,6 +426,7 @@ pub fn ops(id: DiagramTypeId) -> &'static dyn TypeOps {
         DiagramTypeId::DeployedComponent => &DEPLOYED,
         DiagramTypeId::Physical => &PHYSICAL,
         DiagramTypeId::C4 => &C4_TYPE,
+        DiagramTypeId::Flowchart => &FLOWCHART,
     }
 }
 

@@ -342,6 +342,42 @@ CREATE INDEX diagrams_by_name ON diagrams(name COLLATE NOCASE);
 CREATE INDEX diagrams_by_parent ON diagrams(parent_diagram_id);
 ";
 
+/// Allows the flowchart type. The table is rebuilt to change its CHECK, as migration 6 did.
+const MIGRATION_8: &str = r"
+CREATE TABLE diagrams_8 (
+  id                TEXT PRIMARY KEY,
+  type              TEXT NOT NULL CHECK (type IN ('conceptual', 'physical', 'deployed-component',
+                                                  'c4', 'flowchart')),
+  name              TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+  description       TEXT CHECK (description IS NULL OR length(description) <= 1000),
+  colors            TEXT CHECK (colors IS NULL OR json_valid(colors)),
+  content_hash      TEXT NOT NULL,
+  revision          INTEGER NOT NULL DEFAULT 0,
+  next_version      INTEGER NOT NULL DEFAULT 1,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  line_weight       TEXT CHECK (line_weight IS NULL OR line_weight IN ('thin', 'medium', 'thick')),
+  parent_diagram_id TEXT REFERENCES diagrams(id) ON DELETE CASCADE,
+  canvas_width      REAL CHECK (canvas_width IS NULL OR canvas_width > 0),
+  canvas_height     REAL CHECK (canvas_height IS NULL OR canvas_height > 0),
+  subtype           TEXT CHECK (subtype IS NULL OR length(subtype) > 0)
+) STRICT;
+INSERT INTO diagrams_8 (id, type, name, description, colors, content_hash, revision,
+                        next_version, created_at, updated_at, line_weight, parent_diagram_id,
+                        canvas_width, canvas_height, subtype)
+  SELECT id, type, name, description, colors, content_hash, revision, next_version, created_at,
+         updated_at, line_weight, parent_diagram_id, canvas_width, canvas_height, subtype
+  FROM diagrams;
+DROP TABLE diagrams;
+ALTER TABLE diagrams_8 RENAME TO diagrams;
+
+CREATE TRIGGER diagrams_type_is_fixed BEFORE UPDATE OF type ON diagrams
+WHEN NEW.type <> OLD.type
+BEGIN SELECT RAISE(ABORT, 'A diagram''s type can''t be changed.'); END;
+CREATE INDEX diagrams_by_name ON diagrams(name COLLATE NOCASE);
+CREATE INDEX diagrams_by_parent ON diagrams(parent_diagram_id);
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(MIGRATION_1),
@@ -351,6 +387,7 @@ fn migrations() -> Migrations<'static> {
         M::up(MIGRATION_5),
         M::up(MIGRATION_6),
         M::up(MIGRATION_7),
+        M::up(MIGRATION_8),
     ])
 }
 

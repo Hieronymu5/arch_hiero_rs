@@ -187,8 +187,8 @@ fn the_diagram_s_own_fields() {
         .is_ok()
     );
     assert_eq!(
-        refused(c(), set(D, "type", json!("flowchart"))),
-        "The diagram: “type” must be one of: conceptual, deployed-component, physical, c4."
+        refused(c(), set(D, "type", json!("sequence"))),
+        "The diagram: “type” must be one of: conceptual, deployed-component, physical, c4, flowchart."
     );
     // A sub type: one of the type's, left out at its first, and not on a type without them.
     let c4 = || {

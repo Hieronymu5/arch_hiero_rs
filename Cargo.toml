@@ -26,6 +26,7 @@ hiero-conceptual = { path = "crates/diagrams/hiero-conceptual", default-features
 hiero-physical = { path = "crates/diagrams/hiero-physical", default-features = false }
 hiero-deployed = { path = "crates/diagrams/hiero-deployed", default-features = false }
 hiero-c4 = { path = "crates/diagrams/hiero-c4", default-features = false }
+hiero-flowchart = { path = "crates/diagrams/hiero-flowchart", default-features = false }
 
 eframe = { version = "0.37", features = ["persistence"] }
 egui = "0.37"
