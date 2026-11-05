@@ -293,6 +293,17 @@ pub struct Editor<T: DiagramView> {
     diagram_names: BTreeMap<DiagramId, String>,
     /// What the app is asked to do about the diagrams elements open.
     request: Option<DiagramRequest>,
+    /// The canvas's area on screen last frame, to notice the properties panel taking or giving
+    /// back room on the right.
+    viewport: Option<egui::Rect>,
+    /// How far the canvas was scrolled left to keep the selection clear of the properties
+    /// panel, in points, to scroll back when the panel closes.
+    panel_shift: f32,
+    /// The canvas lost room while a button was held, so the selection is to be shown once
+    /// it's let go.
+    reveal_due: bool,
+    /// Room the canvas got back while a button was held, to scroll back once it's let go.
+    room_back: f32,
     salt: Id,
 }
 
@@ -363,6 +374,10 @@ impl<T: DiagramView> Editor<T> {
             notice: None,
             diagram_names: BTreeMap::new(),
             request: None,
+            viewport: None,
+            panel_shift: 0.0,
+            reveal_due: false,
+            room_back: 0.0,
             salt,
         }
     }
@@ -571,7 +586,12 @@ impl<T: DiagramView> Editor<T> {
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             let rect = ui.available_rect_before_wrap();
+            self.follow_viewport(rect);
             self.canvas_ui(ui, rect);
+            // A button let go this frame leaves a scroll waiting for the next one.
+            if self.reveal_due || self.room_back > 0.0 {
+                ui.ctx().request_repaint();
+            }
             // A polite live region that isn't drawn: screen readers hear what each change did.
             let (_, status) = ui.allocate_exact_size(Vec2::ZERO, Sense::hover());
             let text = self.eng.announcement.clone();
@@ -581,6 +601,67 @@ impl<T: DiagramView> Editor<T> {
                 node.set_label(text);
             });
         });
+    }
+
+    /// Keeps the selection in view when the canvas loses room on the right, as when the
+    /// properties panel opens over an element near the right edge, by scrolling the canvas left;
+    /// and scrolls back right by as much when the room comes back, as when the panel closes.
+    ///
+    /// It waits until no button is held: the panel opens as an element is pressed, and
+    /// scrolling under the pointer then would turn the press into a move, dragging the element
+    /// back under the panel.
+    fn follow_viewport(&mut self, rect: egui::Rect) {
+        if let Some(before) = self.viewport.replace(rect) {
+            let change = rect.max.x - before.max.x;
+            if change < -0.5 {
+                self.reveal_due = true;
+            } else if change > 0.5 {
+                // Keeping the paper in reach may already move the canvas right into the new
+                // room, at once; that counts toward scrolling back.
+                let before = self.view.scroll.x;
+                self.view.clamp(rect);
+                let pushed = (self.view.scroll.x - before).max(0.0);
+                self.panel_shift = (self.panel_shift - pushed).max(0.0);
+                self.room_back += (change - pushed).max(0.0);
+            }
+        }
+        if !matches!(self.drag, Drag::None) {
+            return;
+        }
+        if self.room_back > 0.0 {
+            let back = self.panel_shift.min(self.room_back);
+            self.view.scroll.x += back;
+            self.panel_shift -= back;
+            self.room_back = 0.0;
+            self.view.clamp(rect);
+        }
+        if std::mem::take(&mut self.reveal_due)
+            && let Some((left, right)) = self.selection_span()
+        {
+            let moved = self.view.reveal_x(left, right, rect, 20.0);
+            self.panel_shift = (self.panel_shift - moved).max(0.0);
+        }
+    }
+
+    /// Where the selected element or arrow reaches across the canvas, in world pixels.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "canvas pixels are at most 12000"
+    )]
+    fn selection_span(&self) -> Option<(f32, f32)> {
+        if let Some(element) = self.eng.selected() {
+            let r = T::drawn_rect(&self.eng, element);
+            return Some((r.x as f32, r.right() as f32));
+        }
+        let id = self.eng.selected_connection.as_ref()?;
+        let line = T::arrow_lines(&self.eng, self.eng.layout(), None)
+            .into_iter()
+            .find(|l| &l.id == id)?;
+        let xs = [line.from.x, line.to.x]
+            .into_iter()
+            .chain(line.boxes.iter().flat_map(|b| [b.x, b.right()]));
+        let (left, right) = xs.fold((f64::MAX, f64::MIN), |(l, r), x| (l.min(x), r.max(x)));
+        Some((left as f32, right as f32))
     }
 
     fn palette_ui(&mut self, ui: &mut Ui) {

@@ -256,12 +256,15 @@ mod tests {
 
     impl Window {
         fn new() -> Self {
-            let elements = serde_json::from_value(serde_json::json!([
+            Self::with(serde_json::json!([
                 { "id": "u1", "kind": "actor", "label": "Rep", "x": 40, "y": 40 },
                 { "id": "u2", "kind": "actor", "label": "Agent", "x": 240, "y": 40 },
                 { "id": "a1", "kind": "application", "label": "CRM", "x": 40, "y": 300 },
             ]))
-            .unwrap();
+        }
+
+        fn with(elements: serde_json::Value) -> Self {
+            let elements = serde_json::from_value(elements).unwrap();
             let eng = Engine::<Conceptual>::new(elements, vec![], DiagramColors::default())
                 .with_measure(&ESTIMATE);
             let salt = Id::unique("test");
@@ -358,6 +361,112 @@ mod tests {
         let (from, to) = (at(&w, 20.0, 20.0), at(&w, 100.0, 100.0));
         w.drag(from, to, PointerButton::Primary, Modifiers::NONE);
         assert!(w.selection().is_empty());
+    }
+
+    #[test]
+    fn the_properties_panel_moves_the_canvas_off_what_it_would_cover_and_back() {
+        let mut w = Window::with(serde_json::json!([
+            { "id": "a1", "kind": "application", "label": "CRM", "x": 40, "y": 40 },
+            { "id": "a2", "kind": "application", "label": "Billing", "x": 1200, "y": 40 },
+        ]));
+        let canvas = |w: &Window| w.ctx.read_response(w.salt.with("canvas")).unwrap().rect;
+        let wide = canvas(&w);
+        let billing = w.editor.eng.laid(&"a2".into()).unwrap().rect;
+        let on_screen = |w: &Window| w.editor.view().transform(canvas(w)).rect(billing);
+        // Billing is in view until it's selected and the panel opens over it.
+        assert!(on_screen(&w).max.x < wide.max.x);
+        let click = w.screen(billing.center(), Vec2::ZERO);
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.selection(), ["a2"]);
+        assert_eq!(
+            w.editor.eng.laid(&"a2".into()).unwrap().rect,
+            billing,
+            "a click moved it"
+        );
+        let narrow = canvas(&w);
+        assert!(narrow.max.x < wide.max.x - 200.0, "the panel took room");
+        let shown = on_screen(&w);
+        assert!(
+            shown.max.x <= narrow.max.x - 20.0,
+            "{shown:?} is under the panel"
+        );
+        let shifted = w.editor.view().scroll;
+        assert!(shifted.x < 0.0);
+        // Now in view, it moves with the pointer, and a little jiggle in a click doesn't.
+        let grab = w.screen(billing.center(), shifted);
+        w.drag(
+            grab,
+            grab + Vec2::new(1.0, 1.0),
+            PointerButton::Primary,
+            Modifiers::NONE,
+        );
+        assert_eq!(w.editor.eng.laid(&"a2".into()).unwrap().rect, billing);
+        w.drag(
+            grab,
+            grab - Vec2::new(100.0, 0.0),
+            PointerButton::Primary,
+            Modifiers::NONE,
+        );
+        assert_eq!(
+            w.editor.eng.laid(&"a2".into()).unwrap().rect.x,
+            billing.x - 100.0
+        );
+        assert_eq!(w.editor.view().scroll, shifted);
+        // With the panel open, the canvas still moves out from under it, to the paper's edge.
+        let from = narrow.center();
+        w.drag(
+            from,
+            from - Vec2::new(5000.0, 0.0),
+            PointerButton::Secondary,
+            Modifiers::NONE,
+        );
+        let paper = w.editor.view().paper_size().x;
+        assert_eq!(w.editor.view().scroll.x, narrow.width() - paper);
+        w.drag(
+            from,
+            from + Vec2::new(shifted.x - (narrow.width() - paper), 0.0),
+            PointerButton::Secondary,
+            Modifiers::NONE,
+        );
+        assert_eq!(w.editor.view().scroll.x, shifted.x);
+        // Selecting nothing closes the panel, and the canvas moves back to the right.
+        let empty = w.screen(Point::new(600.0, 600.0), shifted);
+        w.drag(empty, empty, PointerButton::Primary, Modifiers::NONE);
+        assert!(w.selection().is_empty());
+        assert_eq!(canvas(&w), wide);
+        assert_eq!(w.editor.view().scroll.x, 0.0);
+    }
+
+    #[test]
+    fn closing_the_properties_panel_at_the_right_edge_scrolls_back_once() {
+        let mut w = Window::with(serde_json::json!([
+            { "id": "a1", "kind": "application", "label": "CRM", "x": 40, "y": 40 },
+            { "id": "a2", "kind": "application", "label": "Billing", "x": 2180, "y": 40 },
+        ]));
+        let canvas = |w: &Window| w.ctx.read_response(w.salt.with("canvas")).unwrap().rect;
+        let wide = canvas(&w);
+        let paper = w.editor.view().paper_size().x;
+        // Scrolled all the way right, Billing is at the paper's right edge.
+        let from = wide.center();
+        w.drag(
+            from,
+            from - Vec2::new(5000.0, 0.0),
+            PointerButton::Secondary,
+            Modifiers::NONE,
+        );
+        let edge = w.editor.view().scroll;
+        assert_eq!(edge.x, wide.width() - paper);
+        let billing = w.editor.eng.laid(&"a2".into()).unwrap().rect;
+        let click = w.screen(billing.center(), edge);
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.selection(), ["a2"]);
+        let narrow = canvas(&w);
+        assert_eq!(w.editor.view().scroll.x, narrow.width() - paper);
+        // Selecting nothing puts the canvas back where it was, not further right.
+        let empty = w.screen(Point::new(1600.0, 600.0), w.editor.view().scroll);
+        w.drag(empty, empty, PointerButton::Primary, Modifiers::NONE);
+        assert!(w.selection().is_empty());
+        assert_eq!(w.editor.view().scroll, edge);
     }
 
     #[test]
