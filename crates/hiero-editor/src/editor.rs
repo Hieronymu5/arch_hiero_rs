@@ -13,11 +13,12 @@ use hiero_core::engine::{
 };
 use hiero_core::geometry::{GRID, Point, Rect, Size};
 use hiero_core::layout::canvas_rect;
+use hiero_core::look::{HOVER_EXTRA_WIDTH, link_mark, link_mark_corner};
 use hiero_core::model::{ColorScheme, ConnectionId, DiagramId, ElementId, LineWeight};
-use hiero_core::scene::Scene;
+use hiero_core::scene::{Node, Scene, first_text_color, outlines};
 use hiero_core::stored::{ContentError, StoredContent};
 
-use crate::paint::{PaintCache, Transform, color, paint_scene, world_line};
+use crate::paint::{PaintCache, Transform, color, paint_nodes, paint_scene, world_line};
 use crate::theme::{element_button, page_button, selection_color};
 use crate::view::{View, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
@@ -57,6 +58,12 @@ pub trait DiagramView: DiagramType {
     /// pointer. A figure's reaches down to the end of its name, which may go below its area.
     fn drawn_rect(_eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
         element.rect
+    }
+
+    /// Where the mark that says an element opens a diagram goes: its top-left corner. It's
+    /// usually just inside the element's top-right corner.
+    fn link_mark_at(_eng: &Engine<Self>, element: &Laid<Self>) -> Point {
+        link_mark_corner(element.rect)
     }
 
     /// The type's fields for the selected element.
@@ -282,6 +289,8 @@ pub struct Editor<T: DiagramView> {
     selection_before_focus: Option<Vec<ElementId>>,
     cache: PaintCache,
     scene_cache: Option<(u64, Scene)>,
+    /// The marks on the elements that open a diagram, for the content they were made from.
+    link_marks: Option<(u64, Vec<Node>)>,
     outbox: Vec<Change>,
     pub show_help: bool,
     /// Only looking: no palette or properties, and the canvas only moves and zooms.
@@ -367,6 +376,7 @@ impl<T: DiagramView> Editor<T> {
             selection_before_focus: None,
             cache: PaintCache::default(),
             scene_cache: None,
+            link_marks: None,
             outbox: Vec::new(),
             show_help: false,
             viewing: false,
@@ -472,6 +482,7 @@ impl<T: DiagramView> Editor<T> {
     /// link to others. A link to a diagram not here is dead: it counts as no link.
     pub fn set_diagram_names(&mut self, names: BTreeMap<DiagramId, String>) {
         self.diagram_names = names;
+        self.link_marks = None;
     }
 
     /// What the app was asked to do since last asked.
@@ -504,7 +515,7 @@ impl<T: DiagramView> Editor<T> {
     }
 
     /// The topmost element under a world point that opens a diagram.
-    fn opener_at(&self, p: Point) -> Option<(&DiagramId, &str)> {
+    fn opener_element_at(&self, p: Point) -> Option<&Laid<T>> {
         let layout = self.eng.layout();
         let hit = |e: &&Laid<T>| T::drawn_rect(&self.eng, e).contains_point(p);
         layout
@@ -513,7 +524,78 @@ impl<T: DiagramView> Editor<T> {
             .filter(|e| !e.is_container)
             .chain(layout.iter().rev().filter(|e| e.is_container))
             .filter(hit)
-            .find_map(|e| self.opens(&e.el))
+            .find(|e| self.opens(&e.el).is_some())
+    }
+
+    /// The diagram that the topmost element under a world point opens.
+    fn opener_at(&self, p: Point) -> Option<(&DiagramId, &str)> {
+        self.opens(&self.opener_element_at(p)?.el)
+    }
+
+    /// The element under the pointer that opens a diagram, while nothing is being dragged:
+    /// the one a click opens while viewing, or selects while editing.
+    fn link_hovered(&self, ui: &Ui, response: &egui::Response, xf: Transform) -> Option<&Laid<T>> {
+        if !response.hovered() || !matches!(self.drag, Drag::None) {
+            return None;
+        }
+        let p = xf.world(ui.input(|i| i.pointer.hover_pos())?);
+        if self.viewing {
+            self.opener_element_at(p)
+        } else {
+            Self::element_at(&self.eng, p).filter(|e| self.opens(&e.el).is_some())
+        }
+    }
+
+    /// The mark that says an element opens a diagram, in the colour of its name, with thicker
+    /// lines when `bold`.
+    fn link_mark_for(&self, element: &Laid<T>, bold: bool) -> Node {
+        let scene = T::scene(&self.eng, std::slice::from_ref(element), None);
+        let color = first_text_color(&scene.nodes, &scene.text_color)
+            .unwrap_or_else(|| scene.text_color.clone());
+        link_mark(T::link_mark_at(&self.eng, element), &color, bold)
+    }
+
+    /// Shows the mark in the top-right corner of each element in `elements` that opens a
+    /// diagram. They're made again only when the content changes or while dragging.
+    fn paint_link_marks(
+        &mut self,
+        painter: &egui::Painter,
+        scene: &Scene,
+        xf: Transform,
+        elements: &[Laid<T>],
+        dragging: bool,
+    ) {
+        let changes = self.eng.changes();
+        let marks = match &self.link_marks {
+            Some((made, marks)) if !dragging && *made == changes => marks.clone(),
+            _ => {
+                let marks: Vec<Node> = elements
+                    .iter()
+                    .filter(|e| self.opens(&e.el).is_some())
+                    .map(|e| self.link_mark_for(e, false))
+                    .collect();
+                self.link_marks = (!dragging).then(|| (changes, marks.clone()));
+                marks
+            }
+        };
+        paint_nodes(painter, scene, &marks, xf, &mut self.cache);
+    }
+
+    /// Thickens the lines of the hovered element that opens a diagram, and its mark.
+    fn paint_link_hover(
+        &mut self,
+        painter: &egui::Painter,
+        xf: Transform,
+        response: &egui::Response,
+        ui: &Ui,
+    ) {
+        let Some(element) = self.link_hovered(ui, response, xf) else {
+            return;
+        };
+        let scene = T::scene(&self.eng, std::slice::from_ref(element), None);
+        let mut nodes = outlines(&scene.nodes, HOVER_EXTRA_WIDTH);
+        nodes.push(self.link_mark_for(element, true));
+        paint_nodes(painter, &scene, &nodes, xf, &mut self.cache);
     }
 
     /// The diagram as stored, drawn.
@@ -1038,6 +1120,8 @@ impl<T: DiagramView> Editor<T> {
             }
         };
         paint_scene(&painter, &scene, xf, &mut self.cache, 1.0);
+        self.paint_link_marks(&painter, &scene, xf, &displayed, dragging);
+        self.paint_link_hover(&painter, xf, &response, ui);
         if !self.viewing {
             self.paint_overlays(&painter, xf, &displayed, &response, ui);
         }

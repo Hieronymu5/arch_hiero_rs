@@ -12,7 +12,10 @@ use crate::export::drawio::{Style, cell, rect_attributes};
 use crate::export::svg::escape_xml;
 use crate::figures::actor;
 use crate::geometry::{Point, Rect, fmt_num, round2};
-use crate::look::{CORNER_NAME, DESCRIPTION, LookElement, NAME, PADDING_X, text_lines};
+use crate::look::{
+    CORNER_NAME, DESCRIPTION, LINK_MARK_GAP, LINK_MARK_INSET, LINK_MARK_SIZE, LookElement, NAME,
+    PADDING_X, link_mark_corner, text_lines,
+};
 use crate::model::LineWeight;
 use crate::routing::Side;
 use crate::scene::{Anchor, Node, Paint};
@@ -117,6 +120,31 @@ pub fn person_top_point(rect: Rect, point: Point) -> Point {
 }
 
 impl C4Shape {
+    /// Where the mark that says an element drawn in `rect` opens a diagram goes (its top-left
+    /// corner): outside what's drawn across the top or right of the shapes that would cover
+    /// it, and just inside the top-right corner of the rest.
+    pub fn link_mark_at(self, rect: Rect) -> Point {
+        let above = |top: f64| {
+            Point::new(
+                rect.right() - LINK_MARK_INSET - LINK_MARK_SIZE,
+                top - LINK_MARK_GAP - LINK_MARK_SIZE,
+            )
+        };
+        match self {
+            // Above the browser's bar, and level with the folder's tab, above its body.
+            Self::Browser => above(rect.y),
+            Self::Folder => above(rect.y + FOLDER_TAB_HEIGHT),
+            // Right of the pipe's curved end.
+            Self::Pipe => Point::new(rect.right() + LINK_MARK_GAP, rect.y + LINK_MARK_INSET),
+            // Above and right of the top's ellipse.
+            Self::Cylinder | Self::Bucket => Point::new(
+                rect.right() + LINK_MARK_GAP - LINK_MARK_SIZE / 2.0,
+                rect.y - LINK_MARK_SIZE + LINK_MARK_GAP / 2.0,
+            ),
+            _ => link_mark_corner(rect),
+        }
+    }
+
     /// The part of `rect` its text is centred in, clear of what's drawn at its top and bottom.
     /// A person's text starts at the top of it, under their circle.
     pub fn text_area(self, rect: Rect) -> Rect {
@@ -888,6 +916,27 @@ pub fn drawio_cells(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_link_mark_stays_clear_of_what_tops_a_shape() {
+        use crate::look::{LINK_MARK_SIZE, link_mark_corner};
+        let rect = Rect::new(100.0, 100.0, 240.0, 120.0);
+        let at = |shape: C4Shape| shape.link_mark_at(rect);
+        assert_eq!(at(C4Shape::Box), link_mark_corner(rect));
+        assert_eq!(at(C4Shape::Hexagon), link_mark_corner(rect));
+        // Above the browser's bar and the folder's body.
+        assert!(at(C4Shape::Browser).y + LINK_MARK_SIZE < rect.y);
+        assert!(at(C4Shape::Folder).y + LINK_MARK_SIZE < rect.y + FOLDER_TAB_HEIGHT);
+        assert!(at(C4Shape::Folder).x > rect.x + folder_tab_width(rect.width));
+        // Right of the pipe.
+        assert!(at(C4Shape::Pipe).x > rect.right());
+        // Up and to the right of the cylinder's and bucket's tops, clear of their ellipses.
+        for shape in [C4Shape::Cylinder, C4Shape::Bucket] {
+            let p = at(shape);
+            assert!(p.y < rect.y && p.y + LINK_MARK_SIZE < rect.y + CYLINDER_RY);
+            assert!(p.x + LINK_MARK_SIZE > rect.right());
+        }
+    }
+
     use super::*;
     use crate::export::svg::scene_to_svg;
     use crate::look::{Look, Shape};

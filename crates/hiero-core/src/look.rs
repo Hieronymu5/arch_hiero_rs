@@ -672,6 +672,55 @@ fn tag_nodes(tag: &ArrowTag, radius: f64, weight: LineWeight) -> [Node; 2] {
     ]
 }
 
+/// How big the mark is that shows an element opens another diagram, how far in from its
+/// area's top-right corner it usually is, and how far it stands off a shape it sits outside.
+pub const LINK_MARK_SIZE: f64 = 12.0;
+pub const LINK_MARK_INSET: f64 = 6.0;
+pub const LINK_MARK_GAP: f64 = 4.0;
+
+/// How thick the link mark's lines are, and how thick while its element is hovered.
+pub const LINK_MARK_WIDTH: f64 = 1.25;
+pub const LINK_MARK_BOLD_WIDTH: f64 = 2.25;
+
+/// How much thicker a hovered element's lines are than its own.
+pub const HOVER_EXTRA_WIDTH: f64 = 2.0;
+
+/// Where the link mark usually goes on an element drawn in `area`: its top-left corner, just
+/// inside the area's top-right corner.
+pub fn link_mark_corner(area: Rect) -> Point {
+    Point::new(
+        area.right() - LINK_MARK_INSET - LINK_MARK_SIZE,
+        area.y + LINK_MARK_INSET,
+    )
+}
+
+/// The mark that shows an element opens another diagram: a box with an arrow leaving it, with
+/// its top-left corner `at`, drawn in `color`, with thicker lines when `bold`.
+pub fn link_mark(at: Point, color: &str, bold: bool) -> Node {
+    Node::group(
+        Some(Point::new(round2(at.x), round2(at.y))),
+        Paint {
+            fill: Some("none".into()),
+            ..Paint::stroke(
+                color,
+                if bold {
+                    LINK_MARK_BOLD_WIDTH
+                } else {
+                    LINK_MARK_WIDTH
+                },
+            )
+        },
+        vec![
+            Node::path("M7.5 1.5H10.5V4.5", Paint::default()),
+            Node::path("M5 7L10.5 1.5", Paint::default()),
+            Node::path(
+                "M9 6.5V9.5A1 1 0 0 1 8 10.5H2.5A1 1 0 0 1 1.5 9.5V4A1 1 0 0 1 2.5 3H5.5",
+                Paint::default(),
+            ),
+        ],
+    )
+}
+
 /// The nodes that draw one element, with lines as thick as `weight`.
 pub fn draw_element(
     element: &LookElement,
@@ -1311,5 +1360,31 @@ mod tests {
         assert!(svg.contains(">PSQL</text>"));
         // The figure is drawn in its group; there's no box behind the name.
         assert!(!scene.nodes.iter().any(|n| matches!(n, Node::Rect { .. })));
+    }
+
+    #[test]
+    fn the_link_mark_sits_in_the_top_right_corner() {
+        let Node::Group {
+            translate, paint, ..
+        } = link_mark(
+            link_mark_corner(Rect::new(100.0, 50.0, 200.0, 80.0)),
+            "#fff",
+            false,
+        )
+        else {
+            panic!("a group")
+        };
+        assert_eq!(translate, Some(Point::new(282.0, 56.0)));
+        assert_eq!(paint.stroke.as_deref(), Some("#fff"));
+        assert_eq!(paint.fill.as_deref(), Some("none"));
+        assert_eq!(paint.stroke_width, Some(LINK_MARK_WIDTH));
+    }
+
+    #[test]
+    fn a_bold_link_mark_has_thicker_lines() {
+        let Node::Group { paint, .. } = link_mark(Point::new(0.0, 0.0), "#fff", true) else {
+            panic!("a group")
+        };
+        assert_eq!(paint.stroke_width, Some(LINK_MARK_BOLD_WIDTH));
     }
 }

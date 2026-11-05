@@ -2,6 +2,7 @@
 
 use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Engine, Laid, validate_length};
+use hiero_core::geometry::Point;
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
 use hiero_editor::widgets::{self, text_field};
@@ -11,7 +12,7 @@ use crate::model::{
     ARROW_DESCRIPTION_MAX, ARROW_TECHNOLOGY_MAX, BoundaryType, C4, C4Kind, Color, ContainerType,
     DESCRIPTION_MAX, TECHNOLOGY_MAX, TYPE_NAME_MAX,
 };
-use crate::rules::{arrow_title, normalized_arrow};
+use crate::rules::{arrow_title, normalized_arrow, shape_of};
 use crate::scene::{drawn_arrows, scene_of};
 
 impl DiagramView for C4 {
@@ -39,6 +40,10 @@ impl DiagramView for C4 {
                 boxes: Vec::new(),
             })
             .collect()
+    }
+
+    fn link_mark_at(_eng: &Engine<Self>, element: &Laid<Self>) -> Point {
+        shape_of(&element.el).link_mark_at(element.rect)
     }
 
     fn element_properties(ui: &mut Ui, cx: &mut PropsCx<'_, Self>, element: &Laid<Self>) {

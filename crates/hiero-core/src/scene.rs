@@ -198,6 +198,81 @@ pub struct Scene {
     pub background: String,
 }
 
+/// The lines of `nodes` alone, `extra` wider, with no fills, text, or images: drawn over the
+/// shapes, they thicken their outlines, such as a hovered element's.
+pub fn outlines(nodes: &[Node], extra: f64) -> Vec<Node> {
+    let outline = |paint: &Paint| Paint {
+        fill: Some("none".into()),
+        stroke_width: paint.stroke_width.map(|w| w + extra),
+        ..paint.clone()
+    };
+    nodes
+        .iter()
+        .filter_map(|node| {
+            Some(match node {
+                Node::Rect { rect, rx, paint } => Node::Rect {
+                    rect: *rect,
+                    rx: *rx,
+                    paint: outline(paint),
+                },
+                Node::Circle { center, r, paint } => Node::Circle {
+                    center: *center,
+                    r: *r,
+                    paint: outline(paint),
+                },
+                Node::Ellipse {
+                    center,
+                    rx,
+                    ry,
+                    paint,
+                } => Node::Ellipse {
+                    center: *center,
+                    rx: *rx,
+                    ry: *ry,
+                    paint: outline(paint),
+                },
+                Node::Line {
+                    from,
+                    to,
+                    paint,
+                    marker,
+                } => Node::Line {
+                    from: *from,
+                    to: *to,
+                    paint: outline(paint),
+                    marker: *marker,
+                },
+                Node::Path { d, paint } => Node::Path {
+                    d: d.clone(),
+                    paint: outline(paint),
+                },
+                Node::Group {
+                    translate,
+                    paint,
+                    children,
+                } => Node::Group {
+                    translate: *translate,
+                    paint: outline(paint),
+                    children: outlines(children, extra),
+                },
+                Node::Text { .. } | Node::Image { .. } => return None,
+            })
+        })
+        .collect()
+}
+
+/// The colour of the first text in `nodes`, such as an element's name, with `inherited` the
+/// colour of text that sets none.
+pub fn first_text_color(nodes: &[Node], inherited: &str) -> Option<String> {
+    nodes.iter().find_map(|node| match node {
+        Node::Text { fill, .. } => Some(fill.as_deref().unwrap_or(inherited).to_owned()),
+        Node::Group {
+            paint, children, ..
+        } => first_text_color(children, paint.fill.as_deref().unwrap_or(inherited)),
+        _ => None,
+    })
+}
+
 /// One segment of a parsed path, in absolute coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Seg {
@@ -379,6 +454,66 @@ mod tests {
         let multi = parse_path("M1.5 10V30M3 10H-4.5");
         assert_eq!(multi[2], Seg::Move(Point::new(3.0, 10.0)));
         assert_eq!(multi[3], Seg::Line(Point::new(-4.5, 10.0)));
+    }
+
+    #[test]
+    fn outlines_keep_only_wider_lines() {
+        let nodes = vec![
+            Node::rect(
+                Rect::new(0.0, 0.0, 10.0, 10.0),
+                2.0,
+                Paint::fill_stroke("#fff", "#000", 1.5),
+            ),
+            Node::group(
+                None,
+                Paint::stroke("#000", 1.0),
+                vec![
+                    Node::path("M0 0L5 5", Paint::default()),
+                    Node::text(Point::default(), Anchor::Middle, 12.0, Weight::Bold, "A"),
+                ],
+            ),
+            Node::text(Point::default(), Anchor::Middle, 12.0, Weight::Bold, "B"),
+        ];
+        let out = outlines(&nodes, 2.0);
+        assert_eq!(out.len(), 2);
+        let Node::Rect { paint, .. } = &out[0] else {
+            panic!("a rect")
+        };
+        assert_eq!(paint.fill.as_deref(), Some("none"));
+        assert_eq!(paint.stroke_width, Some(3.5));
+        let Node::Group {
+            paint, children, ..
+        } = &out[1]
+        else {
+            panic!("a group")
+        };
+        assert_eq!(paint.stroke_width, Some(3.0));
+        assert_eq!(children.len(), 1);
+    }
+
+    #[test]
+    fn the_first_text_gives_the_colour() {
+        let text = |fill: Option<&str>| Node::Text {
+            at: Point::default(),
+            anchor: Anchor::Middle,
+            size: 12.0,
+            weight: Weight::Bold,
+            text: "A".into(),
+            fill: fill.map(Into::into),
+            halo: None,
+        };
+        let rect = Node::rect(Rect::default(), 0.0, Paint::fill("#123"));
+        assert_eq!(
+            first_text_color(&[rect.clone(), text(None)], "#000").as_deref(),
+            Some("#000")
+        );
+        assert_eq!(
+            first_text_color(&[text(Some("#fff")), text(None)], "#000").as_deref(),
+            Some("#fff")
+        );
+        let group = Node::group(None, Paint::fill("#abc"), vec![text(None)]);
+        assert_eq!(first_text_color(&[group], "#000").as_deref(), Some("#abc"));
+        assert_eq!(first_text_color(&[rect], "#000"), None);
     }
 
     #[test]
