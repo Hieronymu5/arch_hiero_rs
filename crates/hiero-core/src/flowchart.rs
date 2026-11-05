@@ -10,7 +10,7 @@
 use crate::export::drawio::{Style, cell, rect_attributes};
 use crate::export::svg::escape_xml;
 use crate::geometry::{Point, Rect, fmt_num, round2};
-use crate::look::{LINK_MARK_SIZE, LookElement, PADDING_X, TEXT, text_lines};
+use crate::look::{LINK_MARK_INSET, LINK_MARK_SIZE, LookElement, PADDING_X, TEXT, text_lines};
 use crate::model::LineWeight;
 use crate::routing::Side;
 use crate::scene::{Anchor, Node, Paint};
@@ -59,7 +59,10 @@ pub const SLANT: f64 = 20.0;
 pub const WAVE: f64 = 10.0;
 /// How tall the ellipses at a data store's top and bottom are, at most (half their height).
 pub const CYLINDER_RY: f64 = 10.0;
-/// How far a mark set off a shape's corner is from it, each way.
+/// How much nearer the corner a step's link mark sits than other types' marks, up and to
+/// the right.
+pub const NUDGE: f64 = 2.0;
+/// How far a connector's mark, which sits off its corner, is from it each way.
 pub const LINK_MARK_CLEAR: f64 = 2.0;
 /// A note's folded corner, at most.
 pub const NOTE_FOLD: f64 = 14.0;
@@ -105,17 +108,74 @@ fn round_depth(r: f64, offset: f64) -> f64 {
     r * (1.0 - (1.0 - t * t).sqrt())
 }
 
-/// Where the mark that says a step drawn in `rect` opens a diagram goes (its top-left
-/// corner): off the top-right corner, up and to the right, on every shape alike, so it never
-/// touches a slant, a curve, or a subprocess's inner line.
-pub fn link_mark_at(rect: Rect) -> Point {
-    Point::new(
-        rect.right() + LINK_MARK_CLEAR,
-        rect.y - LINK_MARK_SIZE - LINK_MARK_CLEAR,
-    )
+/// A link mark's top-left corner at whole pixels, moved left and down (into a top-right
+/// corner, away from its lines), so its thin lines aren't smeared over two pixels and drawn
+/// looking thicker than on other shapes.
+fn snap_inward(x: f64, y: f64) -> Point {
+    Point::new(x.floor(), y.ceil())
 }
 
 impl FlowShape {
+    /// Where the mark that says a step drawn in `rect` opens a diagram goes (its top-left
+    /// corner): inside the shape's top-right corner, kept `NUDGE` closer to its lines than
+    /// the usual `LINK_MARK_INSET`, so it sits snug in the corner, so it moves in past a subprocess's inner line, a slant, a round end, a
+    /// cylinder's rim, or a note's fold. A connector is too small to hold it beside its
+    /// letter, so its mark sits off its corner.
+    pub fn link_mark_at(self, rect: Rect) -> Point {
+        const GAP: f64 = LINK_MARK_INSET - NUDGE;
+        const SIZE: f64 = LINK_MARK_SIZE;
+        let corner = |right_inset: f64, top: f64| {
+            Point::new(rect.right() - right_inset - GAP - SIZE, rect.y + top)
+        };
+        match self {
+            Self::Process | Self::Document => corner(0.0, GAP),
+            Self::Subprocess => corner(SUBPROCESS_INSET.min(rect.width / 4.0), GAP),
+            // The right side slants in going down, so at the mark's lower edge it's in by
+            // this much.
+            Self::InputOutput | Self::Manual => {
+                let across = if rect.height > 0.0 {
+                    slant(rect) * (GAP + SIZE) / rect.height
+                } else {
+                    0.0
+                };
+                corner(across, GAP)
+            }
+            Self::Note => corner(note_fold(rect), GAP),
+            Self::DataStore => Point::new(
+                rect.right() - GAP - SIZE,
+                rect.y + cylinder_ry(rect) * 2.0 + GAP / 2.0,
+            ),
+            // In a pill's round right end, or a delay's round side, the mark's top-right
+            // corner sits on the diagonal from the curve's middle, far enough in that the
+            // whole mark clears the curve.
+            Self::Terminal | Self::Delay => {
+                let r = end_radius(rect);
+                let reach = (r - GAP) * std::f64::consts::FRAC_1_SQRT_2;
+                snap_inward(rect.right() - r + reach - SIZE, rect.center().y - reach)
+            }
+            // Centred on the middle of the upper-right slant, moved straight in from it
+            // until its nearest corner (the top-right one) is `GAP` clear.
+            Self::Decision => {
+                let (half_w, half_h) = (rect.width / 2.0, rect.height / 2.0);
+                let length = half_w.hypot(half_h);
+                if length == 0.0 {
+                    return rect.center();
+                }
+                // The slant's outward normal: right and up.
+                let (nx, ny) = (half_h / length, -half_w / length);
+                let half = SIZE / 2.0;
+                let corner = half * (nx - ny);
+                let inward = GAP + corner;
+                let middle = (rect.x + half_w * 1.5, rect.y + half_h / 2.0);
+                snap_inward(middle.0 - nx * inward - half, middle.1 - ny * inward - half)
+            }
+            Self::Connector => Point::new(
+                rect.right() + LINK_MARK_CLEAR,
+                rect.y - SIZE - LINK_MARK_CLEAR,
+            ),
+        }
+    }
+
     /// The part of `rect` its text is centred in (for a note, starts in), clear of its
     /// outline.
     pub fn text_area(self, rect: Rect) -> Rect {
@@ -605,12 +665,84 @@ mod tests {
     const RECT: Rect = Rect::new(100.0, 100.0, 160.0, 100.0);
 
     #[test]
-    fn the_link_mark_sits_off_every_shapes_corner() {
-        // Every outline stays inside its box, so a mark clear of the box's top-right corner
-        // is clear of every shape. Its lines run 1.5 px in from its 12 px box.
-        let at = link_mark_at(RECT);
-        assert!(at.x + 1.5 > RECT.right() + 3.0);
-        assert!(at.y + LINK_MARK_SIZE - 1.5 < RECT.y - 3.0);
+    fn the_link_mark_sits_inside_each_step_clear_of_its_lines() {
+        use FlowShape::*;
+        // The mark's lines run 1.5 px in from its 12 px box; they must stay this far from
+        // the shape's lines.
+        const CLEAR: f64 = 4.0;
+        // Each shape at its default size, and resized larger.
+        let defaults = [
+            (Terminal, 160.0, 40.0),
+            (Process, 160.0, 80.0),
+            (Decision, 160.0, 120.0),
+            (InputOutput, 160.0, 80.0),
+            (Subprocess, 160.0, 80.0),
+            (Document, 160.0, 80.0),
+            (DataStore, 120.0, 80.0),
+            (Manual, 160.0, 80.0),
+            (Delay, 160.0, 80.0),
+            (Note, 160.0, 80.0),
+        ];
+        for (shape, w, h) in defaults {
+            for (width, height) in [(w, h), (w * 1.5, h * 2.0)] {
+                let r = Rect::new(100.0, 100.0, width, height);
+                let at = shape.link_mark_at(r);
+                let (left, top) = (at.x + 1.5, at.y + 1.5);
+                let (right, bottom) = (at.x + LINK_MARK_SIZE - 1.5, at.y + LINK_MARK_SIZE - 1.5);
+                let why = format!("{shape:?} in {width}x{height}: mark at {at:?}");
+                // On whole pixels, so its lines look as thin as on every other shape.
+                assert!(at.x.fract() == 0.0 && at.y.fract() == 0.0, "{why}");
+                // Inside the box, always.
+                assert!(left >= r.x + CLEAR && top >= r.y + CLEAR, "{why}");
+                assert!(
+                    right <= r.right() - CLEAR && bottom <= r.bottom() - CLEAR,
+                    "{why}"
+                );
+                // In the top right quarter, where it belongs.
+                assert!(left > r.center().x && top < r.center().y, "{why}");
+                let round = |cx: f64, cy: f64, radius: f64| {
+                    [(left, top), (right, top), (left, bottom), (right, bottom)]
+                        .iter()
+                        .all(|&(x, y)| (x - cx).hypot(y - cy) <= radius - CLEAR)
+                };
+                match shape {
+                    Process | Document => {}
+                    Subprocess => assert!(right <= r.right() - SUBPROCESS_INSET - CLEAR, "{why}"),
+                    InputOutput | Manual => {
+                        let side = r.right() - slant(r) * (bottom - r.y) / r.height;
+                        assert!(right <= side - CLEAR, "{why}");
+                    }
+                    Note => assert!(right <= r.right() - note_fold(r) - CLEAR, "{why}"),
+                    Terminal | Delay => {
+                        let radius = end_radius(r);
+                        let cx = r.right() - radius;
+                        // In the round end, or left of where it starts.
+                        assert!(right <= cx || round(cx, r.center().y, radius), "{why}");
+                    }
+                    DataStore => {
+                        let (rx, ry) = (r.width / 2.0, cylinder_ry(r));
+                        let u = (right - r.center().x) / rx;
+                        let rim = r.y + ry + ry * (1.0 - u * u).max(0.0).sqrt();
+                        assert!(top >= rim + CLEAR, "{why}");
+                    }
+                    Decision => {
+                        // Distance from the upper-right slant, which the top-right corner
+                        // is nearest.
+                        let (a, b) = (r.height / 2.0, r.width / 2.0);
+                        // The slant runs from the top point (u, v = 0, 0) to the right
+                        // point (b, a): a·u − b·v = 0, negative inside.
+                        let side = a * (right - r.center().x) - b * (top - r.y);
+                        let (inside, d) = (side <= 0.0, side.abs() / a.hypot(b));
+                        assert!(inside && d >= CLEAR, "{why}");
+                    }
+                    Connector => unreachable!(),
+                }
+            }
+        }
+        // A connector's mark sits off its corner.
+        let ring = Rect::new(0.0, 0.0, 40.0, 40.0);
+        let at = Connector.link_mark_at(ring);
+        assert!(at.x > ring.right() && at.y + LINK_MARK_SIZE < ring.y);
     }
 
     #[test]

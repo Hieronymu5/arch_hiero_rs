@@ -147,9 +147,13 @@ fills come from `hiero-core::palette` where a match exists.
 A subprocess is the step meant to open a flowchart of its own: **Add diagram** on it starts a
 new flowchart named after it, with the usual Start and End, and links the subprocess to it.
 Any element can link to a diagram as in the other types, and shows the shared mark when it
-does. On every step it sits off the top-right corner, up and to the right, clear of the
-outline, so it never touches a slant, a curve, or a subprocess's inner line. A pool or lane has
-it inside its top-right corner, as containers do in the other types.
+does: inside the shape's top-right corner, 4 px clear of its lines, with no background. So it
+moves in past a subprocess's inner line, an input / output's or manual step's slant, a note's
+fold, and a data store's top rim; in a pill's round end and a delay's round side it sits
+on the diagonal up and to the right of the curve's middle, and on a decision it's centred on
+the middle of the upper-right slant, moved in from it. A connector is too
+small to hold it beside its letter, so its mark sits just off its top-right corner. A pool or
+lane has it inside its top-right corner, as containers do in the other types.
 
 ## Export
 

@@ -40,11 +40,9 @@ impl DiagramView for Flowchart {
     }
 
     fn link_mark_at(_eng: &Engine<Self>, element: &Laid<Self>) -> Point {
-        // Steps have it off their corner; pools and lanes, which are frames, inside theirs.
-        if element.el.kind.is_swimlane() {
-            hiero_core::look::link_mark_corner(element.rect)
-        } else {
-            hiero_core::flowchart::link_mark_at(element.rect)
+        match element.el.kind.shape() {
+            Some(shape) => shape.link_mark_at(element.rect),
+            None => hiero_core::look::link_mark_corner(element.rect),
         }
     }
 
