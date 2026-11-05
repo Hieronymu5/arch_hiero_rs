@@ -151,6 +151,9 @@ impl eframe::App for Shell {
         dev.frame(app, &ctx);
         app.handle_events();
         app.top_bar(ui);
+        if matches!(app.page, Page::List) {
+            App::version_bar(ui);
+        }
         // The editor lines up its own toolbar; its panels and canvas fill the window.
         egui::CentralPanel::default_margins().show(ui, |ui| match app.page.clone() {
             Page::List => pages::under_logo(ui, |ui| app.list_page(ui)),

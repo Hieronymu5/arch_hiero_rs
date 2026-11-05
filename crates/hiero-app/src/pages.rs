@@ -716,6 +716,29 @@ impl App {
 
     // The list of diagrams
 
+    /// The app's version and build date, small in the home page's bottom-right corner. Shown
+    /// before the page's central panel, so the list stops above it.
+    pub fn version_bar(ui: &mut Ui) {
+        let fill = ui.visuals().panel_fill;
+        egui::Panel::bottom("version")
+            .resizable(false)
+            .show_separator_line(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(fill)
+                    .inner_margin(egui::Margin::symmetric(12, 6)),
+            )
+            .show(ui, |ui| {
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.label(
+                        RichText::new(crate::format::version_and_build())
+                            .small()
+                            .weak(),
+                    );
+                });
+            });
+    }
+
     pub fn list_page(&mut self, ui: &mut Ui) {
         // The top bar shows the title, Diagrams.
         ui.horizontal(|ui| {

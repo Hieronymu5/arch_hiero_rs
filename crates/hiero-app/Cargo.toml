@@ -32,5 +32,8 @@ serde_json.workspace = true
 log.workspace = true
 env_logger.workspace = true
 
+[build-dependencies]
+jiff.workspace = true
+
 [lints]
 workspace = true
