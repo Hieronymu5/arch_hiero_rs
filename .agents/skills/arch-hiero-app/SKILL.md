@@ -41,7 +41,7 @@ The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__
 | `update_element` | `id`, and any of `label`, `description`, `parent_id` (`""` takes it out of its container), and `props` (merged; `null` clears a field) |
 | `move_element` | `id`, `x`, `y` |
 | `resize_element` | `id`, `width`, `height` |
-| `remove_element` | `id`, which also removes its arrows and anything inside it |
+| `remove_element` | `id`, which also removes its arrows. A container's contents stay on the diagram, outside it, with their arrows, except a deployed component layer's, which go with it; and removing a physical network's last zone removes the network too |
 | `add_connection` | `source_id`, `target_id`, optional `props` and `ref` |
 | `update_connection` | `id`, `props` (merged) |
 | `remove_connection` | `id` |
@@ -72,7 +72,7 @@ Put the whole diagram, or each large part, in one `edit_diagram` batch.
 - **`add_element`** with only `x`/`y` puts the element in whichever container its centre lands on. Prefer giving `parent_id`. With neither, it goes at a free spot.
 - Each type's rules may move what you place: positions snap to the grid, zones fill their network, and layers stack. Elements aren't kept apart, so two given the same spot overlap. Compare the `layout` in the result with your plan.
 - **`resize_element`** resizes containers, and applications and other resizable kinds, keeping their top-left corner where it is.
-- **`update_element`**, **`move_element`**, **`remove_element`**, and **`remove_connection`** fix things without starting over.
+- **`update_element`**, **`move_element`**, **`remove_element`**, and **`remove_connection`** fix things without starting over. To clear a container and what it holds, remove each element inside it as well.
 
 ## 4. Check, fix, and export
 

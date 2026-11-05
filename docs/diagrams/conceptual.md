@@ -71,7 +71,9 @@ Arrow properties:
 | Connector | At most 20 characters, e.g. API, REST, Web | A small box where the arrow meets the target |
 | Transformation | At most 40 characters, e.g. "Map fields" | A box on the middle of the line |
 
-Removing an element removes its arrows.
+Removing an element removes its arrows. Removing a domain, application, or component keeps
+what it holds on the diagram, outside it, with its arrows; anything nested deeper stays in its
+own container.
 
 ## Colours
 

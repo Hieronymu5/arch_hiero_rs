@@ -155,8 +155,9 @@ pub struct EditParams {
     /// detailed one of what it stands for; any number of elements can link to the same one,
     /// and linking or unlinking never creates, deletes, or moves a diagram; "" removes the
     /// link)},
-    /// move_element {id, x, y}, resize_element {id, width, height}, remove_element {id},
-    /// add_connection {ref?, source_id, target_id, props?}, update_connection {id, props},
+    /// move_element {id, x, y}, resize_element {id, width, height}, remove_element {id} (also
+    /// removes its arrows; what a container holds stays on the diagram, outside it, except a
+    /// deployed component layer's components, which go with it), add_connection {ref?, source_id, target_id, props?}, update_connection {id, props},
     /// remove_connection {id}. Any id can be a ref given to an element added earlier in the
     /// same batch.
     pub ops: Vec<Value>,

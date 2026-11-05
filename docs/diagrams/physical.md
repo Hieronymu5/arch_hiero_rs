@@ -132,7 +132,8 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
   are drawn as one line with a head at each end and one tag. Each is still its own arrow:
   clicking the line selects the first, and the other is selected from either element's list of
   arrows. Changing one's protocol or port draws them apart again (new in Rust).
-- Removing an element removes its arrows.
+- Removing an element removes its arrows. Removing a zone or network keeps what it holds on the
+  diagram, outside it, with its arrows: a removed network's zones keep their figures.
 
 ## Colours
 

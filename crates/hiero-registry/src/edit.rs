@@ -64,6 +64,8 @@ pub enum EditOp {
         width: f64,
         height: f64,
     },
+    /// Removes an element and its arrows, by the type's rules: what a container holds stays on
+    /// the diagram, outside it, except a deployed component layer's components.
     RemoveElement {
         id: String,
     },
