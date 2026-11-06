@@ -35,7 +35,6 @@ pub fn look_of(element: &Laid<Flowchart>, alternate: bool) -> LookElement {
         Some(shape) => Look {
             fill: Some(colors.fill.into()),
             border_color: Some(colors.border.into()),
-            bold_border: kind == FlowchartKind::End,
             ..Look::new(Shape::Flow(shape))
         },
         // A pool's fill shows only in its header, as its lanes cover the rest.
@@ -243,12 +242,12 @@ mod tests {
     #[test]
     fn draws_each_kind_in_its_colour() {
         let svg = scene_to_svg("Test", &scene(&engine()));
-        // The start green, the end red with a bold border, the decision amber.
+        // The start green, the end red, the decision amber, all with the same lines.
         assert!(
-            svg.contains(r##"fill="#d5e8d4" stroke="#356b24""##),
+            svg.contains(r##"fill="#d5e8d4" stroke="#356b24" stroke-width="1.5""##),
             "{svg}"
         );
-        assert!(svg.contains(r##"fill="#f8cecc" stroke="#9c3530" stroke-width="3""##));
+        assert!(svg.contains(r##"fill="#f8cecc" stroke="#9c3530" stroke-width="1.5""##));
         assert!(svg.contains(r##"fill="#fff2cc" stroke="#9a7210""##));
         assert!(svg.contains(">In stock?</text>"));
         assert!(svg.contains(">Yes</text>"));

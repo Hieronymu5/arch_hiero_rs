@@ -519,8 +519,7 @@ impl FlowShape {
     }
 }
 
-/// The nodes that draw a flowchart element, with lines as thick as `weight` (or `bold`, for
-/// an end). `border` is used when the element sets no border colour.
+/// The nodes that draw a flowchart element, with lines as thick as `weight`. `border` is used when the element sets no border colour.
 pub fn draw(
     element: &LookElement,
     shape: FlowShape,
@@ -535,8 +534,7 @@ pub fn draw(
         .clone()
         .unwrap_or_else(|| border.to_owned());
     let fill = look.fill.clone().unwrap_or_else(|| "#ffffff".into());
-    // A bold border marks an end.
-    let line = weight.width() * if look.bold_border { 2.0 } else { 1.0 };
+    let line = weight.width();
     let mut nodes = vec![Node::path(
         shape.outline(rect),
         Paint::fill_stroke(fill, border.clone(), line),
@@ -593,7 +591,7 @@ pub fn drawio_cell(
     let rect = element.rect;
     let border = look.border_color.as_deref().unwrap_or(border);
     let style = shape.text_style();
-    let line = weight.width() * if look.bold_border { 2.0 } else { 1.0 };
+    let line = weight.width();
     let base = Style::new()
         .set("html", 1)
         .set("whiteSpace", "wrap")

@@ -24,7 +24,7 @@ otherwise. Arrows end on each shape's drawn outline, not its box.
 | Kind | Label | Default size | Drawn as | Arrows |
 |---|---|---|---|---|
 | `start` | Start | 160×40 | A pill (fully round ends), green | Out only |
-| `end` | End | 160×40 | A pill with a heavier border, red | In only |
+| `end` | End | 160×40 | A pill, red | In only |
 | `process` | Process | 160×80 | A box with slightly round corners | In and out |
 | `decision` | Decision | 160×120 | A diamond, amber; its name is a question | In, and two or more out, each labelled |
 | `input-output` | Input / Output | 160×80 | A parallelogram leaning right | In and out |
@@ -132,7 +132,7 @@ fills come from `hiero-core::palette` where a match exists.
 | Kinds | Fill | Border |
 |---|---|---|
 | Start | `#d5e8d4` | `#356b24` |
-| End | `#f8cecc` | `#9c3530` (2× line weight) |
+| End | `#f8cecc` | `#9c3530` |
 | Decision | `#fff2cc` | `#9a7210` |
 | Process, subprocess, manual step, delay | `#dae8fc` | `#2d5f9e` |
 | Input / output | `#e1d5e7` | `#6c4fb3` |

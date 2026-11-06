@@ -161,8 +161,6 @@ pub struct Look {
     pub figure_badge: Option<ArrowTag>,
     /// A C4 element's type under its name, such as "[Container: Java]".
     pub type_line: Option<String>,
-    /// Draws its outline twice as thick, such as a flowchart's end.
-    pub bold_border: bool,
 }
 
 impl Look {
@@ -183,7 +181,6 @@ impl Look {
             figure_text: None,
             figure_badge: None,
             type_line: None,
-            bold_border: false,
         }
     }
 }
