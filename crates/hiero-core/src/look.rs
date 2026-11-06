@@ -558,11 +558,7 @@ pub fn physical_figure(figure: PhysicalFigure, detail: &str) -> Vec<Node> {
                     .map(|o| circle(*o, load_balancer::DOT_RADIUS)),
             );
             let mut links: Vec<Node> = load_balancer::LINKS.iter().map(line).collect();
-            links.push(Node::group(
-                None,
-                Paint::fill(detail).toned(Tone::Detail),
-                dots,
-            ));
+            links.push(Node::group(None, Paint::fill(detail), dots));
             vec![
                 circle(load_balancer::BODY_CENTER, load_balancer::BODY_RADIUS),
                 Node::group(
@@ -576,7 +572,7 @@ pub fn physical_figure(figure: PhysicalFigure, detail: &str) -> Vec<Node> {
             Node::rect(gateway::BODY, gateway::CORNER, Paint::default()),
             Node::group(
                 None,
-                Paint::fill_stroke(detail, detail, gateway::DETAIL_WIDTH).toned(Tone::Detail),
+                Paint::fill_stroke(detail, detail, gateway::DETAIL_WIDTH),
                 gateway::ports()
                     .into_iter()
                     .map(|d| Node::path(d, Paint::default()))
@@ -785,8 +781,7 @@ pub fn draw_element(
                     border.clone(),
                     weight.width(),
                 )
-                .dashed(look.dashed.then_some((8.0, 4.0)))
-                .toned(Tone::Container),
+                .dashed(look.dashed.then_some((8.0, 4.0))),
             )];
             nodes.extend(colored(text, look.text_color.as_ref()));
             nodes
@@ -1055,7 +1050,6 @@ pub fn draw_diagram(
         text_color: TEXT.into(),
         marker_color: colors.lines.clone(),
         background: BACKGROUND.into(),
-        ink_lift: crate::dark::INK_LIFT,
     }
 }
 
@@ -1217,7 +1211,6 @@ mod tests {
             text_color: TEXT.into(),
             marker_color: "#0066cc".into(),
             background: BACKGROUND.into(),
-            ink_lift: 0.0,
         };
         let svg = scene_to_svg("t", &svg_scene);
         assert!(svg.contains(r##"<rect x="40" y="40" width="200" height="100" rx="6" fill="#ffffff" stroke="#1e1e1e" stroke-width="2"/>"##));

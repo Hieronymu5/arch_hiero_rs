@@ -8,19 +8,11 @@ use crate::text::Weight;
 /// [`crate::dark`]). Exports draw every shape in its own colours.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Tone {
-    /// An element, a line, or text: mapped to dark colours, a little lighter than the paper.
+    /// A shape, line, or text, in its dark colour.
     #[default]
     Element,
-    /// A container that holds elements, such as a domain, zone, layer, pool, or lane: its fill
-    /// is darker than an element's, so what it holds stands out.
-    Container,
     /// The paper's own colour, such as the gap a caption makes in its line.
     Paper,
-    /// A detail drawn like a line, though it's filled, such as a load balancer's dots: its fill
-    /// is mapped as a line's, so it matches the lines beside it.
-    Detail,
-    /// Kept as it is, such as the white chip a logo sits on.
-    Fixed,
 }
 
 /// Fill and stroke, inherited from groups as in SVG. `None` inherits; a fill of `"none"`
@@ -224,9 +216,6 @@ pub struct Scene {
     pub marker_color: String,
     /// The paper behind the drawing.
     pub background: String,
-    /// How much lighter grey text and lines get on the dark canvas, such as 0.1 (see
-    /// [`crate::dark::map`]). 0 leaves them as the mapping makes them.
-    pub ink_lift: f64,
 }
 
 /// The lines of `nodes` alone, `extra` wider, with no fills, text, or images: drawn over the

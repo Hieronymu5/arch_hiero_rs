@@ -968,7 +968,6 @@ mod tests {
                 text_color: "#000000".into(),
                 marker_color: "#000000".into(),
                 background: "#ffffff".into(),
-                ink_lift: 0.0,
             },
         )
     }

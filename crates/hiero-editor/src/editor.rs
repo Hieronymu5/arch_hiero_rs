@@ -275,10 +275,7 @@ fn paper_colors(dark: bool) -> (Color32, Color32) {
     if dark {
         let [r, g, b] = hiero_core::dark::PAPER;
         // A little darker than the paper, as the light theme's grey is.
-        (
-            Color32::from_rgb(r, g, b),
-            Color32::from_rgb(0x08, 0x0b, 0x10),
-        )
+        (Color32::from_rgb(r, g, b), Color32::from_gray(0x0a))
     } else {
         (Color32::WHITE, Color32::from_gray(232))
     }
@@ -1153,11 +1150,13 @@ impl<T: DiagramView> Editor<T> {
         if step < 6.0 {
             return;
         }
-        let dot = if dark_canvas(painter.ctx()) {
-            Color32::from_rgb(0x39, 0x3e, 0x43)
+        // The light grid's grey, as the dark canvas shows it.
+        let gray = if dark_canvas(painter.ctx()) {
+            hiero_core::dark::map([200; 3], hiero_core::scene::Tone::Element)
         } else {
-            Color32::from_gray(200)
+            [200; 3]
         };
+        let dot = Color32::from_rgb(gray[0], gray[1], gray[2]);
         let paper = xf.rect(canvas_rect(self.eng.canvas())).intersect(clip);
         let first_x = ((paper.min.x - xf.origin.x) / step).ceil();
         let first_y = ((paper.min.y - xf.origin.y) / step).ceil();
