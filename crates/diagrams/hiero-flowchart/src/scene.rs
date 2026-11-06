@@ -15,8 +15,8 @@ use hiero_core::scene::Scene;
 use crate::lanes::is_vertical;
 use crate::model::{Flowchart, FlowchartKind, LANE_ALTERNATE};
 
-/// The colour of arrows.
-pub const LINES: &str = "#333333";
+/// The colour of arrows, the same as in every other type.
+pub const LINES: &str = hiero_core::look::ARROWS;
 
 /// The colours the shared drawing code takes. Elements set their own; these are for arrows.
 pub fn colors() -> DiagramColors {

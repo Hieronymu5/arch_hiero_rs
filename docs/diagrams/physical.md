@@ -145,7 +145,7 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 | `appliances` | `#f8cecc` | Firewall, load balancer, and gateway (the prototype's is `#f6c6d7`) |
 | `networks` | `#e0e0e0` | Network fill |
 | `zones` | `#f5f5f5` | Zone fill, and the background behind figure names |
-| `arrows` | `#0066cc` | Arrow lines and heads |
+| `arrows` | `#333333` | Arrow lines and heads |
 | `protocols` | `#eeeeee` | Protocol/port tag fill |
 | `lines` | `#333333` | Outlines of figures, networks, zones, and tags |
 | `labels` | `#0b3d91` | Names under figures |

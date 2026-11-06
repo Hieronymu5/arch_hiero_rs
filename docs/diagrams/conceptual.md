@@ -88,7 +88,7 @@ Each diagram can override any of these. Only colours that differ from the defaul
 | `data` | `#ffe599` | Entities, files, databases, and storage |
 | `processes` | `#1466b3` | Processes |
 | `borders` | `#1e1e1e` | Element, figure, and arrow-box borders |
-| `lines` | `#0066cc` | Arrow lines and heads |
+| `lines` | `#333333` | Arrow lines and heads |
 | `sectionNames` | `#0b3d91` | Section names |
 
 Text on a fill is black or white, whichever has more contrast (WCAG). This uses

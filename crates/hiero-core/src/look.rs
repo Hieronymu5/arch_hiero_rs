@@ -55,7 +55,7 @@ impl Default for DiagramColors {
             data: "#ffe599".into(),
             processes: "#1466b3".into(),
             borders: "#1e1e1e".into(),
-            lines: "#0066cc".into(),
+            lines: ARROWS.into(),
             section_names: "#0b3d91".into(),
         }
     }
@@ -74,6 +74,9 @@ impl ColorScheme for DiagramColors {
         ("sectionNames", "Section Names"),
     ];
 }
+
+/// The colour of arrows, their lines and heads, in every type of diagram.
+pub const ARROWS: &str = "#333333";
 
 /// The colours of the page behind a drawing, and of text that sets none.
 pub const BACKGROUND: &str = "#ffffff";
@@ -1266,7 +1269,7 @@ mod tests {
                 let drawn = format!(r#"{paint} stroke-width="{width}""#);
                 assert!(svg.contains(&drawn), "{drawn}");
             }
-            assert!(svg.contains(r##"stroke="#0066cc" stroke-width="2""##));
+            assert!(svg.contains(r##"stroke="#333333" stroke-width="2""##));
         }
     }
 
@@ -1305,7 +1308,7 @@ mod tests {
             LineWeight::Thick,
         );
         let svg = scene_to_svg("t", &scene);
-        assert!(svg.contains(r##"<line x1="100" y1="50" x2="300" y2="50" stroke="#0066cc" stroke-width="2" marker-end="url(#arrowhead)"/>"##));
+        assert!(svg.contains(r##"<line x1="100" y1="50" x2="300" y2="50" stroke="#333333" stroke-width="2" marker-end="url(#arrowhead)"/>"##));
         assert!(svg.contains(r#"marker-end="url(#return-arrowhead)""#));
         assert!(svg.contains(r##"stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">Orders</text>"##));
         assert!(svg.contains(">Map</text>"));

@@ -17,7 +17,7 @@ use hiero_core::scene::Scene;
 use crate::model::{C4, C4Kind, Color};
 use crate::rules::{shape_of, type_line};
 
-/// The colour of relationships, and of people's outlines.
+/// The colour of people's outlines.
 pub const LINES: &str = "#1e1e1e";
 
 /// The colours the shared drawing code takes. C4 elements set their own; these are for the
@@ -25,7 +25,7 @@ pub const LINES: &str = "#1e1e1e";
 pub fn colors() -> DiagramColors {
     DiagramColors {
         borders: LINES.into(),
-        lines: LINES.into(),
+        lines: hiero_core::look::ARROWS.into(),
         applications: BLUE.fill.into(),
         ..DiagramColors::default()
     }
@@ -223,8 +223,8 @@ mod tests {
         assert!(svg.contains(r##"<circle cx="500" cy="26" r="10" fill="#d5e8d4""##));
         // A boundary is only a line, in its colour.
         assert!(svg.contains(r##"fill="none" stroke="#9c3530""##));
-        // The relationship is dashed and black, with its description on its middle.
-        assert!(svg.contains(r##"stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4""##));
+        // The relationship is dashed and in the arrow colour, with its description on its middle.
+        assert!(svg.contains(r##"stroke="#333333" stroke-width="2" stroke-dasharray="8 4""##));
         assert!(svg.contains(">Views balances using</text>"));
         // On a white box that hides the line under it, drawn before the text.
         let text = svg.find(">Views balances using</text>").unwrap();

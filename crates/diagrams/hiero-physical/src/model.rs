@@ -233,7 +233,7 @@ impl Default for PhysicalColors {
             appliances: palette::RED.fill.into(),
             networks: "#e0e0e0".into(),
             zones: "#f5f5f5".into(),
-            arrows: "#0066cc".into(),
+            arrows: hiero_core::look::ARROWS.into(),
             protocols: "#eeeeee".into(),
             lines: "#333333".into(),
             labels: "#0b3d91".into(),
