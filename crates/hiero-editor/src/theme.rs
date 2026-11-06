@@ -1,7 +1,7 @@
 //! The prototype's colours for the light and dark themes, and the look of form fields, shared by
 //! the app's pages and the editor's properties panel.
 
-use egui::{Color32, RichText, Ui};
+use egui::{Color32, Ui};
 use hiero_core::text::Weight;
 
 /// How far page content is indented from the window's margin, to line up with the app logo's
@@ -20,6 +20,8 @@ pub struct Palette {
     pub border: Color32,
     pub error: Color32,
     pub surface: Color32,
+    /// A secondary button's face, raised off the page.
+    pub raised: Color32,
 }
 
 pub const DARK: Palette = Palette {
@@ -31,6 +33,7 @@ pub const DARK: Palette = Palette {
     border: Color32::from_rgb(0x35, 0x3c, 0x44),
     error: Color32::from_rgb(0xff, 0x8a, 0x80),
     surface: Color32::from_rgb(0x17, 0x1b, 0x20),
+    raised: Color32::from_rgb(0x2b, 0x30, 0x37),
 };
 
 pub const LIGHT: Palette = Palette {
@@ -42,6 +45,7 @@ pub const LIGHT: Palette = Palette {
     border: Color32::from_rgb(0xd0, 0xd7, 0xde),
     error: Color32::from_rgb(0xb3, 0x26, 0x1e),
     surface: Color32::WHITE,
+    raised: Color32::WHITE,
 };
 
 /// The app's primary colour, for buttons, links, focus rings, and the editor's selection, chosen
@@ -285,28 +289,26 @@ pub fn field_label(ui: &mut Ui, text: &str, required: bool) {
     ui.add_space(-2.0);
 }
 
-/// A page action styled like the prototype's `.button`: an accent border, and filled with the
-/// accent when it's the main action. It looks the same in every state, so hovering doesn't shift
-/// its text.
+/// A page action: a key-like [`outlined_button`], filled with the accent when it's the main
+/// action.
 pub fn page_button(ui: &mut Ui, text: &str, main: bool) -> egui::Response {
     accent_button(ui, text, main, egui::vec2(12.0, 5.0), 14.0)
 }
 
-/// A destructive page action, such as Delete: like an outlined [`page_button`] but in the error
-/// colour.
+/// A destructive page action, such as Delete: like a secondary [`page_button`] but with text in
+/// the error colour.
 pub fn danger_button(ui: &mut Ui, text: &str) -> egui::Response {
     let color = palette(ui).error;
     outlined_button(ui, text, color, false, egui::vec2(12.0, 5.0), 14.0)
 }
 
-/// A button in a row of the list, styled like the prototype's `.button-secondary` but at the
-/// padding of egui's buttons and smaller text.
+/// A secondary button in a row of the list, at the padding of egui's buttons and smaller text.
 pub fn row_button(ui: &mut Ui, text: &str) -> egui::Response {
     let padding = ui.spacing().button_padding;
     accent_button(ui, text, false, padding, 12.0)
 }
 
-/// An accent-bordered button with the given padding and font size.
+/// An accent button with the given padding and font size.
 pub fn accent_button(
     ui: &mut Ui,
     text: &str,
@@ -318,7 +320,13 @@ pub fn accent_button(
     outlined_button(ui, text, accent, main, padding, font_size)
 }
 
-/// A button bordered in `accent`, and filled with it when it's the main action.
+/// How thick a button's bottom edge is, under its face, when it isn't pressed.
+const BUTTON_EDGE: f32 = 1.0;
+
+/// A button drawn like a key: its face sits on a bottom edge in a darker shade, which halves as
+/// the face moves down while it's pressed. The main action's face is filled with `accent`;
+/// another's is raised off the page, with text in `accent`. It's painted here rather than by
+/// egui's button to draw the edge and the face's top highlight.
 fn outlined_button(
     ui: &mut Ui,
     text: &str,
@@ -327,48 +335,103 @@ fn outlined_button(
     padding: egui::Vec2,
     font_size: f32,
 ) -> egui::Response {
-    let Palette {
-        on_accent,
-        text: text_color,
-        ..
-    } = palette(ui);
-    // The border turns white on hover, or the text colour in the light theme, where white
-    // wouldn't show.
-    let hover_border = if ui.visuals().dark_mode {
-        Color32::WHITE
+    let colors = palette(ui);
+    let dark = ui.visuals().dark_mode;
+    let font = crate::fonts::font_id(font_size, Weight::SemiBold);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), font, Color32::PLACEHOLDER);
+    let size = (galley.size() + 2.0 * padding + egui::vec2(0.0, BUTTON_EDGE - 1.0))
+        .max(egui::vec2(0.0, ui.spacing().interact_size.y));
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    let enabled = ui.is_enabled();
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, text));
+    let hovered = enabled && response.hovered();
+    let pressed = enabled && response.is_pointer_button_down_on();
+    if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    if !ui.is_rect_visible(rect) {
+        return response;
+    }
+
+    let shade = |color: Color32, t: f32| color.lerp_to_gamma(Color32::BLACK, t);
+    // The face, its top and side border, its bottom edge, its text, and its top highlight. The
+    // main action lightens on hover; another's border darkens.
+    let (face, side, bottom, text_color, highlight) = if main {
+        let face = if hovered {
+            accent.lerp_to_gamma(Color32::WHITE, 0.06)
+        } else {
+            accent
+        };
+        let highlight = Color32::from_white_alpha(if dark { 77 } else { 71 });
+        (
+            face,
+            shade(accent, 0.28),
+            shade(accent, 0.42),
+            colors.on_accent,
+            highlight,
+        )
     } else {
-        text_color
+        let side = if hovered {
+            colors.input_border
+        } else {
+            colors
+                .input_border
+                .lerp_to_gamma(ui.visuals().panel_fill, 0.35)
+        };
+        let highlight = Color32::from_white_alpha(if dark { 23 } else { 255 });
+        (
+            colors.raised,
+            side,
+            shade(colors.input_border, 0.10),
+            accent,
+            highlight,
+        )
     };
-    let (fill, color) = if main {
-        (accent, on_accent)
+
+    // Pressing moves the face down onto a thinner edge, keeping the button's bottom in place.
+    let edge = if pressed {
+        BUTTON_EDGE / 2.0
     } else {
-        (Color32::TRANSPARENT, accent)
+        BUTTON_EDGE
     };
-    ui.scope(|ui| {
-        let style = ui.style_mut();
-        style.spacing.button_padding = padding;
-        let widgets = &mut style.visuals.widgets;
-        // An outlined button's text follows its border; a filled one's stays readable on the fill.
-        let hover_text = if main { color } else { hover_border };
-        for (state, border, text) in [
-            (&mut widgets.inactive, accent, color),
-            (&mut widgets.hovered, hover_border, hover_text),
-            (&mut widgets.active, hover_border, hover_text),
-        ] {
-            state.weak_bg_fill = fill;
-            state.bg_stroke = egui::Stroke::new(1.0, border);
-            state.fg_stroke.color = text;
-            state.corner_radius = egui::CornerRadius::same(6);
-            state.expansion = 0.0;
-        }
-        let label = RichText::new(text).font(crate::fonts::font_id(font_size, Weight::SemiBold));
-        let response = ui.add(egui::Button::new(label));
-        if response.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        response
-    })
-    .inner
+    let key = rect.with_min_y(rect.top() + BUTTON_EDGE - edge);
+    let radius = 6;
+    let painter = ui.painter();
+    painter.rect_filled(key, radius, bottom);
+    painter.rect_filled(key.with_max_y(key.bottom() - edge), radius, side);
+    let face_rect = egui::Rect::from_min_max(
+        key.min + egui::vec2(1.0, 1.0),
+        egui::pos2(key.right() - 1.0, key.bottom() - edge),
+    );
+    painter.rect_filled(face_rect, radius - 1, face);
+    // A light line along the face's top, or a shadow while it's pressed in.
+    let inset = f32::from(radius);
+    let top = face_rect.top() + 0.5;
+    let line = if pressed {
+        Color32::from_black_alpha(if dark { 71 } else { 46 })
+    } else {
+        highlight
+    };
+    painter.line_segment(
+        [
+            egui::pos2(face_rect.left() + inset, top),
+            egui::pos2(face_rect.right() - inset, top),
+        ],
+        egui::Stroke::new(1.0, line),
+    );
+    let text_pos = face_rect.center() - galley.size() / 2.0;
+    painter.galley(text_pos, galley, text_color);
+    if response.has_focus() {
+        painter.rect_stroke(
+            rect.expand(2.0),
+            radius + 2,
+            egui::Stroke::new(2.0, colors.accent),
+            egui::StrokeKind::Outside,
+        );
+    }
+    response
 }
 
 /// A palette element button, `height` tall and as wide as `ui`, its name on the left: outlined, tinted with the
