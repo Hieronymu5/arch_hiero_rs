@@ -261,9 +261,28 @@ const VIEW_HELP: &str = concat!(
 /// How far the pointer moves, in canvas pixels, before a press on empty canvas draws a box.
 const SELECT_THRESHOLD: f64 = 3.0;
 
-/// The colours of the editor's own marks, over the white paper whatever the theme. The selection
-/// is in the accent colour.
+/// The colours of the editor's own marks, which show on the light paper and the dark. The
+/// selection is in the accent colour.
 const HANDLE_FILL: Color32 = Color32::WHITE;
+
+/// Whether the canvas is dark: it follows the app's theme. Exports stay light.
+fn dark_canvas(ctx: &egui::Context) -> bool {
+    ctx.theme() == egui::Theme::Dark
+}
+
+/// The paper's colour, and the colour of the canvas around it.
+fn paper_colors(dark: bool) -> (Color32, Color32) {
+    if dark {
+        let [r, g, b] = hiero_core::dark::PAPER;
+        // A little darker than the paper, as the light theme's grey is.
+        (
+            Color32::from_rgb(r, g, b),
+            Color32::from_rgb(0x08, 0x0b, 0x10),
+        )
+    } else {
+        (Color32::WHITE, Color32::from_gray(232))
+    }
+}
 /// The size of handles on screen, whatever the zoom.
 const HANDLE: f32 = 12.0;
 const CONNECT_RADIUS: f32 = 7.0;
@@ -578,7 +597,8 @@ impl<T: DiagramView> Editor<T> {
                 marks
             }
         };
-        paint_nodes(painter, scene, &marks, xf, &mut self.cache);
+        let dark = dark_canvas(painter.ctx());
+        paint_nodes(painter, scene, &marks, xf, &mut self.cache, dark);
     }
 
     /// Thickens the lines of the hovered element that opens a diagram, and its mark.
@@ -595,7 +615,14 @@ impl<T: DiagramView> Editor<T> {
         let scene = T::scene(&self.eng, std::slice::from_ref(element), None);
         let mut nodes = outlines(&scene.nodes, HOVER_EXTRA_WIDTH);
         nodes.push(self.link_mark_for(element, true));
-        paint_nodes(painter, &scene, &nodes, xf, &mut self.cache);
+        paint_nodes(
+            painter,
+            &scene,
+            &nodes,
+            xf,
+            &mut self.cache,
+            dark_canvas(ui.ctx()),
+        );
     }
 
     /// The diagram as stored, drawn.
@@ -1024,19 +1051,12 @@ impl<T: DiagramView> Editor<T> {
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, &label));
         self.view.clamp(rect);
         let painter = ui.painter_at(rect);
-        let dark = ui.visuals().dark_mode;
-        painter.rect_filled(
-            rect,
-            0.0,
-            if dark {
-                Color32::from_gray(40)
-            } else {
-                Color32::from_gray(232)
-            },
-        );
+        let dark = dark_canvas(ui.ctx());
+        let (paper_color, around) = paper_colors(dark);
+        painter.rect_filled(rect, 0.0, around);
         let xf = self.view.transform(rect);
         let paper = xf.rect(canvas_rect(self.eng.canvas()));
-        painter.rect_filled(paper, 0.0, Color32::WHITE);
+        painter.rect_filled(paper, 0.0, paper_color);
         // Viewing never shows the grid.
         if !self.viewing && show_grid(ui.ctx()) {
             self.paint_grid(&painter, xf, rect);
@@ -1119,7 +1139,7 @@ impl<T: DiagramView> Editor<T> {
                 }
             }
         };
-        paint_scene(&painter, &scene, xf, &mut self.cache, 1.0);
+        paint_scene(&painter, &scene, xf, &mut self.cache, 1.0, dark);
         self.paint_link_marks(&painter, &scene, xf, &displayed, dragging);
         self.paint_link_hover(&painter, xf, &response, ui);
         if !self.viewing {
@@ -1133,7 +1153,11 @@ impl<T: DiagramView> Editor<T> {
         if step < 6.0 {
             return;
         }
-        let dot = Color32::from_gray(200);
+        let dot = if dark_canvas(painter.ctx()) {
+            Color32::from_rgb(0x39, 0x3e, 0x43)
+        } else {
+            Color32::from_gray(200)
+        };
         let paper = xf.rect(canvas_rect(self.eng.canvas())).intersect(clip);
         let first_x = ((paper.min.x - xf.origin.x) / step).ceil();
         let first_y = ((paper.min.y - xf.origin.y) / step).ceil();

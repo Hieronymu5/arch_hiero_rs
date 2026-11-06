@@ -5,7 +5,7 @@
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::geometry::{Point, Rect, round2};
 use hiero_core::model::LineWeight;
-use hiero_core::scene::{Anchor, Node, Paint, Scene};
+use hiero_core::scene::{Anchor, Node, Paint, Scene, Tone};
 use hiero_core::text::{MeasureText, TextStyle, Weight, wrap_text};
 
 use crate::layout::{
@@ -112,7 +112,8 @@ fn draw_layer(
     let mut nodes = vec![Node::rect(
         r,
         CORNER_RADIUS,
-        Paint::fill_stroke(colors::LAYER_FILL, colors::LAYER_BORDER, weight.width()),
+        Paint::fill_stroke(colors::LAYER_FILL, colors::LAYER_BORDER, weight.width())
+            .toned(Tone::Container),
     )];
     if !chars.is_empty() {
         nodes.extend(bar(
@@ -217,6 +218,8 @@ fn draw_component(
                 fill: Some(colors::LOGO_FILL.into()),
                 stroke: Some(color.border.into()),
                 stroke_width: Some(width),
+                // Kept white on the dark canvas, so dark logos still show.
+                tone: Some(Tone::Fixed),
                 ..Paint::default()
             },
         ));
@@ -289,6 +292,7 @@ pub fn scene_of(eng: &Engine<DeployedComponent>, layout: &[Laid<DeployedComponen
         text_color: colors::TEXT.into(),
         marker_color: colors::TEXT.into(),
         background: "#ffffff".into(),
+        ink_lift: hiero_core::dark::INK_LIFT,
     }
 }
 

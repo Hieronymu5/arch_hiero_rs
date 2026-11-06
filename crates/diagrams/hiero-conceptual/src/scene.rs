@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use hiero_core::color::readable_text;
+use hiero_core::color::{border_for, readable_text};
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::export::drawio::{Legend, LegendLine, Stamp};
 use hiero_core::figures::cloud_edge_point;
@@ -96,6 +96,8 @@ pub fn look_of(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> LookElem
         look: Look {
             agent: element.el.props.agent,
             text_at_top: element.text_at_top,
+            // A shade of its fill, as the other types' borders are.
+            border_color: fill.as_deref().map(border_for),
             fill,
             text_color,
             ..Look::new(shape)
@@ -390,8 +392,14 @@ mod tests {
         props.connector = Some("API".into());
         e.set_connection_props(&cid, props);
         let svg = scene_to_svg("Test", &scene(&e));
-        // The domain in the domain colour with its name on top.
-        assert!(svg.contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="2""##));
+        // The domain in the domain colour, bordered in a shade of it, with its name on top.
+        let border = hiero_core::color::border_for("#f5f5f5");
+        assert!(svg.contains(&format!(
+            r##"fill="#f5f5f5" stroke="{border}" stroke-width="2""##
+        )));
+        // The application bordered in a shade of its fill.
+        let border = hiero_core::color::border_for("#d0e6fb");
+        assert!(svg.contains(&format!(r##"fill="#d0e6fb" stroke="{border}""##)));
         // The actor's figure.
         assert!(svg.contains(r#"<path d="M4 45 A20 20 0 0 1 44 45 Z"/>"#));
         // The connector box in the connectors colour.
@@ -571,8 +579,9 @@ mod tests {
             ("Process", "#1466b3"),
         ] {
             assert!(xml.contains(&format!(r#"value="{label}""#)), "{label}");
+            let border = hiero_core::color::border_for(fill);
             assert!(
-                xml.contains(&format!("fillColor={fill};strokeColor=#1e1e1e")),
+                xml.contains(&format!("fillColor={fill};strokeColor={border}")),
                 "{fill}"
             );
         }

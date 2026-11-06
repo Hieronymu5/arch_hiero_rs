@@ -71,10 +71,10 @@ impl Legend {
 
     /// Adds the legend to `scene`, under its drawing and lined up with its right edge, and
     /// grows the scene's bounds to hold it.
-    pub fn add_to(&self, scene: &mut Scene, line_color: &str, border: &str) {
+    pub fn add_to(&self, scene: &mut Scene, line_color: &str) {
         let b = scene.bounds;
         let at = Point::new(b.right() - LEGEND_WIDTH, b.bottom() + LEGEND_GAP);
-        scene.nodes.extend(self.nodes(at, line_color, border));
+        scene.nodes.extend(self.nodes(at, line_color));
         let left = b.x.min(at.x);
         scene.bounds = Rect::new(
             left,
@@ -84,9 +84,9 @@ impl Legend {
         );
     }
 
-    /// The legend's shapes, with its top-left corner at `at`, its lines drawn in `line_color`
-    /// and its swatches' borders in `border`.
-    pub fn nodes(&self, at: Point, line_color: &str, border: &str) -> Vec<Node> {
+    /// The legend's shapes, with its top-left corner at `at` and its lines drawn in
+    /// `line_color`. Each swatch is bordered in a shade of its fill, as the elements are.
+    pub fn nodes(&self, at: Point, line_color: &str) -> Vec<Node> {
         let (x, y, w, h) = (at.x, at.y, LEGEND_WIDTH, self.height());
         let text = |at: Point, anchor: Anchor, size: f64, bold: bool, value: &str, color: &str| {
             Node::Text {
@@ -175,7 +175,7 @@ impl Legend {
             nodes.push(Node::rect(
                 Rect::new(left, top, 14.0, 14.0),
                 0.0,
-                Paint::fill_stroke(fill, border, 1.0),
+                Paint::fill_stroke(fill, crate::color::border_for(fill), 1.0),
             ));
             nodes.push(text(
                 Point::new(left + 22.0, top + 11.0),

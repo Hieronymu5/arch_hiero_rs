@@ -7,6 +7,8 @@
 //! - `ARCH_HIERO_NEW`: a diagram type, such as `physical`, to create a diagram of and open.
 //! - `ARCH_HIERO_SELECT`: the name of an element to select in the open diagram.
 //! - `ARCH_HIERO_VIEW`: set to view the open diagram rather than edit it.
+//! - `ARCH_HIERO_THEME`: `light` or `dark`, to show this run in that theme without saving it
+//!   (read in `main.rs`).
 //! - `ARCH_HIERO_DETAILS`: set to show the open diagram's Edit Details page.
 //! - `ARCH_HIERO_SCREENSHOT`: a PNG path; the window is saved there after it has settled, and
 //!   the app quits.

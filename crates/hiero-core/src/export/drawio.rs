@@ -2,6 +2,7 @@
 //! containers holding their children, and arrows become connectors attached to their elements
 //! at the same points as in the editor. A port of the prototype's `utils/diagram-drawio.ts`.
 
+use base64::Engine as _;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
@@ -56,7 +57,7 @@ pub struct Heading {
 
 impl Legend {
     /// The legend's cells, with its top-left corner at `at`, its lines drawn in `line_color`.
-    pub fn cells(&self, at: Point, line_color: &str, border: &str) -> Vec<String> {
+    pub fn cells(&self, at: Point, line_color: &str) -> Vec<String> {
         let (x, y, w, h) = (at.x, at.y, LEGEND_WIDTH, self.height());
         let text =
             |id: &str, r: Rect, value: &str, size: f64, align: &str, color: &str, bold: bool| {
@@ -158,7 +159,7 @@ impl Legend {
                 .set("html", 1)
                 .set("rounded", 0)
                 .set("fillColor", fill)
-                .set("strokeColor", border)
+                .set("strokeColor", crate::color::border_for(fill))
                 .set("strokeWidth", 1);
             cells.push(cell(
                 &format!("legend-swatch-{i}"),
@@ -495,6 +496,52 @@ fn physical_stencil(figure: PhysicalFigure, detail: Option<&str>) -> &'static st
     }
 }
 
+/// `stencil`, a draw.io stencil with black details, with its details in `color` instead. A
+/// stencil is its shape's XML, URL-encoded, deflated, and in base64.
+fn recolored_stencil(stencil: &str, color: &str) -> String {
+    use std::io::{Read as _, Write as _};
+    let engine = &base64::engine::general_purpose::STANDARD;
+    let Ok(packed) = engine.decode(stencil) else {
+        return stencil.to_owned();
+    };
+    let mut xml = String::new();
+    if flate2::read::DeflateDecoder::new(packed.as_slice())
+        .read_to_string(&mut xml)
+        .is_err()
+    {
+        return stencil.to_owned();
+    }
+    // `#` is `%23` in the URL-encoded XML.
+    let xml = xml.replace(
+        "%23000000",
+        &format!("%23{}", color.trim_start_matches('#')),
+    );
+    let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+    match encoder
+        .write_all(xml.as_bytes())
+        .and_then(|()| encoder.finish())
+    {
+        Ok(packed) => engine.encode(packed),
+        Err(_) => stencil.to_owned(),
+    }
+}
+
+/// A physical figure's stencil: its details in `border` when it has one, else black or white
+/// by `detail`.
+fn physical_figure_stencil(
+    figure: PhysicalFigure,
+    detail: Option<&str>,
+    border: Option<&str>,
+) -> String {
+    let black = physical_stencil(figure, None);
+    match border {
+        Some(border) if black != physical_stencil(figure, Some("#ffffff")) => {
+            recolored_stencil(black, border)
+        }
+        _ => physical_stencil(figure, detail).to_owned(),
+    }
+}
+
 fn box_on_arrow_style(colors: &DiagramColors, weight: LineWeight) -> String {
     rounded(base_style(colors, weight))
         .set("arcSize", 6)
@@ -566,6 +613,14 @@ pub fn diagram_to_drawio(
         let (left, top, parent) = place(e);
         let geometry = rect_attributes(Rect::new(left, top, e.rect.width, e.rect.height));
         let look = &e.look;
+        // The diagram's base style, with the element's own border colour when it has one.
+        let own_border = || {
+            let style = base_style(colors, weight);
+            match &look.border_color {
+                Some(border) => style.set("strokeColor", border),
+                None => style,
+            }
+        };
         match look.shape {
             Shape::Actor | Shape::Database | Shape::Storage | Shape::File => {
                 let stencil = match look.shape {
@@ -575,7 +630,7 @@ pub fn diagram_to_drawio(
                     Shape::File => FILE_STENCIL,
                     _ => STORAGE_STENCIL,
                 };
-                let style = base_style(colors, weight)
+                let style = own_border()
                     .set("shape", format!("stencil({stencil})"))
                     .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
                     .set("align", "center")
@@ -599,12 +654,16 @@ pub fn diagram_to_drawio(
                 )
             }
             Shape::Physical(figure) => {
-                let style = base_style(colors, weight)
+                let style = own_border()
                     .set(
                         "shape",
                         format!(
                             "stencil({})",
-                            physical_stencil(figure, look.detail_color.as_deref())
+                            physical_figure_stencil(
+                                figure,
+                                look.detail_color.as_deref(),
+                                look.border_color.as_deref()
+                            )
                         ),
                     )
                     .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
@@ -754,7 +813,7 @@ pub fn diagram_to_drawio(
                     )
                 };
                 let inset = round2(e.rect.width * CLOUD_TEXT_INSET);
-                let mut style = base_style(colors, weight);
+                let mut style = own_border();
                 style = if look.shape == Shape::Cloud {
                     with_spacing(style.set("shape", format!("stencil({CLOUD_STENCIL})")))
                         .num("spacingLeft", inset)
@@ -1041,7 +1100,7 @@ pub fn diagram_to_drawio(
             ORIGIN + page.width - LEGEND_WIDTH,
             ORIGIN + page.height + LEGEND_GAP,
         );
-        cells.extend(legend.cells(at, &colors.lines, &colors.borders));
+        cells.extend(legend.cells(at, &colors.lines));
         page.height += LEGEND_GAP + legend.height();
     }
     wrap(title, page, &cells)
@@ -1051,6 +1110,34 @@ pub fn diagram_to_drawio(
 mod tests {
     use super::*;
     use crate::look::Look;
+
+    #[test]
+    fn figures_details_take_their_border_colour() {
+        use std::io::Read as _;
+        let stencil = physical_figure_stencil(
+            PhysicalFigure::LoadBalancer,
+            Some("#000000"),
+            Some("#9c3530"),
+        );
+        let packed = base64::engine::general_purpose::STANDARD
+            .decode(&stencil)
+            .unwrap();
+        let mut xml = String::new();
+        flate2::read::DeflateDecoder::new(packed.as_slice())
+            .read_to_string(&mut xml)
+            .unwrap();
+        assert!(xml.contains("%239c3530"));
+        assert!(!xml.contains("%23000000"));
+        // A figure with no details, or no border, keeps its stencil.
+        assert_eq!(
+            physical_figure_stencil(PhysicalFigure::User, None, Some("#9c3530")),
+            USER_STENCIL
+        );
+        assert_eq!(
+            physical_figure_stencil(PhysicalFigure::Server, Some("#ffffff"), None),
+            SERVER_STENCIL_WHITE
+        );
+    }
 
     fn element(id: &str, parent: Option<&str>, shape: Shape, rect: Rect) -> LookElement {
         LookElement {

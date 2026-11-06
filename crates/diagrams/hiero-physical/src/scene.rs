@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use hiero_core::color::{black_or_white, readable_text};
+use hiero_core::color::{black_or_white, border_for, readable_text};
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::figures::{PhysicalFigure, figure_rect};
 use hiero_core::geometry::{Point, Rect};
@@ -67,6 +67,7 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
                 _ => readable_text(&fill).to_owned(),
             };
             Look {
+                border_color: Some(border_for(&fill)),
                 fill: Some(fill),
                 text_color: Some(text),
                 square: true,
@@ -108,6 +109,8 @@ pub fn look_of(eng: &Engine<Physical>, element: &Laid<Physical>) -> LookElement 
             on_top: true,
             figure_text: database.map(|d| d.abbreviation.to_owned()),
             figure_badge: badge,
+            // A shade of its fill, as the other types' borders are.
+            border_color: Some(border_for(&fill)),
             fill: Some(fill),
             ..Look::new(figure.map_or(Shape::Box, Shape::Physical))
         }
@@ -390,6 +393,8 @@ pub fn edge_firewalls(
             description: None,
             look: Look {
                 detail_color: Some(black_or_white(&fill).to_owned()),
+                // Bordered and detailed in a shade of its fill, as a firewall element is.
+                border_color: Some(border_for(&fill)),
                 fill: Some(fill.clone()),
                 on_top: true,
                 ..Look::new(Shape::Physical(PhysicalFigure::LowFirewall))

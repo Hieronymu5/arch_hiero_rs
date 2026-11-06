@@ -17,7 +17,7 @@ use crate::routing::{
     Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT, connector_text_position, label_placement,
     label_text_position, return_arrow_placement,
 };
-use crate::scene::{Anchor, Marker, Node, Paint, Scene};
+use crate::scene::{Anchor, Marker, Node, Paint, Scene, Tone};
 use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
 
 /// The colours conceptual diagrams are drawn in, also the base the physical diagram's exports
@@ -142,7 +142,7 @@ pub struct Look {
     pub name_at: NameAt,
     /// Square corners on a container.
     pub square: bool,
-    /// A container's border colour. Unset means the borders colour.
+    /// Its border colour, such as a shade of its fill. Unset means the borders colour.
     pub border_color: Option<String>,
     pub dashed: bool,
     /// Draws a container's border again over what it holds.
@@ -153,7 +153,8 @@ pub struct Look {
     pub fill: Option<String>,
     /// The colour of its text. Unset means the usual dark text.
     pub text_color: Option<String>,
-    /// The colour of details inside a physical figure. Unset means black.
+    /// The colour of text inside a physical figure, such as a database's "PSQL", and of its
+    /// details when it has no border colour. Unset means black.
     pub detail_color: Option<String>,
     /// Text on a physical figure, such as a database's "PSQL".
     pub figure_text: Option<String>,
@@ -309,7 +310,8 @@ impl Caption {
         let mut nodes = vec![Node::rect(
             self.rect(middle, measure),
             0.0,
-            Paint::fill(background),
+            // A gap in the line, the colour of the paper behind it.
+            Paint::fill(background).toned(Tone::Paper),
         )];
         for (line, style) in self.styled_lines() {
             let baseline = top + (style.line_height - style.size) / 2.0 + style.size * 0.8;
@@ -553,7 +555,11 @@ pub fn physical_figure(figure: PhysicalFigure, detail: &str) -> Vec<Node> {
                     .map(|o| circle(*o, load_balancer::DOT_RADIUS)),
             );
             let mut links: Vec<Node> = load_balancer::LINKS.iter().map(line).collect();
-            links.push(Node::group(None, Paint::fill(detail), dots));
+            links.push(Node::group(
+                None,
+                Paint::fill(detail).toned(Tone::Detail),
+                dots,
+            ));
             vec![
                 circle(load_balancer::BODY_CENTER, load_balancer::BODY_RADIUS),
                 Node::group(
@@ -567,7 +573,7 @@ pub fn physical_figure(figure: PhysicalFigure, detail: &str) -> Vec<Node> {
             Node::rect(gateway::BODY, gateway::CORNER, Paint::default()),
             Node::group(
                 None,
-                Paint::fill_stroke(detail, detail, gateway::DETAIL_WIDTH),
+                Paint::fill_stroke(detail, detail, gateway::DETAIL_WIDTH).toned(Tone::Detail),
                 gateway::ports()
                     .into_iter()
                     .map(|d| Node::path(d, Paint::default()))
@@ -744,6 +750,10 @@ pub fn draw_element(
     let look = &element.look;
     let center_x = x + width / 2.0;
     let text_width = width - PADDING_X * 2.0;
+    let border = look
+        .border_color
+        .clone()
+        .unwrap_or_else(|| colors.borders.clone());
 
     match look.shape {
         Shape::Container => {
@@ -769,12 +779,11 @@ pub fn draw_element(
                 if look.square { 0.0 } else { 6.0 },
                 Paint::fill_stroke(
                     look.fill.clone().unwrap_or_else(|| colors.domains.clone()),
-                    look.border_color
-                        .clone()
-                        .unwrap_or_else(|| colors.borders.clone()),
+                    border.clone(),
                     weight.width(),
                 )
-                .dashed(look.dashed.then_some((8.0, 4.0))),
+                .dashed(look.dashed.then_some((8.0, 4.0)))
+                .toned(Tone::Container),
             )];
             nodes.extend(colored(text, look.text_color.as_ref()));
             nodes
@@ -790,13 +799,15 @@ pub fn draw_element(
                 .detail_color
                 .clone()
                 .unwrap_or_else(|| "#000000".into());
-            let mut children = physical_figure(figure, &detail);
+            // The shapes inside it in its border's colour; its text keeps the detail colour.
+            let mut children =
+                physical_figure(figure, look.border_color.as_ref().unwrap_or(&detail));
             children.extend(figure_text(figure, look.figure_text.as_ref(), &detail));
             let mut nodes = vec![Node::group(
                 Some(Point::new(round2(center_x - size.width / 2.0), round2(y))),
                 Paint::fill_stroke(
                     look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
-                    colors.borders.clone(),
+                    border.clone(),
                     weight.width(),
                 ),
                 children,
@@ -819,7 +830,7 @@ pub fn draw_element(
                 )),
                 Paint::fill_stroke(
                     look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
-                    colors.borders.clone(),
+                    border.clone(),
                     weight.width(),
                 ),
                 component_figure(look.shape, look.agent),
@@ -869,7 +880,7 @@ pub fn draw_element(
             };
             let paint = Paint::fill_stroke(
                 look.fill.clone().unwrap_or_else(|| BOX_FILL.into()),
-                colors.borders.clone(),
+                border.clone(),
                 weight.width(),
             );
             let outline = if cloud {
@@ -948,7 +959,7 @@ fn draw_section(
             fill: Some("none".into()),
             stroke: Some(colors.borders.clone()),
             stroke_width: Some(line_width),
-            dash: None,
+            ..Paint::default()
         },
     )];
     let lines: Vec<String> = if name.is_empty() {
@@ -1027,7 +1038,7 @@ pub fn draw_diagram(
                 fill: Some("none".into()),
                 stroke: Some(colors.borders.clone()),
                 stroke_width: Some(weight.width()),
-                dash: None,
+                ..Paint::default()
             },
         ));
     }
@@ -1041,6 +1052,7 @@ pub fn draw_diagram(
         text_color: TEXT.into(),
         marker_color: colors.lines.clone(),
         background: BACKGROUND.into(),
+        ink_lift: crate::dark::INK_LIFT,
     }
 }
 
@@ -1202,6 +1214,7 @@ mod tests {
             text_color: TEXT.into(),
             marker_color: "#0066cc".into(),
             background: BACKGROUND.into(),
+            ink_lift: 0.0,
         };
         let svg = scene_to_svg("t", &svg_scene);
         assert!(svg.contains(r##"<rect x="40" y="40" width="200" height="100" rx="6" fill="#ffffff" stroke="#1e1e1e" stroke-width="2"/>"##));

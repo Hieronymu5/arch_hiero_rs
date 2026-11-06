@@ -6,8 +6,9 @@ use std::sync::Arc;
 
 use egui::epaint::{CircleShape, EllipseShape, Mesh, PathStroke, RectShape};
 use egui::{Color32, CornerRadius, Pos2, Shape, Stroke, StrokeKind, TextureHandle, Vec2};
+use hiero_core::dark::Part;
 use hiero_core::geometry::{Point, Rect};
-use hiero_core::scene::{Anchor, Node, Paint, Scene, Seg, parse_path};
+use hiero_core::scene::{Anchor, Node, Paint, Scene, Seg, Tone, parse_path};
 use hiero_core::text::font_metrics;
 use lyon_path::builder::SvgPathBuilder;
 use lyon_path::geom::{Angle, euclid::Vector2D};
@@ -81,9 +82,24 @@ struct TessellatedPath {
 pub struct PaintCache {
     paths: HashMap<String, TessellatedPath>,
     textures: HashMap<usize, TextureHandle>,
+    /// Colours as the dark canvas shows them.
+    dark: HashMap<(Color32, Tone, Part, u64), Color32>,
 }
 
 impl PaintCache {
+    fn dark(&mut self, c: Color32, tone: Tone, part: Part, ink_lift: f64) -> Color32 {
+        if self.dark.len() > 4000 {
+            self.dark.clear();
+        }
+        *self
+            .dark
+            .entry((c, tone, part, ink_lift.to_bits()))
+            .or_insert_with(|| {
+                let [r, g, b] = hiero_core::dark::map([c.r(), c.g(), c.b()], tone, part, ink_lift);
+                Color32::from_rgb(r, g, b)
+            })
+    }
+
     fn path(&mut self, d: &str) -> &mut TessellatedPath {
         if !self.paths.contains_key(d) {
             if self.paths.len() > 4000 {
@@ -232,9 +248,26 @@ struct Ctx<'a> {
     scene: &'a Scene,
     /// Fades everything, such as an element being dragged.
     opacity: f32,
+    /// Recolours the scene for the dark canvas.
+    dark: bool,
 }
 
 impl Ctx<'_> {
+    /// `hex` as painted for a shape of `tone`: on the dark canvas, mapped to its dark colour,
+    /// then faded.
+    fn shade(&mut self, hex: &str, tone: Tone, part: Part) -> Color32 {
+        let c = color(hex);
+        if c == Color32::TRANSPARENT {
+            return c;
+        }
+        let c = if self.dark {
+            self.cache.dark(c, tone, part, self.scene.ink_lift)
+        } else {
+            c
+        };
+        self.tone(c)
+    }
+
     fn tone(&self, c: Color32) -> Color32 {
         if self.opacity >= 1.0 {
             c
@@ -243,53 +276,65 @@ impl Ctx<'_> {
         }
     }
 
-    fn fill_of(&self, paint: &Paint) -> Color32 {
-        self.tone(paint.fill.as_deref().map_or(Color32::BLACK, color))
+    fn fill_of(&mut self, paint: &Paint) -> Color32 {
+        let tone = paint.tone.unwrap_or_default();
+        match paint.fill.as_deref() {
+            Some(hex) => self.shade(hex, tone, Part::Fill),
+            None => self.tone(Color32::BLACK),
+        }
     }
 
-    fn stroke_of(&self, paint: &Paint) -> Option<Stroke> {
-        let c = paint.stroke.as_deref().map(color)?;
+    fn stroke_of(&mut self, paint: &Paint) -> Option<Stroke> {
+        let hex = paint.stroke.as_deref()?;
+        let c = self.shade(hex, line_tone(paint.tone), Part::Ink);
         if c == Color32::TRANSPARENT {
             return None;
         }
         let width = paint.stroke_width.unwrap_or(1.0);
-        (width > 0.0).then(|| Stroke::new(self.xf.len(width), self.tone(c)))
+        (width > 0.0).then(|| Stroke::new(self.xf.len(width), c))
     }
 }
 
-/// Paints `scene` with `xf`, fading it to `opacity`.
+/// The tone of lines and text in a shape of `tone`: only a fill is a container's or the
+/// paper's, so their lines and text are mapped as an element's.
+fn line_tone(tone: Option<Tone>) -> Tone {
+    match tone {
+        Some(Tone::Fixed) => Tone::Fixed,
+        _ => Tone::Element,
+    }
+}
+
+/// Paints `scene` with `xf`, fading it to `opacity`, in its dark colours when `dark`.
 pub fn paint_scene(
     painter: &egui::Painter,
     scene: &Scene,
     xf: Transform,
     cache: &mut PaintCache,
     opacity: f32,
+    dark: bool,
 ) {
-    let root = Paint {
-        fill: Some(scene.text_color.clone()),
-        stroke: None,
-        stroke_width: None,
-        dash: None,
-    };
+    let root = Paint::fill(scene.text_color.clone());
     let mut ctx = Ctx {
         painter,
         xf,
         cache,
         scene,
         opacity,
+        dark,
     };
     for node in &scene.nodes {
         paint_node(&mut ctx, node, &root, Point::default());
     }
 }
 
-/// Paints nodes, such as an editor's overlay, in `scene`'s colours.
+/// Paints nodes, such as an editor's overlay, in `scene`'s colours, dark ones when `dark`.
 pub fn paint_nodes(
     painter: &egui::Painter,
     scene: &Scene,
     nodes: &[Node],
     xf: Transform,
     cache: &mut PaintCache,
+    dark: bool,
 ) {
     let root = Paint::fill(scene.text_color.clone());
     let mut ctx = Ctx {
@@ -298,6 +343,7 @@ pub fn paint_nodes(
         cache,
         scene,
         opacity: 1.0,
+        dark,
     };
     for node in nodes {
         paint_node(&mut ctx, node, &root, Point::default());
@@ -392,7 +438,8 @@ fn paint_node(ctx: &mut Ctx<'_>, node: &Node, parent: &Paint, offset: Point) {
                 b = tip - dir * size * 0.5;
                 let base = tip - dir * size;
                 let side = Vec2::new(-dir.y, dir.x) * size / 2.0;
-                let head = ctx.tone(color(&ctx.scene.marker_color));
+                let marker_color = ctx.scene.marker_color.clone();
+                let head = ctx.shade(&marker_color, line_tone(paint.tone), Part::Ink);
                 ctx.painter.add(Shape::convex_polygon(
                     vec![tip, base + side, base - side],
                     head,
@@ -480,7 +527,7 @@ fn paint_node(ctx: &mut Ctx<'_>, node: &Node, parent: &Paint, offset: Point) {
                 .clone()
                 .or_else(|| parent.fill.clone())
                 .unwrap_or_default();
-            let text_color = ctx.tone(color(&color_hex));
+            let text_color = ctx.shade(&color_hex, line_tone(parent.tone), Part::Ink);
             let font_size = ctx.xf.len(*size);
             if font_size < 1.0 {
                 return;
@@ -502,7 +549,8 @@ fn paint_node(ctx: &mut Ctx<'_>, node: &Node, parent: &Paint, offset: Point) {
             };
             let top_left = Pos2::new(left, p.y - baseline_in_galley);
             if let Some((halo_hex, halo_width)) = halo {
-                let halo_color = ctx.tone(color(halo_hex));
+                // A halo parts text from the lines under it, in the paper's colour.
+                let halo_color = ctx.shade(halo_hex, Tone::Paper, Part::Fill);
                 let w = ctx.xf.len(*halo_width) / 2.0;
                 let outline = ctx.painter.layout_no_wrap(
                     text.clone(),

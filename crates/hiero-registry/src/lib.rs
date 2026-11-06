@@ -150,11 +150,7 @@ impl Drawn for Conceptual {
     }
     fn add_legend(eng: &Engine<Self>, scene: &mut Scene, stamp: Stamp) {
         let colors = eng.colors();
-        hiero_conceptual::scene::legend(colors, stamp).add_to(
-            scene,
-            &colors.lines,
-            &colors.borders,
-        );
+        hiero_conceptual::scene::legend(colors, stamp).add_to(scene, &colors.lines);
     }
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_conceptual::scene::scene(eng)
@@ -667,11 +663,10 @@ mod tests {
         }))
         .unwrap();
         let ops = ops(diagram.meta.diagram_type);
-        assert!(
-            ops.to_svg(&diagram, None)
-                .unwrap()
-                .contains(r##"fill="#f5f5f5" stroke="#1e1e1e" stroke-width="1""##)
-        );
+        let border = hiero_core::color::border_for("#f5f5f5");
+        assert!(ops.to_svg(&diagram, None).unwrap().contains(&format!(
+            r##"fill="#f5f5f5" stroke="{border}" stroke-width="1""##
+        )));
         assert!(
             ops.to_drawio(&diagram, None)
                 .unwrap()

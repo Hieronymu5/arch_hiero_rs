@@ -250,6 +250,7 @@ mod tests {
             text_color: "#1b1f24".into(),
             marker_color: "#0066cc".into(),
             background: "#ffffff".into(),
+            ink_lift: 0.0,
         };
         let svg = scene_to_svg("T<1>", &scene);
         assert!(svg.contains(r#"viewBox="20 20 140 90""#));

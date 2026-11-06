@@ -4,6 +4,25 @@
 use crate::geometry::{Point, Rect};
 use crate::text::Weight;
 
+/// What a shape is to the editor's dark canvas, which recolours it by this (see
+/// [`crate::dark`]). Exports draw every shape in its own colours.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum Tone {
+    /// An element, a line, or text: mapped to dark colours, a little lighter than the paper.
+    #[default]
+    Element,
+    /// A container that holds elements, such as a domain, zone, layer, pool, or lane: its fill
+    /// is darker than an element's, so what it holds stands out.
+    Container,
+    /// The paper's own colour, such as the gap a caption makes in its line.
+    Paper,
+    /// A detail drawn like a line, though it's filled, such as a load balancer's dots: its fill
+    /// is mapped as a line's, so it matches the lines beside it.
+    Detail,
+    /// Kept as it is, such as the white chip a logo sits on.
+    Fixed,
+}
+
 /// Fill and stroke, inherited from groups as in SVG. `None` inherits; a fill of `"none"`
 /// means no fill.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -13,6 +32,8 @@ pub struct Paint {
     pub stroke_width: Option<f64>,
     /// Dash and gap lengths, such as `(8, 4)`.
     pub dash: Option<(f64, f64)>,
+    /// How the dark canvas recolours it. Unset inherits, and means an element at the top.
+    pub tone: Option<Tone>,
 }
 
 impl Paint {
@@ -36,12 +57,18 @@ impl Paint {
             fill: Some(fill.into()),
             stroke: Some(stroke.into()),
             stroke_width: Some(width),
-            dash: None,
+            ..Self::default()
         }
     }
 
     pub fn dashed(mut self, dash: Option<(f64, f64)>) -> Self {
         self.dash = dash;
+        self
+    }
+
+    /// This paint, recoloured on the dark canvas as `tone`.
+    pub fn toned(mut self, tone: Tone) -> Self {
+        self.tone = Some(tone);
         self
     }
 
@@ -52,6 +79,7 @@ impl Paint {
             stroke: self.stroke.clone().or_else(|| parent.stroke.clone()),
             stroke_width: self.stroke_width.or(parent.stroke_width),
             dash: self.dash.or(parent.dash),
+            tone: self.tone.or(parent.tone),
         }
     }
 }
@@ -196,6 +224,9 @@ pub struct Scene {
     pub marker_color: String,
     /// The paper behind the drawing.
     pub background: String,
+    /// How much lighter grey text and lines get on the dark canvas, such as 0.1 (see
+    /// [`crate::dark::map`]). 0 leaves them as the mapping makes them.
+    pub ink_lift: f64,
 }
 
 /// The lines of `nodes` alone, `extra` wider, with no fills, text, or images: drawn over the

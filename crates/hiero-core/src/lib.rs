@@ -5,6 +5,7 @@ pub mod c4;
 pub mod clipboard;
 pub mod color;
 pub mod count;
+pub mod dark;
 pub mod engine;
 pub mod export;
 pub mod figures;

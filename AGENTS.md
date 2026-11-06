@@ -120,6 +120,7 @@ The app reads these environment variables (see `crates/hiero-app/src/devtools.rs
 - `ARCH_HIERO_OPEN=<diagram name>` or `ARCH_HIERO_NEW=<type>`: open or create a diagram on start.
 - `ARCH_HIERO_SELECT=<element name>`: select an element.
 - `ARCH_HIERO_VIEW=1`: view the open diagram rather than edit it.
+- `ARCH_HIERO_THEME=light|dark`: show this run in that theme, without saving it.
 - `ARCH_HIERO_DETAILS=1`: show the open diagram's Edit Details page.
 - `ARCH_HIERO_SCREENSHOT=<file.png>` (with optional `ARCH_HIERO_SCREENSHOT_AFTER=<seconds>`): save a screenshot of the window and quit. Look at it.
 

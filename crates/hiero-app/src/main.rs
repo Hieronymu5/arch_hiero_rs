@@ -47,7 +47,12 @@ impl Shell {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         hiero_editor::theme::install_text_colors(&cc.egui_ctx);
         let theme = theme_from(cc.storage.and_then(|s| s.get_string(THEME_KEY)));
-        cc.egui_ctx.set_theme(theme);
+        // `ARCH_HIERO_THEME` shows this run in another theme, without saving it.
+        cc.egui_ctx.set_theme(
+            std::env::var("ARCH_HIERO_THEME")
+                .ok()
+                .map_or(theme, |name| theme_from(Some(name))),
+        );
         // Applied before the first frame, as the theme is. An unknown name gives the default.
         let accent = cc
             .storage
