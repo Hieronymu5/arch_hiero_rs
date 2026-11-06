@@ -229,7 +229,8 @@ impl Default for PhysicalColors {
             users: "#d0e6fb".into(),
             servers: "#c5e0b4".into(),
             data: "#ffe599".into(),
-            appliances: "#f6c6d7".into(),
+            // The red the other types use, rather than the prototype's pink.
+            appliances: palette::RED.fill.into(),
             networks: "#e0e0e0".into(),
             zones: "#f5f5f5".into(),
             arrows: "#0066cc".into(),
