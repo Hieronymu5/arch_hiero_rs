@@ -1809,13 +1809,13 @@ mod tests {
                 sample.meta.name
             );
         }
-        assert_eq!(seed_diagrams().len(), 6);
+        assert_eq!(seed_diagrams().len(), 7);
     }
 
     #[test]
     fn samples_load_once() {
         let mut store = Store::open_in_memory().unwrap();
-        assert_eq!(store.load_samples().unwrap(), 6);
+        assert_eq!(store.load_samples().unwrap(), 7);
         assert_eq!(store.load_samples().unwrap(), 0);
         let names: Vec<String> = store
             .list()
@@ -1830,6 +1830,7 @@ mod tests {
                 "Arch Hiero - MCP Capabilities",
                 "Arch Hiero - MCP Server Components",
                 "Arch Hiero - System Context",
+                "Online Order",
                 "Standard 3 -Tier Application",
                 "Website Example - Active - Active"
             ]

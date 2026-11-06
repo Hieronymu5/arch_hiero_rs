@@ -1102,5 +1102,249 @@
     ],
     "createdAt": "2026-11-02T09:00:00.000Z",
     "updatedAt": "2026-11-02T09:00:00.000Z"
+  },
+  {
+    "id": "9b3806fa-ee9a-4f98-b119-e4700408da16",
+    "name": "Online Order",
+    "type": "flowchart",
+    "lineWeight": "medium",
+    "description": "An online order from checkout to the door, across the shop, warehouse and courier",
+    "elements": [
+      {
+        "id": "01166905-9950-458c-b081-42a743b8c05f",
+        "kind": "start",
+        "label": "Place an order",
+        "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
+        "x": 120,
+        "y": 120
+      },
+      {
+        "id": "0710023c-42d2-4608-b91b-92cde94e8ff6",
+        "kind": "end",
+        "label": "Order delivered",
+        "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
+        "x": 120,
+        "y": 820
+      },
+      {
+        "height": 1000,
+        "id": "e21ac9ca-e7bd-4897-9c5c-7683726ce18a",
+        "kind": "pool",
+        "label": "Delivering an order",
+        "orientation": "vertical",
+        "width": 1200,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "height": 960,
+        "id": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
+        "kind": "lane",
+        "label": "Customer",
+        "parentId": "e21ac9ca-e7bd-4897-9c5c-7683726ce18a",
+        "width": 300,
+        "x": 40,
+        "y": 80
+      },
+      {
+        "height": 960,
+        "id": "9d6b46e5-4129-429d-b812-651d9429c123",
+        "kind": "lane",
+        "label": "Shop",
+        "parentId": "e21ac9ca-e7bd-4897-9c5c-7683726ce18a",
+        "width": 300,
+        "x": 340,
+        "y": 80
+      },
+      {
+        "height": 960,
+        "id": "cdb665c4-98b9-44d6-8db2-a677a942ae45",
+        "kind": "lane",
+        "label": "Warehouse",
+        "parentId": "e21ac9ca-e7bd-4897-9c5c-7683726ce18a",
+        "width": 300,
+        "x": 640,
+        "y": 80
+      },
+      {
+        "height": 960,
+        "id": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
+        "kind": "lane",
+        "label": "Courier",
+        "parentId": "e21ac9ca-e7bd-4897-9c5c-7683726ce18a",
+        "width": 300,
+        "x": 940,
+        "y": 80
+      },
+      {
+        "id": "abb91ff4-86fa-4930-bef6-bba9613f84ea",
+        "kind": "input-output",
+        "label": "Pay at checkout",
+        "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
+        "x": 120,
+        "y": 260
+      },
+      {
+        "id": "15c01881-9ec5-494f-a9f7-4047467e823c",
+        "kind": "process",
+        "label": "Take payment",
+        "parentId": "9d6b46e5-4129-429d-b812-651d9429c123",
+        "x": 420,
+        "y": 260
+      },
+      {
+        "id": "1d722e22-41bc-4de6-988f-c3bbb6413e1c",
+        "kind": "decision",
+        "label": "Paid?",
+        "parentId": "9d6b46e5-4129-429d-b812-651d9429c123",
+        "x": 420,
+        "y": 420
+      },
+      {
+        "id": "54544b03-94a0-4344-a9eb-7be04e29cdc6",
+        "kind": "end",
+        "label": "Order failed",
+        "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
+        "x": 120,
+        "y": 460
+      },
+      {
+        "id": "a26b25fe-eb8f-4689-b0e7-1235fbed2329",
+        "kind": "data-store",
+        "label": "Stock",
+        "parentId": "cdb665c4-98b9-44d6-8db2-a677a942ae45",
+        "x": 740,
+        "y": 260
+      },
+      {
+        "id": "0d6c7b20-96a9-48f1-9471-da6b64f1315e",
+        "kind": "manual",
+        "label": "Pick and pack",
+        "parentId": "cdb665c4-98b9-44d6-8db2-a677a942ae45",
+        "x": 720,
+        "y": 440
+      },
+      {
+        "id": "8bfd03ca-b4ee-47e6-a645-9b694f4ee303",
+        "kind": "document",
+        "label": "Packing slip",
+        "parentId": "cdb665c4-98b9-44d6-8db2-a677a942ae45",
+        "x": 720,
+        "y": 620
+      },
+      {
+        "id": "e6b03f37-b9cd-4244-ab7c-ef93b18b1426",
+        "kind": "delay",
+        "label": "Wait for pickup",
+        "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
+        "x": 1020,
+        "y": 440
+      },
+      {
+        "id": "94867520-a94a-4676-981c-3313ff99dc3e",
+        "kind": "process",
+        "label": "Deliver the parcel",
+        "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
+        "x": 1020,
+        "y": 620
+      },
+      {
+        "id": "3e215afa-ace4-4cae-b7a0-38ee2a2e3470",
+        "kind": "decision",
+        "label": "Anyone home?",
+        "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
+        "x": 1020,
+        "y": 780
+      },
+      {
+        "id": "7b370f9e-1557-4ad8-808c-4c81985dab5a",
+        "kind": "process",
+        "label": "Take to the depot",
+        "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
+        "x": 1020,
+        "y": 940
+      },
+      {
+        "id": "b7714c0a-c8fb-458e-b65f-f4ddcd293b90",
+        "kind": "end",
+        "label": "Collect at depot",
+        "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
+        "x": 120,
+        "y": 980
+      }
+    ],
+    "connections": [
+      {
+        "id": "6f9a1f37-216d-4dfa-8b0e-e030e24d5263",
+        "sourceId": "01166905-9950-458c-b081-42a743b8c05f",
+        "targetId": "abb91ff4-86fa-4930-bef6-bba9613f84ea"
+      },
+      {
+        "id": "3ee1fb78-5d08-4fd9-a2dc-fe2e992d6bb0",
+        "sourceId": "abb91ff4-86fa-4930-bef6-bba9613f84ea",
+        "targetId": "15c01881-9ec5-494f-a9f7-4047467e823c"
+      },
+      {
+        "id": "11a31069-8433-4046-9d2f-ad7cb8efce0a",
+        "sourceId": "15c01881-9ec5-494f-a9f7-4047467e823c",
+        "targetId": "1d722e22-41bc-4de6-988f-c3bbb6413e1c"
+      },
+      {
+        "id": "d828cb1a-2cba-4d8a-bcdd-350f65b8e384",
+        "label": "Yes",
+        "sourceId": "1d722e22-41bc-4de6-988f-c3bbb6413e1c",
+        "targetId": "0d6c7b20-96a9-48f1-9471-da6b64f1315e"
+      },
+      {
+        "id": "31a5b0df-a0d5-4ba5-b39e-54a435018a9a",
+        "label": "No",
+        "sourceId": "1d722e22-41bc-4de6-988f-c3bbb6413e1c",
+        "targetId": "54544b03-94a0-4344-a9eb-7be04e29cdc6"
+      },
+      {
+        "id": "7f4a7be0-5434-49e4-a9ee-8c2744f89eb6",
+        "sourceId": "a26b25fe-eb8f-4689-b0e7-1235fbed2329",
+        "targetId": "0d6c7b20-96a9-48f1-9471-da6b64f1315e"
+      },
+      {
+        "id": "be8dbb34-56d1-434a-a4ac-ae6958d4688c",
+        "sourceId": "0d6c7b20-96a9-48f1-9471-da6b64f1315e",
+        "targetId": "8bfd03ca-b4ee-47e6-a645-9b694f4ee303"
+      },
+      {
+        "id": "cdc5f880-2903-4f86-b0e1-5a6e03bfa84a",
+        "sourceId": "0d6c7b20-96a9-48f1-9471-da6b64f1315e",
+        "targetId": "e6b03f37-b9cd-4244-ab7c-ef93b18b1426"
+      },
+      {
+        "id": "1010f2ae-e5ba-4038-8fea-abbbc08e908a",
+        "sourceId": "e6b03f37-b9cd-4244-ab7c-ef93b18b1426",
+        "targetId": "94867520-a94a-4676-981c-3313ff99dc3e"
+      },
+      {
+        "id": "15511b62-b816-466e-b950-074fd35cc5f1",
+        "sourceId": "94867520-a94a-4676-981c-3313ff99dc3e",
+        "targetId": "3e215afa-ace4-4cae-b7a0-38ee2a2e3470"
+      },
+      {
+        "id": "095e5c59-5820-4821-95ca-0b3d30b75ab1",
+        "label": "Yes",
+        "sourceId": "3e215afa-ace4-4cae-b7a0-38ee2a2e3470",
+        "targetId": "0710023c-42d2-4608-b91b-92cde94e8ff6"
+      },
+      {
+        "id": "b370f662-6745-4ccc-ba1d-df5efbfbaa71",
+        "label": "No",
+        "sourceId": "3e215afa-ace4-4cae-b7a0-38ee2a2e3470",
+        "targetId": "7b370f9e-1557-4ad8-808c-4c81985dab5a"
+      },
+      {
+        "id": "7591ab1f-4de2-41c9-a9ee-9458ed84558d",
+        "sourceId": "7b370f9e-1557-4ad8-808c-4c81985dab5a",
+        "targetId": "b7714c0a-c8fb-458e-b65f-f4ddcd293b90"
+      }
+    ],
+    "createdAt": "2026-11-05T09:00:00.000Z",
+    "updatedAt": "2026-11-05T09:00:00.000Z"
   }
 ]
