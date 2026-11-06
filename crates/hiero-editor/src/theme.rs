@@ -337,7 +337,7 @@ fn outlined_button(
 ) -> egui::Response {
     let colors = palette(ui);
     let dark = ui.visuals().dark_mode;
-    let font = crate::fonts::font_id(font_size, Weight::SemiBold);
+    let font = crate::fonts::font_id(font_size, Weight::Regular);
     let galley = ui
         .painter()
         .layout_no_wrap(text.to_owned(), font, Color32::PLACEHOLDER);
