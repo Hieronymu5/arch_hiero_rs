@@ -289,17 +289,27 @@ pub fn field_label(ui: &mut Ui, text: &str, required: bool) {
     ui.add_space(-2.0);
 }
 
+/// The font size of page buttons' labels.
+const PAGE_BUTTON_FONT_SIZE: f32 = 12.5;
+
 /// A page action: a key-like [`outlined_button`], filled with the accent when it's the main
 /// action.
 pub fn page_button(ui: &mut Ui, text: &str, main: bool) -> egui::Response {
-    accent_button(ui, text, main, egui::vec2(12.0, 5.0), 14.0)
+    accent_button(ui, text, main, egui::vec2(12.0, 5.0), PAGE_BUTTON_FONT_SIZE)
 }
 
 /// A destructive page action, such as Delete: like a secondary [`page_button`] but with text in
 /// the error colour.
 pub fn danger_button(ui: &mut Ui, text: &str) -> egui::Response {
     let color = palette(ui).error;
-    outlined_button(ui, text, color, false, egui::vec2(12.0, 5.0), 14.0)
+    outlined_button(
+        ui,
+        text,
+        color,
+        false,
+        egui::vec2(12.0, 5.0),
+        PAGE_BUTTON_FONT_SIZE,
+    )
 }
 
 /// A secondary button in a row of the list, at the padding of egui's buttons and smaller text.
