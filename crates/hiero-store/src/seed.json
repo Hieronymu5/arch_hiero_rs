@@ -1354,254 +1354,246 @@
     "lineWeight": "medium",
     "description": "The layers of an enterprise's systems, the people who use them, and the platform under them",
     "createdAt": "2026-11-06T09:00:00.000Z",
-    "updatedAt": "2026-11-06T09:00:00.000Z",
+    "updatedAt": "2026-11-07T09:00:00.000Z",
     "elements": [
       {
-        "id": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
+        "height": 180,
+        "id": "6434c14f-609b-4e88-94f8-7e1b236df1fd",
         "kind": "group",
         "label": "Stakeholders",
+        "width": 1040,
         "x": 40,
-        "y": 40,
-        "width": 200,
-        "height": 440,
-        "color": "blue"
+        "y": 40
       },
       {
-        "id": "0b421d49-9866-4562-ad53-e88ddc936e8a",
-        "kind": "application",
+        "height": 100,
+        "id": "3cfed1ed-e573-4478-92b3-a85e8db98ce8",
+        "kind": "actors",
         "label": "Business Leadership",
+        "parentId": "6434c14f-609b-4e88-94f8-7e1b236df1fd",
+        "width": 220,
         "x": 60,
-        "y": 80,
-        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
-        "color": "grey"
+        "y": 100
       },
       {
-        "id": "ee9b5170-f3f7-4a93-9b51-4936bbd50f53",
-        "kind": "application",
+        "height": 100,
+        "id": "b3caa30a-5bfc-41fd-90d1-d37f903d18b8",
+        "kind": "actors",
         "label": "Cross-Functional Team",
-        "x": 60,
-        "y": 180,
-        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
-        "color": "grey"
+        "parentId": "6434c14f-609b-4e88-94f8-7e1b236df1fd",
+        "width": 220,
+        "x": 320,
+        "y": 100
       },
       {
-        "id": "ba0f9d6f-d217-4485-b100-a3f1b00140ee",
-        "kind": "application",
+        "height": 100,
+        "id": "c5982f97-1c67-4e99-8294-b7481f42ce47",
+        "kind": "actors",
         "label": "Technical Team",
-        "x": 60,
-        "y": 280,
-        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
-        "color": "grey"
+        "parentId": "6434c14f-609b-4e88-94f8-7e1b236df1fd",
+        "width": 220,
+        "x": 580,
+        "y": 100
       },
       {
-        "id": "da130acc-519b-4395-8073-fc5e6faf8a22",
-        "kind": "application",
+        "height": 100,
+        "id": "9d72aab1-28dc-4bec-b34b-b901ba07c271",
+        "kind": "actors",
         "label": "External Users",
-        "x": 60,
-        "y": 380,
-        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
-        "color": "grey"
+        "parentId": "6434c14f-609b-4e88-94f8-7e1b236df1fd",
+        "width": 220,
+        "x": 840,
+        "y": 100
       },
       {
-        "id": "44d0c46b-ec13-4110-9f36-1e7aad5f8194",
+        "dashed": true,
+        "height": 660,
+        "id": "5f285ef9-249e-4138-920b-420484b0ca1d",
         "kind": "group",
         "label": "Cybersecurity, Governance & Compliance",
-        "x": 320,
-        "y": 40,
-        "width": 560,
-        "height": 80,
-        "dashed": true
+        "width": 200,
+        "x": 40,
+        "y": 260
       },
       {
-        "id": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "color": "green",
+        "height": 260,
+        "id": "ce976585-dffd-4828-8e3e-9826c1e9acac",
         "kind": "group",
         "label": "Application & Cloud Services Layer",
-        "x": 320,
-        "y": 140,
         "width": 560,
-        "height": 240,
-        "color": "green"
+        "x": 280,
+        "y": 260
       },
       {
-        "id": "e8572361-ae82-4be3-af10-3b039d6f1440",
+        "color": "grey",
+        "id": "23c8b469-e2f3-4b39-ac84-b191e3996aa5",
         "kind": "application",
         "label": "User Interfaces",
-        "x": 340,
-        "y": 180,
-        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
-        "color": "grey"
+        "parentId": "ce976585-dffd-4828-8e3e-9826c1e9acac",
+        "x": 300,
+        "y": 320
       },
       {
-        "id": "1e8c8df5-acb3-49be-8f79-cc15909d9d72",
+        "color": "grey",
+        "id": "0f0740cd-2b17-41cb-b7aa-c112e6c0f9ec",
         "kind": "application",
         "label": "Cloud-Based Applications",
-        "x": 520,
-        "y": 180,
-        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
-        "color": "grey"
+        "parentId": "ce976585-dffd-4828-8e3e-9826c1e9acac",
+        "x": 480,
+        "y": 320
       },
       {
-        "id": "3e6eac67-bef8-4884-8386-7aeae650e602",
+        "color": "grey",
+        "id": "49244d8d-e93d-4739-8b72-5e275467defd",
         "kind": "application",
         "label": "Enterprise Applications",
-        "x": 700,
-        "y": 180,
-        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
-        "color": "grey"
+        "parentId": "ce976585-dffd-4828-8e3e-9826c1e9acac",
+        "x": 660,
+        "y": 320
       },
       {
-        "id": "0ecb2c81-7e51-48aa-96ad-fb8b900dd383",
+        "color": "grey",
+        "id": "dc844c41-0994-4fc6-b2cb-df6dd7888c4f",
         "kind": "application",
         "label": "Big Data & Analytics",
-        "x": 340,
-        "y": 280,
-        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
-        "color": "grey"
+        "parentId": "ce976585-dffd-4828-8e3e-9826c1e9acac",
+        "x": 300,
+        "y": 420
       },
       {
-        "id": "7a2abe26-a6b4-4d1c-94e7-ba5989b47a18",
+        "color": "grey",
+        "id": "d5fad44a-354c-4ac0-9a3d-f9e10997c72a",
         "kind": "application",
         "label": "API Management",
-        "x": 520,
-        "y": 280,
-        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
-        "color": "grey"
+        "parentId": "ce976585-dffd-4828-8e3e-9826c1e9acac",
+        "x": 480,
+        "y": 420
       },
       {
-        "id": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "color": "blue",
+        "height": 160,
+        "id": "5f6b4a94-4a64-4177-9f02-9d402342d849",
         "kind": "group",
         "label": "Backend Services Layer",
-        "x": 320,
-        "y": 400,
         "width": 560,
-        "height": 140,
-        "color": "blue"
+        "x": 280,
+        "y": 560
       },
       {
-        "id": "41587f19-59a7-4022-a680-2b00d5072c18",
+        "color": "grey",
+        "id": "86f6732e-b051-4c71-bfc9-044b0ecfcac8",
         "kind": "application",
         "label": "Automated Monitoring",
-        "x": 340,
-        "y": 440,
-        "parentId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
-        "color": "grey"
+        "parentId": "5f6b4a94-4a64-4177-9f02-9d402342d849",
+        "x": 300,
+        "y": 620
       },
       {
-        "id": "720c1ab2-ec70-4650-a44a-fbfc1c80f429",
+        "color": "grey",
+        "id": "ccd122c2-0934-4e3f-bf72-5f77942ef6f8",
         "kind": "application",
         "label": "Event-Driven Architecture",
-        "x": 520,
-        "y": 440,
-        "parentId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
-        "color": "grey"
+        "parentId": "5f6b4a94-4a64-4177-9f02-9d402342d849",
+        "x": 480,
+        "y": 620
       },
       {
-        "id": "6ba4dcd8-9cec-4d89-9b5d-9b8caf6beb88",
+        "color": "grey",
+        "id": "752eaef6-627e-4f71-94b9-16cd67d4eef0",
         "kind": "application",
         "label": "Microservices & Serverless",
-        "x": 700,
-        "y": 440,
-        "parentId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
-        "color": "grey"
+        "parentId": "5f6b4a94-4a64-4177-9f02-9d402342d849",
+        "x": 660,
+        "y": 620
       },
       {
-        "id": "acf4145f-6059-4238-8c26-70cf821edd11",
+        "color": "yellow",
+        "height": 160,
+        "id": "e950c3c9-f78d-4929-9e15-28f044efcbad",
         "kind": "group",
         "label": "Data Layer",
-        "x": 320,
-        "y": 560,
         "width": 560,
-        "height": 140,
-        "color": "yellow"
+        "x": 280,
+        "y": 760
       },
       {
-        "id": "4be296d0-95bf-45d6-86dc-81704de04814",
+        "color": "grey",
+        "id": "dbf40ced-f8bb-4211-b62b-3a05dcf14ae7",
         "kind": "application",
         "label": "Relational Databases",
-        "x": 340,
-        "y": 600,
-        "parentId": "acf4145f-6059-4238-8c26-70cf821edd11",
-        "color": "grey"
+        "parentId": "e950c3c9-f78d-4929-9e15-28f044efcbad",
+        "x": 300,
+        "y": 820
       },
       {
-        "id": "d2db80fd-1dd2-423c-b9cc-42bd71edea13",
+        "color": "grey",
+        "id": "25c71858-eb39-466d-87d7-50eb0b87982e",
         "kind": "application",
         "label": "NoSQL & Data Lakes",
-        "x": 520,
-        "y": 600,
-        "parentId": "acf4145f-6059-4238-8c26-70cf821edd11",
-        "color": "grey"
+        "parentId": "e950c3c9-f78d-4929-9e15-28f044efcbad",
+        "x": 480,
+        "y": 820
       },
       {
-        "id": "05b11083-fabb-4e65-b293-47805e28bc96",
+        "color": "grey",
+        "id": "13a7dac8-9222-468f-b8b5-5fd72bd283ed",
         "kind": "application",
         "label": "Edge Computing",
-        "x": 700,
-        "y": 600,
-        "parentId": "acf4145f-6059-4238-8c26-70cf821edd11",
-        "color": "grey"
+        "parentId": "e950c3c9-f78d-4929-9e15-28f044efcbad",
+        "x": 660,
+        "y": 820
       },
       {
-        "id": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
+        "color": "red",
+        "height": 660,
+        "id": "c0457fa0-b020-4e4c-889f-73293b483871",
         "kind": "group",
         "label": "Platform & DevOps",
-        "x": 960,
-        "y": 140,
         "width": 200,
-        "height": 340,
-        "color": "red"
+        "x": 880,
+        "y": 260
       },
       {
-        "id": "a74af5e1-e87a-4e3e-8270-1885b8c7a975",
+        "color": "grey",
+        "id": "121411ae-bbfd-4138-bb14-819e2f9e8fd4",
         "kind": "application",
         "label": "Cloud-Native Microservices",
-        "x": 980,
-        "y": 180,
-        "parentId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
-        "color": "grey"
+        "parentId": "c0457fa0-b020-4e4c-889f-73293b483871",
+        "x": 900,
+        "y": 360
       },
       {
-        "id": "6b0e9062-dfb0-44b4-926a-36cf2a181615",
+        "color": "grey",
+        "id": "3f93df06-709c-4beb-b2a5-8d7d3786d449",
         "kind": "application",
         "label": "API Gateway & Integration",
-        "x": 980,
-        "y": 280,
-        "parentId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
-        "color": "grey"
+        "parentId": "c0457fa0-b020-4e4c-889f-73293b483871",
+        "x": 900,
+        "y": 600
       },
       {
-        "id": "0e165e47-243a-4b90-97c6-4914820cb30d",
+        "color": "grey",
+        "id": "6cec4fd7-a67b-4063-ab8d-451bbac31e2f",
         "kind": "application",
         "label": "CI/CD & DevOps Pipelines",
-        "x": 980,
-        "y": 380,
-        "parentId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
-        "color": "grey"
+        "parentId": "c0457fa0-b020-4e4c-889f-73293b483871",
+        "x": 900,
+        "y": 800
       }
     ],
     "connections": [
       {
-        "id": "1322c1dc-f323-480a-9394-a70a3b8ea3ba",
-        "sourceId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
-        "targetId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "id": "0b2a39a3-938c-4baa-9e4f-cb21bb515bd5",
+        "sourceId": "ce976585-dffd-4828-8e3e-9826c1e9acac",
+        "targetId": "5f6b4a94-4a64-4177-9f02-9d402342d849",
         "twoWay": true
       },
       {
-        "id": "2c3f6439-9c14-4f89-aae7-1bb3e11fa303",
-        "sourceId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
-        "targetId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "id": "ab30e8c9-bee3-44dd-bcf0-f823ff5aa3d0",
+        "sourceId": "5f6b4a94-4a64-4177-9f02-9d402342d849",
+        "targetId": "e950c3c9-f78d-4929-9e15-28f044efcbad",
         "twoWay": true
-      },
-      {
-        "id": "c5166fd0-1736-40db-9069-52b5f086ea7c",
-        "sourceId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
-        "targetId": "acf4145f-6059-4238-8c26-70cf821edd11",
-        "twoWay": true
-      },
-      {
-        "id": "01bb22fb-e1e6-46e3-a9ab-8d2cc8b7e9b7",
-        "sourceId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
-        "targetId": "d460c1ab-695a-4661-b78e-c2c089f2b61b"
       }
     ]
   },
