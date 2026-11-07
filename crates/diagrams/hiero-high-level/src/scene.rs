@@ -6,8 +6,8 @@ use std::collections::HashMap;
 
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::export::drawio::{
-    HEADING_GAP, HEADING_MIN_WIDTH, Heading, ORIGIN, Style, actor_shape, cell, constraint,
-    heading_cell, rect_attributes, wrap,
+    HEADING_GAP, HEADING_MIN_WIDTH, Heading, ORIGIN, Style, cell, constraint, heading_cell,
+    person_shape, rect_attributes, wrap,
 };
 use hiero_core::export::svg::escape_xml;
 use hiero_core::figures::{actor, actors};
@@ -441,7 +441,7 @@ fn actors_cells(element: &Laid<HighLevel>, width: f64) -> Vec<String> {
     let colors = element.el.props.color_of(element.el.kind).colors();
     let at = actors_at(element.rect);
     let style = Style::new()
-        .set("shape", actor_shape())
+        .set("shape", person_shape())
         .set("html", 1)
         .set("fillColor", colors.fill)
         .set("strokeColor", colors.border)
@@ -686,12 +686,12 @@ mod tests {
         assert_eq!(text.top, 40.0 + 4.0 + 56.0 + 6.0);
         assert_eq!(text.name, ["Technical Team"]);
         assert_eq!(text.description, ["Builds and runs it"]);
-        assert_eq!(actors_at(laid.rect), Point::new(74.0, 44.0));
+        assert_eq!(actors_at(laid.rect), Point::new(80.0, 44.0));
         let svg = scene_to_svg("Test", &scene(&e));
         // Three heads, filled and outlined in grey, and no box.
         assert_eq!(svg.matches("<circle").count(), 3);
         assert!(
-            svg.contains(r##"<g transform="translate(74 44)" fill="#f5f5f5" stroke="#666666""##)
+            svg.contains(r##"<g transform="translate(80 44)" fill="#f5f5f5" stroke="#666666""##)
         );
         assert!(!svg.contains(r#"rx="8""#));
         assert!(svg.contains(r#"font-size="14" font-weight="700">Technical Team</text>"#));
@@ -704,8 +704,12 @@ mod tests {
             assert!(xml.contains(&format!(r#"id="p-person-{i}""#)));
         }
         assert_eq!(xml.matches(r#"parent="p""#).count(), 3);
-        // The front one, lower and between the two at the back.
+        // Each a person in their own box, undistorted: the back ones 32 px apart, and the front
+        // one lower, between them.
+        assert!(xml.contains(r#"x="40" y="4" width="48" height="46""#));
+        assert!(xml.contains(r#"x="72" y="4" width="48" height="46""#));
         assert!(xml.contains(r#"x="56" y="14" width="48" height="46""#));
+        assert!(xml.contains(&format!("shape={}", person_shape())));
         // Actors have no border to dash.
         let mut with = e.element(&"p".into()).unwrap().props.clone();
         with.dashed = true;

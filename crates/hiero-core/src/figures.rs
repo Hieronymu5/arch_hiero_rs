@@ -24,18 +24,18 @@ pub mod actor {
     pub const BOT_BODY: Rect = Rect::new(8.0, 25.0, 32.0, 20.0);
 }
 
-/// A group of people: three actors, two side by side at the back and a third in front of them,
-/// lower down, half covering each. Each actor is the 48 × 46 figure above, at the offsets here
+/// A group of people: three actors, two side by side at the back, close together, and a third
+/// in front of them, lower down and centred between them, covering most of each. Each actor is the 48 × 46 figure above, at the offsets here
 /// in a box `WIDTH` × `HEIGHT`, the back ones first so the front one is drawn over them.
 pub mod actors {
     use crate::geometry::Point;
-    pub const WIDTH: f64 = 92.0;
+    pub const WIDTH: f64 = 80.0;
     pub const HEIGHT: f64 = 56.0;
     /// The top-left corner of each actor's box: left at the back, right at the back, front.
     pub const PLACES: [Point; 3] = [
         Point::new(0.0, 0.0),
-        Point::new(44.0, 0.0),
-        Point::new(22.0, 10.0),
+        Point::new(32.0, 0.0),
+        Point::new(16.0, 10.0),
     ];
 }
 

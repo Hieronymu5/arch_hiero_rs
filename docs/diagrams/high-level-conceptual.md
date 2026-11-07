@@ -21,7 +21,7 @@ can also have a description.
 |---|---|---|---|---|
 | `application` | Application | 160×80 | – | A box with round corners (radius 8), its name wrapped in its middle, in bold, with any description under it (2 px below) in regular weight at 85% of the name's size, rounded, at least 8 px. The description keeps its line breaks and is cut with “…” where the box has no more room. |
 | `group` | Group | 400×240 | application, group, actors | A box with round corners (radius 8), drawn behind what it holds. Its name, in bold, sits on one line centred across its top while it holds something, and wrapped in its middle while it's empty. |
-| `actors` | Actors | 160×120 | – | People, such as stakeholders or a team: three person figures (48×46 each) centred 4 px below its top, two side by side at the back and one in front, 10 px lower, covering half of each, in its colour's fill and border. Its name, in bold, is wrapped under them, 6 px below, with any description under it as an application's is. It has no box or border. |
+| `actors` | Actors | 160×120 | – | People, such as stakeholders or a team: three person figures (48×46 each) centred 4 px below its top, two side by side at the back, 32 px apart, and one in front, 10 px lower and centred between them, covering most of each, in its colour's fill and border. Its name, in bold, is wrapped under them, 6 px below, with any description under it as an application's is. It has no box or border. |
 
 A group grows to hold what's in it, with 20 px of padding round it and its header above. The
 header fits one line of the group's name, with 8 px above and below it, rounded up to the grid
@@ -77,7 +77,8 @@ outside it.
 
 - **SVG:** the scene.
 - **draw.io:** groups are rounded draw.io containers, with what they hold as their children;
-  actors a borderless container holding three actor-stencil cells, with their text under them;
+  actors a borderless container holding three person-stencil cells (each the 48×46 figure,
+  its proportions kept), with their text under them;
   applications rounded boxes, with the name in bold and any description under it in a regular
   `<span>` at its own size. Each keeps its colours, border, font size, and where its name
   sits. Arrows are draw.io `flexArrow` edges attached to their elements at the same points, with

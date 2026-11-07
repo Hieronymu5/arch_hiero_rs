@@ -300,9 +300,23 @@ pub fn figure_style(look: &crate::look::Look, colors: &DiagramColors, weight: Li
         .set("fontSize", 16)
 }
 
-/// The draw.io shape of an actor, a person, as `shape=` takes it.
-pub fn actor_shape() -> String {
-    format!("stencil({ACTOR_STENCIL})")
+/// A person on their own, without the room for a name the actor stencil has: the actor figure
+/// in its own 48 × 46 box, `figures::actor`, with its proportions kept. Compressed as draw.io
+/// stores stencils, from:
+///
+/// ```xml
+/// <shape name="ArchHiero person" w="48" h="46" aspect="fixed" strokewidth="inherit">
+///   <connections/><background><ellipse x="14" y="2" w="20" h="20"/></background>
+///   <foreground><fillstroke/><path><move x="4" y="45"/><arc rx="20" ry="20"
+///   x-axis-rotation="0" large-arc-flag="0" sweep-flag="1" x="44" y="45"/><close/></path>
+///   <fillstroke/></foreground></shape>
+/// ```
+const PERSON_STENCIL: &str = "fZLBbsMgEES/hqOlBNyq1ypNld+geG2jEBYttCZ/X9Ci1kRVbzszZnisLNQprjqAkAevbyDUm5Dylcx6sUBY3AAU0RezzBvH4wvLtclnljoGMIm92WaY2I6J8AqbnVL73voVyKaaqrNQJ4Pel4MWfRTynb0Pba4L4aefWINzNsRKmbnkOHL7naXsAOWhA2yyVZfhsX1Ggk5b5xj751TQFb9ON/zacfQY49P+Jk2mRJR7KLr3Og862zgQJl13wGHLnKYFhtIzzE4vXRQ3gLCzj62tgfzHZRxG2O/j93F/vLwMj/spFv806vwN";
+
+/// The draw.io shape of a person drawn in a cell the size of `figures::actor`, as `shape=`
+/// takes it, such as each of a high level diagram's actors.
+pub fn person_shape() -> String {
+    format!("stencil({PERSON_STENCIL})")
 }
 
 /// The geometry attributes of a rectangle.
