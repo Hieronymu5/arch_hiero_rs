@@ -6,12 +6,13 @@ use std::collections::HashMap;
 
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::export::drawio::{
-    HEADING_GAP, HEADING_MIN_WIDTH, Heading, ORIGIN, Style, cell, constraint, heading_cell,
-    rect_attributes, wrap,
+    HEADING_GAP, HEADING_MIN_WIDTH, Heading, ORIGIN, Style, actor_shape, cell, constraint,
+    heading_cell, rect_attributes, wrap,
 };
 use hiero_core::export::svg::escape_xml;
+use hiero_core::figures::{actor, actors};
 use hiero_core::geometry::{Point, Rect, Size, fmt_num, round2};
-use hiero_core::look::{BACKGROUND, PADDING_X, TEXT, text_lines};
+use hiero_core::look::{BACKGROUND, PADDING_X, TEXT, actors_figure, text_lines};
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{ConnectionEnds, route_connections};
 use hiero_core::scene::{Anchor, Node, Paint, Scene};
@@ -47,14 +48,21 @@ pub enum NamePlace {
     Top,
     /// Wrapped, in the middle: an application's, or an empty group's.
     Middle,
+    /// Wrapped, under the figures: actors'.
+    Under,
 }
+
+/// How far below the top of their area actors' figures start, and how far below the figures
+/// their name starts.
+pub const ACTORS_TOP: f64 = 4.0;
+pub const ACTORS_NAME_GAP: f64 = 6.0;
 
 /// Where the name of `element` sits.
 pub fn name_place(element: &Laid<HighLevel>) -> NamePlace {
-    if element.el.kind == HighLevelKind::Group && element.child_count > 0 {
-        NamePlace::Top
-    } else {
-        NamePlace::Middle
+    match element.el.kind {
+        HighLevelKind::Group if element.child_count > 0 => NamePlace::Top,
+        HighLevelKind::Actors => NamePlace::Under,
+        _ => NamePlace::Middle,
     }
 }
 
@@ -100,6 +108,19 @@ pub struct ElementText {
     pub top: f64,
 }
 
+/// Where actors' name starts, under their figures, in their area `rect`.
+fn names_top(rect: Rect) -> f64 {
+    rect.y + ACTORS_TOP + actors::HEIGHT + ACTORS_NAME_GAP
+}
+
+/// Where actors' figures go in their area `rect`: centred across its top.
+pub fn actors_at(rect: Rect) -> Point {
+    Point::new(
+        round2(rect.center().x - actors::WIDTH / 2.0),
+        round2(rect.y + ACTORS_TOP),
+    )
+}
+
 /// How many lines of `style` fit in `room`, at least `min`.
 fn lines_in(room: f64, style: TextStyle, min: f64) -> usize {
     // At least `min` lines, however small the room.
@@ -108,8 +129,9 @@ fn lines_in(room: f64, style: TextStyle, min: f64) -> usize {
     lines
 }
 
-/// The text of `element` as it's drawn: at the top of a group that holds something, and in
-/// the middle otherwise, with an application's description under its name as far as it fits.
+/// The text of `element` as it's drawn: at the top of a group that holds something, under
+/// actors' figures, and in the middle otherwise, with an application's or actors' description
+/// under the name as far as it fits.
 pub fn element_text(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> ElementText {
     let rect = element.rect;
     let style = name_style(element);
@@ -124,8 +146,13 @@ pub fn element_text(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> Ele
                 top,
             }
         }
-        NamePlace::Middle => {
-            let room = rect.height - NAME_PADDING * 2.0;
+        NamePlace::Middle | NamePlace::Under => {
+            let under = name_place(element) == NamePlace::Under;
+            let room = if under {
+                rect.bottom() - names_top(rect) - NAME_PADDING
+            } else {
+                rect.height - NAME_PADDING * 2.0
+            };
             let name = wrap_text(
                 &element.el.label,
                 width,
@@ -145,7 +172,11 @@ pub fn element_text(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> Ele
             ElementText {
                 name,
                 description,
-                top: rect.y + (rect.height - height) / 2.0,
+                top: if under {
+                    names_top(rect)
+                } else {
+                    rect.y + (rect.height - height) / 2.0
+                },
             }
         }
     }
@@ -155,11 +186,16 @@ pub fn element_text(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> Ele
 fn element_nodes(element: &Laid<HighLevel>, measure: &dyn MeasureText, width: f64) -> Vec<Node> {
     let props = &element.el.props;
     let colors = props.color_of(element.el.kind).colors();
-    let mut nodes = vec![Node::rect(
-        element.rect,
-        RADIUS,
-        Paint::fill_stroke(colors.fill, colors.border, width).dashed(props.dashed.then_some(DASH)),
-    )];
+    let paint = Paint::fill_stroke(colors.fill, colors.border, width);
+    let mut nodes = vec![if element.el.kind == HighLevelKind::Actors {
+        actors_figure(actors_at(element.rect), paint)
+    } else {
+        Node::rect(
+            element.rect,
+            RADIUS,
+            paint.dashed(props.dashed.then_some(DASH)),
+        )
+    }];
     let text = element_text(element, measure);
     let center = round2(element.rect.center().x);
     let style = name_style(element);
@@ -342,9 +378,26 @@ pub fn scene(eng: &Engine<HighLevel>) -> Scene {
 
 /// An element's draw.io style: its box, colours, border, and name, at the top of a group that
 /// holds something and in the middle otherwise. A group is a draw.io container, so what it
-/// holds moves with it.
+/// holds moves with it. Actors are a container too, with no box, holding their figures, and
+/// their text under them.
 fn element_style(element: &Laid<HighLevel>, width: f64) -> Style {
     let props = &element.el.props;
+    if element.el.kind == HighLevelKind::Actors {
+        return Style::new()
+            .set("html", 1)
+            .set("whiteSpace", "wrap")
+            .set("fillColor", "none")
+            .set("strokeColor", "none")
+            .set("fontColor", TEXT)
+            .num("fontSize", name_style(element).size)
+            .set("verticalAlign", "top")
+            .set("spacing", 0)
+            .num("spacingTop", names_top(element.rect) - element.rect.y)
+            .num("spacingLeft", PADDING_X)
+            .num("spacingRight", PADDING_X)
+            .set("container", 1)
+            .set("collapsible", 0);
+    }
     let colors = props.color_of(element.el.kind).colors();
     let style = name_style(element);
     let mut out = Style::new()
@@ -379,8 +432,40 @@ fn element_style(element: &Laid<HighLevel>, width: f64) -> Style {
             "spacingTop",
             round2((element.header - style.line_height) / 2.0),
         ),
-        NamePlace::Middle => out.set("verticalAlign", "middle"),
+        NamePlace::Middle | NamePlace::Under => out.set("verticalAlign", "middle"),
     }
+}
+
+/// Actors' three figures, as draw.io cells inside actors' own, `rect` being their area.
+fn actors_cells(element: &Laid<HighLevel>, width: f64) -> Vec<String> {
+    let colors = element.el.props.color_of(element.el.kind).colors();
+    let at = actors_at(element.rect);
+    let style = Style::new()
+        .set("shape", actor_shape())
+        .set("html", 1)
+        .set("fillColor", colors.fill)
+        .set("strokeColor", colors.border)
+        .num("strokeWidth", width)
+        .build();
+    actors::PLACES
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let rect = Rect::new(
+                round2(at.x - element.rect.x + p.x),
+                round2(at.y - element.rect.y + p.y),
+                actor::WIDTH,
+                actor::HEIGHT,
+            );
+            cell(
+                &format!("{}-person-{}", element.id().as_str(), i + 1),
+                "",
+                &style,
+                &escape_xml(element.id().as_str()),
+                &rect_attributes(rect),
+            )
+        })
+        .collect()
 }
 
 /// An element's draw.io value, as HTML: a group's name, or an application's in bold with any
@@ -447,6 +532,9 @@ pub fn to_drawio(eng: &Engine<HighLevel>, title: &str, heading: Option<&Heading>
             &escape_xml(&parent),
             &rect_attributes(rect),
         ));
+        if e.el.kind == HighLevelKind::Actors {
+            cells.extend(actors_cells(e, width));
+        }
     }
     for a in &arrows {
         let (Some(source), Some(target)) = (by_id.get(&a.source_id), by_id.get(&a.target_id))
@@ -579,6 +667,49 @@ mod tests {
             r#"value="&lt;b&gt;CRM&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 12px&quot;&gt;Leads&lt;br&gt;Accounts&lt;/span&gt;""#
         ));
         assert!(xml.contains("fontSize=14;fontStyle=0;"));
+    }
+
+    #[test]
+    fn actors_are_three_people_with_their_name_and_description_under_them() {
+        let e = engine(
+            serde_json::json!([
+                { "id": "p", "kind": "actors", "label": "Technical Team", "x": 40, "y": 40,
+                  "description": "Builds and runs it", "color": "grey" },
+            ]),
+            serde_json::json!([]),
+        );
+        let laid = e.laid(&"p".into()).unwrap().clone();
+        assert_eq!(laid.rect, Rect::new(40.0, 40.0, 160.0, 120.0));
+        assert_eq!(name_place(&laid), NamePlace::Under);
+        // Under the 56 px figures, 4 px down, and 6 px below them.
+        let text = element_text(&laid, &ESTIMATE);
+        assert_eq!(text.top, 40.0 + 4.0 + 56.0 + 6.0);
+        assert_eq!(text.name, ["Technical Team"]);
+        assert_eq!(text.description, ["Builds and runs it"]);
+        assert_eq!(actors_at(laid.rect), Point::new(74.0, 44.0));
+        let svg = scene_to_svg("Test", &scene(&e));
+        // Three heads, filled and outlined in grey, and no box.
+        assert_eq!(svg.matches("<circle").count(), 3);
+        assert!(
+            svg.contains(r##"<g transform="translate(74 44)" fill="#f5f5f5" stroke="#666666""##)
+        );
+        assert!(!svg.contains(r#"rx="8""#));
+        assert!(svg.contains(r#"font-size="14" font-weight="700">Technical Team</text>"#));
+        assert!(svg.contains(r#"font-size="12" font-weight="400">Builds and runs it</text>"#));
+        let xml = to_drawio(&e, "Test", None);
+        // A borderless container for the text, holding the three figures.
+        assert!(xml.contains("fillColor=none;strokeColor=none;"));
+        assert!(xml.contains("spacingTop=66;"));
+        for i in 1..=3 {
+            assert!(xml.contains(&format!(r#"id="p-person-{i}""#)));
+        }
+        assert_eq!(xml.matches(r#"parent="p""#).count(), 3);
+        // The front one, lower and between the two at the back.
+        assert!(xml.contains(r#"x="56" y="14" width="48" height="46""#));
+        // Actors have no border to dash.
+        let mut with = e.element(&"p".into()).unwrap().props.clone();
+        with.dashed = true;
+        assert!(!crate::rules::kept(HighLevelKind::Actors, with).dashed);
     }
 
     #[test]

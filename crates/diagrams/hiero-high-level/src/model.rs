@@ -21,13 +21,17 @@ pub enum HighLevelKind {
     Application,
     /// A boundary round applications and other groups, or an empty one.
     Group,
+    /// People, such as stakeholders or a team: three actors, one in front of two, with their
+    /// name and an optional description under them.
+    Actors,
 }
 
 impl HighLevelKind {
-    /// The colour it's drawn in unless it has its own: applications blue, groups grey.
+    /// The colour it's drawn in unless it has its own: applications and actors blue, groups
+    /// grey.
     pub const fn default_color(self) -> Color {
         match self {
-            Self::Application => Color::Blue,
+            Self::Application | Self::Actors => Color::Blue,
             Self::Group => Color::Grey,
         }
     }
@@ -35,7 +39,7 @@ impl HighLevelKind {
     /// The size of its name unless it has its own.
     pub const fn default_font_size(self) -> u32 {
         match self {
-            Self::Application => 14,
+            Self::Application | Self::Actors => 14,
             Self::Group => 16,
         }
     }
@@ -105,7 +109,7 @@ pub struct HighLevelProps {
     /// group.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<u32>,
-    /// A dashed border, rather than a solid one.
+    /// A dashed border, rather than a solid one. Actors have no border.
     #[serde(default, skip_serializing_if = "is_false")]
     pub dashed: bool,
 }
@@ -142,6 +146,7 @@ pub const DESCRIPTION_MAX: usize = 500;
 
 pub const APPLICATION_SIZE: Size = Size::new(160.0, 80.0);
 pub const GROUP_SIZE: Size = Size::new(400.0, 240.0);
+pub const ACTORS_SIZE: Size = Size::new(160.0, 120.0);
 
 /// The drawing order of elements not in a group: groups at the back.
 const GROUPS: i32 = 0;
@@ -149,11 +154,11 @@ const APPLICATIONS: i32 = 1;
 
 use HighLevelKind as K;
 
-/// Arrows join any two elements.
-const EVERYTHING: &[HighLevelKind] = &[K::Application, K::Group];
+/// Arrows join any two elements, and a group holds any.
+const EVERYTHING: &[HighLevelKind] = &[K::Application, K::Group, K::Actors];
 
 /// The elements offered in the palette.
-pub static PALETTE: [KindInfo<HighLevelKind>; 2] = [
+pub static PALETTE: [KindInfo<HighLevelKind>; 3] = [
     KindInfo {
         connects_to: EVERYTHING,
         has_description: true,
@@ -169,5 +174,13 @@ pub static PALETTE: [KindInfo<HighLevelKind>; 2] = [
         layer: GROUPS,
         size: Some(GROUP_SIZE),
         ..KindInfo::new(K::Group, "Group")
+    },
+    KindInfo {
+        connects_to: EVERYTHING,
+        has_description: true,
+        layer: APPLICATIONS,
+        resizable: Resizable::Both,
+        size: Some(ACTORS_SIZE),
+        ..KindInfo::new(K::Actors, "Actors")
     },
 ];

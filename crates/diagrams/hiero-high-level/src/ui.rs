@@ -7,7 +7,7 @@ use hiero_core::scene::Scene;
 use hiero_editor::widgets::{self, text_field};
 use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
-use crate::model::{BlockArrow, Color, DESCRIPTION_MAX, FONT_SIZES, HighLevel};
+use crate::model::{BlockArrow, Color, DESCRIPTION_MAX, FONT_SIZES, HighLevel, HighLevelKind};
 use crate::scene::{drawn_arrows, scene_of};
 
 impl DiagramView for HighLevel {
@@ -87,17 +87,20 @@ impl DiagramView for HighLevel {
             with.props.font_size = Some(size);
             field = Some("font-size");
         }
-        widgets::label(ui, "Border", false);
-        ui.horizontal_wrapped(|ui| {
-            for (dashed, label) in [(false, "Solid"), (true, "Dashed")] {
-                if ui
-                    .radio_value(&mut with.props.dashed, dashed, label)
-                    .changed()
-                {
-                    field = Some("dashed");
+        // Actors are figures, with no border to dash.
+        if kind != HighLevelKind::Actors {
+            widgets::label(ui, "Border", false);
+            ui.horizontal_wrapped(|ui| {
+                for (dashed, label) in [(false, "Solid"), (true, "Dashed")] {
+                    if ui
+                        .radio_value(&mut with.props.dashed, dashed, label)
+                        .changed()
+                    {
+                        field = Some("dashed");
+                    }
                 }
-            }
-        });
+            });
+        }
         let parent = cx.parent_field(ui, element, false);
         if parent.is_some() {
             field = Some("parent");

@@ -57,6 +57,8 @@ const DASHED: Field = Field {
 };
 
 const APPLICATION_FIELDS: &[Field] = &[APPLICATION_COLOR, FONT_SIZE, DASHED];
+/// Actors are blue unless set otherwise, as applications are, and have no border to dash.
+const ACTORS_FIELDS: &[Field] = &[APPLICATION_COLOR, FONT_SIZE];
 const GROUP_FIELDS: &[Field] = &[GROUP_COLOR, FONT_SIZE, DASHED];
 const ARROW_FIELDS: &[Field] = &[Field {
     key: "twoWay",
@@ -69,7 +71,7 @@ pub fn kept(kind: HighLevelKind, props: HighLevelProps) -> HighLevelProps {
     HighLevelProps {
         color: props.color.filter(|c| *c != kind.default_color()),
         font_size: props.font_size.filter(|s| *s != kind.default_font_size()),
-        dashed: props.dashed,
+        dashed: props.dashed && kind != HighLevelKind::Actors,
     }
 }
 
@@ -189,6 +191,7 @@ impl DiagramType for HighLevel {
         match kind {
             HighLevelKind::Application => APPLICATION_FIELDS,
             HighLevelKind::Group => GROUP_FIELDS,
+            HighLevelKind::Actors => ACTORS_FIELDS,
         }
     }
 

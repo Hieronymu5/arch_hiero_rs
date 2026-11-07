@@ -300,6 +300,11 @@ pub fn figure_style(look: &crate::look::Look, colors: &DiagramColors, weight: Li
         .set("fontSize", 16)
 }
 
+/// The draw.io shape of an actor, a person, as `shape=` takes it.
+pub fn actor_shape() -> String {
+    format!("stencil({ACTOR_STENCIL})")
+}
+
 /// The geometry attributes of a rectangle.
 pub fn rect_attributes(r: Rect) -> String {
     format!(

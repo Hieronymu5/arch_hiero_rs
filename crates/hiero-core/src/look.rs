@@ -473,6 +473,19 @@ pub(crate) fn actor_figure(agent: bool) -> Vec<Node> {
     }
 }
 
+/// A group of people, as `figures::actors` places them, with its top-left corner at `at`:
+/// three actors filled and outlined in `paint`, the one in front covering the two behind.
+pub fn actors_figure(at: Point, paint: Paint) -> Node {
+    Node::group(
+        Some(at),
+        paint,
+        crate::figures::actors::PLACES
+            .iter()
+            .map(|p| Node::group(Some(*p), Paint::default(), actor_figure(false)))
+            .collect(),
+    )
+}
+
 fn component_figure(shape: Shape, agent: bool) -> Vec<Node> {
     match shape {
         Shape::Database => vec![
