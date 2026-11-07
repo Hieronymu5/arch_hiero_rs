@@ -489,6 +489,30 @@ fn drawio_value(element: &Laid<HighLevel>) -> String {
     }
 }
 
+/// The style numbers of a draw.io `flexArrow` that draws an arrow as `arrow_outline` does.
+/// draw.io adds the stroke width `s` to what the style gives: the shaft is `width + s - 1`
+/// wide, a head `s` wider than the shaft and `endWidth`, and `3 × endSize + s` long from a
+/// tip `s / 2` in from the end. So these take it off again, and a head on a short arrow is
+/// shortened as the scene's is, keeping the same bit of shaft between two heads.
+struct FlexArrow {
+    width: f64,
+    head_width: f64,
+    head_size: f64,
+}
+
+impl FlexArrow {
+    fn new(arrow: &DrawnArrow, stroke: f64) -> Self {
+        let length = (arrow.to.x - arrow.from.x).hypot(arrow.to.y - arrow.from.y);
+        let heads = if arrow.two_way { 2.0 } else { 1.0 };
+        let head = HEAD_LENGTH.min(length / heads);
+        Self {
+            width: round2(SHAFT_WIDTH - (stroke - 1.0).max(0.0)),
+            head_width: round2(HEAD_WIDTH - SHAFT_WIDTH - stroke),
+            head_size: round2(((head - stroke * 1.5) / 3.0).max(0.0)),
+        }
+    }
+}
+
 /// The diagram as a draw.io file, with `heading` above it: groups as containers holding what
 /// they hold, applications as boxes, and arrows as wide arrows attached to their elements.
 pub fn to_drawio(eng: &Engine<HighLevel>, title: &str, heading: Option<&Heading>) -> String {
@@ -543,17 +567,18 @@ pub fn to_drawio(eng: &Engine<HighLevel>, title: &str, heading: Option<&Heading>
         };
         let exit = constraint(a.from, source.rect);
         let entry = constraint(a.to, target.rect);
+        let shape = FlexArrow::new(a, width);
         let style = Style::new()
             .set("shape", "flexArrow")
             .set("html", 1)
             .set("rounded", 0)
-            .num("width", SHAFT_WIDTH)
-            .num("endWidth", HEAD_WIDTH - SHAFT_WIDTH)
-            .num("endSize", HEAD_LENGTH / 3.0)
+            .num("width", shape.width)
+            .num("endWidth", shape.head_width)
+            .num("endSize", shape.head_size)
             .set("endArrow", "block")
             .set("startArrow", if a.two_way { "block" } else { "none" })
-            .num("startWidth", HEAD_WIDTH - SHAFT_WIDTH)
-            .num("startSize", HEAD_LENGTH / 3.0)
+            .num("startWidth", shape.head_width)
+            .num("startSize", shape.head_size)
             .set("fillColor", ARROW_FILL)
             .set("strokeColor", ARROW_BORDER)
             .num("strokeWidth", width)
@@ -764,6 +789,35 @@ mod tests {
                 Point::new(0.0, -8.0),
             ]
         );
+    }
+
+    #[test]
+    fn drawio_arrows_leave_the_scenes_shaft_between_two_heads() {
+        // As far apart as the enterprise sample's layers: 40 px, too short for the end gaps.
+        let arrow = DrawnArrow {
+            id: "c".into(),
+            source_id: "a".into(),
+            target_id: "b".into(),
+            from: Point::new(0.0, 0.0),
+            to: Point::new(0.0, 40.0),
+            two_way: true,
+        };
+        for stroke in [1.0, 1.5, 2.0] {
+            let shape = FlexArrow::new(&arrow, stroke);
+            // How far draw.io's head reaches in from the end, and how wide it draws things.
+            let reach = stroke / 2.0 + shape.head_size * 3.0 + stroke;
+            assert!((reach - HEAD_LENGTH).abs() < 0.01, "{stroke}: {reach}");
+            let shaft = shape.width + (stroke - 1.0).max(0.0);
+            assert!((shaft - SHAFT_WIDTH).abs() < 0.01);
+            assert!((shaft + shape.head_width + stroke - HEAD_WIDTH).abs() < 0.01);
+        }
+        // Shorter still, the heads shrink to half each, as in the scene, rather than overlap.
+        let short = DrawnArrow {
+            to: Point::new(0.0, 24.0),
+            ..arrow
+        };
+        let shape = FlexArrow::new(&short, 1.5);
+        assert!((0.75 + shape.head_size * 3.0 + 1.5 - 12.0).abs() < 0.01);
     }
 
     #[test]

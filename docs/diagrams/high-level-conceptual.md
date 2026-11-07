@@ -82,7 +82,8 @@ outside it.
   applications rounded boxes, with the name in bold and any description under it in a regular
   `<span>` at its own size. Each keeps its colours, border, font size, and where its name
   sits. Arrows are draw.io `flexArrow` edges attached to their elements at the same points, with
-  the same shaft and heads.
+  the same shaft and heads: their style numbers take off what draw.io adds for the line width,
+  and shorten the heads of a short arrow as the scene does, so two heads never meet.
 
 ## Stored data
 
