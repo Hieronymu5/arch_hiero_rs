@@ -1885,13 +1885,13 @@ mod tests {
                 sample.meta.name
             );
         }
-        assert_eq!(seed_diagrams().len(), 8);
+        assert_eq!(seed_diagrams().len(), 10);
     }
 
     #[test]
     fn samples_load_once() {
         let mut store = Store::open_in_memory().unwrap();
-        assert_eq!(store.load_samples().unwrap(), 8);
+        assert_eq!(store.load_samples().unwrap(), 10);
         assert_eq!(store.load_samples().unwrap(), 0);
         let names: Vec<String> = store
             .list()
@@ -1907,11 +1907,50 @@ mod tests {
                 "Arch Hiero - MCP Server Components",
                 "Arch Hiero - System Context",
                 "Enterprise Architecture Overview",
+                "OAuth 2.0 Login",
                 "Online Order",
+                "Samples",
                 "Standard 3 -Tier Application",
                 "Website Example - Active - Active"
             ]
         );
+    }
+
+    #[test]
+    fn the_samples_diagram_opens_every_other_sample_and_holds_them() {
+        let mut store = Store::open_in_memory().unwrap();
+        store.load_samples().unwrap();
+        let all = store.list().unwrap();
+        let samples = all.iter().find(|s| s.meta.name == "Samples").unwrap();
+        assert_eq!(samples.parent, None);
+        let record = store.get(&samples.meta.id).unwrap().unwrap();
+        let opened: Vec<&str> = record
+            .diagram
+            .content
+            .elements
+            .iter()
+            .filter_map(|e| e.props.get(SUB_DIAGRAM)?.as_str())
+            .collect();
+        assert_eq!(opened.len(), all.len() - 1);
+        for other in all.iter().filter(|s| s.meta.id != samples.meta.id) {
+            assert!(
+                opened.contains(&other.meta.id.0.as_str()),
+                "{}",
+                other.meta.name
+            );
+            // Each is a sub diagram of Samples, but for the C4 diagrams below the context.
+            let below_c4 = other.meta.name.starts_with("Arch Hiero - ")
+                && other.meta.diagram_type == DiagramTypeId::C4
+                && other.meta.name != "Arch Hiero - System Context";
+            if !below_c4 {
+                assert_eq!(
+                    other.parent.as_ref(),
+                    Some(&samples.meta.id),
+                    "{}",
+                    other.meta.name
+                );
+            }
+        }
     }
 
     #[test]
@@ -1929,7 +1968,7 @@ mod tests {
         let context = named("Arch Hiero - System Context");
         let containers = named("Arch Hiero - Containers");
         let components = named("Arch Hiero - MCP Server Components");
-        assert_eq!(context.parent, None);
+        assert_eq!(context.parent, Some(named("Samples").meta.id));
         assert_eq!(containers.parent, Some(context.meta.id.clone()));
         assert_eq!(components.parent, Some(containers.meta.id.clone()));
         assert_eq!(

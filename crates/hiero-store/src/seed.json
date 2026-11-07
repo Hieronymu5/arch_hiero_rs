@@ -1604,5 +1604,292 @@
         "targetId": "d460c1ab-695a-4661-b78e-c2c089f2b61b"
       }
     ]
+  },
+  {
+    "id": "0240ea75-79b5-4c66-88ca-a8f3f45338f9",
+    "name": "OAuth 2.0 Login",
+    "type": "sequence",
+    "lineWeight": "medium",
+    "description": "How a user signs in to a service provider (SP) through an identity provider (IDP), by OAuth 2.0's authorization code flow with PKCE",
+    "createdAt": "2026-11-07T09:00:00.000Z",
+    "updatedAt": "2026-11-07T09:00:00.000Z",
+    "elements": [
+      {
+        "id": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "kind": "actor",
+        "label": "User",
+        "x": 40,
+        "y": 40
+      },
+      {
+        "id": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "kind": "application",
+        "label": "SP",
+        "description": "Service Provider",
+        "x": 303,
+        "y": 40
+      },
+      {
+        "id": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "kind": "application",
+        "label": "IDP",
+        "description": "Identity Provider",
+        "x": 666,
+        "y": 40,
+        "color": "green"
+      }
+    ],
+    "connections": [
+      {
+        "id": "23b50f61-288e-41ff-8960-1c15f3728a0c",
+        "label": "Sign in",
+        "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+      },
+      {
+        "id": "25173325-157b-4676-9a4b-1a0269e3107c",
+        "label": "Create state and PKCE verifier",
+        "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+      },
+      {
+        "id": "54e27982-3d2b-4c78-aebb-a10e45593eb0",
+        "kind": "return",
+        "label": "302 redirect to IDP /authorize",
+        "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+      },
+      {
+        "id": "0c81e337-5278-4af3-9449-2e0360e9a598",
+        "label": "GET /authorize (client_id, redirect_uri, scope, state, code_challenge)",
+        "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+      },
+      {
+        "id": "94234dc3-3e54-4898-a1b8-c771a06819a0",
+        "kind": "return",
+        "label": "Login page",
+        "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+      },
+      {
+        "id": "4abf0d61-73f9-4c32-ab84-9218f13135f2",
+        "label": "Submit credentials and consent",
+        "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+      },
+      {
+        "id": "240125e1-be85-488b-8740-289c4ca7eb69",
+        "label": "Authenticate user",
+        "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+      },
+      {
+        "id": "32745fba-5ac0-4a81-8e6f-78baf1e203ca",
+        "kind": "return",
+        "label": "302 redirect to SP /callback (code, state)",
+        "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+      },
+      {
+        "id": "26bc69b5-ed68-4f27-89b8-4f21558e14d5",
+        "label": "GET /callback (code, state)",
+        "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+      },
+      {
+        "id": "da9e055e-1202-4a2c-b002-2c9f68f73db3",
+        "label": "Check state",
+        "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+      },
+      {
+        "id": "6d466984-acf4-4e2f-9f33-853a59d97851",
+        "label": "POST /token (code, code_verifier, client credentials)",
+        "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+      },
+      {
+        "id": "51c4a9fc-0ff4-4b4e-a1f8-e270b0c10dcd",
+        "kind": "return",
+        "label": "Access, ID, and refresh tokens",
+        "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+      },
+      {
+        "id": "d1fc7ea4-c56d-4158-b43d-ffdc76146005",
+        "label": "Validate ID token and start session",
+        "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+      },
+      {
+        "id": "831b1d7c-c670-46e1-b425-f6bc87bab17c",
+        "kind": "return",
+        "label": "Home page, signed in (session cookie)",
+        "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+      }
+    ]
+  },
+  {
+    "id": "1e7d8560-be7a-43e4-8718-6818d248de20",
+    "name": "Samples",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "Every sample diagram, by kind: open a block to see its diagram",
+    "createdAt": "2026-11-07T09:00:00.000Z",
+    "updatedAt": "2026-11-07T09:00:00.000Z",
+    "elements": [
+      {
+        "height": 180,
+        "id": "32286413-48fe-48a3-917e-6c9a9f24a468",
+        "kind": "group",
+        "label": "Conceptual",
+        "width": 460,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "description": "Conceptual",
+        "height": 100,
+        "id": "25e24fd8-a2fc-4930-8e95-16db81bf52bc",
+        "kind": "application",
+        "label": "Arch Hiero - MCP Capabilities",
+        "parentId": "32286413-48fe-48a3-917e-6c9a9f24a468",
+        "width": 200,
+        "x": 60,
+        "y": 100,
+        "subDiagramId": "01f93d16-5581-4cb9-a7db-6449f0e9dfe7"
+      },
+      {
+        "description": "Conceptual - High Level",
+        "height": 100,
+        "id": "a98205b7-a555-41a5-9499-118e662110fe",
+        "kind": "application",
+        "label": "Enterprise Architecture Overview",
+        "parentId": "32286413-48fe-48a3-917e-6c9a9f24a468",
+        "width": 200,
+        "x": 280,
+        "y": 100,
+        "subDiagramId": "7227e761-2cae-4c0a-b99c-aa62a897a467"
+      },
+      {
+        "height": 180,
+        "id": "18db11f5-8a2a-4291-9e00-67cab0718dcb",
+        "kind": "group",
+        "label": "Infrastructure",
+        "width": 460,
+        "x": 560,
+        "y": 40
+      },
+      {
+        "color": "yellow",
+        "description": "Physical",
+        "height": 100,
+        "id": "ee813422-102e-493a-bc89-500f9fddaf1f",
+        "kind": "application",
+        "label": "Website Example - Active - Active",
+        "parentId": "18db11f5-8a2a-4291-9e00-67cab0718dcb",
+        "width": 200,
+        "x": 580,
+        "y": 100,
+        "subDiagramId": "d1a6a000-0000-4000-8000-000000000003"
+      },
+      {
+        "color": "yellow",
+        "description": "Deployed Component",
+        "height": 100,
+        "id": "d6b09167-bb63-4458-8fe9-b0c8319a02df",
+        "kind": "application",
+        "label": "Standard 3 -Tier Application",
+        "parentId": "18db11f5-8a2a-4291-9e00-67cab0718dcb",
+        "width": 200,
+        "x": 800,
+        "y": 100,
+        "subDiagramId": "d1a6a000-0000-4000-8000-000000000002"
+      },
+      {
+        "height": 180,
+        "id": "5e995809-2b07-4595-b400-e7f6967aebb8",
+        "kind": "group",
+        "label": "C4",
+        "width": 680,
+        "x": 40,
+        "y": 280
+      },
+      {
+        "color": "green",
+        "description": "C4 - Context",
+        "height": 100,
+        "id": "60854064-7e0d-4592-9414-0acc5834f017",
+        "kind": "application",
+        "label": "Arch Hiero - System Context",
+        "parentId": "5e995809-2b07-4595-b400-e7f6967aebb8",
+        "width": 200,
+        "x": 60,
+        "y": 340,
+        "subDiagramId": "6edb8f79-4665-4909-a41d-4100ea2645ec"
+      },
+      {
+        "color": "green",
+        "description": "C4 - Container",
+        "height": 100,
+        "id": "8bf7c766-5ee6-45ef-9e7c-11a16626b041",
+        "kind": "application",
+        "label": "Arch Hiero - Containers",
+        "parentId": "5e995809-2b07-4595-b400-e7f6967aebb8",
+        "width": 200,
+        "x": 280,
+        "y": 340,
+        "subDiagramId": "496d9b78-92ff-47aa-99e6-6cbd53e4792a"
+      },
+      {
+        "color": "green",
+        "description": "C4 - Component",
+        "height": 100,
+        "id": "d3045dfc-0847-43eb-8d07-cd95e008f36c",
+        "kind": "application",
+        "label": "Arch Hiero - MCP Server Components",
+        "parentId": "5e995809-2b07-4595-b400-e7f6967aebb8",
+        "width": 200,
+        "x": 500,
+        "y": 340,
+        "subDiagramId": "bd8859de-479a-4f6a-bb25-4f5b6f385668"
+      },
+      {
+        "height": 180,
+        "id": "6364247d-11db-4153-8c99-99beb1afcd68",
+        "kind": "group",
+        "label": "Behaviour",
+        "width": 460,
+        "x": 780,
+        "y": 280
+      },
+      {
+        "description": "Flowchart",
+        "height": 100,
+        "id": "93bb0ed6-3de2-42e6-bc07-c6b2dfef9c4c",
+        "kind": "application",
+        "label": "Online Order",
+        "parentId": "6364247d-11db-4153-8c99-99beb1afcd68",
+        "width": 200,
+        "x": 800,
+        "y": 340,
+        "subDiagramId": "9b3806fa-ee9a-4f98-b119-e4700408da16"
+      },
+      {
+        "description": "Sequence",
+        "height": 100,
+        "id": "36c66195-f4d0-49b5-a140-07bea0689f41",
+        "kind": "application",
+        "label": "OAuth 2.0 Login",
+        "parentId": "6364247d-11db-4153-8c99-99beb1afcd68",
+        "width": 200,
+        "x": 1020,
+        "y": 340,
+        "subDiagramId": "0240ea75-79b5-4c66-88ca-a8f3f45338f9"
+      }
+    ],
+    "connections": []
   }
 ]
