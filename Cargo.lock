@@ -1843,6 +1843,7 @@ dependencies = [
  "hiero-flowchart",
  "hiero-physical",
  "hiero-registry",
+ "hiero-sequence",
  "hiero-store",
  "image",
  "jiff",
@@ -1960,6 +1961,18 @@ dependencies = [
  "hiero-deployed",
  "hiero-flowchart",
  "hiero-physical",
+ "hiero-sequence",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "hiero-sequence"
+version = "0.2.1"
+dependencies = [
+ "egui",
+ "hiero-core",
+ "hiero-editor",
  "serde",
  "serde_json",
 ]

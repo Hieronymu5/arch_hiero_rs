@@ -8,6 +8,7 @@ use hiero_deployed::DeployedComponent;
 use hiero_editor::{DiagramEditor, Editor};
 use hiero_flowchart::Flowchart;
 use hiero_physical::Physical;
+use hiero_sequence::Sequence;
 
 /// An editor for `diagram`, of its type.
 pub fn editor_for(diagram: &StoredDiagram) -> Result<Box<dyn DiagramEditor>, ContentError> {
@@ -26,6 +27,9 @@ pub fn editor_for(diagram: &StoredDiagram) -> Result<Box<dyn DiagramEditor>, Con
         DiagramTypeId::C4 => Box::new(Editor::<C4>::from_stored(content, colors, salt)?),
         DiagramTypeId::Flowchart => {
             Box::new(Editor::<Flowchart>::from_stored(content, colors, salt)?)
+        }
+        DiagramTypeId::Sequence => {
+            Box::new(Editor::<Sequence>::from_stored(content, colors, salt)?)
         }
     };
     editor.set_line_weight(diagram.line_weight());

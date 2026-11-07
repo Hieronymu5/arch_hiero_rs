@@ -217,6 +217,16 @@ pub trait DiagramType: Sized + 'static {
 
     /// The fields an arrow can have, in the order a diagram file checks them.
     const ARROW_FIELDS: &'static [Field] = &[];
+    /// Whether one element can have several arrows to another, such as a sequence diagram's
+    /// messages, which are told apart by their order.
+    const REPEATED_ARROWS: bool = false;
+    /// Whether an element can have an arrow to itself, such as a message a participant sends
+    /// itself.
+    const SELF_ARROWS: bool = false;
+    /// Whether the arrows have a say in where the elements go, such as a sequence diagram's
+    /// messages spacing its participants apart to fit their text, so the elements are
+    /// arranged again whenever the arrows change.
+    const ARROWS_ARRANGE: bool = false;
     /// How long the description of a kind with one can be.
     const DESCRIPTION: DescriptionRule = DescriptionRule {
         max: 0,
@@ -405,6 +415,12 @@ pub trait DiagramType: Sized + 'static {
 
     /// The area an arrow meets on an element: the element, or its figure.
     fn arrow_rect(_eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
+        element.rect
+    }
+
+    /// Where an arrow being drawn can be dropped to end on an element: the element, or more,
+    /// such as a sequence diagram participant's lifeline too.
+    fn connect_area(_eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
         element.rect
     }
 
@@ -617,6 +633,10 @@ impl<T: DiagramType> Engine<T> {
 
     pub fn set_connections(&mut self, connections: Vec<Conn<T>>) {
         self.connections = connections;
+        if T::ARROWS_ARRANGE {
+            self.elements = T::arrange(self, self.elements.clone());
+            self.relayout();
+        }
         self.changes += 1;
     }
 
@@ -1459,18 +1479,20 @@ impl<T: DiagramType> Engine<T> {
         }
     }
 
-    /// Adds an arrow, unless it's to the same element or one like it is already there.
+    /// Adds an arrow, after the others, unless it's to the same element or one like it is
+    /// already there, where the type doesn't allow that.
     pub fn add_connection(
         &mut self,
         source: &ElementId,
         target: &ElementId,
     ) -> Option<ConnectionId> {
-        let duplicate = self
-            .connections
-            .iter()
-            .any(|c| c.source_id == *source && c.target_id == *target);
+        let duplicate = !T::REPEATED_ARROWS
+            && self
+                .connections
+                .iter()
+                .any(|c| c.source_id == *source && c.target_id == *target);
         if duplicate
-            || source == target
+            || (source == target && !T::SELF_ARROWS)
             || self.element(source).is_none()
             || self.element(target).is_none()
         {
@@ -1509,6 +1531,25 @@ impl<T: DiagramType> Engine<T> {
             "{} removed.",
             self.arrow_name(&connection.source_id, &connection.target_id)
         );
+    }
+
+    /// Moves an arrow to `index` in the order of arrows, such as a sequence diagram's message
+    /// to an earlier or later place in time. An index past the end moves it to the end.
+    pub fn move_connection(&mut self, id: &ConnectionId, index: usize) {
+        let Some(from) = self.connections.iter().position(|c| c.id == *id) else {
+            return;
+        };
+        let to = index.min(self.connections.len() - 1);
+        if from == to {
+            return;
+        }
+        let mut connections = self.connections.clone();
+        let moved = connections.remove(from);
+        let name = self.arrow_name(&moved.source_id, &moved.target_id);
+        connections.insert(to, moved);
+        let count = connections.len();
+        self.set_connections(connections);
+        self.announcement = format!("{name} moved to {} of {count}.", to + 1);
     }
 
     /// Changes an arrow's properties.
@@ -1556,7 +1597,7 @@ impl<T: DiagramType> Engine<T> {
         let existing: HashSet<&ElementId> = self
             .connections
             .iter()
-            .filter(|c| c.source_id == *selected.id())
+            .filter(|c| !T::REPEATED_ARROWS && c.source_id == *selected.id())
             .map(|c| &c.target_id)
             .collect();
         let mixed = selected.info.connects_to.len() > 1;
@@ -1583,7 +1624,9 @@ impl<T: DiagramType> Engine<T> {
         self.layout
             .iter()
             .rev()
-            .find(|e| T::can_connect(self, source, e) && e.rect.contains_point(point))
+            .find(|e| {
+                T::can_connect(self, source, e) && T::connect_area(self, e).contains_point(point)
+            })
             .map(|e| e.id().clone())
     }
 
@@ -1950,6 +1993,26 @@ mod tests {
         e.select(&id("id1"));
         e.delete_selection();
         assert!(e.connections().is_empty());
+    }
+
+    #[test]
+    fn arrows_move_to_another_place_in_their_order() {
+        let mut e = engine();
+        for _ in 0..3 {
+            e.add_at_free_position(Kind::Item);
+        }
+        let a = e.add_connection(&id("id1"), &id("id2")).unwrap();
+        let b = e.add_connection(&id("id2"), &id("id3")).unwrap();
+        let c = e.add_connection(&id("id1"), &id("id3")).unwrap();
+        let order = |e: &Engine<Test>| -> Vec<ConnectionId> {
+            e.connections().iter().map(|c| c.id.clone()).collect()
+        };
+        e.move_connection(&c, 0);
+        assert_eq!(order(&e), vec![c.clone(), a.clone(), b.clone()]);
+        assert_eq!(e.announcement, "Arrow from Item to Item moved to 1 of 3.");
+        // Past the end goes to the end.
+        e.move_connection(&c, 9);
+        assert_eq!(order(&e), vec![a, b, c]);
     }
 
     #[test]

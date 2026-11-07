@@ -21,6 +21,7 @@ use hiero_core::stored::{ContentError, StoredContent, StoredDiagram};
 use hiero_deployed::DeployedComponent;
 use hiero_flowchart::Flowchart;
 use hiero_physical::Physical;
+use hiero_sequence::Sequence;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -212,6 +213,16 @@ impl Drawn for Flowchart {
         hiero_flowchart::scene::scene(eng)
     }
     const PROPS_DOC: &'static str = "A flowchart maps out a process. A new one starts with a start and an end. Elements have only a name, drawn inside their shape: start and end (pills; nothing leads into a start or out of an end), process (box), decision (diamond; its name is a question, and each arrow out is labelled), input-output (parallelogram), subprocess (box with doubled sides; it can open another flowchart), document (wavy bottom), data-store (cylinder), manual (trapezoid), delay (D shape), connector (40 × 40 circle; its name is at most 3 characters, such as \"A\", and matches its other end), note (folded corner; linked to at most one element). For swimlanes, add a pool (a frame named after the process; it starts with two lanes, \"Lane 1\" and \"Lane 2\") and name its lanes after who does the steps; put each step in its lane with parent_id. A lane added with parent_id of a pool goes after its last lane; lanes fill their pool and stack in order, so positions only set their order. Pool props: {orientation: \"vertical\" (lanes are columns and the flow goes down; omit for rows, the flow going right)}; changing it turns the lanes and keeps each step's place along the flow. Steps have no props; a flowchart can mix steps in lanes with steps outside any pool. Pools and lanes take no arrows. Arrow props: {label (≤ 40), such as \"Yes\" or \"No\"}; a decision's first two arrows out start as Yes and No. Arrows to or from a data store or document are drawn dashed (data), and a note's dotted with no head.";
+}
+
+impl Drawn for Sequence {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, _: Option<&Stamp>) -> String {
+        hiero_sequence::scene::to_drawio(eng, title, Some(heading))
+    }
+    fn scene(eng: &Engine<Self>) -> Scene {
+        hiero_sequence::scene::scene(eng)
+    }
+    const PROPS_DOC: &'static str = "A sequence diagram shows the messages its participants send each other over time. A new one starts with an actor \"User\" and an application \"Application\". Participants (actor: a person, or a bot with {agent: true}; application: a box; component: a box, or {componentType: \"database\" | \"storage\"}) stand in a row along the top, each with a dashed lifeline under it; their x only sets their order in the row, left to right (move_element to reorder them; y is ignored), and they're spaced to fit the text of the messages between them. Every participant has {color: \"green\" | \"red\" | \"yellow\" (omit for blue)}, which its lifeline and activations take too; there are no descriptions. Messages are arrows from one participant to another, or to itself, and any number can join the same two; their order is time, top to bottom: add_connection puts a message last, and move_connection {id, index} moves it (index 0 is the first). Message props: {kind: \"async\" (an open head: not waited on) | \"return\" (dashed, open head: the answer to a call, sent back to its caller); omit for a call (a solid head), label (≤ 100): the call, such as \"getOrder(id)\", or what a return gives back, such as \"Order\"}. A message added straight back after a call starts as a return. A call opens an activation (a bar on the receiver's lifeline) that the receiver's next return closes; one never answered lasts until the receiver's last message.";
 }
 
 struct Entry<T>(PhantomData<fn() -> T>);
@@ -409,9 +420,10 @@ static PHYSICAL: Entry<Physical> = Entry(PhantomData);
 static DEPLOYED: Entry<DeployedComponent> = Entry(PhantomData);
 static C4_TYPE: Entry<C4> = Entry(PhantomData);
 static FLOWCHART: Entry<Flowchart> = Entry(PhantomData);
+static SEQUENCE: Entry<Sequence> = Entry(PhantomData);
 
 /// Every diagram type, in menu order.
-pub fn types() -> [&'static dyn TypeOps; 5] {
+pub fn types() -> [&'static dyn TypeOps; 6] {
     DiagramTypeId::ALL.map(ops)
 }
 
@@ -423,6 +435,7 @@ pub fn ops(id: DiagramTypeId) -> &'static dyn TypeOps {
         DiagramTypeId::Physical => &PHYSICAL,
         DiagramTypeId::C4 => &C4_TYPE,
         DiagramTypeId::Flowchart => &FLOWCHART,
+        DiagramTypeId::Sequence => &SEQUENCE,
     }
 }
 

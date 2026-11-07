@@ -751,7 +751,7 @@ fn check_arrow<'a, T: DiagramType>(
     }
     let (source, target) = (by_id[source_id], by_id[target_id]);
     // 28 to 30.
-    if source_id == target_id {
+    if source_id == target_id && !T::SELF_ARROWS {
         return Err(at(format!(
             "{} can’t point to the element it starts from.",
             noun.with_capital_article()
@@ -765,7 +765,7 @@ fn check_arrow<'a, T: DiagramType>(
             a(target.info.label)
         )));
     }
-    if !pairs.insert((source_id, target_id)) {
+    if !pairs.insert((source_id, target_id)) && !T::REPEATED_ARROWS {
         return Err(at(format!(
             "There’s already {} from “{}” to “{}”.",
             noun.with_article(),

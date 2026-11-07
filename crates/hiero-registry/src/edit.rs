@@ -86,6 +86,12 @@ pub enum EditOp {
     RemoveConnection {
         id: String,
     },
+    /// Moves an arrow to `index` (from 0) in the diagram's order of arrows: for a sequence
+    /// diagram, its message to that place in time, 0 being the first, at the top.
+    MoveConnection {
+        id: String,
+        index: usize,
+    },
 }
 
 /// Why a batch of edits was rejected: which edit, and why.
@@ -399,6 +405,22 @@ impl<T: DiagramType> Batch<'_, T> {
                 let id = self.connection_id(id)?;
                 self.eng.remove_connection(&id);
                 Ok(self.eng.announcement.clone())
+            }
+            EditOp::MoveConnection { id, index } => {
+                let id = self.connection_id(id)?;
+                let count = self.eng.connections().len();
+                if *index >= count {
+                    return Err(format!(
+                        "the index must be less than {count}, the number of {}",
+                        T::ID.arrow_noun().many
+                    ));
+                }
+                self.eng.move_connection(&id, *index);
+                Ok(format!(
+                    "{} is now {} of {count}.",
+                    T::ID.arrow_noun().one_capitalized(),
+                    index + 1
+                ))
             }
         }
     }

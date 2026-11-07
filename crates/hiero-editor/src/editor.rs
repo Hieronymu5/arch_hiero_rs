@@ -66,6 +66,13 @@ pub trait DiagramView: DiagramType {
         link_mark_corner(element.rect)
     }
 
+    /// Where the round handle for drawing an arrow from an element is centred, when the type
+    /// puts it somewhere of its own, such as where a sequence diagram participant's lifeline
+    /// starts. Unset puts it just off the element's right side, half way down.
+    fn connect_handle_at(_eng: &Engine<Self>, _element: &Laid<Self>) -> Option<Point> {
+        None
+    }
+
     /// The type's fields for the selected element.
     fn element_properties(ui: &mut Ui, cx: &mut PropsCx<'_, Self>, element: &Laid<Self>);
 
@@ -1006,6 +1013,9 @@ impl<T: DiagramView> Editor<T> {
     }
 
     fn connect_handle(&self, xf: &Transform, element: &Laid<T>) -> Pos2 {
+        if let Some(at) = T::connect_handle_at(&self.eng, element) {
+            return xf.pos(at);
+        }
         let r = T::arrow_rect(&self.eng, element);
         let p = xf.pos(Point::new(r.right(), r.y + r.height / 2.0));
         p + Vec2::new(CONNECT_RADIUS + 6.0, 0.0)
@@ -1264,7 +1274,8 @@ impl<T: DiagramView> Editor<T> {
         if let Drag::Connect { source, pointer } = &self.drag
             && let Some(element) = layout.iter().find(|l| l.id() == source)
         {
-            let from = T::arrow_rect(&self.eng, element).center();
+            let from = T::connect_handle_at(&self.eng, element)
+                .unwrap_or_else(|| T::arrow_rect(&self.eng, element).center());
             world_line(
                 painter,
                 xf,

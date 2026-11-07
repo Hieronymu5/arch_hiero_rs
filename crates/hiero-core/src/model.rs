@@ -73,6 +73,8 @@ pub enum DiagramTypeId {
     C4,
     /// A process mapped out step by step, free-form or in swimlanes.
     Flowchart,
+    /// The messages participants send each other over time, one under the other.
+    Sequence,
 }
 
 /// A kind of diagram within a type, such as a C4 diagram's level: it names the diagram, and
@@ -102,12 +104,13 @@ const C4_SUBTYPES: &[Subtype] = &[
 
 impl DiagramTypeId {
     /// Every diagram type, in menu order.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Conceptual,
         Self::DeployedComponent,
         Self::Physical,
         Self::C4,
         Self::Flowchart,
+        Self::Sequence,
     ];
 
     /// The kinds of diagram of this type, the first the default. Empty for a type without.
@@ -142,6 +145,7 @@ impl DiagramTypeId {
             Self::Physical => "physical",
             Self::C4 => "c4",
             Self::Flowchart => "flowchart",
+            Self::Sequence => "sequence",
         }
     }
 
@@ -152,6 +156,7 @@ impl DiagramTypeId {
             Self::Physical => "Physical",
             Self::C4 => "C4",
             Self::Flowchart => "Flowchart",
+            Self::Sequence => "Sequence",
         }
     }
 
@@ -160,22 +165,24 @@ impl DiagramTypeId {
         !matches!(self, Self::DeployedComponent)
     }
 
-    /// What the type calls its arrows: C4 calls them relationships.
+    /// What the type calls its arrows: C4 calls them relationships, and a sequence diagram
+    /// messages.
     pub const fn arrow_noun(self) -> Noun {
         match self {
             Self::C4 => Noun::new("relationship", "relationships"),
+            Self::Sequence => Noun::new("message", "messages"),
             _ => Noun::new("arrow", "arrows"),
         }
     }
 
     /// How thick elements' lines are unless a diagram chooses otherwise: deployed component
-    /// diagrams are drawn thin, and the C4 and flowchart types, which came after the setting,
-    /// medium.
+    /// diagrams are drawn thin, and the C4, flowchart, and sequence types, which came after the
+    /// setting, medium.
     pub const fn default_line_weight(self) -> LineWeight {
         match self {
             Self::DeployedComponent => LineWeight::Thin,
             Self::Conceptual | Self::Physical => LineWeight::Thick,
-            Self::C4 | Self::Flowchart => LineWeight::Medium,
+            Self::C4 | Self::Flowchart | Self::Sequence => LineWeight::Medium,
         }
     }
 
@@ -660,6 +667,14 @@ mod tests {
             Some(DiagramTypeId::Flowchart)
         );
         assert_eq!(DiagramTypeId::Flowchart.label_with(None), "Flowchart");
+        assert_eq!(
+            DiagramTypeId::parse("sequence"),
+            Some(DiagramTypeId::Sequence)
+        );
+        assert_eq!(
+            DiagramTypeId::Sequence.arrow_noun().one_capitalized(),
+            "Message"
+        );
         // A C4 diagram is named after its level, the first the default.
         let c4 = DiagramTypeId::C4;
         assert_eq!(c4.label_with(Some("container")), "C4 - Container");

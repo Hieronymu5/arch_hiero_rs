@@ -268,6 +268,38 @@ fn with_spacing(style: Style) -> Style {
         .set("spacingBottom", 6)
 }
 
+/// The style of an actor, database, storage, or file figure with its name under it, in
+/// `look`'s fill and border, as both the diagram export and a sequence diagram's use.
+pub fn figure_style(look: &crate::look::Look, colors: &DiagramColors, weight: LineWeight) -> Style {
+    let stencil = match look.shape {
+        Shape::Actor if look.agent => AGENT_STENCIL,
+        Shape::Actor => ACTOR_STENCIL,
+        Shape::Database => DATABASE_STENCIL,
+        Shape::File => FILE_STENCIL,
+        _ => STORAGE_STENCIL,
+    };
+    let style = base_style(colors, weight);
+    let style = match &look.border_color {
+        Some(border) => style.set("strokeColor", border),
+        None => style,
+    };
+    style
+        .set("shape", format!("stencil({stencil})"))
+        .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
+        .set("align", "center")
+        .set("verticalAlign", "top")
+        .num(
+            "spacingTop",
+            if look.shape == Shape::Actor {
+                ACTOR_NAME_TOP
+            } else {
+                COMPONENT_NAME_TOP
+            },
+        )
+        .set("fontStyle", 1)
+        .set("fontSize", 16)
+}
+
 /// The geometry attributes of a rectangle.
 pub fn rect_attributes(r: Rect) -> String {
     format!(
@@ -623,28 +655,7 @@ pub fn diagram_to_drawio(
         };
         match look.shape {
             Shape::Actor | Shape::Database | Shape::Storage | Shape::File => {
-                let stencil = match look.shape {
-                    Shape::Actor if look.agent => AGENT_STENCIL,
-                    Shape::Actor => ACTOR_STENCIL,
-                    Shape::Database => DATABASE_STENCIL,
-                    Shape::File => FILE_STENCIL,
-                    _ => STORAGE_STENCIL,
-                };
-                let style = own_border()
-                    .set("shape", format!("stencil({stencil})"))
-                    .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
-                    .set("align", "center")
-                    .set("verticalAlign", "top")
-                    .num(
-                        "spacingTop",
-                        if look.shape == Shape::Actor {
-                            ACTOR_NAME_TOP
-                        } else {
-                            COMPONENT_NAME_TOP
-                        },
-                    )
-                    .set("fontStyle", 1)
-                    .set("fontSize", 16);
+                let style = figure_style(look, colors, weight);
                 cell(
                     e.id.as_str(),
                     &escape_xml(&e.label),

@@ -62,3 +62,9 @@ pub const RED: FillColors = FillColors {
     fill: EXTERNAL_DEPENDENCY.fill,
     border: "#9c3530",
 };
+
+/// Yellow: a colour a sequence diagram's participants can take.
+pub const YELLOW: FillColors = FillColors {
+    fill: INTERNAL_DEPENDENCY.fill,
+    border: "#9a7210",
+};
