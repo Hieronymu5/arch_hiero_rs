@@ -766,10 +766,12 @@ pub fn drawio_cells(
             .set("backgroundOutline", 1)
             .num("size", CYLINDER_RY),
         C4Shape::Bucket => style.set("shape", format!("stencil({BUCKET_STENCIL})")),
-        // draw.io's cylinder turned so its top faces left; its text stays level.
+        // draw.io's cylinder turned so its top faces left; its text stays level. The turn leaves
+        // the anchor points alone, or draw.io would turn the arrows' ends with it.
         C4Shape::Pipe => style
             .set("shape", "cylinder3")
             .set("direction", "north")
+            .set("anchorPointDirection", 0)
             .set("boundedLbl", 1)
             .set("backgroundOutline", 1)
             .num("size", pipe_rx(rect)),
@@ -1077,7 +1079,7 @@ mod tests {
             "#000000",
             LineWeight::Medium,
         );
-        assert!(cells[0].contains("shape=cylinder3;direction=north;"));
+        assert!(cells[0].contains("shape=cylinder3;direction=north;anchorPointDirection=0;"));
     }
 
     #[test]

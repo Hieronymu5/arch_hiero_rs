@@ -627,13 +627,16 @@ pub fn drawio_cell(
             .set("boundedLbl", 1)
             .set("backgroundOutline", 1)
             .num("size", cylinder_ry(rect)),
-        // draw.io's trapezoid is wide at the bottom: flipped, its text stays upright.
+        // draw.io's trapezoid is wide at the bottom: turned to face west, it's wide at the top
+        // and its text stays upright. A flip or a turn would move the arrows' ends with it (a
+        // flip always does), so the turn leaves the anchor points where they are.
         FlowShape::Manual => base
             .set("shape", "trapezoid")
             .set("perimeter", "trapezoidPerimeter")
+            .set("direction", "west")
+            .set("anchorPointDirection", 0)
             .set("fixedSize", 1)
-            .num("size", slant(rect))
-            .set("flipV", 1),
+            .num("size", slant(rect)),
         FlowShape::Delay => base.set("shape", "delay"),
         FlowShape::Connector => base.set("ellipse", 1),
         FlowShape::Note => base
@@ -929,7 +932,8 @@ mod tests {
         assert!(xml(FlowShape::Subprocess).contains("shape=process"));
         assert!(xml(FlowShape::Document).contains("shape=document"));
         assert!(xml(FlowShape::DataStore).contains("shape=cylinder3"));
-        assert!(xml(FlowShape::Manual).contains("flipV=1"));
+        assert!(xml(FlowShape::Manual).contains("direction=west;anchorPointDirection=0;"));
+        assert!(!xml(FlowShape::Manual).contains("flip"));
         assert!(xml(FlowShape::Delay).contains("shape=delay"));
         assert!(xml(FlowShape::Note).contains("shape=note"));
         assert!(xml(FlowShape::Terminal).contains("arcSize=50"));
