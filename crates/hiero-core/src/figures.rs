@@ -37,6 +37,10 @@ pub mod actors {
         Point::new(32.0, 0.0),
         Point::new(16.0, 10.0),
     ];
+    /// How much a conceptual actor drawn as a group is scaled to stand as tall as one actor, so
+    /// its name, its area, and the arrows to it stay where they are, and how wide it is then.
+    pub const GROUP_SCALE: f64 = super::actor::HEIGHT / HEIGHT;
+    pub const GROUP_WIDTH: f64 = WIDTH * GROUP_SCALE;
 }
 
 /// The component figures, in the same 48 × 46 box: a database cylinder and a storage stack.

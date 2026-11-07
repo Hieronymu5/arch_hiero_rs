@@ -74,8 +74,20 @@ impl DiagramView for Conceptual {
             with.description = Some(description).filter(|d| !d.trim().is_empty());
             field = Some("description");
         }
-        if kind.can_be_agent() && widgets::checkbox(ui, &mut with.props.agent, "Bot").changed() {
-            field = Some("agent");
+        // Bot and Group, side by side.
+        if kind.can_be_agent() || kind.can_be_group() {
+            ui.add_space(widgets::FIELD_GAP);
+            ui.horizontal_wrapped(|ui| {
+                if kind.can_be_agent() && ui.checkbox(&mut with.props.agent, "Bot").changed() {
+                    field = Some("agent");
+                }
+                if kind.can_be_group() {
+                    ui.add_space(widgets::FIELD_GAP);
+                    if ui.checkbox(&mut with.props.group, "Group").changed() {
+                        field = Some("group");
+                    }
+                }
+            });
         }
         if kind.can_be_cloud_hosted()
             && widgets::checkbox(ui, &mut with.props.cloud_hosted, "Cloud hosted").changed()

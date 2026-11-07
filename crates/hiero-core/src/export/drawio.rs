@@ -272,6 +272,7 @@ fn with_spacing(style: Style) -> Style {
 /// `look`'s fill and border, as both the diagram export and a sequence diagram's use.
 pub fn figure_style(look: &crate::look::Look, colors: &DiagramColors, weight: LineWeight) -> Style {
     let stencil = match look.shape {
+        Shape::Actor if look.group => actor_group_stencil(look.agent),
         Shape::Actor if look.agent => AGENT_STENCIL,
         Shape::Actor => ACTOR_STENCIL,
         Shape::Database => DATABASE_STENCIL,
@@ -298,6 +299,95 @@ pub fn figure_style(look: &crate::look::Look, colors: &DiagramColors, weight: Li
         )
         .set("fontStyle", 1)
         .set("fontSize", 16)
+}
+
+/// `xml` packed as draw.io stores a stencil: URL-encoded, as JavaScript's `encodeURIComponent`
+/// does, deflated, and in base64.
+fn pack_stencil(xml: &str) -> String {
+    use std::io::Write as _;
+    let mut encoded = String::with_capacity(xml.len() * 2);
+    for byte in xml.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {
+            encoded.push(char::from(byte));
+        } else {
+            let _ = write!(encoded, "%{byte:02X}");
+        }
+    }
+    let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
+    // Writing to a Vec can't fail.
+    let packed = encoder
+        .write_all(encoded.as_bytes())
+        .and_then(|()| encoder.finish())
+        .unwrap_or_default();
+    base64::engine::general_purpose::STANDARD.encode(packed)
+}
+
+/// A group of three actors, as a draw.io stencil the size of `ACTOR_STENCIL`'s area: three
+/// people, or three bots for `agent`, one in front of two, scaled to stand as tall as one actor
+/// and centred where it stands, so the name sits where it does under one. The same as
+/// `look::actor_group_figure`.
+fn actor_group_stencil(agent: bool) -> &'static str {
+    use crate::figures::{actor, actors};
+    use std::sync::LazyLock;
+    static STENCILS: LazyLock<[String; 2]> = LazyLock::new(|| {
+        [false, true].map(|agent| {
+            // Where one actor's 48 × 46 figure sits in the 120 × 80 area, as in ACTOR_STENCIL.
+            let left = 36.0 + (actor::WIDTH - actors::GROUP_WIDTH) / 2.0;
+            let top = 5.0;
+            let k = actors::GROUP_SCALE;
+            let n = |v: f64| fmt_num(round2(v));
+            let mut shapes = String::new();
+            for p in actors::PLACES {
+                let x = |fx: f64| n(left + (p.x + fx) * k);
+                let y = |fy: f64| n(top + (p.y + fy) * k);
+                let size = |v: f64| n(v * k);
+                let round_rect = |r: Rect, corner: f64| {
+                    format!(
+                        r#"<roundrect x="{}" y="{}" w="{}" h="{}" arcsize="{}"/><fillstroke/>"#,
+                        x(r.x),
+                        y(r.y),
+                        size(r.width),
+                        size(r.height),
+                        n(corner / r.height * 100.0)
+                    )
+                };
+                if agent {
+                    let tip = actor::ANTENNA_TIP_RADIUS;
+                    shapes.push_str(&round_rect(actor::BOT_HEAD, actor::BOT_CORNER));
+                    let _ = write!(
+                        shapes,
+                        r#"<path><move x="{0}" y="{1}"/><line x="{0}" y="{2}"/></path><stroke/><ellipse x="{3}" y="{4}" w="{5}" h="{5}"/><fillstroke/>"#,
+                        x(actor::ANTENNA_X),
+                        y(actor::ANTENNA_Y1),
+                        y(actor::ANTENNA_Y2),
+                        x(actor::ANTENNA_X - tip),
+                        y(actor::ANTENNA_TIP_Y - tip),
+                        size(tip * 2.0)
+                    );
+                    shapes.push_str(&round_rect(actor::BOT_BODY, actor::BOT_CORNER));
+                } else {
+                    let r = actor::HEAD_RADIUS;
+                    let _ = write!(
+                        shapes,
+                        // The shoulders: a half circle of radius 20 from (4, 45) to (44, 45).
+                        r#"<ellipse x="{}" y="{}" w="{2}" h="{2}"/><fillstroke/><path><move x="{3}" y="{5}"/><arc rx="{6}" ry="{6}" x-axis-rotation="0" large-arc-flag="0" sweep-flag="1" x="{4}" y="{5}"/><close/></path><fillstroke/>"#,
+                        x(actor::HEAD_CENTER.x - r),
+                        y(actor::HEAD_CENTER.y - r),
+                        size(r * 2.0),
+                        x(4.0),
+                        x(44.0),
+                        y(45.0),
+                        size(20.0)
+                    );
+                }
+            }
+            pack_stencil(&format!(
+                r#"<shape name="ArchHiero {} group" w="120" h="80" aspect="variable" strokewidth="inherit"><connections/><foreground>{shapes}</foreground></shape>"#,
+                if agent { "agent" } else { "actor" }
+            ))
+        })
+    });
+    &STENCILS[usize::from(agent)]
 }
 
 /// A person on their own, without the room for a name the actor stencil has: the actor figure
@@ -1335,6 +1425,38 @@ mod tests {
             LineWeight::Thick,
         );
         assert!(xml.contains(r#"id="b" value="&lt;b&gt;b &amp;amp; co&lt;/b&gt;""#));
+    }
+
+    #[test]
+    fn draws_a_group_of_actors_with_a_stencil_of_three() {
+        use std::io::Read as _;
+        let unpack = |stencil: &str| {
+            let packed = base64::engine::general_purpose::STANDARD
+                .decode(stencil)
+                .unwrap();
+            let mut encoded = String::new();
+            flate2::read::DeflateDecoder::new(packed.as_slice())
+                .read_to_string(&mut encoded)
+                .unwrap();
+            encoded
+        };
+        let people = unpack(actor_group_stencil(false));
+        // URL-encoded, as draw.io reads it.
+        assert!(people.starts_with("%3Cshape%20name%3D%22ArchHiero%20actor%20group%22"));
+        assert_eq!(people.matches("%3Cellipse").count(), 3);
+        // The back left head, scaled by 46/56 and centred where one actor's head is.
+        assert!(people.contains("x%3D%2238.64%22%20y%3D%226.64%22%20w%3D%2216.43%22"));
+        let bots = unpack(actor_group_stencil(true));
+        assert_eq!(bots.matches("%3Croundrect").count(), 6);
+        // Used only for an actor marked as a group.
+        let mut e = element("u", None, Shape::Actor, Rect::new(40.0, 40.0, 120.0, 80.0));
+        let style = |e: &LookElement| {
+            figure_style(&e.look, &DiagramColors::default(), LineWeight::Thick).build()
+        };
+        assert!(style(&e).contains(&format!("stencil({ACTOR_STENCIL})")));
+        e.look.group = true;
+        e.look.agent = true;
+        assert!(style(&e).contains(&format!("stencil({})", actor_group_stencil(true))));
     }
 
     #[test]

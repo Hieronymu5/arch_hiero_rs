@@ -95,6 +95,7 @@ pub fn look_of(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> LookElem
         },
         look: Look {
             agent: element.el.props.agent,
+            group: element.el.kind.can_be_group() && element.el.props.group,
             text_at_top: element.text_at_top,
             // A shade of its fill, as the other types' borders are.
             border_color: fill.as_deref().map(border_for),

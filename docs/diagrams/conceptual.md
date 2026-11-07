@@ -15,7 +15,7 @@ ones). Elements inside a container are always drawn on top of it.
 
 | Kind | Label | Default size | Fill colour | Can contain | Arrows to | Layer | Notes |
 |---|---|---|---|---|---|---|---|
-| `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | actor, application, component, domain, job, process, entity, file | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. |
+| `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | actor, application, component, domain, job, process, entity, file | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. The **Group** option, beside it, draws it as a group, such as a team or a swarm of agents: three people, or bots, one in front of two (as a high level diagram's actors are), scaled by 46/56 to stand as tall as one, so its area, name, and arrows stay where they were. Its lines keep their width. |
 | `domain` | Domain | 480×180 | domains | application | – | 0 | A filled `region` with its name as a header. Resizable. |
 | `application` | Application | 200×100 | applications | component, process, entity, file | actor, application, component, job, process, entity, file | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
 | `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file | actor, application, component, job, process, entity, file | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
@@ -35,6 +35,7 @@ padding around their children.
 | Name | all | Required, at most 100 characters |
 | Description | application | At most 500 characters, shown under the name, each line break starting a new line (also in the exports) |
 | Bot | actor | Checkbox, stored as `agent: true` |
+| Group | actor | Checkbox beside Bot, stored as `group: true`. Read as "Actor (group of people)" or "(group of bots)". |
 | Cloud hosted | application | Checkbox. The application is drawn as a cloud with its text inside. |
 | Type | component | Radio: Default / Database / Storage, stored as `componentType` (unset means Default) |
 | Parent (Domain, or "Application or component") | anything that can be held | A select of the containers that can hold this kind, named "Name (Kind)" when more than one kind of container can hold it. Choosing a parent moves the element to a free spot inside it. Choosing none moves it out onto the canvas. |
@@ -159,6 +160,7 @@ shared editor engine (`hiero-editor`).
 // element props, per kind (the common columns are in the elements table)
 { "description": "…" }          // application
 { "agent": true }                // actor
+{ "group": true }                // actor
 { "cloudHosted": true }          // application
 { "componentType": "database" }  // component: "database" | "storage"
 // connection props
@@ -166,7 +168,7 @@ shared editor engine (`hiero-editor`).
   "connector": "API", "transformation": "Map fields", "manualOffset": 40 }
 ```
 
-Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` is a fieldless enum serialised in kebab-case (`"kind": "application"`) and `ConceptualProps { agent, component_type, cloud_hosted }` is flattened into the same JSON object in camelCase. The description is a common field of every element. Arrows are `Connection<ConceptualArrow>`. The JSON is the same as the prototype's.
+Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` is a fieldless enum serialised in kebab-case (`"kind": "application"`) and `ConceptualProps { agent, group, component_type, cloud_hosted }` is flattened into the same JSON object in camelCase. The description is a common field of every element. Arrows are `Connection<ConceptualArrow>`. The JSON is the same as the prototype's.
 
 ## Parity checklist
 
@@ -174,6 +176,7 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] Containment rules and the container `box` look for application and component
 - [x] Resize domain and application from two corners, and section across only
 - [x] Bot, cloud-hosted, and component-type rendering
+- [x] Actors as a group of people or bots, in the editor, SVG, and draw.io (a stencil of the three)
 - [x] Arrow draw, route, select, straighten, and place automatically. Arrow keys nudge the selected arrow.
 - [x] Arrow text, mode, bidirectional, connector, and transformation
 - [x] Per-diagram colours with "Use the default colors"

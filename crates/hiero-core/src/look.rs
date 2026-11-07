@@ -144,6 +144,8 @@ pub struct Look {
     pub text_at_top: bool,
     /// Draws an actor as a bot.
     pub agent: bool,
+    /// Draws an actor as a group: three people, or bots, one in front of two.
+    pub group: bool,
     pub name_at: NameAt,
     /// Square corners on a container.
     pub square: bool,
@@ -175,6 +177,7 @@ impl Look {
             shape,
             text_at_top: false,
             agent: false,
+            group: false,
             name_at: NameAt::TopCenter,
             square: false,
             border_color: None,
@@ -486,7 +489,72 @@ pub fn actors_figure(at: Point, paint: Paint) -> Node {
     )
 }
 
-fn component_figure(shape: Shape, agent: bool) -> Vec<Node> {
+/// Three actors, people or bots, one in front of two as `figures::actors` places them, scaled
+/// to stand as tall as one actor and centred on it, in one actor's own coordinates. They're
+/// drawn at that size rather than scaled, so their lines are as thick as one actor's.
+pub(crate) fn actor_group_figure(agent: bool) -> Vec<Node> {
+    use crate::figures::actors::{GROUP_SCALE as K, GROUP_WIDTH, PLACES};
+    let left = (actor::WIDTH - GROUP_WIDTH) / 2.0;
+    let mut nodes = Vec::new();
+    for p in PLACES {
+        let at = |x: f64, y: f64| Point::new(round2(left + (p.x + x) * K), round2((p.y + y) * K));
+        let size = |v: f64| round2(v * K);
+        let rect = |b: Rect| {
+            let o = at(b.x, b.y);
+            Rect::new(o.x, o.y, size(b.width), size(b.height))
+        };
+        if agent {
+            nodes.extend([
+                Node::rect(
+                    rect(actor::BOT_HEAD),
+                    size(actor::BOT_CORNER),
+                    Paint::default(),
+                ),
+                Node::line(
+                    at(actor::ANTENNA_X, actor::ANTENNA_Y1),
+                    at(actor::ANTENNA_X, actor::ANTENNA_Y2),
+                    Paint::default(),
+                ),
+                Node::Circle {
+                    center: at(actor::ANTENNA_X, actor::ANTENNA_TIP_Y),
+                    r: size(actor::ANTENNA_TIP_RADIUS),
+                    paint: Paint::default(),
+                },
+                Node::rect(
+                    rect(actor::BOT_BODY),
+                    size(actor::BOT_CORNER),
+                    Paint::default(),
+                ),
+            ]);
+        } else {
+            // The shoulders: a half circle of radius 20 from (4, 45) to (44, 45).
+            let (from, to) = (at(4.0, 45.0), at(44.0, 45.0));
+            let r = size(20.0);
+            nodes.extend([
+                Node::Circle {
+                    center: at(actor::HEAD_CENTER.x, actor::HEAD_CENTER.y),
+                    r: size(actor::HEAD_RADIUS),
+                    paint: Paint::default(),
+                },
+                Node::path(
+                    format!(
+                        "M{} {} A{} {} 0 0 1 {} {} Z",
+                        fmt_num(from.x),
+                        fmt_num(from.y),
+                        fmt_num(r),
+                        fmt_num(r),
+                        fmt_num(to.x),
+                        fmt_num(to.y)
+                    ),
+                    Paint::default(),
+                ),
+            ]);
+        }
+    }
+    nodes
+}
+
+fn component_figure(shape: Shape, agent: bool, group: bool) -> Vec<Node> {
     match shape {
         Shape::Database => vec![
             Node::path(component::CYLINDER_SIDE, Paint::default()),
@@ -512,6 +580,7 @@ fn component_figure(shape: Shape, agent: bool) -> Vec<Node> {
             }))
             .collect()
         }
+        _ if group => actor_group_figure(agent),
         _ => actor_figure(agent),
     }
 }
@@ -866,7 +935,7 @@ pub fn draw_element(
                     border.clone(),
                     weight.width(),
                 ),
-                component_figure(look.shape, look.agent),
+                component_figure(look.shape, look.agent, look.group),
             )];
             nodes.extend(text_lines(
                 &name,
@@ -1399,6 +1468,46 @@ mod tests {
             component_name_bottom(area, "Orders", Shape::Database, &EstimateText),
             110.0
         );
+    }
+
+    #[test]
+    fn a_group_of_actors_stands_where_one_does_as_tall_as_one() {
+        let area = Rect::new(40.0, 40.0, 120.0, 80.0);
+        let svg_of = |agent: bool, group: bool| {
+            let mut e = element(Shape::Actor, area);
+            e.label = "Sales".into();
+            e.look.agent = agent;
+            e.look.group = group;
+            let scene = draw_diagram(
+                &[e],
+                &[],
+                &EstimateText,
+                &DiagramColors::default(),
+                LineWeight::Thick,
+            );
+            scene_to_svg("t", &scene)
+        };
+        let one = svg_of(false, false);
+        let people = svg_of(false, true);
+        // In the same place as one, with its name in the same place too.
+        assert!(people.contains(r#"<g transform="translate(76 45)""#));
+        let name = |svg: &str| svg[svg.find(">Sales<").unwrap() - 60..].to_owned();
+        assert_eq!(name(&one), name(&people));
+        // Three heads, the back left one scaled by 46/56 and centred on one actor.
+        assert_eq!(one.matches("<circle").count(), 1);
+        assert_eq!(people.matches("<circle").count(), 3);
+        assert!(people.contains(r#"<circle cx="10.86" cy="9.86" r="8.21""#));
+        // The front one's shoulders reach as low as one actor's.
+        assert!(people.contains("M7.57 45.18 A16.43 16.43 0 0 1 40.43 45.18 Z"));
+        // Three bots: a head and a body each, and an antenna.
+        let bots = svg_of(true, true);
+        let bot = svg_of(true, false);
+        assert_eq!(
+            bots.matches("<rect").count(),
+            bot.matches("<rect").count() + 4
+        );
+        assert_eq!(bots.matches("<line").count(), 3);
+        assert_eq!(bots.matches("<circle").count(), 3);
     }
 
     #[test]

@@ -51,6 +51,10 @@ pub struct ConceptualProps {
     /// Shown as a bot, for actors.
     #[serde(default, skip_serializing_if = "is_false")]
     pub agent: bool,
+    /// Shown as a group, such as a team, for actors: three people, or bots, one in front of
+    /// two. Unset means one.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub group: bool,
     /// A database or storage, for components.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub component_type: Option<ComponentType>,
@@ -257,6 +261,10 @@ impl ConceptualKind {
     }
 
     pub const fn can_be_agent(self) -> bool {
+        matches!(self, Self::Actor)
+    }
+
+    pub const fn can_be_group(self) -> bool {
         matches!(self, Self::Actor)
     }
 

@@ -155,10 +155,16 @@ impl DiagramType for Conceptual {
 
     fn file_fields(kind: ConceptualKind) -> &'static [Field] {
         match kind {
-            ConceptualKind::Actor => &[Field {
-                key: "agent",
-                rule: FieldRule::True,
-            }],
+            ConceptualKind::Actor => &[
+                Field {
+                    key: "agent",
+                    rule: FieldRule::True,
+                },
+                Field {
+                    key: "group",
+                    rule: FieldRule::True,
+                },
+            ],
             ConceptualKind::Component => &[Field {
                 key: "componentType",
                 rule: FieldRule::OneOf {
@@ -195,10 +201,17 @@ impl DiagramType for Conceptual {
         !info.can_contain.is_empty() && figure_of(element).is_none()
     }
 
-    /// Such as "Actor (bot)", "Component (database)", or "Application (cloud hosted)".
+    /// Such as "Actor (bot)", "Actor (group of people)", "Component (database)", or
+    /// "Application (cloud hosted)".
     fn kind_description(_eng: &Engine<Self>, element: &Laid<Self>) -> String {
         let variant = if is_cloud(&element.el) {
             Some("cloud hosted")
+        } else if element.el.kind.can_be_group() && element.el.props.group {
+            Some(if element.el.props.agent {
+                "group of bots"
+            } else {
+                "group of people"
+            })
         } else {
             match figure_of(&element.el) {
                 Some(Figure::Bot) => Some("bot"),
@@ -264,6 +277,9 @@ impl DiagramType for Conceptual {
         if !kind.can_be_agent() {
             with.props.agent = false;
         }
+        if !kind.can_be_group() {
+            with.props.group = false;
+        }
         if !kind.can_be_cloud_hosted() {
             with.props.cloud_hosted = false;
         }
@@ -277,6 +293,13 @@ impl DiagramType for Conceptual {
                 format!("{label} marked as a bot.")
             } else {
                 format!("{label} no longer marked as a bot.")
+            });
+        }
+        if kind.can_be_group() && with.props.group != selected.el.props.group {
+            announcement = Some(if with.props.group {
+                format!("{label} marked as a group.")
+            } else {
+                format!("{label} no longer marked as a group.")
             });
         }
         if kind.can_be_cloud_hosted() && with.props.cloud_hosted != selected.el.props.cloud_hosted {
@@ -430,6 +453,45 @@ mod tests {
         assert_eq!(e.element(&id("id2")).unwrap().parent_id, None);
         assert_eq!(e.laid(&id("id1")).unwrap().rect.size(), FIGURE_SIZE);
         assert_eq!(e.announcement, "Component set to database.");
+    }
+
+    #[test]
+    fn an_actor_marked_as_a_group_keeps_its_area_and_is_read_as_one() {
+        let mut e = engine();
+        e.add_at_free_position(ConceptualKind::Actor);
+        let before = e.laid(&id("id1")).unwrap().rect;
+        let mut with = e.element(&id("id1")).unwrap().clone();
+        with.label = "Sales".into();
+        with.props.group = true;
+        <Conceptual as DiagramType>::apply_element(&mut e, &id("id1"), with, None);
+        assert_eq!(e.announcement, "Sales marked as a group.");
+        let actor = e.laid(&id("id1")).unwrap().clone();
+        assert_eq!(actor.rect, before);
+        assert_eq!(
+            Conceptual::kind_description(&e, &actor),
+            "Actor (group of people)"
+        );
+        // Stored as group: true, and left out for one.
+        let json = serde_json::to_value(&actor.el.props).unwrap();
+        assert_eq!(json, serde_json::json!({"group": true}));
+        assert_eq!(
+            serde_json::to_value(ConceptualProps::default()).unwrap(),
+            serde_json::json!({})
+        );
+        let mut with = actor.el.clone();
+        with.props.agent = true;
+        <Conceptual as DiagramType>::apply_element(&mut e, &id("id1"), with, None);
+        let actor = e.laid(&id("id1")).unwrap().clone();
+        assert_eq!(
+            Conceptual::kind_description(&e, &actor),
+            "Actor (group of bots)"
+        );
+        // Only actors can be a group.
+        e.add_at_free_position(ConceptualKind::Application);
+        let mut with = e.element(&id("id2")).unwrap().clone();
+        with.props.group = true;
+        <Conceptual as DiagramType>::apply_element(&mut e, &id("id2"), with, None);
+        assert!(!e.element(&id("id2")).unwrap().props.group);
     }
 
     #[test]
