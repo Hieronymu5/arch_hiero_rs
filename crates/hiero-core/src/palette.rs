@@ -68,3 +68,10 @@ pub const YELLOW: FillColors = FillColors {
     fill: INTERNAL_DEPENDENCY.fill,
     border: "#9a7210",
 };
+
+/// Grey: a colour a high level conceptual diagram's applications and groups can take, and its
+/// groups' usual one.
+pub const GREY: FillColors = FillColors {
+    fill: "#f5f5f5",
+    border: "#666666",
+};

@@ -188,7 +188,7 @@ fn the_diagram_s_own_fields() {
     );
     assert_eq!(
         refused(c(), set(D, "type", json!("gantt"))),
-        "The diagram: “type” must be one of: conceptual, deployed-component, physical, c4, flowchart, sequence."
+        "The diagram: “type” must be one of: conceptual, deployed-component, physical, c4, flowchart, sequence, high-level-conceptual."
     );
     // A sub type: one of the type's, left out at its first, and not on a type without them.
     let c4 = || {

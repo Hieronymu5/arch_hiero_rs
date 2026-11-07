@@ -33,6 +33,8 @@ crates/
                            hiero-core's flowchart.rs
     hiero-sequence/        model.rs, rules.rs, timeline.rs (lifelines, activations, and
                            message places), scene.rs (UI-free, with draw.io) + ui.rs
+    hiero-high-level/      the Conceptual - High Level type: model.rs, rules.rs, scene.rs
+                           (UI-free, with draw.io) + ui.rs
   hiero-registry/          UI-free table of types (`TypeOps`) and agent edits (`EditOp`)
   hiero-app/               the GUI binary `arch-hiero`: pages, store thread, dev hooks
   hiero-mcp/               the MCP server binary `arch-hiero-mcp` (stdio)
@@ -54,6 +56,8 @@ SQLite. Read this before working on diagrams:
 - `docs/diagrams/flowchart.md`: the Flowchart type, also new, with optional swimlanes.
 - `docs/diagrams/sequence.md`: the Sequence type, also new: participants in a row, and
   messages in time order.
+- `docs/diagrams/high-level-conceptual.md`: the Conceptual - High Level type, also new:
+  applications in groups (which nest), and wide arrows between them.
 
 Crate boundaries:
 

@@ -20,6 +20,7 @@ use hiero_core::scene::Scene;
 use hiero_core::stored::{ContentError, StoredContent, StoredDiagram};
 use hiero_deployed::DeployedComponent;
 use hiero_flowchart::Flowchart;
+use hiero_high_level::HighLevel;
 use hiero_physical::Physical;
 use hiero_sequence::Sequence;
 use serde::Serialize;
@@ -225,6 +226,16 @@ impl Drawn for Sequence {
     const PROPS_DOC: &'static str = "A sequence diagram shows the messages its participants send each other over time. A new one starts with an actor \"User\" and an application \"Application\". Participants (actor: a person, or a bot with {agent: true}; application: a box; component: a box, or {componentType: \"database\" | \"storage\"}) stand in a row along the top, each with a dashed lifeline under it; their x only sets their order in the row, left to right (move_element to reorder them; y is ignored), and they're spaced to fit the text of the messages between them. Every participant has {color: \"green\" | \"red\" | \"yellow\" (omit for blue)}, which its lifeline and activations take too; there are no descriptions. Messages are arrows from one participant to another, or to itself, and any number can join the same two; their order is time, top to bottom: add_connection puts a message last, and move_connection {id, index} moves it (index 0 is the first). Message props: {kind: \"async\" (an open head: not waited on) | \"return\" (dashed, open head: the answer to a call, sent back to its caller); omit for a call (a solid head), label (≤ 100): the call, such as \"getOrder(id)\", or what a return gives back, such as \"Order\"}. A message added straight back after a call starts as a return. A call opens an activation (a bar on the receiver's lifeline) that the receiver's next return closes; one never answered lasts until the receiver's last message.";
 }
 
+impl Drawn for HighLevel {
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, _: Option<&Stamp>) -> String {
+        hiero_high_level::scene::to_drawio(eng, title, Some(heading))
+    }
+    fn scene(eng: &Engine<Self>) -> Scene {
+        hiero_high_level::scene::scene(eng)
+    }
+    const PROPS_DOC: &'static str = "A high level conceptual diagram shows a landscape at a glance: applications (boxes, 160 × 80) in groups, and wide arrows between them where they're needed. A group holds applications and other groups, set with parent_id, and grows to hold them; it can also be empty, as a boundary for something shown without its parts. Names are bold. A group's name sits at its top, or in its middle while it's empty; an application's is in its middle, with its optional description (at most 500 characters, keeping line breaks) under it in a smaller regular font. Element props, for both kinds: {color: \"blue\" | \"green\" | \"red\" | \"yellow\" | \"grey\" (omit for the kind's usual one: blue for an application, grey for a group), fontSize: a whole number of pixels from 8 to 48 (omit for 14 on an application, 16 on a group; a group's header grows to fit its name), dashed: true (omit for a solid border)}. Groups have no description. Arrows join any two elements except a group and anything inside it, and are drawn as wide grey block arrows between their facing sides. Arrow props: {twoWay: true (a head at each end; omit for one, at the target)}.";
+}
+
 struct Entry<T>(PhantomData<fn() -> T>);
 
 fn kind_name<K: Serialize>(kind: &K) -> String {
@@ -421,9 +432,10 @@ static DEPLOYED: Entry<DeployedComponent> = Entry(PhantomData);
 static C4_TYPE: Entry<C4> = Entry(PhantomData);
 static FLOWCHART: Entry<Flowchart> = Entry(PhantomData);
 static SEQUENCE: Entry<Sequence> = Entry(PhantomData);
+static HIGH_LEVEL: Entry<HighLevel> = Entry(PhantomData);
 
 /// Every diagram type, in menu order.
-pub fn types() -> [&'static dyn TypeOps; 6] {
+pub fn types() -> [&'static dyn TypeOps; 7] {
     DiagramTypeId::ALL.map(ops)
 }
 
@@ -436,6 +448,7 @@ pub fn ops(id: DiagramTypeId) -> &'static dyn TypeOps {
         DiagramTypeId::C4 => &C4_TYPE,
         DiagramTypeId::Flowchart => &FLOWCHART,
         DiagramTypeId::Sequence => &SEQUENCE,
+        DiagramTypeId::HighLevelConceptual => &HIGH_LEVEL,
     }
 }
 

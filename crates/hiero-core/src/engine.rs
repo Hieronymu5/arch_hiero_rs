@@ -294,6 +294,12 @@ pub trait DiagramType: Sized + 'static {
         info.size()
     }
 
+    /// The height of a container's header, above what it holds: its kind's, unless the type
+    /// sizes it to the element, such as to fit a group's name in its own font size.
+    fn header_height(_element: &El<Self>, info: &'static KindInfo<Self::Kind>) -> f64 {
+        info.header()
+    }
+
     /// Whether an element holds others.
     fn holds_elements(_element: &El<Self>, info: &'static KindInfo<Self::Kind>) -> bool {
         !info.can_contain.is_empty()
@@ -1725,7 +1731,7 @@ impl<T: DiagramType> Engine<T> {
                     ),
                     is_container,
                     is_region: is_container && info.container_look == ContainerLook::Region,
-                    header: info.header(),
+                    header: T::header_height(el, info),
                     padding: info.padding(),
                     footer: info.footer(),
                 }

@@ -75,6 +75,9 @@ pub enum DiagramTypeId {
     Flowchart,
     /// The messages participants send each other over time, one under the other.
     Sequence,
+    /// A landscape at a glance: applications in groups, groups in groups, and wide arrows
+    /// between them.
+    HighLevelConceptual,
 }
 
 /// A kind of diagram within a type, such as a C4 diagram's level: it names the diagram, and
@@ -104,13 +107,14 @@ const C4_SUBTYPES: &[Subtype] = &[
 
 impl DiagramTypeId {
     /// Every diagram type, in menu order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Conceptual,
         Self::DeployedComponent,
         Self::Physical,
         Self::C4,
         Self::Flowchart,
         Self::Sequence,
+        Self::HighLevelConceptual,
     ];
 
     /// The kinds of diagram of this type, the first the default. Empty for a type without.
@@ -146,6 +150,7 @@ impl DiagramTypeId {
             Self::C4 => "c4",
             Self::Flowchart => "flowchart",
             Self::Sequence => "sequence",
+            Self::HighLevelConceptual => "high-level-conceptual",
         }
     }
 
@@ -157,6 +162,7 @@ impl DiagramTypeId {
             Self::C4 => "C4",
             Self::Flowchart => "Flowchart",
             Self::Sequence => "Sequence",
+            Self::HighLevelConceptual => "Conceptual - High Level",
         }
     }
 
@@ -176,13 +182,15 @@ impl DiagramTypeId {
     }
 
     /// How thick elements' lines are unless a diagram chooses otherwise: deployed component
-    /// diagrams are drawn thin, and the C4, flowchart, and sequence types, which came after the
-    /// setting, medium.
+    /// diagrams are drawn thin, and the C4, flowchart, sequence, and high level conceptual types,
+    /// which came after the setting, medium.
     pub const fn default_line_weight(self) -> LineWeight {
         match self {
             Self::DeployedComponent => LineWeight::Thin,
             Self::Conceptual | Self::Physical => LineWeight::Thick,
-            Self::C4 | Self::Flowchart | Self::Sequence => LineWeight::Medium,
+            Self::C4 | Self::Flowchart | Self::Sequence | Self::HighLevelConceptual => {
+                LineWeight::Medium
+            }
         }
     }
 
@@ -674,6 +682,14 @@ mod tests {
         assert_eq!(
             DiagramTypeId::Sequence.arrow_noun().one_capitalized(),
             "Message"
+        );
+        assert_eq!(
+            DiagramTypeId::parse("high-level-conceptual"),
+            Some(DiagramTypeId::HighLevelConceptual)
+        );
+        assert_eq!(
+            DiagramTypeId::HighLevelConceptual.label(),
+            "Conceptual - High Level"
         );
         // A C4 diagram is named after its level, the first the default.
         let c4 = DiagramTypeId::C4;

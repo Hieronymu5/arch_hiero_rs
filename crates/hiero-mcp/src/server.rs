@@ -27,10 +27,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// What the server tells agents about using it.
-pub const INSTRUCTIONS: &str = "Arch Hiero keeps architecture diagrams (conceptual, physical, deployed component, C4, whose subtype says whether it's a context, container, or component diagram, flowchart, and sequence) in a local database that the Arch Hiero app also uses; changes you make show up in the app live and can be undone there. Before editing, call list_diagram_types to learn each type's kinds of element, what they can contain and connect to, and their properties, and read the arch-hiero://types/{type} resource for the full rules. Every edit goes through the type's own rules (for example, zones fill networks and layers stack), so positions you give may be adjusted. Batch related changes into one edit_diagram call; a batch is all or nothing and names the edit that failed and why. Before large changes, call save_version with a description such as \"Before agent edits\" so the user can go back. Your edits leave the diagram a Draft until a version is saved, which makes it a Release. delete_diagram, revert_to_version, and delete_version are destructive.";
+pub const INSTRUCTIONS: &str = "Arch Hiero keeps architecture diagrams (conceptual, physical, deployed component, C4, whose subtype says whether it's a context, container, or component diagram, flowchart, sequence, and conceptual - high level) in a local database that the Arch Hiero app also uses; changes you make show up in the app live and can be undone there. Before editing, call list_diagram_types to learn each type's kinds of element, what they can contain and connect to, and their properties, and read the arch-hiero://types/{type} resource for the full rules. Every edit goes through the type's own rules (for example, zones fill networks and layers stack), so positions you give may be adjusted. Batch related changes into one edit_diagram call; a batch is all or nothing and names the edit that failed and why. Before large changes, call save_version with a description such as \"Before agent edits\" so the user can go back. Your edits leave the diagram a Draft until a version is saved, which makes it a Release. delete_diagram, revert_to_version, and delete_version are destructive.";
 
 /// The type specs, as resources.
-const SPECS: [(DiagramTypeId, &str); 6] = [
+const SPECS: [(DiagramTypeId, &str); 7] = [
     (
         DiagramTypeId::Conceptual,
         include_str!("../../../docs/diagrams/conceptual.md"),
@@ -54,6 +54,10 @@ const SPECS: [(DiagramTypeId, &str); 6] = [
     (
         DiagramTypeId::Sequence,
         include_str!("../../../docs/diagrams/sequence.md"),
+    ),
+    (
+        DiagramTypeId::HighLevelConceptual,
+        include_str!("../../../docs/diagrams/high-level-conceptual.md"),
     ),
 ];
 
@@ -95,8 +99,8 @@ pub struct GetDiagramParams {
 pub struct CreateParams {
     /// The diagram's name, at most 100 characters.
     pub name: String,
-    /// "conceptual", "physical", "deployed-component", "c4", "flowchart", or "sequence". It can't
-    /// be changed later.
+    /// "conceptual", "physical", "deployed-component", "c4", "flowchart", "sequence", or
+    /// "high-level-conceptual". It can't be changed later.
     #[serde(rename = "type")]
     pub diagram_type: String,
     /// The kind of diagram within its type, from list_diagram_types' subtypes: for "c4",

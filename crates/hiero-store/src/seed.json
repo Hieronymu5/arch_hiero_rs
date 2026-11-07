@@ -1346,5 +1346,263 @@
     ],
     "createdAt": "2026-11-05T09:00:00.000Z",
     "updatedAt": "2026-11-05T09:00:00.000Z"
+  },
+  {
+    "id": "7227e761-2cae-4c0a-b99c-aa62a897a467",
+    "name": "Enterprise Architecture Overview",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The layers of an enterprise's systems, the people who use them, and the platform under them",
+    "createdAt": "2026-11-06T09:00:00.000Z",
+    "updatedAt": "2026-11-06T09:00:00.000Z",
+    "elements": [
+      {
+        "id": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
+        "kind": "group",
+        "label": "Stakeholders",
+        "x": 40,
+        "y": 40,
+        "width": 200,
+        "height": 440,
+        "color": "blue"
+      },
+      {
+        "id": "0b421d49-9866-4562-ad53-e88ddc936e8a",
+        "kind": "application",
+        "label": "Business Leadership",
+        "x": 60,
+        "y": 80,
+        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
+        "color": "grey"
+      },
+      {
+        "id": "ee9b5170-f3f7-4a93-9b51-4936bbd50f53",
+        "kind": "application",
+        "label": "Cross-Functional Team",
+        "x": 60,
+        "y": 180,
+        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
+        "color": "grey"
+      },
+      {
+        "id": "ba0f9d6f-d217-4485-b100-a3f1b00140ee",
+        "kind": "application",
+        "label": "Technical Team",
+        "x": 60,
+        "y": 280,
+        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
+        "color": "grey"
+      },
+      {
+        "id": "da130acc-519b-4395-8073-fc5e6faf8a22",
+        "kind": "application",
+        "label": "External Users",
+        "x": 60,
+        "y": 380,
+        "parentId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
+        "color": "grey"
+      },
+      {
+        "id": "44d0c46b-ec13-4110-9f36-1e7aad5f8194",
+        "kind": "group",
+        "label": "Cybersecurity, Governance & Compliance",
+        "x": 320,
+        "y": 40,
+        "width": 560,
+        "height": 80,
+        "dashed": true
+      },
+      {
+        "id": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "kind": "group",
+        "label": "Application & Cloud Services Layer",
+        "x": 320,
+        "y": 140,
+        "width": 560,
+        "height": 240,
+        "color": "green"
+      },
+      {
+        "id": "e8572361-ae82-4be3-af10-3b039d6f1440",
+        "kind": "application",
+        "label": "User Interfaces",
+        "x": 340,
+        "y": 180,
+        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "color": "grey"
+      },
+      {
+        "id": "1e8c8df5-acb3-49be-8f79-cc15909d9d72",
+        "kind": "application",
+        "label": "Cloud-Based Applications",
+        "x": 520,
+        "y": 180,
+        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "color": "grey"
+      },
+      {
+        "id": "3e6eac67-bef8-4884-8386-7aeae650e602",
+        "kind": "application",
+        "label": "Enterprise Applications",
+        "x": 700,
+        "y": 180,
+        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "color": "grey"
+      },
+      {
+        "id": "0ecb2c81-7e51-48aa-96ad-fb8b900dd383",
+        "kind": "application",
+        "label": "Big Data & Analytics",
+        "x": 340,
+        "y": 280,
+        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "color": "grey"
+      },
+      {
+        "id": "7a2abe26-a6b4-4d1c-94e7-ba5989b47a18",
+        "kind": "application",
+        "label": "API Management",
+        "x": 520,
+        "y": 280,
+        "parentId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "color": "grey"
+      },
+      {
+        "id": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "kind": "group",
+        "label": "Backend Services Layer",
+        "x": 320,
+        "y": 400,
+        "width": 560,
+        "height": 140,
+        "color": "blue"
+      },
+      {
+        "id": "41587f19-59a7-4022-a680-2b00d5072c18",
+        "kind": "application",
+        "label": "Automated Monitoring",
+        "x": 340,
+        "y": 440,
+        "parentId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "color": "grey"
+      },
+      {
+        "id": "720c1ab2-ec70-4650-a44a-fbfc1c80f429",
+        "kind": "application",
+        "label": "Event-Driven Architecture",
+        "x": 520,
+        "y": 440,
+        "parentId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "color": "grey"
+      },
+      {
+        "id": "6ba4dcd8-9cec-4d89-9b5d-9b8caf6beb88",
+        "kind": "application",
+        "label": "Microservices & Serverless",
+        "x": 700,
+        "y": 440,
+        "parentId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "color": "grey"
+      },
+      {
+        "id": "acf4145f-6059-4238-8c26-70cf821edd11",
+        "kind": "group",
+        "label": "Data Layer",
+        "x": 320,
+        "y": 560,
+        "width": 560,
+        "height": 140,
+        "color": "yellow"
+      },
+      {
+        "id": "4be296d0-95bf-45d6-86dc-81704de04814",
+        "kind": "application",
+        "label": "Relational Databases",
+        "x": 340,
+        "y": 600,
+        "parentId": "acf4145f-6059-4238-8c26-70cf821edd11",
+        "color": "grey"
+      },
+      {
+        "id": "d2db80fd-1dd2-423c-b9cc-42bd71edea13",
+        "kind": "application",
+        "label": "NoSQL & Data Lakes",
+        "x": 520,
+        "y": 600,
+        "parentId": "acf4145f-6059-4238-8c26-70cf821edd11",
+        "color": "grey"
+      },
+      {
+        "id": "05b11083-fabb-4e65-b293-47805e28bc96",
+        "kind": "application",
+        "label": "Edge Computing",
+        "x": 700,
+        "y": 600,
+        "parentId": "acf4145f-6059-4238-8c26-70cf821edd11",
+        "color": "grey"
+      },
+      {
+        "id": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
+        "kind": "group",
+        "label": "Platform & DevOps",
+        "x": 960,
+        "y": 140,
+        "width": 200,
+        "height": 340,
+        "color": "red"
+      },
+      {
+        "id": "a74af5e1-e87a-4e3e-8270-1885b8c7a975",
+        "kind": "application",
+        "label": "Cloud-Native Microservices",
+        "x": 980,
+        "y": 180,
+        "parentId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
+        "color": "grey"
+      },
+      {
+        "id": "6b0e9062-dfb0-44b4-926a-36cf2a181615",
+        "kind": "application",
+        "label": "API Gateway & Integration",
+        "x": 980,
+        "y": 280,
+        "parentId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
+        "color": "grey"
+      },
+      {
+        "id": "0e165e47-243a-4b90-97c6-4914820cb30d",
+        "kind": "application",
+        "label": "CI/CD & DevOps Pipelines",
+        "x": 980,
+        "y": 380,
+        "parentId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
+        "color": "grey"
+      }
+    ],
+    "connections": [
+      {
+        "id": "1322c1dc-f323-480a-9394-a70a3b8ea3ba",
+        "sourceId": "e544a193-b51f-4c2e-9cd6-bf5d1d80a9e1",
+        "targetId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "twoWay": true
+      },
+      {
+        "id": "2c3f6439-9c14-4f89-aae7-1bb3e11fa303",
+        "sourceId": "baa599cb-6392-478e-a3f2-01ba31057bbb",
+        "targetId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "twoWay": true
+      },
+      {
+        "id": "c5166fd0-1736-40db-9069-52b5f086ea7c",
+        "sourceId": "d460c1ab-695a-4661-b78e-c2c089f2b61b",
+        "targetId": "acf4145f-6059-4238-8c26-70cf821edd11",
+        "twoWay": true
+      },
+      {
+        "id": "01bb22fb-e1e6-46e3-a9ab-8d2cc8b7e9b7",
+        "sourceId": "d4bf9b91-e53a-41a7-bfae-7047a86b2927",
+        "targetId": "d460c1ab-695a-4661-b78e-c2c089f2b61b"
+      }
+    ]
   }
 ]

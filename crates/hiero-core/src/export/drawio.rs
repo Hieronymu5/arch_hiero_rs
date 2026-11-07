@@ -478,8 +478,10 @@ pub fn heading_cell(heading: &Heading, width: f64) -> (String, f64) {
     )
 }
 
-/// Where an arrow meets an element, as draw.io's connection constraint.
-fn constraint(point: Point, element: Rect) -> (f64, f64, f64, f64) {
+/// Where an arrow meets an element, as draw.io's connection constraint: `(x, y, dx, dy)`, for
+/// `exitX`, `exitY`, `exitDx`, and `exitDy` (or the `entry` ones). A point off the element's
+/// sides is kept as an offset from its top-left corner.
+pub fn constraint(point: Point, element: Rect) -> (f64, f64, f64, f64) {
     let on_side = |v: f64, edge: f64| (v - edge).abs() < 0.01;
     let along = Point::new(round2(point.x) - element.x, round2(point.y) - element.y);
     if on_side(point.x, element.x) || on_side(point.x, element.right()) {
