@@ -21,9 +21,11 @@ pub struct Sequence;
 pub enum SequenceKind {
     /// A person, or a bot, drawn as a figure with its name under it.
     Actor,
-    /// An application, drawn as a box.
+    /// An application, drawn as a box with its name in bold and an optional description under
+    /// it.
     Application,
-    /// A part of an application, drawn as a box, or as a database or storage.
+    /// A part of an application, drawn as a box as an application is, or as a database or
+    /// storage with only its name.
     Component,
 }
 
@@ -155,9 +157,11 @@ impl SequenceMessage {
 
 /// The longest message text.
 pub const LABEL_MAX: usize = 100;
+/// The longest description of an application or component.
+pub const DESCRIPTION_MAX: usize = 500;
 
 /// A box participant's size: as tall as an actor's figure with one line of name under it, so
-/// the lifelines start level.
+/// the lifelines start level. A box grows taller when its name and description need it.
 pub const BOX_SIZE: Size = Size::new(160.0, 80.0);
 /// An actor's, or a component drawn as a database or storage: the figure with its name under it.
 pub const FIGURE: Size = FIGURE_SIZE;
@@ -176,12 +180,14 @@ pub static PALETTE: [KindInfo<SequenceKind>; 3] = [
     },
     KindInfo {
         connects_to: EVERYONE,
+        has_description: true,
         resizable: Resizable::Width,
         size: Some(BOX_SIZE),
         ..KindInfo::new(K::Application, "Application")
     },
     KindInfo {
         connects_to: EVERYONE,
+        has_description: true,
         resizable: Resizable::Width,
         size: Some(BOX_SIZE),
         ..KindInfo::new(K::Component, "Component")

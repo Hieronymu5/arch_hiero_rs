@@ -11,12 +11,12 @@ use hiero_editor::widgets::{self, text_field};
 use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
 use crate::model::{
-    ComponentType, LABEL_MAX, MessageKind, ParticipantColor, Sequence, SequenceKind,
-    SequenceMessage,
+    ComponentType, DESCRIPTION_MAX, LABEL_MAX, MessageKind, ParticipantColor, Sequence,
+    SequenceKind, SequenceMessage,
 };
 use crate::rules::{arrow_title, normalized_arrow};
 use crate::scene::{drawn_rect, scene_of, timeline_of};
-use crate::timeline::{SELF_HEIGHT, SELF_WIDTH, head_bottom, index_at};
+use crate::timeline::{SELF_HEIGHT, SELF_WIDTH, head_bottom, head_shape, index_at, is_figure};
 
 /// Moves the message `id` one place earlier or later. Returns whether it could.
 fn step_message(eng: &mut Engine<Sequence>, id: &ConnectionId, later: bool) -> bool {
@@ -122,6 +122,21 @@ impl DiagramView for Sequence {
             field = Some("label");
         }
         let kind = element.el.kind;
+        // A box shows its description; a figure only its name.
+        if element.info.has_description
+            && !is_figure(head_shape(kind, element.el.props.component_type))
+            && let Some(description) = text_field(
+                ui,
+                cx.field_id(element.id(), "description"),
+                "Description",
+                element.el.description.as_deref().unwrap_or_default(),
+                true,
+                |t| validate_length("Description", t, DESCRIPTION_MAX),
+            )
+        {
+            with.description = Some(description).filter(|d| !d.trim().is_empty());
+            field = Some("description");
+        }
         if kind == SequenceKind::Actor
             && widgets::checkbox(ui, &mut with.props.agent, "Bot").changed()
         {

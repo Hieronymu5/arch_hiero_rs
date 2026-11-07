@@ -5,15 +5,16 @@
 
 use std::collections::HashMap;
 
-use hiero_core::engine::{Conn, Engine, Laid};
+use hiero_core::engine::{Conn, El, Engine, Laid};
 use hiero_core::geometry::{Point, Rect};
-use hiero_core::look::{ARROW_LABEL_SIZE, Shape, component_name_bottom};
+use hiero_core::look::{ARROW_LABEL_SIZE, Shape, box_text_height, component_name_bottom};
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::palette::FillColors;
+use hiero_core::text::MeasureText;
 use hiero_core::text::Weight;
 
 use crate::model::{
-    ComponentType, MessageKind, ParticipantColor, Sequence, SequenceKind, SequenceMessage,
+    BOX_SIZE, ComponentType, MessageKind, ParticipantColor, Sequence, SequenceKind, SequenceMessage,
 };
 
 /// Where the row of participants starts: their tops, and the first one's left side.
@@ -52,6 +53,36 @@ pub fn head_shape(kind: SequenceKind, component_type: Option<ComponentType>) -> 
         (SequenceKind::Component, Some(ComponentType::Storage)) => Shape::Storage,
         _ => Shape::Box,
     }
+}
+
+/// The description a participant shows: a box's, when it has some text. A figure shows only
+/// its name, so a component drawn as a database or storage keeps its description unseen.
+pub fn shown_description(element: &El<Sequence>) -> Option<&str> {
+    let shape = head_shape(element.kind, element.props.component_type);
+    if is_figure(shape) {
+        return None;
+    }
+    element
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+}
+
+/// The space above and below a box's text.
+pub const BOX_PADDING_Y: f64 = 10.0;
+/// A box's height is a multiple of this, so a taller one stays on the grid.
+const BOX_STEP: f64 = 20.0;
+
+/// The height a participant `width` wide is drawn at, when its name and description need more
+/// than its kind's: unset otherwise, and for a figure.
+pub fn box_height(element: &El<Sequence>, width: f64, measure: &dyn MeasureText) -> Option<f64> {
+    if is_figure(head_shape(element.kind, element.props.component_type)) {
+        return None;
+    }
+    let text = box_text_height(&element.label, shown_description(element), width, measure);
+    let height = ((text + BOX_PADDING_Y * 2.0) / BOX_STEP).ceil() * BOX_STEP;
+    (height > BOX_SIZE.height).then_some(height)
 }
 
 /// Whether a participant is drawn as a figure with its name under it.

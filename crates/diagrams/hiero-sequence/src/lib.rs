@@ -22,7 +22,7 @@ pub const HELP: &str = concat!(
     "• Drag from the round handle on the selected participant to another's lifeline, or to its own, to send a message. A message straight back answers a call as a return; select a call and use Add return to add its answer.\n",
     "• Drag a message up or down, or select it and use the up and down arrow keys, to change its place in time. Select a message to change its text and whether it's a call, asynchronous, or a return.\n",
     "• Select a participant to choose its colour, blue, green, red, or yellow, which its lifeline takes too.\n",
-    "• Press Enter to edit a participant's name, and Delete to remove it, with its messages, or the selected message.\n",
+    "• Press Enter to edit a participant's name (and an application's or component's description), and Delete to remove it, with its messages, or the selected message.\n",
     "• Drag with the right or middle mouse button, or scroll (with Shift to scroll sideways), to move around. Scroll with Cmd or Ctrl held, pinch on a trackpad, press Cmd or Ctrl and + or -, or use the Zoom slider in the canvas's corner to zoom."
 );
 

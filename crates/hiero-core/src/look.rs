@@ -93,6 +93,8 @@ pub const CONTAINER_NAME: TextStyle = TextStyle::new(20.0, Weight::Bold, 26.0, 1
 /// A name in a container's bottom-left corner, such as a zone's, is smaller.
 pub const CORNER_NAME: TextStyle = TextStyle::new(16.0, Weight::Bold, 21.0, 1);
 pub const DESCRIPTION: TextStyle = TextStyle::new(13.0, Weight::Regular, 17.0, 3);
+/// The space between a box's name and the description under it.
+pub const DESCRIPTION_GAP: f64 = 2.0;
 pub const SECTION_NAME: TextStyle = CONTAINER_NAME;
 /// The gap between a section's name and its line on either side.
 pub const SECTION_GAP: f64 = 8.0;
@@ -733,6 +735,26 @@ pub fn link_mark(at: Point, color: &str, bold: bool) -> Node {
     )
 }
 
+/// The height of a box's name and the description under it, as `draw_element` draws them in
+/// a box `width` wide: the name in bold on up to two lines, and the description in regular on
+/// up to three.
+pub fn box_text_height(
+    label: &str,
+    description: Option<&str>,
+    width: f64,
+    measure: &dyn MeasureText,
+) -> f64 {
+    let text_width = width - PADDING_X * 2.0;
+    let name = wrap_text(label, text_width, NAME, measure).len() as f64 * NAME.line_height;
+    match description {
+        Some(d) if !d.is_empty() => {
+            let lines = wrap_text(d, text_width, DESCRIPTION, measure).len() as f64;
+            name + DESCRIPTION_GAP + lines * DESCRIPTION.line_height
+        }
+        _ => name,
+    }
+}
+
 /// The nodes that draw one element, with lines as thick as `weight`.
 pub fn draw_element(
     element: &LookElement,
@@ -863,7 +885,11 @@ pub fn draw_element(
                 ),
                 _ => Vec::new(),
             };
-            let gap = if description.is_empty() { 0.0 } else { 2.0 };
+            let gap = if description.is_empty() {
+                0.0
+            } else {
+                DESCRIPTION_GAP
+            };
             let content_height = name.len() as f64 * NAME.line_height
                 + gap
                 + description.len() as f64 * DESCRIPTION.line_height;

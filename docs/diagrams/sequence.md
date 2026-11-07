@@ -14,13 +14,23 @@ the conceptual diagram's actors, applications, and components, drawn the same wa
 | Kind | Label | Default size | Drawn as | Props |
 |---|---|---|---|---|
 | `actor` | Actor | 120×80 | A person (or a bot) with its name under it | `color`, `agent: true` for a bot |
-| `application` | Application | 160×80, resizable in width | A box with its name in bold | `color` |
-| `component` | Component | 160×80, resizable in width | A box, or a database or storage figure (120×80) with its name under it | `color`, `componentType: "database" \| "storage"` |
+| `application` | Application | 160×80, resizable in width | A box with its name in bold, and any description under it | `color` |
+| `component` | Component | 160×80, resizable in width | A box as an application is, or a database or storage figure (120×80) with its name under it | `color`, `componentType: "database" \| "storage"` |
 
 Every participant has a **colour**: blue (the default, left out), `green`, `red`, or
 `yellow`, from the shared palette (`hiero_core::palette`). The participant is filled with its
 light shade and bordered with its dark one, and its lifeline and activations take the same
-colour. Participants have a name and no description.
+colour.
+
+Every participant has a **name**: required, at most 100 characters, drawn in bold.
+Applications and components also have an optional **description** (the element's
+`description`, at most 500 characters, left out when blank), drawn under the name in regular
+13 px type, keeping its line breaks and cut with "…" after three lines. A box is 80 px tall,
+or taller when its name (up to two lines) and description need it, with 10 px above and below
+them, rounded up to the next 20 px; it can't be made taller or shorter by hand. A component
+drawn as a database or storage, like an actor, shows only its name, so its description is
+kept but not drawn, and its properties panel offers none. The draw.io file has the name in
+`<b>` and the description in a 13 px `<span>` under it.
 
 A new diagram starts with an actor named *User* and an application named *Application*.
 
@@ -90,6 +100,8 @@ heads for calls, `open` for the others, returns dashed), with loops for messages
 
 - [x] Actors, applications, and components in a row, coloured blue, green, red, or yellow with
       their lifelines
+- [x] Bold names, and optional descriptions on applications and components, their boxes
+      growing to fit
 - [x] Calls, asynchronous messages, and returns, with text, and messages to the sender
 - [x] Reorder participants by dragging, arrow keys, and buttons
 - [x] Reorder messages by dragging, arrow keys, and buttons; agents with `move_connection`

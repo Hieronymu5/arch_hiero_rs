@@ -5,15 +5,15 @@
 use hiero_core::engine::{
     Conn, DiagramType, Dir, El, Engine, Laid, Placement, validate_label, validate_length,
 };
-use hiero_core::file_check::{Field, FieldRule};
+use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::geometry::{Point, Rect, Size};
 use hiero_core::model::{DiagramTypeId, Element, ElementId, KindInfo, NoColors};
 
 use crate::model::{
-    ComponentType, FIGURE, LABEL_MAX, MessageKind, PALETTE, ParticipantColor, Sequence,
-    SequenceKind, SequenceMessage, SequenceProps,
+    ComponentType, DESCRIPTION_MAX, FIGURE, LABEL_MAX, MessageKind, PALETTE, ParticipantColor,
+    Sequence, SequenceKind, SequenceMessage, SequenceProps,
 };
-use crate::timeline::{GAP, LEFT, TOP, ordered, room_for_text, timeline};
+use crate::timeline::{GAP, LEFT, TOP, box_height, ordered, room_for_text, timeline};
 
 type SEngine = Engine<Sequence>;
 
@@ -133,7 +133,8 @@ fn place_in_row(eng: &SEngine, id: &ElementId) -> (usize, usize) {
 }
 
 /// The participants in a row along the top, in the order of their centres, each far enough
-/// from the one before for the messages between them to fit their text.
+/// from the one before for the messages between them to fit their text, and each box as tall
+/// as its name and description need.
 pub fn arrange(eng: &SEngine, elements: Vec<El<Sequence>>) -> Vec<El<Sequence>> {
     let order = left_to_right(&elements);
     let mut out = elements.clone();
@@ -152,6 +153,7 @@ pub fn arrange(eng: &SEngine, elements: Vec<El<Sequence>>) -> Vec<El<Sequence>> 
         };
         out[i].x = center - width / 2.0;
         out[i].y = TOP;
+        out[i].height = box_height(element, width, eng.measure());
         out[i].parent_id = None;
         previous = Some((&element.id, center, width));
     }
@@ -244,6 +246,10 @@ impl DiagramType for Sequence {
     const REPEATED_ARROWS: bool = true;
     const SELF_ARROWS: bool = true;
     const ARROWS_ARRANGE: bool = true;
+    const DESCRIPTION: DescriptionRule = DescriptionRule {
+        max: DESCRIPTION_MAX,
+        max_lines: None,
+    };
 
     fn file_fields(kind: SequenceKind) -> &'static [Field] {
         match kind {
@@ -397,7 +403,12 @@ impl DiagramType for Sequence {
     }
 
     fn validate_element(element: &El<Self>) -> Result<(), String> {
-        validate_label(&element.label)
+        validate_label(&element.label)?;
+        validate_length(
+            "Description",
+            element.description.as_deref().unwrap_or_default(),
+            DESCRIPTION_MAX,
+        )
     }
 
     fn validate_arrow(arrow: &SequenceMessage) -> Result<(), String> {

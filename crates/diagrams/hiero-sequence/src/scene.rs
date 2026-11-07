@@ -11,7 +11,7 @@ use hiero_core::export::drawio::{
 use hiero_core::export::svg::escape_xml;
 use hiero_core::geometry::{Point, Rect, Size, fmt_num, round2};
 use hiero_core::look::{
-    ARROWS, BACKGROUND, DiagramColors, Look, LookElement, Shape, TEXT, draw_element,
+    ARROWS, BACKGROUND, DESCRIPTION, DiagramColors, Look, LookElement, Shape, TEXT, draw_element,
 };
 use hiero_core::model::{ConnectionId, LineWeight};
 use hiero_core::scene::{Anchor, Node, Paint, Scene, Tone};
@@ -20,7 +20,7 @@ use hiero_core::text::MeasureText;
 use crate::model::{MessageKind, Sequence};
 use crate::timeline::{
     LABEL_SIZE, LABEL_WEIGHT, Placed, SELF_HEIGHT, SELF_WIDTH, TOP, Timeline, colors_of,
-    head_bottom, head_shape, is_figure, ordered, timeline,
+    head_bottom, head_shape, is_figure, ordered, shown_description, timeline,
 };
 
 /// A lifeline's dashes and gaps.
@@ -35,6 +35,23 @@ pub const HEAD_HALF_WIDTH: f64 = 5.0;
 /// The outline under a message's text, in the paper's colour, so it reads over lifelines.
 const HALO: f64 = 3.0;
 
+/// A box's draw.io value, as HTML: its name in bold, with any description under it in a
+/// smaller regular font, keeping its line breaks.
+fn box_value(look: &LookElement) -> String {
+    let name = format!("<b>{}</b>", escape_xml(&look.label));
+    match look.description.as_deref() {
+        Some(description) => {
+            let lines: Vec<String> = description.lines().map(escape_xml).collect();
+            format!(
+                r#"{name}<br><span style="font-size: {}px">{}</span>"#,
+                fmt_num(DESCRIPTION.size),
+                lines.join("<br>")
+            )
+        }
+        None => name,
+    }
+}
+
 /// How a participant looks.
 pub fn look_of(element: &Laid<Sequence>) -> LookElement {
     let colors = colors_of(element);
@@ -42,7 +59,7 @@ pub fn look_of(element: &Laid<Sequence>) -> LookElement {
         id: element.el.id.clone(),
         parent_id: None,
         label: element.el.label.clone(),
-        description: None,
+        description: shown_description(&element.el).map(str::to_owned),
         look: Look {
             agent: element.el.props.agent,
             fill: Some(colors.fill.into()),
@@ -369,7 +386,7 @@ pub fn to_drawio(eng: &Engine<Sequence>, title: &str, heading: Option<&Heading>)
         } else {
             debug_assert_eq!(look.look.shape, Shape::Box);
             (
-                escape_xml(&format!("<b>{}</b>", escape_xml(&look.label))),
+                escape_xml(&box_value(&look)),
                 Style::new()
                     .set("rounded", 1)
                     .set("absoluteArcSize", 1)
@@ -504,6 +521,46 @@ mod tests {
             "Confirmation",
         );
         eng
+    }
+
+    /// Gives element `id` the description `text`, as its properties panel does.
+    fn describe(eng: &mut Engine<Sequence>, id: &str, text: &str) {
+        let id = ElementId::from(id);
+        let mut with = eng.element(&id).unwrap().clone();
+        with.description = Some(text.into());
+        eng.apply_changes(&id, with, None);
+    }
+
+    #[test]
+    fn a_box_shows_its_description_under_its_bold_name_and_grows_to_fit_it() {
+        let mut eng = ordering();
+        let height =
+            |eng: &Engine<Sequence>, id: &str| eng.laid(&ElementId::from(id)).unwrap().rect.height;
+        // One line under the name fits the usual 80 px.
+        describe(&mut eng, "id2", "Takes orders");
+        assert_eq!(eng.element(&"id2".into()).unwrap().height, None);
+        let svg = scene_to_svg("Test", &scene(&eng));
+        assert!(svg.contains(r#"font-size="16" font-weight="700">Application</text>"#));
+        assert!(svg.contains(r#"font-size="13" font-weight="400">Takes orders</text>"#));
+        // Three lines need 24 + 2 + 51 px, and 10 above and below: 100 on the grid.
+        describe(&mut eng, "id2", "Takes orders\nSends emails\nKeeps stock");
+        assert_eq!(height(&eng, "id2"), 100.0);
+        assert_eq!(height(&eng, "id1"), 80.0);
+        // The lifelines start under the tallest participant.
+        let t = timeline_of(&eng, eng.layout(), None);
+        assert_eq!(t.messages[0].y(), TOP + 100.0 + FIRST_MESSAGE);
+        let xml = to_drawio(&eng, "Test", None);
+        assert!(xml.contains(
+            "&lt;b&gt;Application&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 13px&quot;&gt;Takes orders&lt;br&gt;Sends emails&lt;br&gt;Keeps stock&lt;/span&gt;"
+        ));
+        // A component drawn as a database shows only its name, at its figure's size.
+        eng.replace(&"id3".into(), |mut e| {
+            e.props.component_type = Some(crate::model::ComponentType::Database);
+            e
+        });
+        describe(&mut eng, "id3", "Orders");
+        assert!(!scene_to_svg("Test", &scene(&eng)).contains(">Orders</text>"));
+        assert_eq!(eng.element(&"id3".into()).unwrap().height, None);
     }
 
     #[test]
