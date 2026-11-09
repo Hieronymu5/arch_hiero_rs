@@ -3,8 +3,8 @@
 
 use std::collections::HashMap;
 
-use crate::geometry::{Point, Rect, round2};
-use crate::model::{ConnectionId, ElementId};
+use crate::geometry::{Point, Rect, fmt_num, round2};
+use crate::model::{ArrowPayload, ConnectionId, ElementId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Side {
@@ -401,6 +401,108 @@ pub fn return_arrow_placement(from: Point, to: Point) -> Option<(Point, Point)> 
     ))
 }
 
+/// A payload icon's size: a wide envelope for an e-mail, a tall page for a file.
+pub const fn payload_icon_size(payload: ArrowPayload) -> Option<(f64, f64)> {
+    match payload {
+        ArrowPayload::None => None,
+        ArrowPayload::Email => Some((16.0, 11.0)),
+        ArrowPayload::File => Some((12.0, 15.0)),
+    }
+}
+
+/// How far a payload icon keeps from the line, and from a return arrow before it on the line.
+const PAYLOAD_ICON_ACROSS: f64 = 5.0;
+const PAYLOAD_ICON_AFTER_RETURN_ARROW: f64 = 4.0;
+
+/// Where an arrow's payload icon goes, such as an e-mail's envelope: beside the start of the
+/// line, on the right-hand side of its direction of travel, opposite its text. A
+/// bi-directional arrow's return arrow is on that side too, so the icon goes past it, further
+/// along the line. The icon stays upright, so on a diagonal line it keeps clear by its corner
+/// nearest the line. There's none for no payload, or on a line with no length.
+pub fn payload_icon_placement(
+    from: Point,
+    to: Point,
+    payload: ArrowPayload,
+    bidirectional: bool,
+) -> Option<Rect> {
+    let (width, height) = payload_icon_size(payload)?;
+    let dx = to.x - from.x;
+    let dy = to.y - from.y;
+    let length = dx.hypot(dy);
+    if length == 0.0 {
+        return None;
+    }
+    let unit = Point::new(dx / length, dy / length);
+    // The right-hand side of the direction of travel, with y pointing down the screen.
+    let right = Point::new(-unit.y, unit.x);
+    // How far the upright icon reaches along the line, and away from it.
+    let along_extent = unit.x.abs() * width + unit.y.abs() * height;
+    let across_extent = right.x.abs() * width + right.y.abs() * height;
+    let start = if bidirectional && return_arrow_placement(from, to).is_some() {
+        RETURN_ARROW_ALONG + RETURN_ARROW_LENGTH + PAYLOAD_ICON_AFTER_RETURN_ARROW
+    } else {
+        LABEL_ALONG
+    };
+    let along = start + along_extent / 2.0;
+    let across = PAYLOAD_ICON_ACROSS + across_extent / 2.0;
+    Some(Rect::new(
+        round2(from.x + unit.x * along + right.x * across - width / 2.0),
+        round2(from.y + unit.y * along + right.y * across - height / 2.0),
+        width,
+        height,
+    ))
+}
+
+/// The SVG path data that draws a payload icon in `rect`: its outline, filled and stroked, and
+/// its details, stroked only: an envelope's flap, or a page's folded corner and lines of text.
+pub fn payload_icon_paths(payload: ArrowPayload, rect: Rect) -> (String, String) {
+    let Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    } = rect;
+    let n = |v: f64| fmt_num(round2(v));
+    if payload == ArrowPayload::Email {
+        return (
+            format!("M{} {}H{}V{}H{}Z", n(x), n(y), n(x + w), n(y + h), n(x)),
+            format!(
+                "M{} {}L{} {}L{} {}",
+                n(x),
+                n(y),
+                n(x + w / 2.0),
+                n(y + h * 0.6),
+                n(x + w),
+                n(y)
+            ),
+        );
+    }
+    let fold = (w / 3.0).round();
+    let lines: String = [0.5, 0.7, 0.85]
+        .iter()
+        .map(|at| format!("M{} {}H{}", n(x + 2.5), n(y + h * at), n(x + w - 2.5)))
+        .collect();
+    (
+        format!(
+            "M{} {}H{}L{} {}V{}H{}Z",
+            n(x),
+            n(y),
+            n(x + w - fold),
+            n(x + w),
+            n(y + fold),
+            n(y + h),
+            n(x)
+        ),
+        format!(
+            "M{} {}V{}H{}{lines}",
+            n(x + w - fold),
+            n(y),
+            n(y + fold),
+            n(x + w)
+        ),
+    )
+}
+
 /// A connector box's height, text size, padding beside its text, and narrowest width.
 pub const CONNECTOR_BOX_HEIGHT: f64 = 20.0;
 pub const CONNECTOR_BOX_FONT_SIZE: f64 = 12.0;
@@ -641,5 +743,56 @@ mod tests {
         assert!(return_arrow_placement(Point::new(0.0, 0.0), Point::new(10.0, 0.0)).is_none());
         let (a, b) = return_arrow_placement(Point::new(0.0, 0.0), Point::new(100.0, 0.0)).unwrap();
         assert_eq!((a, b), (Point::new(15.0, 7.0), Point::new(3.0, 7.0)));
+    }
+
+    #[test]
+    fn payload_icons_go_beside_the_start_opposite_the_text() {
+        let start = Point::new(100.0, 100.0);
+        let at = |to: (f64, f64), payload, both| {
+            payload_icon_placement(start, Point::new(to.0, to.1), payload, both)
+        };
+        // An envelope 3px along a line going right, and 5px below it.
+        assert_eq!(
+            at((300.0, 100.0), ArrowPayload::Email, false),
+            Some(Rect::new(103.0, 105.0, 16.0, 11.0))
+        );
+        // Above a line going left.
+        assert_eq!(
+            at((-100.0, 100.0), ArrowPayload::Email, false),
+            Some(Rect::new(81.0, 84.0, 16.0, 11.0))
+        );
+        // A page left of a line going down.
+        assert_eq!(
+            at((100.0, 300.0), ArrowPayload::File, false),
+            Some(Rect::new(83.0, 103.0, 12.0, 15.0))
+        );
+        // Past a bi-directional arrow's return arrow, which runs from 3px to 15px along.
+        assert_eq!(
+            at((300.0, 100.0), ArrowPayload::Email, true).unwrap().x,
+            119.0
+        );
+        // At the start on a line too short for a return arrow.
+        assert_eq!(
+            at((120.0, 100.0), ArrowPayload::Email, true).unwrap().x,
+            103.0
+        );
+        // None on a line with no length, or for no payload.
+        assert_eq!(at((100.0, 100.0), ArrowPayload::File, false), None);
+        assert_eq!(at((300.0, 100.0), ArrowPayload::None, false), None);
+    }
+
+    #[test]
+    fn payload_icons_are_an_envelope_or_a_page() {
+        assert_eq!(
+            payload_icon_paths(ArrowPayload::Email, Rect::new(0.0, 0.0, 16.0, 11.0)),
+            ("M0 0H16V11H0Z".to_owned(), "M0 0L8 6.6L16 0".to_owned())
+        );
+        assert_eq!(
+            payload_icon_paths(ArrowPayload::File, Rect::new(0.0, 0.0, 12.0, 15.0)),
+            (
+                "M0 0H8L12 4V15H0Z".to_owned(),
+                "M8 0V4H12M2.5 7.5H9.5M2.5 10.5H9.5M2.5 12.75H9.5".to_owned()
+            )
+        );
     }
 }

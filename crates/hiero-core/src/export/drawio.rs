@@ -15,10 +15,10 @@ use crate::legend::{
 };
 pub use crate::legend::{Legend, LegendLine, Stamp};
 use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
-use crate::model::{ConnectionId, ElementId, LineWeight};
+use crate::model::{ArrowPayload, ConnectionId, ElementId, LineWeight};
 use crate::routing::{
     Align, CONNECTOR_BOX_FONT_SIZE, RETURN_ARROW_LENGTH, Vertical, label_placement,
-    return_arrow_placement,
+    payload_icon_placement, return_arrow_placement,
 };
 
 #[allow(clippy::wildcard_imports, reason = "the stencil table")]
@@ -1125,6 +1125,32 @@ pub fn diagram_to_drawio(
                 fmt_num(round2(center.y - RETURN_ARROW_HEIGHT / 2.0 - a.from.y))
             ));
         }
+        // What the arrow carries, attached to the connector so it moves with it: draw.io's
+        // message shape, an envelope, for an e-mail, and its note shape, a page with a folded
+        // corner, for a file. It's anchored at the connector's source end (x="-1"), offset to
+        // where the editor draws it.
+        if let Some(r) = payload_icon_placement(a.from, a.to, a.payload, a.bidirectional) {
+            let shape = if a.payload == ArrowPayload::Email {
+                Style::new().set("shape", "message")
+            } else {
+                Style::new().set("shape", "note").num("size", 4.0)
+            };
+            let icon_style = shape
+                .set("strokeColor", &colors.lines)
+                .set("fillColor", BACKGROUND)
+                .num("strokeWidth", 1.25)
+                .num("resizable", 0.0);
+            cells.push(format!(
+                "        <mxCell id=\"{}-payload\" value=\"\" style=\"{}\" vertex=\"1\" connectable=\"0\" parent=\"{}\">\n          <mxGeometry x=\"-1\" width=\"{}\" height=\"{}\" relative=\"1\" as=\"geometry\"><mxPoint x=\"{}\" y=\"{}\" as=\"offset\" /></mxGeometry>\n        </mxCell>",
+                escape_xml(arrow.id.as_str()),
+                icon_style.build(),
+                escape_xml(arrow.id.as_str()),
+                fmt_num(r.width),
+                fmt_num(r.height),
+                fmt_num(round2(r.x - a.from.x)),
+                fmt_num(round2(r.y - a.from.y))
+            ));
+        }
         let attached = |id: String, label: &str, style: &str, r: &Rect| {
             format!(
                 "        <mxCell id=\"{id}\" value=\"{}\" style=\"{style}\" vertex=\"1\" parent=\"{}\">\n          <mxGeometry x=\"0\" width=\"{}\" height=\"{}\" relative=\"1\" as=\"geometry\"><mxPoint x=\"{}\" y=\"{}\" as=\"offset\" /></mxGeometry>\n        </mxCell>",
@@ -1329,6 +1355,52 @@ mod tests {
                 || xml.contains(r#"id="d" value="d &amp; co""#)
         );
         assert!(xml.contains(r#"x="40" y="108" width="480" height="180""#));
+    }
+
+    #[test]
+    fn attaches_a_payload_icon_to_an_arrow_an_envelope_or_a_page() {
+        let elements = vec![
+            element("a", None, Shape::Box, Rect::new(40.0, 40.0, 200.0, 100.0)),
+            element("b", None, Shape::Box, Rect::new(400.0, 40.0, 200.0, 100.0)),
+        ];
+        let xml_with = |payload| {
+            let arrows = vec![DrawioArrow {
+                id: "c1".into(),
+                source_id: "a".into(),
+                target_id: "b".into(),
+                look: ArrowLook {
+                    from: Point::new(240.0, 90.0),
+                    to: Point::new(400.0, 90.0),
+                    payload,
+                    ..ArrowLook::default()
+                },
+            }];
+            diagram_to_drawio(
+                "T",
+                &elements,
+                &arrows,
+                None,
+                None,
+                &DiagramColors::default(),
+                LineWeight::Thin,
+            )
+        };
+        let xml = xml_with(ArrowPayload::Email);
+        let cell = xml
+            .lines()
+            .skip_while(|l| !l.contains(r#"id="c1-payload""#))
+            .take(2)
+            .collect::<String>();
+        // A child of the connector, so it moves with it in draw.io.
+        assert!(cell.contains(r#"connectable="0" parent="c1""#), "{cell}");
+        assert!(cell.contains("shape=message"), "{cell}");
+        // Its top-left corner: 3px along and 5px below the start of a line going right.
+        assert!(
+            cell.contains(r#"<mxPoint x="3" y="5" as="offset" />"#),
+            "{cell}"
+        );
+        assert!(xml_with(ArrowPayload::File).contains("shape=note;size=4"));
+        assert!(!xml_with(ArrowPayload::None).contains("-payload"));
     }
 
     #[test]

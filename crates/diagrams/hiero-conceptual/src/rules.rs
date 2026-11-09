@@ -51,7 +51,7 @@ pub fn is_cloud(element: &El<Conceptual>) -> bool {
     element.kind.can_be_cloud_hosted() && element.props.cloud_hosted
 }
 
-/// Such as " via API with transformation Map fields labelled Orders".
+/// Such as " via API with transformation Map fields carrying an e-mail labelled Orders".
 fn saying(arrow: &ConceptualArrow) -> String {
     let mut out = String::new();
     if let Some(c) = &arrow.connector {
@@ -59,6 +59,9 @@ fn saying(arrow: &ConceptualArrow) -> String {
     }
     if let Some(t) = &arrow.transformation {
         out.push_str(&format!(" with transformation {t}"));
+    }
+    if !arrow.payload.is_none() {
+        out.push_str(&format!(" carrying {}", arrow.payload.spoken()));
     }
     if let Some(l) = &arrow.label {
         out.push_str(&format!(" labelled {l}"));
@@ -88,6 +91,10 @@ pub fn arrow_title(arrow: &ConceptualArrow, outgoing: bool, other: &str) -> Stri
     }
     if arrow.bidirectional {
         traits.push("bi-directional");
+    }
+    let carries = format!("carries {}", arrow.payload.spoken());
+    if !arrow.payload.is_none() {
+        traits.push(&carries);
     }
     let mut out = format!("{} {other}", if outgoing { "To" } else { "From" });
     if let Some(c) = &arrow.connector {
@@ -123,6 +130,13 @@ impl DiagramType for Conceptual {
         Field {
             key: "bidirectional",
             rule: FieldRule::True,
+        },
+        Field {
+            key: "payload",
+            rule: FieldRule::OneOf {
+                values: &["email", "file"],
+                default: Some("none"),
+            },
         },
         Field {
             key: "label",
@@ -597,13 +611,18 @@ mod tests {
         e.add_connection(&id("id1"), &id("id2"));
         let mut conn = e.connections()[0].props.clone();
         conn.connector = Some("API".into());
-        conn.mode = Some(crate::model::ArrowMode::Manual);
+        conn.mode = Some(ArrowMode::Manual);
+        conn.payload = crate::model::ArrowPayload::Email;
         let cid = e.connections()[0].id.clone();
-        e.set_connection_props(&cid, conn);
+        e.set_connection_props(&cid, conn.clone());
         let laid = e.laid(&id("id1")).unwrap().clone();
         assert!(
             e.accessible_label(&laid)
-                .contains("manual arrow to Application via API")
+                .contains("manual arrow to Application via API carrying an e-mail")
+        );
+        assert_eq!(
+            arrow_title(&conn, true, "CRM"),
+            "To CRM via API (manual, carries an e-mail)"
         );
     }
 

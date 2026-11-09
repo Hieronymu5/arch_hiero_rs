@@ -3,6 +3,7 @@
 use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::geometry::Size;
 use hiero_core::look::DiagramColors;
+pub use hiero_core::model::ArrowPayload;
 use hiero_core::model::{ContainerLook, KindInfo, Resizable};
 use serde::{Deserialize, Serialize};
 
@@ -84,6 +85,10 @@ pub struct ConceptualArrow {
     /// Whether a value also comes back, shown as a small return arrow.
     #[serde(default, skip_serializing_if = "is_false")]
     pub bidirectional: bool,
+    /// What the arrow carries, shown as an icon beside its start, on the other side of the line
+    /// from its text. Unset means none.
+    #[serde(default, skip_serializing_if = "ArrowPayload::is_none")]
+    pub payload: ArrowPayload,
     /// How the target is reached, such as API: shown in a box where the arrow meets it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connector: Option<String>,

@@ -199,6 +199,43 @@ impl DiagramTypeId {
     }
 }
 
+/// What an arrow carries, shown as an icon beside its start: an e-mail (an envelope) or a file
+/// (a page). `None`, the default, shows nothing and is left out when stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArrowPayload {
+    #[default]
+    None,
+    Email,
+    File,
+}
+
+impl ArrowPayload {
+    /// Every payload, in the order offered.
+    pub const ALL: [Self; 3] = [Self::None, Self::Email, Self::File];
+
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Email => "E-mail",
+            Self::File => "File",
+        }
+    }
+
+    /// Such as "an e-mail", as read out.
+    pub const fn spoken(self) -> &'static str {
+        match self {
+            Self::None => "nothing shown",
+            Self::Email => "an e-mail",
+            Self::File => "a file",
+        }
+    }
+}
+
 /// How thick elements' lines are drawn: their borders, outlines, figures, and the boxes and
 /// tags on arrows, all alike. Arrows' lines keep their own width.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

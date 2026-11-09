@@ -740,6 +740,43 @@ mod tests {
     }
 
     #[test]
+    fn agents_set_and_clear_what_an_arrow_carries() {
+        let diagram = new_diagram(DiagramTypeId::Conceptual, "C", None);
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "crm", "kind": "application", "label": "CRM"},
+            {"op": "add_element", "ref": "erp", "kind": "application", "label": "ERP"},
+            {"op": "add_element", "ref": "bi", "kind": "application", "label": "BI"},
+            {"op": "add_connection", "ref": "mail", "source_id": "crm", "target_id": "erp",
+             "props": {"payload": "email"}},
+            {"op": "add_connection", "ref": "plain", "source_id": "crm", "target_id": "bi",
+             "props": {"payload": "file"}},
+            {"op": "update_connection", "id": "plain", "props": {"payload": "none"}}
+        ]));
+        let outcome = ops(DiagramTypeId::Conceptual)
+            .apply(&diagram, &edits)
+            .unwrap();
+        let payloads: Vec<_> = outcome
+            .content
+            .connections
+            .iter()
+            .map(|c| c.props.get("payload").and_then(Value::as_str))
+            .collect();
+        // None is the default, so it's left out.
+        assert_eq!(payloads, [Some("email"), None]);
+        let bad = parse(json!([
+            {"op": "add_element", "ref": "crm", "kind": "application", "label": "CRM"},
+            {"op": "add_element", "ref": "erp", "kind": "application", "label": "ERP"},
+            {"op": "add_connection", "source_id": "crm", "target_id": "erp",
+             "props": {"payload": "fax"}}
+        ]));
+        assert!(
+            ops(DiagramTypeId::Conceptual)
+                .apply(&diagram, &bad)
+                .is_err()
+        );
+    }
+
+    #[test]
     fn a_persons_arrows_start_manual() {
         let diagram = new_diagram(DiagramTypeId::Conceptual, "C", None);
         let edits = parse(json!([

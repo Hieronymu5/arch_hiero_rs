@@ -34,8 +34,8 @@ fn conceptual() -> Value {
         ],
         "connections": [
             {"id": "k1", "sourceId": "a1", "targetId": "p1", "mode": "manual", "label": "uses",
-             "bidirectional": true, "connector": "Web", "transformation": "Map fields",
-             "manualOffset": 12},
+             "bidirectional": true, "payload": "email", "connector": "Web",
+             "transformation": "Map fields", "manualOffset": 12},
             {"id": "k2", "sourceId": "j1", "targetId": "e1"}
         ],
         "createdAt": "2026-10-01T09:00:00.000Z",
@@ -606,6 +606,14 @@ fn arrows() {
         refused(c(), set(k1, "bidirectional", json!(false))),
         "The arrow from “Bot” to “CRM”: “bidirectional” must be left out when it’s empty or the \
          default."
+    );
+    assert_eq!(
+        refused(c(), set(k1, "payload", json!("none"))),
+        "The arrow from “Bot” to “CRM”: “payload” must be left out when it’s empty or the default."
+    );
+    assert_eq!(
+        refused(c(), set(k1, "payload", json!("fax"))),
+        "The arrow from “Bot” to “CRM”: “payload” must be one of: email, file."
     );
     assert_eq!(
         refused(c(), set(k1, "label", json!("x".repeat(101)))),

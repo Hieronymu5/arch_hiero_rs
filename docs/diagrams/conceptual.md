@@ -72,6 +72,7 @@ Arrow properties:
 | Text (`label`) | At most 100 characters | Text beside the start of the arrow |
 | Type (`mode`) | Automated (solid) or Manual (dashed). Unset means automated. An arrow from a person (an actor that isn't a bot) starts out manual, as people act by hand; any other starts out automated. | Line style |
 | Bi-directional | Checkbox | A small return arrow next to the start |
+| Payload (`payload`) | None, E-mail (`email`), or File (`file`). Unset means none. | An icon beside the start, on the other side of the line from the text: an envelope (16×11) or a page with a folded corner (12×15), 3 px along the line and 5 px from it. It goes 4 px past a bi-directional arrow's return arrow, and stays upright on a diagonal line, clear of it by its nearest corner. Clicking it selects the arrow. draw.io exports attach it to the arrow as a message or note shape. |
 | Connector | At most 20 characters, e.g. API, REST, Web | A small box where the arrow meets the target |
 | Transformation | At most 40 characters, e.g. "Map fields" | A box on the middle of the line |
 
@@ -167,7 +168,7 @@ shared editor engine (`hiero-editor`).
 { "cloudHosted": true }          // application
 { "componentType": "database" }  // component: "database" | "storage"
 // connection props
-{ "label": "…", "mode": "manual", "bidirectional": true,
+{ "label": "…", "mode": "manual", "bidirectional": true, "payload": "email",
   "connector": "API", "transformation": "Map fields", "manualOffset": 40 }
 ```
 
@@ -181,7 +182,7 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] Bot, cloud-hosted, and component-type rendering
 - [x] Actors as a group of people or bots, in the editor, SVG, and draw.io (a stencil of the three)
 - [x] Arrow draw, route, select, straighten, and place automatically. Arrow keys nudge the selected arrow.
-- [x] Arrow text, mode, bidirectional, connector, and transformation
+- [x] Arrow text, mode, bidirectional, payload (an e-mail or a file), connector, and transformation
 - [x] Per-diagram colours with "Use the default colors"
 - [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [x] View mode, the default when opening from the list: no palette, properties, or grid; drag with any button, scroll, zoom, and export (beyond the prototype)

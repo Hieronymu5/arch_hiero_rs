@@ -270,6 +270,7 @@ pub fn drawn_arrows(
                     dashed: props.is_manual(),
                     label: props.label.clone(),
                     bidirectional: props.bidirectional,
+                    payload: props.payload,
                     two_heads: false,
                     connector: connector.map(|(text, p)| (text, p.rect)),
                     transformation,
@@ -391,8 +392,17 @@ mod tests {
         let cid = e.add_connection(&"id2".into(), &"id3".into()).unwrap();
         let mut props = e.connection(&cid).unwrap().props.clone();
         props.connector = Some("API".into());
+        props.payload = crate::model::ArrowPayload::File;
         e.set_connection_props(&cid, props);
         let svg = scene_to_svg("Test", &scene(&e));
+        // What the arrow carries, a page, beside its start.
+        let arrow = &drawn_arrows(&e, e.layout(), None)[0].look;
+        let page =
+            hiero_core::routing::payload_icon_placement(arrow.from, arrow.to, arrow.payload, false)
+                .unwrap();
+        let (outline, _) =
+            hiero_core::routing::payload_icon_paths(crate::model::ArrowPayload::File, page);
+        assert!(svg.contains(&format!(r#"d="{outline}""#)));
         // The domain in the domain colour, bordered in a shade of it, with its name on top.
         let border = hiero_core::color::border_for("#f5f5f5");
         assert!(svg.contains(&format!(

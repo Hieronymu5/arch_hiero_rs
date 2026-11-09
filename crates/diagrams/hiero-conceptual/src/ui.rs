@@ -3,7 +3,8 @@
 use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Dir, Engine, Laid, validate_length};
 use hiero_core::geometry::{Point, Rect};
-use hiero_core::model::ConnectionId;
+use hiero_core::model::{ArrowPayload, ConnectionId};
+use hiero_core::routing::payload_icon_placement;
 use hiero_core::scene::Scene;
 use hiero_editor::theme::page_button;
 use hiero_editor::widgets::{self, text_field};
@@ -39,12 +40,19 @@ impl DiagramView for Conceptual {
                 id: a.id,
                 from: a.look.from,
                 to: a.look.to,
+                // The payload icon too, so a click on it selects the arrow.
                 boxes: a
                     .look
                     .connector
                     .iter()
                     .chain(a.look.transformation.iter())
                     .map(|(_, r)| *r)
+                    .chain(payload_icon_placement(
+                        a.look.from,
+                        a.look.to,
+                        a.look.payload,
+                        a.look.bidirectional,
+                    ))
                     .collect(),
             })
             .collect()
@@ -153,6 +161,17 @@ impl DiagramView for Conceptual {
         if widgets::checkbox(ui, &mut arrow.bidirectional, "Bi-directional").changed() {
             field = Some("bidirectional");
         }
+        widgets::label(ui, "Payload", false);
+        ui.horizontal(|ui| {
+            for payload in ArrowPayload::ALL {
+                if ui
+                    .radio_value(&mut arrow.payload, payload, payload.label())
+                    .changed()
+                {
+                    field = Some("payload");
+                }
+            }
+        });
         if let Some(v) = text(
             ui,
             "connector",
@@ -178,6 +197,7 @@ impl DiagramView for Conceptual {
             if Conceptual::validate_arrow(&arrow).is_ok() && arrow != current {
                 let mode_changed = arrow.is_manual() != current.is_manual();
                 let direction_changed = arrow.bidirectional != current.bidirectional;
+                let payload_changed = arrow.payload != current.payload;
                 let (source, target) = (connection.source_id.clone(), connection.target_id.clone());
                 let target_id = id.clone();
                 cx.apply(Some(format!("{id}:{field}")), move |eng| {
@@ -197,6 +217,12 @@ impl DiagramView for Conceptual {
                             "one way"
                         };
                         eng.announcement = format!("{name} set to {way}.");
+                    } else if payload_changed {
+                        eng.announcement = if arrow.payload.is_none() {
+                            format!("{name} carries nothing shown.")
+                        } else {
+                            format!("{name} set to carry {}.", arrow.payload.spoken())
+                        };
                     }
                 });
             }

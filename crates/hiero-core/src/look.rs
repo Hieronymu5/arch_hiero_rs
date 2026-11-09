@@ -12,10 +12,10 @@ use crate::figures::{
 };
 use crate::flowchart::{self, FlowShape};
 use crate::geometry::{Point, Rect, fmt_num, round2};
-use crate::model::{ColorScheme, ElementId, LineWeight};
+use crate::model::{ArrowPayload, ColorScheme, ElementId, LineWeight};
 use crate::routing::{
     Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT, connector_text_position, label_placement,
-    label_text_position, return_arrow_placement,
+    label_text_position, payload_icon_paths, payload_icon_placement, return_arrow_placement,
 };
 use crate::scene::{Anchor, Marker, Node, Paint, Scene, Tone};
 use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
@@ -225,6 +225,8 @@ pub struct ArrowLook {
     pub label: Option<String>,
     /// A small return arrow drawn beside the line, as a conceptual arrow that goes both ways.
     pub bidirectional: bool,
+    /// What the arrow carries, drawn as an icon beside its start, opposite its text.
+    pub payload: ArrowPayload,
     /// A full head at each end, as two arrows in opposite directions drawn on one line.
     pub two_heads: bool,
     /// A box between the arrow and its target, such as "API". The arrow ends at it.
@@ -1206,6 +1208,21 @@ pub fn draw_arrows(
             });
         }
     }
+    // Icons of what arrows carry, such as an e-mail's envelope, opposite their text.
+    for a in arrows {
+        if let Some(rect) = payload_icon_placement(a.from, a.to, a.payload, a.bidirectional) {
+            let (outline, details) = payload_icon_paths(a.payload, rect);
+            nodes.push(Node::Path {
+                d: outline,
+                paint: Paint::fill_stroke(BACKGROUND, colors.lines.clone(), 1.25),
+            });
+            // Stroked only: SVG fills a path with no fill in black.
+            nodes.push(Node::Path {
+                d: details,
+                paint: Paint::fill_stroke("none", colors.lines.clone(), 1.25),
+            });
+        }
+    }
     // Over the arrows, so they don't move to make room.
     for e in elements {
         if let (Some(badge), Shape::Physical(_)) = (&e.look.figure_badge, e.look.shape) {
@@ -1389,6 +1406,32 @@ mod tests {
         // Each line of the description on a line of its own, though both would fit on one.
         assert!(svg.contains(r#"font-size="13" font-weight="400">Leads</text>"#));
         assert!(svg.contains(r#"font-size="13" font-weight="400">Accounts</text>"#));
+    }
+
+    #[test]
+    fn a_payload_icon_goes_beside_an_arrows_start_opposite_its_text() {
+        let arrows = [ArrowLook {
+            from: Point::new(0.0, 0.0),
+            to: Point::new(200.0, 0.0),
+            label: Some("Invoice".into()),
+            payload: ArrowPayload::Email,
+            ..ArrowLook::default()
+        }];
+        let scene = draw_diagram(
+            &[],
+            &arrows,
+            &EstimateText,
+            &DiagramColors::default(),
+            LineWeight::Thin,
+        );
+        let svg = scene_to_svg("t", &scene);
+        // Below a line going right, as the text is above it, filled white.
+        let at = svg.find(r#"d="M3 5H19V16H3Z""#).expect("an envelope");
+        let tag = &svg[svg[..at].rfind('<').unwrap()..at + svg[at..].find('>').unwrap()];
+        assert!(tag.contains(r##"fill="#ffffff""##), "{tag}");
+        let at = svg.find(r#"d="M3 5L11 11.6L19 5""#).expect("a flap");
+        let tag = &svg[svg[..at].rfind('<').unwrap()..at + svg[at..].find('>').unwrap()];
+        assert!(tag.contains(r#"fill="none""#), "{tag}");
     }
 
     #[test]
