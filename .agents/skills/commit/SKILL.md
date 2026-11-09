@@ -2,6 +2,7 @@
 name: commit
 description: Commit the current changes to git with a Conventional Commits message (type(scope): subject), after running this repo's fmt, clippy, and test checks. Use when asked to commit, make a commit, or save work to git.
 compatibility: Needs git and the Rust toolchain pinned in rust-toolchain.toml, with shell access.
+model: haiku
 ---
 
 # Commit with Conventional Commits
