@@ -60,7 +60,8 @@ Text is the usual dark text.
 ## Arrows
 
 - **Drawing:** drag from the round handle on the selected element to another, or use *Add
-  arrow to*. Arrows join any two elements, except a group and anything inside it.
+  arrow to*. Arrows join any two elements, except a group and anything inside it. A dragged
+  arrow is selected when it's drawn, or the one already there if it was.
 - **Routing:** the shared side-to-side routing: straight where the two elements' facing sides
   overlap, and direct otherwise. Each end stops 6 px short of its element.
 - **Look:** a wide block arrow, filled `#d9d9d9` with a `#8c8c8c` outline: a 16 px shaft and a

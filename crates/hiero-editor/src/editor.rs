@@ -1733,9 +1733,20 @@ impl<T: DiagramView> Editor<T> {
             Drag::Resize { id, rect, .. } => self.act(None, |eng| eng.commit_resize(&id, rect)),
             Drag::Connect { source, .. } => {
                 if let Some(target) = self.eng.connect_target_at(&source, world) {
-                    self.act(None, |eng| {
-                        eng.add_connection(&source, &target);
+                    let mut added = None;
+                    self.act(None, |eng| added = eng.add_connection(&source, &target));
+                    // Select the new arrow, or the one already there, so its properties can be
+                    // edited without a second click.
+                    let drawn = added.or_else(|| {
+                        self.eng
+                            .connections()
+                            .iter()
+                            .find(|c| c.source_id == source && c.target_id == target)
+                            .map(|c| c.id.clone())
                     });
+                    if let Some(id) = drawn {
+                        self.eng.select_connection(&id);
+                    }
                 }
             }
             Drag::Slide {

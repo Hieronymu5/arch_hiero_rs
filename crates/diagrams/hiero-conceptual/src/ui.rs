@@ -376,6 +376,35 @@ mod tests {
     }
 
     #[test]
+    fn drawing_an_arrow_selects_it_or_the_one_already_there() {
+        use hiero_core::engine::DiagramType;
+        let mut w = Window::new();
+        let rep = w.editor.eng.laid(&"u1".into()).unwrap().clone();
+        let click = w.screen(rep.rect.center(), Vec2::ZERO);
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.selection(), ["u1"]);
+        // The round handle sits just right of the arrow's area, as the editor puts it.
+        let r = Conceptual::arrow_rect(&w.editor.eng, &rep);
+        let handle = w.screen(Point::new(r.right(), r.y + r.height / 2.0), Vec2::ZERO)
+            + Vec2::new(13.0, 0.0);
+        let crm = w.editor.eng.laid(&"a1".into()).unwrap().rect;
+        let target = w.screen(crm.center(), Vec2::ZERO);
+        w.drag(handle, target, PointerButton::Primary, Modifiers::NONE);
+        let arrows = w.editor.eng.connections().to_vec();
+        assert_eq!(arrows.len(), 1);
+        assert_eq!(w.editor.eng.selected_connection, Some(arrows[0].id.clone()));
+        assert!(w.selection().is_empty());
+        // A person's arrow starts out manual.
+        assert!(arrows[0].props.is_manual());
+        // Drawn again, it selects the arrow already there rather than adding another.
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.editor.eng.selected_connection, None);
+        w.drag(handle, target, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.editor.eng.connections().len(), 1);
+        assert_eq!(w.editor.eng.selected_connection, Some(arrows[0].id.clone()));
+    }
+
+    #[test]
     fn the_properties_panel_moves_the_canvas_off_what_it_would_cover_and_back() {
         let mut w = Window::with(serde_json::json!([
             { "id": "a1", "kind": "application", "label": "CRM", "x": 40, "y": 40 },

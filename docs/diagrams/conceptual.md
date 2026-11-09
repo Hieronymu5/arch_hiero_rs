@@ -45,7 +45,9 @@ padding around their children.
 ## Arrows
 
 - **Drawing:** drag from the round handle on the selected element to a valid target (see *Arrows
-  to* in the table), or use *Add arrow to* in the properties panel. An element can point to a domain, such as a system that acts on a whole domain, but not
+  to* in the table), or use *Add arrow to* in the properties panel. A dragged arrow is selected
+  when it's drawn, or the one already there if it was, so its properties can be edited straight
+  away. An element can point to a domain, such as a system that acts on a whole domain, but not
   to the domain it's in, as the arrow would run inside it.
 - **Routing (shared code):** an arrow runs between the sides of its two elements that face each
   other. Where those sides overlap, it runs straight in the middle of the overlap (less a 10 px
