@@ -740,6 +740,34 @@ mod tests {
     }
 
     #[test]
+    fn a_persons_arrows_start_manual() {
+        let diagram = new_diagram(DiagramTypeId::Conceptual, "C", None);
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "clerk", "kind": "actor", "label": "Clerk"},
+            {"op": "add_element", "ref": "bot", "kind": "actor", "label": "Bot",
+             "props": {"agent": true}},
+            {"op": "add_element", "ref": "crm", "kind": "application", "label": "CRM"},
+            {"op": "add_connection", "source_id": "clerk", "target_id": "crm"},
+            {"op": "add_connection", "source_id": "bot", "target_id": "crm"},
+            {"op": "add_connection", "source_id": "crm", "target_id": "clerk"},
+            {"op": "add_connection", "source_id": "clerk", "target_id": "bot",
+             "props": {"mode": "automated"}}
+        ]));
+        let outcome = ops(DiagramTypeId::Conceptual)
+            .apply(&diagram, &edits)
+            .unwrap();
+        let modes: Vec<_> = outcome
+            .content
+            .connections
+            .iter()
+            .map(|c| c.props.get("mode").and_then(Value::as_str))
+            .collect();
+        assert_eq!(modes, [Some("manual"), None, None, None]);
+        assert!(outcome.messages[3].contains("added, as manual."));
+        assert!(!outcome.messages[6].contains("as manual"));
+    }
+
+    #[test]
     fn deployed_components_land_in_layers() {
         let diagram = new_diagram(DiagramTypeId::DeployedComponent, "D", None);
         let edits = parse(json!([

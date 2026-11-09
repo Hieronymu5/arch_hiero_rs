@@ -68,7 +68,7 @@ Arrow properties:
 | Field | Rule | Drawn as |
 |---|---|---|
 | Text (`label`) | At most 100 characters | Text beside the start of the arrow |
-| Type (`mode`) | Automated (solid) or Manual (dashed). Unset means automated. | Line style |
+| Type (`mode`) | Automated (solid) or Manual (dashed). Unset means automated. An arrow from a person (an actor that isn't a bot) starts out manual, as people act by hand; any other starts out automated. | Line style |
 | Bi-directional | Checkbox | A small return arrow next to the start |
 | Connector | At most 20 characters, e.g. API, REST, Web | A small box where the arrow meets the target |
 | Transformation | At most 40 characters, e.g. "Map fields" | A box on the middle of the line |

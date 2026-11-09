@@ -2,7 +2,7 @@
 //! readers hear about arrows.
 
 use hiero_core::engine::{
-    DiagramType, El, Engine, Laid, descendant_ids, validate_label, validate_length,
+    Conn, DiagramType, El, Engine, Laid, descendant_ids, validate_label, validate_length,
 };
 use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
@@ -11,8 +11,8 @@ use hiero_core::look::DiagramColors;
 use hiero_core::model::{DiagramTypeId, ElementId, KindInfo};
 
 use crate::model::{
-    ARROW_LABEL_MAX, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow, ConceptualKind,
-    ConceptualProps, DESCRIPTION_MAX, PALETTE, TRANSFORMATION_MAX,
+    ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
+    ConceptualKind, ConceptualProps, DESCRIPTION_MAX, PALETTE, TRANSFORMATION_MAX,
 };
 
 /// A figure drawn above an element's name instead of a box.
@@ -273,6 +273,27 @@ impl DiagramType for Conceptual {
             && !holds(target, source)
     }
 
+    /// People act by hand, so a person's arrows start out manual (dashed). A bot's, an actor
+    /// marked as an agent, start out automated, as other elements' do.
+    fn new_arrow(eng: &Engine<Self>, source: &ElementId, _target: &ElementId) -> ConceptualArrow {
+        ConceptualArrow {
+            mode: eng
+                .element(source)
+                .is_some_and(|e| figure_of(e) == Some(Figure::Person))
+                .then_some(ArrowMode::Manual),
+            ..ConceptualArrow::default()
+        }
+    }
+
+    fn arrow_added(eng: &Engine<Self>, connection: &Conn<Self>) -> String {
+        let name = eng.arrow_name(&connection.source_id, &connection.target_id);
+        if connection.props.is_manual() {
+            format!("{name} added, as manual.")
+        } else {
+            format!("{name} added.")
+        }
+    }
+
     /// Announces a change of bot, cloud, or component type. A component that becomes a
     /// database or storage is drawn as a figure, which can't hold elements, so what it held is
     /// put on the canvas.
@@ -386,7 +407,7 @@ impl DiagramType for Conceptual {
 pub fn normalized_arrow(arrow: ConceptualArrow) -> ConceptualArrow {
     let clean = |s: Option<String>| s.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty());
     ConceptualArrow {
-        mode: arrow.mode.filter(|m| *m == crate::model::ArrowMode::Manual),
+        mode: arrow.mode.filter(|m| *m == ArrowMode::Manual),
         label: clean(arrow.label),
         connector: clean(arrow.connector),
         transformation: clean(arrow.transformation),
@@ -476,6 +497,25 @@ mod tests {
         e.select(&id("id2"));
         let targets: Vec<_> = e.arrow_target_options().into_iter().map(|o| o.0).collect();
         assert!(targets.contains(&id("id4")) && !targets.contains(&id("id1")));
+    }
+
+    #[test]
+    fn a_persons_arrows_start_manual_and_a_bots_automated() {
+        let mut e = engine();
+        e.add_at_free_position(ConceptualKind::Actor);
+        e.add_at_free_position(ConceptualKind::Application);
+        e.add_at_free_position(ConceptualKind::Actor);
+        let mut bot = e.element(&id("id3")).unwrap().clone();
+        bot.props.agent = true;
+        <Conceptual as DiagramType>::apply_element(&mut e, &id("id3"), bot, None);
+        let person = e.add_connection(&id("id1"), &id("id2")).unwrap();
+        assert!(e.connection(&person).unwrap().props.is_manual());
+        assert!(e.announcement.ends_with("added, as manual."));
+        let from_bot = e.add_connection(&id("id3"), &id("id2")).unwrap();
+        assert!(!e.connection(&from_bot).unwrap().props.is_manual());
+        let from_app = e.add_connection(&id("id2"), &id("id1")).unwrap();
+        assert!(!e.connection(&from_app).unwrap().props.is_manual());
+        assert_eq!(e.announcement, "Arrow from Application to Actor added.");
     }
 
     #[test]
