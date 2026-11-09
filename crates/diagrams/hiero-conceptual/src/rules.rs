@@ -1,7 +1,9 @@
 //! The conceptual diagram's rules: figures for actors, files, and some components, and what screen
 //! readers hear about arrows.
 
-use hiero_core::engine::{DiagramType, El, Engine, Laid, validate_label, validate_length};
+use hiero_core::engine::{
+    DiagramType, El, Engine, Laid, descendant_ids, validate_label, validate_length,
+};
 use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::geometry::Size;
@@ -258,6 +260,19 @@ impl DiagramType for Conceptual {
         arrow.manual_offset
     }
 
+    /// A kind `source` connects to, but not a domain it's in, nor what a domain holds, as the
+    /// arrow would run inside the domain.
+    fn can_connect(eng: &Engine<Self>, source: &Laid<Self>, target: &Laid<Self>) -> bool {
+        let holds = |outer: &Laid<Self>, inner: &Laid<Self>| {
+            outer.el.kind == ConceptualKind::Domain
+                && descendant_ids(eng.elements(), outer.id()).contains(inner.id())
+        };
+        source.id() != target.id()
+            && source.info.connects_to.contains(&target.el.kind)
+            && !holds(source, target)
+            && !holds(target, source)
+    }
+
     /// Announces a change of bot, cloud, or component type. A component that becomes a
     /// database or storage is drawn as a figure, which can't hold elements, so what it held is
     /// put on the canvas.
@@ -438,6 +453,29 @@ mod tests {
         // Data and sections don't.
         assert!(!e.can_connect(&id("id7"), &id("id1")));
         assert!(!e.can_connect(&id("id4"), &id("id1")));
+    }
+
+    #[test]
+    fn systems_point_to_a_domain_but_not_one_they_are_in() {
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Domain, Point::new(300.0, 140.0));
+        e.palette_drop(ConceptualKind::Application, Point::new(200.0, 140.0));
+        e.palette_drop(ConceptualKind::Component, Point::new(200.0, 160.0));
+        assert_eq!(e.element(&id("id3")).unwrap().parent_id, Some(id("id2")));
+        e.add_at_free_position(ConceptualKind::Domain);
+        e.add_at_free_position(ConceptualKind::Job);
+        // Another domain, from an application, a component, or a job.
+        assert!(e.can_connect(&id("id2"), &id("id4")));
+        assert!(e.can_connect(&id("id3"), &id("id4")));
+        assert!(e.can_connect(&id("id5"), &id("id1")));
+        // Not the domain they're in, as the arrow would run inside it.
+        assert!(!e.can_connect(&id("id2"), &id("id1")));
+        assert!(!e.can_connect(&id("id3"), &id("id1")));
+        // A domain starts no arrows.
+        assert!(!e.can_connect(&id("id1"), &id("id4")));
+        e.select(&id("id2"));
+        let targets: Vec<_> = e.arrow_target_options().into_iter().map(|o| o.0).collect();
+        assert!(targets.contains(&id("id4")) && !targets.contains(&id("id1")));
     }
 
     #[test]

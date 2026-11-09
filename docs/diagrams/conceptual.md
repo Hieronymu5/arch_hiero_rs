@@ -17,10 +17,10 @@ ones). Elements inside a container are always drawn on top of it.
 |---|---|---|---|---|---|---|---|
 | `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | actor, application, component, domain, job, process, entity, file | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. The **Group** option, beside it, draws it as a group, such as a team or a swarm of agents: three people, or bots, one in front of two (as a high level diagram's actors are), scaled by 46/56 to stand as tall as one, so its area, name, and arrows stay where they were. Its lines keep their width. |
 | `domain` | Domain | 480×180 | domains | application | – | 0 | A filled `region` with its name as a header. Resizable. |
-| `application` | Application | 200×100 | applications | component, process, entity, file | actor, application, component, job, process, entity, file | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
-| `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file | actor, application, component, job, process, entity, file | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
-| `process` | Process | 140×40 | processes (dark blue, light text) | – | actor, application, component, job, process, entity, file | 3 | |
-| `job` | Job | 160×40 | connectors | – | actor, application, component, process, entity, file | 3 | Something that runs on a schedule. |
+| `application` | Application | 200×100 | applications | component, process, entity, file | actor, application, component, domain, job, process, entity, file | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
+| `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file | actor, application, component, domain, job, process, entity, file | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
+| `process` | Process | 140×40 | processes (dark blue, light text) | – | actor, application, component, domain, job, process, entity, file | 3 | |
+| `job` | Job | 160×40 | connectors | – | actor, application, component, domain, process, entity, file | 3 | Something that runs on a schedule. |
 | `entity` | Entity | 140×40 | data | – | – | 3 | |
 | `file` | File | 120×80 | data | – | – | 3 | Data kept as a file, such as an export. Placed as an entity is, but drawn as a figure: an upright page with its upper-left corner folded down and five lines of text, with the name underneath. |
 | `section` | Section | 480×40 | – | – | – | 3 | A horizontal line with short end ticks and the name centred on it, in the *section names* colour. It names the part of the diagram below it. Resizes across only, from handles on its two ends. |
@@ -45,7 +45,8 @@ padding around their children.
 ## Arrows
 
 - **Drawing:** drag from the round handle on the selected element to a valid target (see *Arrows
-  to* in the table), or use *Add arrow to* in the properties panel.
+  to* in the table), or use *Add arrow to* in the properties panel. An element can point to a domain, such as a system that acts on a whole domain, but not
+  to the domain it's in, as the arrow would run inside it.
 - **Routing (shared code):** an arrow runs between the sides of its two elements that face each
   other. Where those sides overlap, it runs straight in the middle of the overlap (less a 10 px
   margin at each corner), or as near the middle as keeps it 40 px from other straight arrows on

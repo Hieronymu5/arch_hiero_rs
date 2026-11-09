@@ -715,6 +715,31 @@ mod tests {
     }
 
     #[test]
+    fn applications_point_to_a_domain_but_not_their_own() {
+        let diagram = new_diagram(DiagramTypeId::Conceptual, "C", None);
+        let ok = parse(json!([
+            {"op": "add_element", "ref": "sales", "kind": "domain", "label": "Sales"},
+            {"op": "add_element", "ref": "finance", "kind": "domain", "label": "Finance",
+             "x": 800, "y": 0},
+            {"op": "add_element", "ref": "crm", "kind": "application", "label": "CRM",
+             "parent_id": "sales"},
+            {"op": "add_connection", "source_id": "crm", "target_id": "finance"}
+        ]));
+        let outcome = ops(DiagramTypeId::Conceptual).apply(&diagram, &ok).unwrap();
+        assert_eq!(outcome.content.connections.len(), 1);
+        let own = parse(json!([
+            {"op": "add_element", "ref": "sales", "kind": "domain", "label": "Sales"},
+            {"op": "add_element", "ref": "crm", "kind": "application", "label": "CRM",
+             "parent_id": "sales"},
+            {"op": "add_connection", "source_id": "crm", "target_id": "sales"}
+        ]));
+        let error = ops(DiagramTypeId::Conceptual)
+            .apply(&diagram, &own)
+            .unwrap_err();
+        assert_eq!(error.message, "an arrow can't go from “CRM” to “Sales”");
+    }
+
+    #[test]
     fn deployed_components_land_in_layers() {
         let diagram = new_diagram(DiagramTypeId::DeployedComponent, "D", None);
         let edits = parse(json!([

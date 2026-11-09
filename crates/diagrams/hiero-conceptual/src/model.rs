@@ -168,11 +168,13 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
         can_contain: &[K::Component, K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
         header: Some(60.0),
-        // Actors too, such as a person a system sends a report to.
+        // Actors too, such as a person a system sends a report to, and domains, for a system
+        // that acts on a whole domain.
         connects_to: &[
             K::Actor,
             K::Application,
             K::Component,
+            K::Domain,
             K::Job,
             K::Process,
             K::Entity,
@@ -186,11 +188,13 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     KindInfo {
         can_contain: &[K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
-        // Actors too, such as a person a system sends a report to.
+        // Actors too, such as a person a system sends a report to, and domains, for a system
+        // that acts on a whole domain.
         connects_to: &[
             K::Actor,
             K::Application,
             K::Component,
+            K::Domain,
             K::Job,
             K::Process,
             K::Entity,
@@ -201,11 +205,13 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     },
     KindInfo {
         layer: FIGURES,
-        // Actors too, such as a person a system sends a report to.
+        // Actors too, such as a person a system sends a report to, and domains, for a system
+        // that acts on a whole domain.
         connects_to: &[
             K::Actor,
             K::Application,
             K::Component,
+            K::Domain,
             K::Job,
             K::Process,
             K::Entity,
@@ -219,6 +225,7 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
             K::Actor,
             K::Application,
             K::Component,
+            K::Domain,
             K::Process,
             K::Entity,
             K::File,
