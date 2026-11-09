@@ -72,7 +72,7 @@ Arrow properties:
 | Text (`label`) | At most 100 characters | Text beside the start of the arrow |
 | Type (`mode`) | Automated (solid) or Manual (dashed). Unset means automated. An arrow from a person (an actor that isn't a bot) starts out manual, as people act by hand; any other starts out automated. | Line style |
 | Bi-directional | Checkbox | A small return arrow next to the start |
-| Payload (`payload`) | None, E-mail (`email`), or File (`file`). Unset means none. | An icon beside the start, on the other side of the line from the text: an envelope (16×11) or a page with a folded corner (12×15), 3 px along the line and 5 px from it. It goes 4 px past a bi-directional arrow's return arrow, and stays upright on a diagonal line, clear of it by its nearest corner. Clicking it selects the arrow. draw.io exports attach it to the arrow as a message or note shape. |
+| Payload (`payload`) | None, E-mail (`email`), or File (`file`). Unset means none. | An icon beside the start, on the other side of the line from the text: an envelope (16×11) or a page with a folded corner (12×15), 3 px along the line and 5 px from it. It goes 4 px past a bi-directional arrow's return arrow, and stays upright on a diagonal line, clear of it by its nearest corner. Clicking it selects the arrow. draw.io exports attach it to the arrow: an envelope as draw.io's message shape, and a page as a stencil with the same folded corner and lines of text. |
 | Connector | At most 20 characters, e.g. API, REST, Web | A small box where the arrow meets the target |
 | Transformation | At most 40 characters, e.g. "Map fields" | A box on the middle of the line |
 

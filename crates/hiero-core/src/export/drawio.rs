@@ -322,6 +322,28 @@ fn pack_stencil(xml: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(packed)
 }
 
+/// A file's payload icon as a draw.io stencil, drawn as in the editor (see
+/// `payload_icon_paths`): a page with a folded corner and three lines of text. Its colours come
+/// from the cell's style.
+fn file_icon_stencil() -> String {
+    let lines: String = ["7.5", "10.5", "12.75"]
+        .iter()
+        .map(|y| format!(r#"<path><move x="2.5" y="{y}"/><line x="9.5" y="{y}"/></path><stroke/>"#))
+        .collect();
+    pack_stencil(&format!(
+        concat!(
+            r#"<shape name="ArchHiero file" w="12" h="15" aspect="variable" strokewidth="inherit">"#,
+            "<connections/>",
+            r#"<background><path><move x="0" y="0"/><line x="8" y="0"/><line x="12" y="4"/>"#,
+            r#"<line x="12" y="15"/><line x="0" y="15"/><close/></path></background>"#,
+            "<foreground><fillstroke/>",
+            r#"<path><move x="8" y="0"/><line x="8" y="4"/><line x="12" y="4"/></path><stroke/>"#,
+            "{}</foreground></shape>"
+        ),
+        lines
+    ))
+}
+
 /// A group of three actors, as a draw.io stencil the size of `ACTOR_STENCIL`'s area: three
 /// people, or three bots for `agent`, one in front of two, scaled to stand as tall as one actor
 /// and centred where it stands, so the name sits where it does under one. The same as
@@ -1126,14 +1148,14 @@ pub fn diagram_to_drawio(
             ));
         }
         // What the arrow carries, attached to the connector so it moves with it: draw.io's
-        // message shape, an envelope, for an e-mail, and its note shape, a page with a folded
-        // corner, for a file. It's anchored at the connector's source end (x="-1"), offset to
-        // where the editor draws it.
+        // message shape, an envelope, for an e-mail, and a page with a folded corner and lines
+        // of text, as in the editor, for a file. It's anchored at the connector's source end
+        // (x="-1"), offset to where the editor draws it.
         if let Some(r) = payload_icon_placement(a.from, a.to, a.payload, a.bidirectional) {
             let shape = if a.payload == ArrowPayload::Email {
                 Style::new().set("shape", "message")
             } else {
-                Style::new().set("shape", "note").num("size", 4.0)
+                Style::new().set("shape", format!("stencil({})", file_icon_stencil()))
             };
             let icon_style = shape
                 .set("strokeColor", &colors.lines)
@@ -1399,7 +1421,38 @@ mod tests {
             cell.contains(r#"<mxPoint x="3" y="5" as="offset" />"#),
             "{cell}"
         );
-        assert!(xml_with(ArrowPayload::File).contains("shape=note;size=4"));
+        // A page with a folded corner and three lines of text, as in the editor.
+        let file = xml_with(ArrowPayload::File);
+        let style = file
+            .split("shape=stencil(")
+            .nth(1)
+            .and_then(|rest| rest.split(')').next())
+            .expect("a stencil");
+        let packed = base64::engine::general_purpose::STANDARD
+            .decode(style)
+            .unwrap();
+        let mut encoded = String::new();
+        std::io::Read::read_to_string(
+            &mut flate2::read::DeflateDecoder::new(packed.as_slice()),
+            &mut encoded,
+        )
+        .unwrap();
+        let shape = encoded
+            .replace("%3C", "<")
+            .replace("%3E", ">")
+            .replace("%22", "\"")
+            .replace("%3D", "=")
+            .replace("%2F", "/")
+            .replace("%20", " ");
+        assert_eq!(shape.matches("<path>").count(), 5, "{shape}");
+        for y in ["7.5", "10.5", "12.75"] {
+            assert!(
+                shape.contains(&format!(
+                    r#"<move x="2.5" y="{y}"/><line x="9.5" y="{y}"/>"#
+                )),
+                "{shape}"
+            );
+        }
         assert!(!xml_with(ArrowPayload::None).contains("-payload"));
     }
 
