@@ -1260,14 +1260,16 @@ impl<T: DiagramView> Editor<T> {
             }
             if T::ID.has_arrows() && Engine::<T>::can_connect_from(element) {
                 let c = self.connect_handle(&xf, element);
+                // A circle with a plus in it: a 6px bar across and one down, 2px thick, so it
+                // reads as a handle to make a new arrow from.
                 painter.circle(c, CONNECT_RADIUS, HANDLE_FILL, Stroke::new(2.0, selection));
                 painter.line_segment(
                     [c - Vec2::new(3.0, 0.0), c + Vec2::new(3.0, 0.0)],
-                    Stroke::new(1.5, selection),
+                    Stroke::new(2.0, selection),
                 );
                 painter.line_segment(
                     [c - Vec2::new(0.0, 3.0), c + Vec2::new(0.0, 3.0)],
-                    Stroke::new(1.5, selection),
+                    Stroke::new(2.0, selection),
                 );
             }
         }
