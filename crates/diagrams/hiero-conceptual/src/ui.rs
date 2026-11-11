@@ -409,10 +409,10 @@ mod tests {
         let click = w.screen(rep.rect.center(), Vec2::ZERO);
         w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
         assert_eq!(w.selection(), ["u1"]);
-        // The round handle sits just right of the arrow's area, as the editor puts it.
+        // The round handle is centred on the right edge of the arrow's area, as the editor
+        // puts it.
         let r = Conceptual::arrow_rect(&w.editor.eng, &rep);
-        let handle = w.screen(Point::new(r.right(), r.y + r.height / 2.0), Vec2::ZERO)
-            + Vec2::new(13.0, 0.0);
+        let handle = w.screen(Point::new(r.right(), r.y + r.height / 2.0), Vec2::ZERO);
         let crm = w.editor.eng.laid(&"a1".into()).unwrap().rect;
         let target = w.screen(crm.center(), Vec2::ZERO);
         w.drag(handle, target, PointerButton::Primary, Modifiers::NONE);
