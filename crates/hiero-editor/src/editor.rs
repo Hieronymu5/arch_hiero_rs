@@ -1012,9 +1012,9 @@ impl<T: DiagramView> Editor<T> {
         if let Some(at) = T::connect_handle_at(&self.eng, element) {
             return xf.pos(at);
         }
+        // Centred on the middle of the right edge, as in the prototype.
         let r = T::arrow_rect(&self.eng, element);
-        let p = xf.pos(Point::new(r.right(), r.y + r.height / 2.0));
-        p + Vec2::new(CONNECT_RADIUS + 6.0, 0.0)
+        xf.pos(Point::new(r.right(), r.y + r.height / 2.0))
     }
 
     fn handles(&self, element: &Laid<T>) -> Vec<Corner> {
