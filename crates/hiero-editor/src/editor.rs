@@ -19,7 +19,7 @@ use hiero_core::scene::{Node, Scene, first_text_color, outlines};
 use hiero_core::stored::{ContentError, StoredContent};
 
 use crate::paint::{PaintCache, Transform, color, paint_nodes, paint_scene, world_line};
-use crate::theme::{element_button, page_button, selection_color};
+use crate::theme::{element_button, page_button, palette, selection_color};
 use crate::view::{View, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
 
@@ -267,10 +267,6 @@ const VIEW_HELP: &str = concat!(
 
 /// How far the pointer moves, in canvas pixels, before a press on empty canvas draws a box.
 const SELECT_THRESHOLD: f64 = 3.0;
-
-/// The colours of the editor's own marks, which show on the light paper and the dark. The
-/// selection is in the accent colour.
-const HANDLE_FILL: Color32 = Color32::WHITE;
 
 /// Whether the canvas is dark: it follows the app's theme. Exports stay light.
 fn dark_canvas(ctx: &egui::Context) -> bool {
@@ -1191,6 +1187,11 @@ impl<T: DiagramView> Editor<T> {
     ) {
         let focused = response.has_focus();
         let selection = selection_color(ui.ctx());
+        // Handles are drawn as the prototype's are: in the theme's accent, filled with its
+        // surface, so they're light lines on dark in the dark theme and dark on light in the
+        // light one.
+        let theme = palette(ui);
+        let (handle_line, handle_fill) = (theme.accent, theme.surface);
         // Selected arrow.
         let lines = T::arrow_lines(&self.eng, layout, self.slide());
         if let Some(selected) = &self.eng.selected_connection
@@ -1250,11 +1251,11 @@ impl<T: DiagramView> Editor<T> {
                 let r = egui::Rect::from_center_size(c, Vec2::splat(HANDLE));
                 let focused_handle =
                     focused && self.focus == Focus::Handle(element.id().clone(), corner);
-                painter.rect_filled(r, 2.0, HANDLE_FILL);
+                painter.rect_filled(r, 2.0, handle_fill);
                 painter.rect_stroke(
                     r,
                     2.0,
-                    Stroke::new(if focused_handle { 3.0 } else { 1.5 }, selection),
+                    Stroke::new(if focused_handle { 3.0 } else { 2.0 }, handle_line),
                     egui::StrokeKind::Inside,
                 );
             }
@@ -1262,14 +1263,19 @@ impl<T: DiagramView> Editor<T> {
                 let c = self.connect_handle(&xf, element);
                 // A circle with a plus in it: a 6px bar across and one down, 2px thick, so it
                 // reads as a handle to make a new arrow from.
-                painter.circle(c, CONNECT_RADIUS, HANDLE_FILL, Stroke::new(2.0, selection));
+                painter.circle(
+                    c,
+                    CONNECT_RADIUS,
+                    handle_fill,
+                    Stroke::new(2.0, handle_line),
+                );
                 painter.line_segment(
                     [c - Vec2::new(3.0, 0.0), c + Vec2::new(3.0, 0.0)],
-                    Stroke::new(2.0, selection),
+                    Stroke::new(2.0, handle_line),
                 );
                 painter.line_segment(
                     [c - Vec2::new(0.0, 3.0), c + Vec2::new(0.0, 3.0)],
-                    Stroke::new(2.0, selection),
+                    Stroke::new(2.0, handle_line),
                 );
             }
         }
