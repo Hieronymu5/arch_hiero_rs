@@ -27,6 +27,9 @@ pub struct View {
     /// Where the paper's top-left corner is, in canvas pixels: the canvas's, or while viewing,
     /// the drawing's.
     pub corner: Vec2,
+    /// Whether a paper smaller than the viewport sits in its middle, as while editing, or in
+    /// its top-left corner, as while viewing.
+    pub centred: bool,
 }
 
 impl Default for View {
@@ -36,6 +39,7 @@ impl Default for View {
             scroll: Vec2::new(MARGIN, MARGIN),
             paper: Vec2::ZERO,
             corner: Vec2::ZERO,
+            centred: true,
         }
         .with_canvas(DEFAULT_CANVAS)
     }
@@ -69,12 +73,18 @@ impl View {
     }
 
     /// Keeps the paper reachable: it can't be scrolled further than a margin past any edge,
-    /// and is centred when it's smaller than the viewport.
+    /// and when it's smaller than the viewport, it's centred or in the top-left corner (see
+    /// `centred`).
     pub fn clamp(&mut self, viewport: Rect) {
         let paper = self.paper_size();
+        let centred = self.centred;
         let axis = |scroll: f32, paper: f32, view: f32| {
             if paper + MARGIN * 2.0 <= view {
-                (view - paper) / 2.0
+                if centred {
+                    (view - paper) / 2.0
+                } else {
+                    MARGIN
+                }
             } else {
                 scroll.min(MARGIN).max(view - paper - MARGIN)
             }
@@ -147,6 +157,18 @@ mod tests {
         view.clamp(viewport);
         let corner = hiero_core::geometry::Point::new(600.0, 200.0);
         assert_eq!(view.transform(viewport).pos(corner), viewport.min);
+    }
+
+    #[test]
+    fn a_small_paper_is_centred_or_in_the_corner() {
+        let viewport = Rect::from_min_size(Pos2::new(10.0, 20.0), Vec2::new(3000.0, 2000.0));
+        let mut view = View::default();
+        view.clamp(viewport);
+        assert_eq!(view.scroll, Vec2::new(300.0, 200.0));
+        view.centred = false;
+        view.scroll = Vec2::new(-50.0, 80.0);
+        view.clamp(viewport);
+        assert_eq!(view.scroll, Vec2::new(MARGIN, MARGIN));
     }
 
     #[test]

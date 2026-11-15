@@ -1060,6 +1060,8 @@ impl<T: DiagramView> Editor<T> {
             canvas_rect(self.eng.canvas())
         };
         self.view = self.view.with_paper(area);
+        // While viewing, a drawing smaller than the window sits in its top-left corner.
+        self.view.centred = !self.viewing;
         self.view.clamp(rect);
         let painter = ui.painter_at(rect);
         let dark = dark_canvas(ui.ctx());
