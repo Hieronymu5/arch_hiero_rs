@@ -1249,11 +1249,12 @@ impl App {
             });
             ui.add_space(5.0);
             let line = ui.separator();
-            // The palette, canvas, and properties fill the window to its right and bottom edges
-            // and meet the toolbar's line, past the page's margin, so no strip of the page shows
-            // around the canvas.
+            // The palette, canvas, and properties fill the window to its left, right, and bottom
+            // edges and meet the toolbar's line, past the page's margin, so no strip of the page
+            // shows around the canvas.
             let mut rect = ui.available_rect_before_wrap();
             rect.min.y = line.rect.center().y + 0.5;
+            rect.min.x -= PAGE_MARGIN;
             rect.max += egui::vec2(PAGE_MARGIN, PAGE_MARGIN);
             ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
                 ui.set_clip_rect(rect);

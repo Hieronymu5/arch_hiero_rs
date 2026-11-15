@@ -635,8 +635,9 @@ impl<T: DiagramView> Editor<T> {
     /// The palette on the left, the canvas filling the rest, and the selected element's or
     /// arrow's properties on the right while there's one to edit.
     pub fn ui(&mut self, ui: &mut Ui) {
-        // Content lines up with the logo, CONTENT_INSET in from the edge.
-        let inset = crate::theme::CONTENT_INSET;
+        // The editor reaches the window's edges, past the page's 8pt margin. Content lines up
+        // with the logo, that margin and CONTENT_INSET in from the edge.
+        let inset = crate::theme::CONTENT_INSET + 8;
         if self.show_help {
             egui::Frame::new()
                 .inner_margin(egui::Margin {
@@ -653,9 +654,7 @@ impl<T: DiagramView> Editor<T> {
         }
         let palette_frame = egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin {
             left: inset,
-            // The page's 8pt margin shows left of the bar but not right of it, as the bar
-            // reaches past it to the canvas, so the right side adds it to match.
-            right: inset + 8,
+            right: inset,
             top: 2,
             bottom: 2,
         });
@@ -1066,7 +1065,9 @@ impl<T: DiagramView> Editor<T> {
         let painter = ui.painter_at(rect);
         let dark = dark_canvas(ui.ctx());
         let (paper_color, around) = paper_colors(dark);
-        painter.rect_filled(rect, 0.0, around);
+        // While viewing, the paper fills the window to its edges, though it scrolls only as far
+        // as the drawing goes.
+        painter.rect_filled(rect, 0.0, if self.viewing { paper_color } else { around });
         let xf = self.view.transform(rect);
         let paper = xf.rect(area);
         painter.rect_filled(paper, 0.0, paper_color);
