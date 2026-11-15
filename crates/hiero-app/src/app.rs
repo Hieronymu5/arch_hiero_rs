@@ -127,6 +127,9 @@ pub struct DetailsForm {
     pub error: Option<String>,
     /// While adding a diagram for an element: the diagram it's in, and the element.
     pub opened_from: Option<(DiagramId, ElementId)>,
+    /// Whether the Name field takes focus when it's next shown, as when the Add diagram page
+    /// opens.
+    pub focus_name: bool,
 }
 
 /// The database in use and the ones used before it.
@@ -168,6 +171,9 @@ pub struct App {
     pub save_due: Option<Instant>,
     pub theme: egui::ThemePreference,
     pub accent: Accent,
+    /// The type a new diagram starts as: the type of the last diagram added, or else the first
+    /// offered. Kept with the theme.
+    pub new_type: DiagramTypeId,
     pub databases: Databases,
     /// Whether each diagram was last viewed rather than edited, to open it the same way when
     /// going back to it.
@@ -182,6 +188,7 @@ impl App {
         worker: Worker,
         theme: egui::ThemePreference,
         accent: Accent,
+        new_type: DiagramTypeId,
         databases: Databases,
     ) -> Self {
         let mut app = Self {
@@ -199,6 +206,7 @@ impl App {
             save_due: None,
             theme,
             accent,
+            new_type,
             databases,
             viewed: HashMap::new(),
             expanded: BTreeSet::new(),
@@ -398,6 +406,7 @@ impl App {
                     subtype,
                     starting: start.map(|s| (diagram_type, s.content)),
                     opened_from: Some((from, element)),
+                    focus_name: true,
                     ..DetailsForm::default()
                 };
                 self.go(Page::New);
@@ -681,6 +690,8 @@ impl App {
             reply,
         }) {
             Ok(record) => {
+                // The next diagram added starts as this type.
+                self.new_type = diagram_type;
                 let id = record.diagram.meta.id;
                 let mut unlinked = false;
                 match form.opened_from {

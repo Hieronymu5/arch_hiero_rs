@@ -749,7 +749,11 @@ impl App {
         // The top bar shows the title, Diagrams.
         ui.horizontal(|ui| {
             if page_button(ui, "Add Diagram", true).clicked() {
-                self.form = DetailsForm::default();
+                self.form = DetailsForm {
+                    diagram_type: Some(self.new_type),
+                    focus_name: true,
+                    ..DetailsForm::default()
+                };
                 self.go(Page::New);
             }
             if page_button(ui, "Import Diagram", false).clicked() {
@@ -926,7 +930,11 @@ impl App {
         ui.label(hint);
         ui.add_space(FIELD_GAP);
         field_label(ui, "Name", true);
-        ui.add(egui::TextEdit::singleline(&mut self.form.name).desired_width(420.0));
+        let name = ui.add(egui::TextEdit::singleline(&mut self.form.name).desired_width(420.0));
+        // The cursor starts in the Name field on the Add diagram page.
+        if std::mem::take(&mut self.form.focus_name) {
+            name.request_focus();
+        }
         let name_ok = validate_name(&self.form.name);
         if let (true, Err(message)) = (tried, name_ok) {
             ui.label(error_text(ui, message));
@@ -943,7 +951,7 @@ impl App {
                 .selected_text(selected)
                 .width(420.0)
                 .show_ui(ui, |ui| {
-                    for t in DiagramTypeId::ALL {
+                    for t in DiagramTypeId::by_label() {
                         ui.selectable_value(&mut self.form.diagram_type, Some(t), t.label());
                     }
                 });
@@ -1282,6 +1290,7 @@ impl App {
             tried: false,
             error: None,
             opened_from: None,
+            focus_name: false,
         };
         let id = meta.id.clone();
         self.go(Page::Details(id));

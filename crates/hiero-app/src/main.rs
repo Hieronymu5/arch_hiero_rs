@@ -12,12 +12,15 @@ mod worker;
 use std::path::{Path, PathBuf};
 
 use app::{App, Databases, Outcome, Page};
+use hiero_core::model::DiagramTypeId;
 use hiero_editor::theme::Accent;
 use hiero_store::Store;
 use hiero_store::locations::Locations;
 
 const THEME_KEY: &str = "theme";
 const ACCENT_KEY: &str = "accent";
+/// Where the type of the last diagram added is kept.
+const NEW_TYPE_KEY: &str = "new-diagram-type";
 
 fn theme_from(text: Option<String>) -> egui::ThemePreference {
     match text.as_deref() {
@@ -60,6 +63,12 @@ impl Shell {
             .and_then(|key| Accent::from_key(&key))
             .unwrap_or_default();
         hiero_editor::theme::set_accent(&cc.egui_ctx, accent);
+        // A type that's no longer offered, or anything else, falls back to the first.
+        let new_type = cc
+            .storage
+            .and_then(|s| s.get_string(NEW_TYPE_KEY))
+            .and_then(|id| DiagramTypeId::parse(&id))
+            .unwrap_or(DiagramTypeId::by_label()[0]);
         // `ARCH_HIERO_DB` picks the database for this run only; otherwise it's the one used last.
         let chosen = std::env::var_os("ARCH_HIERO_DB").map(PathBuf::from);
         let remember = chosen.is_none();
@@ -110,7 +119,7 @@ impl Shell {
             Ok((store, worker)) => {
                 locations.use_path(&path);
                 let databases = Databases::new(path, locations, remember);
-                let mut app = App::new(store, worker, theme, accent, databases);
+                let mut app = App::new(store, worker, theme, accent, new_type, databases);
                 app.remember_locations();
                 if let Some(notice) = notice {
                     app.outcome = Some(Outcome::error(notice));
@@ -130,6 +139,7 @@ impl eframe::App for Shell {
         if let Self::Running(app, _) = self {
             storage.set_string(THEME_KEY, theme_name(app.theme).to_owned());
             storage.set_string(ACCENT_KEY, app.accent.key());
+            storage.set_string(NEW_TYPE_KEY, app.new_type.as_str().to_owned());
         }
     }
 

@@ -117,6 +117,13 @@ impl DiagramTypeId {
         Self::HighLevelConceptual,
     ];
 
+    /// Every diagram type in the order they're offered to choose from: alphabetically by name.
+    pub fn by_label() -> [Self; 7] {
+        let mut types = Self::ALL;
+        types.sort_by_key(|t| t.label());
+        types
+    }
+
     /// The kinds of diagram of this type, the first the default. Empty for a type without.
     pub const fn subtypes(self) -> &'static [Subtype] {
         match self {
@@ -627,6 +634,23 @@ mod tests {
     struct Props {
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         agent: bool,
+    }
+
+    #[test]
+    fn types_are_offered_alphabetically() {
+        let labels = DiagramTypeId::by_label().map(DiagramTypeId::label);
+        assert_eq!(
+            labels,
+            [
+                "C4",
+                "Conceptual",
+                "Conceptual - High Level",
+                "Deployed Component",
+                "Flowchart",
+                "Physical",
+                "Sequence",
+            ]
+        );
     }
 
     #[test]
