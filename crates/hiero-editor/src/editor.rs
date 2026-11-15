@@ -1459,6 +1459,8 @@ impl<T: DiagramView> Editor<T> {
         // Cursor hints.
         if response.hovered() {
             let cursor = match &self.drag {
+                // A canvas that can't move shows no hand.
+                Drag::Pan { .. } if !self.view.can_scroll(rect) => CursorIcon::Default,
                 Drag::Pan { .. } => CursorIcon::Grabbing,
                 Drag::Move { .. } => CursorIcon::Move,
                 Drag::Resize { .. } => CursorIcon::ResizeNwSe,
@@ -1528,10 +1530,14 @@ impl<T: DiagramView> Editor<T> {
                     .opener_at(xf.world(pos))
                     .map(|(_, name)| name.to_owned()),
             };
+            // A canvas that can't move shows no hand.
+            let movable = self.view.can_scroll(rect);
             ui.ctx().set_cursor_icon(match (&self.drag, &opener) {
-                (Drag::Pan { .. }, _) => CursorIcon::Grabbing,
+                (Drag::Pan { .. }, _) if movable => CursorIcon::Grabbing,
+                (Drag::Pan { .. }, _) => CursorIcon::Default,
                 (_, Some(_)) => CursorIcon::PointingHand,
-                _ => CursorIcon::Grab,
+                _ if movable => CursorIcon::Grab,
+                _ => CursorIcon::Default,
             });
             if let Some(name) = opener {
                 egui::Tooltip::always_open(

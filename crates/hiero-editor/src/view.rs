@@ -72,6 +72,13 @@ impl View {
         self.paper * self.zoom
     }
 
+    /// Whether the paper can be scrolled in `viewport`: it's larger than the viewport one way
+    /// or the other.
+    pub fn can_scroll(&self, viewport: Rect) -> bool {
+        let paper = self.paper_size() + Vec2::splat(MARGIN * 2.0);
+        paper.x > viewport.width() || paper.y > viewport.height()
+    }
+
     /// Keeps the paper reachable: it can't be scrolled further than a margin past any edge,
     /// and when it's smaller than the viewport, it's centred or in the top-left corner (see
     /// `centred`).
@@ -157,6 +164,16 @@ mod tests {
         view.clamp(viewport);
         let corner = hiero_core::geometry::Point::new(600.0, 200.0);
         assert_eq!(view.transform(viewport).pos(corner), viewport.min);
+    }
+
+    #[test]
+    fn only_a_paper_larger_than_the_viewport_can_be_scrolled() {
+        let view = View::default();
+        let size = |w, h| Rect::from_min_size(Pos2::ZERO, Vec2::new(w, h));
+        assert!(!view.can_scroll(size(3000.0, 2000.0)));
+        assert!(!view.can_scroll(size(2400.0, 1600.0)));
+        assert!(view.can_scroll(size(2399.0, 2000.0)));
+        assert!(view.can_scroll(size(3000.0, 1599.0)));
     }
 
     #[test]

@@ -324,6 +324,8 @@ mod tests {
         salt: Id,
         /// The text last put on the system clipboard.
         copied: Option<String>,
+        /// The pointer's look after the last frame.
+        cursor: egui::CursorIcon,
     }
 
     impl Window {
@@ -356,6 +358,7 @@ mod tests {
                 editor: Editor::new(eng, salt),
                 salt,
                 copied: None,
+                cursor: egui::CursorIcon::Default,
             };
             window.frame(vec![], Modifiers::NONE);
             window
@@ -377,6 +380,7 @@ mod tests {
             // Nothing draws the output, so its new textures are let go.
             let mut output = self.ctx.run_ui(input, |ui| editor.ui(ui));
             output.textures_delta.clear();
+            self.cursor = output.platform_output.cursor_icon;
             for command in output.platform_output.commands {
                 if let egui::OutputCommand::CopyText(text) = command {
                     self.copied = Some(text);
@@ -695,6 +699,23 @@ mod tests {
             assert_eq!(w.editor.view().scroll, start + pan, "viewing: {viewing}");
             assert_eq!(w.editor.eng.laid(&"u1".into()).unwrap().rect, u1);
             assert!(w.selection().is_empty());
+        }
+    }
+
+    #[test]
+    fn viewing_shows_a_hand_only_when_the_canvas_can_move() {
+        for (mut w, movable) in [(Window::new(), false), (Window::wide(), true)] {
+            w.editor.set_viewing(true);
+            w.frame(vec![], Modifiers::NONE);
+            // Over empty paper, between the actors and the application.
+            let at = w.screen(Point::new(400.0, 200.0), w.editor.view().scroll);
+            w.frame(vec![Event::PointerMoved(at)], Modifiers::NONE);
+            let hand = if movable {
+                egui::CursorIcon::Grab
+            } else {
+                egui::CursorIcon::Default
+            };
+            assert_eq!(w.cursor, hand, "movable: {movable}");
         }
     }
 
