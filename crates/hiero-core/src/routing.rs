@@ -1,7 +1,7 @@
 //! Where arrows run and where their text and boxes go. A port of the prototype's
 //! `utils/diagram-connections.ts`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::model::{ArrowPayload, ConnectionId, ElementId};
@@ -125,6 +125,19 @@ pub fn route_connections(
     rects: &HashMap<ElementId, Rect>,
     connections: &[ConnectionEnds],
 ) -> HashMap<ConnectionId, Route> {
+    route_connections_centred(rects, connections, &HashSet::new())
+}
+
+/// Routes arrows as `route_connections` does, except that arrows meet the elements in `centred`
+/// at the middle of their side, wherever the other end is, so moving such an element doesn't
+/// slide its arrows along it. Such an arrow runs straight out of the middle while the other
+/// element's facing side reaches across it, and direct from the middle otherwise; it can't be
+/// moved by hand.
+pub fn route_connections_centred(
+    rects: &HashMap<ElementId, Rect>,
+    connections: &[ConnectionEnds],
+    centred: &HashSet<ElementId>,
+) -> HashMap<ConnectionId, Route> {
     #[derive(Clone)]
     struct Attachment {
         connection: ConnectionId,
@@ -171,14 +184,53 @@ pub fn route_connections(
         );
     };
 
-    // Arrows moved by hand go first, so the automatic ones keep clear of them.
+    // Arrows moved by hand, and those running straight out of a centred element, go first, so
+    // the automatic ones keep clear of them.
     let mut automatic: Vec<(&ConnectionEnds, &Rect, &Rect)> = Vec::new();
+    // Where arrows meet centred elements, by arrow and whether it's the arrow's start.
+    let mut fixed: HashMap<(ConnectionId, bool), Point> = HashMap::new();
     for c in connections {
         let (Some(source), Some(target)) = (rects.get(&c.source_id), rects.get(&c.target_id))
         else {
             continue;
         };
         if c.source_id == c.target_id {
+            continue;
+        }
+        let pinned = (
+            centred.contains(&c.source_id),
+            centred.contains(&c.target_id),
+        );
+        if pinned.0 || pinned.1 {
+            let side = facing_side(source, target);
+            // Straight out of the middle of one centred end, when the other reaches across it.
+            let across = |pinned: &Rect, other: &Rect| {
+                let (at, start, end) = if side.is_vertical() {
+                    (pinned.center().y, other.y, other.bottom())
+                } else {
+                    (pinned.center().x, other.x, other.right())
+                };
+                (start + STRAIGHT_MARGIN <= at && at <= end - STRAIGHT_MARGIN).then_some(at)
+            };
+            let straight = match pinned {
+                (true, false) => across(source, target),
+                (false, true) => across(target, source),
+                _ => None,
+            };
+            if let Some(at) = straight {
+                run_straight(&mut taken, c, (source, target), side, at, false);
+                continue;
+            }
+            if pinned.0 {
+                fixed.insert((c.id.clone(), true), point_on_side(source, side, 0.5));
+            }
+            if pinned.1 {
+                fixed.insert(
+                    (c.id.clone(), false),
+                    point_on_side(target, side.opposite(), 0.5),
+                );
+            }
+            automatic.push((c, source, target));
             continue;
         }
         if let (Some(offset), Some(range)) = (c.manual_offset, straight_range(source, target)) {
@@ -193,7 +245,10 @@ pub fn route_connections(
 
     let mut attachments: Vec<Attachment> = Vec::new();
     for &(c, source, target) in &automatic {
-        if let Some(range) = straight_range(source, target) {
+        let pinned = |from: bool| fixed.contains_key(&(c.id.clone(), from));
+        if let Some(range) =
+            straight_range(source, target).filter(|_| !pinned(true) && !pinned(false))
+        {
             let keys = keys_of(c, range.side);
             let clear = |position: f64| {
                 keys.iter().all(|key| {
@@ -220,20 +275,25 @@ pub fn route_connections(
                 rect.center().y
             }
         };
-        attachments.push(Attachment {
-            connection: c.id.clone(),
-            from: true,
-            element: c.source_id.clone(),
-            side: from_side,
-            sort_key: along(target),
-        });
-        attachments.push(Attachment {
-            connection: c.id.clone(),
-            from: false,
-            element: c.target_id.clone(),
-            side: to_side,
-            sort_key: along(source),
-        });
+        // An end at a centred element has its place already.
+        if !pinned(true) {
+            attachments.push(Attachment {
+                connection: c.id.clone(),
+                from: true,
+                element: c.source_id.clone(),
+                side: from_side,
+                sort_key: along(target),
+            });
+        }
+        if !pinned(false) {
+            attachments.push(Attachment {
+                connection: c.id.clone(),
+                from: false,
+                element: c.target_id.clone(),
+                side: to_side,
+                sort_key: along(source),
+            });
+        }
     }
 
     // Spread the attachments on each side of each element evenly along it, keeping the order
@@ -270,8 +330,11 @@ pub fn route_connections(
         if routes.contains_key(&c.id) {
             continue;
         }
-        let from = points.get(&(c.id.clone(), true));
-        let to = points.get(&(c.id.clone(), false));
+        let end = |from: bool| {
+            let key = (c.id.clone(), from);
+            fixed.get(&key).or_else(|| points.get(&key))
+        };
+        let (from, to) = (end(true), end(false));
         let (Some(from), Some(to)) = (from, to) else {
             continue;
         };
@@ -597,6 +660,46 @@ mod tests {
         assert_eq!(
             facing_side(&a, &Rect::new(10.0, -300.0, 100.0, 50.0)),
             Side::Top
+        );
+    }
+
+    #[test]
+    fn arrows_meet_a_centred_element_in_the_middle_of_its_side() {
+        let centred: HashSet<ElementId> = ["a".into()].into();
+        let route = |b: Rect| {
+            let rects: HashMap<ElementId, Rect> = [
+                ("a".into(), Rect::new(0.0, 0.0, 120.0, 80.0)),
+                ("b".into(), b),
+            ]
+            .into();
+            route_connections_centred(&rects, &[ends("1", "a", "b")], &centred)
+                [&ConnectionId::from("1")]
+        };
+        // Below and reaching across its middle: straight down from the middle, wherever the
+        // other element is.
+        for x in [-40.0, 0.0, 30.0] {
+            let r = route(Rect::new(x, 300.0, 140.0, 40.0));
+            assert_eq!(r.from, Point::new(60.0, 80.0), "x: {x}");
+            assert_eq!(r.to, Point::new(60.0, 300.0), "x: {x}");
+        }
+        // Off to one side, but still facing its bottom: from the middle, at a slant.
+        let r = route(Rect::new(100.0, 300.0, 140.0, 40.0));
+        assert_eq!(r.from, Point::new(60.0, 80.0));
+        assert_eq!(r.to, Point::new(170.0, 300.0));
+        // A centred end ignores being moved by hand.
+        let rects: HashMap<ElementId, Rect> = [
+            ("a".into(), Rect::new(0.0, 0.0, 120.0, 80.0)),
+            ("b".into(), Rect::new(0.0, 300.0, 140.0, 40.0)),
+        ]
+        .into();
+        let moved = ConnectionEnds {
+            manual_offset: Some(100.0),
+            ..ends("1", "b", "a")
+        };
+        let r = route_connections_centred(&rects, &[moved], &centred)[&ConnectionId::from("1")];
+        assert_eq!(
+            (r.from, r.to),
+            (Point::new(60.0, 300.0), Point::new(60.0, 80.0))
         );
     }
 

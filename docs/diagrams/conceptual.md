@@ -60,6 +60,10 @@ padding around their children.
 - **Clouds:** an arrow to or from a cloud hosted application ends on the cloud's outline, not
   its box, each end moved straight in so straight arrows stay straight. A connector box on an
   arrow into a cloud sits 6 px inside it. The exports draw them the same way.
+- **Actors (conceptual only):** an arrow meets an actor in the middle of its side, wherever the
+  other end is, so moving the actor doesn't slide its arrows along it. The arrow runs straight
+  out of the middle while the other element's facing side reaches across it (less a 10 px
+  margin), and at a slant from the middle otherwise. These arrows can't be straightened by hand.
 - **Straightening (conceptual only):** drag an arrow sideways, or select it and use the arrow
   keys, to pin it straight at a position. Its position is stored as `manualOffset`, measured from the source's
   top edge (left/right arrows) or left edge (top/bottom arrows), and kept within the range where

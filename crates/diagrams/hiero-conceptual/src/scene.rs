@@ -1,7 +1,7 @@
 //! How a conceptual diagram is drawn: each element's look in the diagram's colours, and its
 //! arrows with their text, connectors, and transformations.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use hiero_core::color::{border_for, readable_text};
 use hiero_core::engine::{Engine, Laid};
@@ -13,8 +13,8 @@ use hiero_core::look::{
 };
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
-    CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, Route, Side, connector_placement, route_connections,
-    straight_range, transformation_placement,
+    CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, Route, Side, connector_placement,
+    route_connections_centred, straight_range, transformation_placement,
 };
 use hiero_core::scene::Scene;
 use hiero_core::text::{MeasureText, Weight};
@@ -224,7 +224,13 @@ pub fn drawn_arrows(
             },
         })
         .collect();
-    let routes = route_connections(&rects, &ends);
+    // Arrows meet an actor in the middle of its side, so they don't slide along it as it moves.
+    let centred: HashSet<ElementId> = layout
+        .iter()
+        .filter(|e| e.el.kind == ConceptualKind::Actor)
+        .map(|e| e.el.id.clone())
+        .collect();
+    let routes = route_connections_centred(&rects, &ends, &centred);
     let by_id: HashMap<&ElementId, &Laid<Conceptual>> =
         layout.iter().map(|e| (&e.el.id, e)).collect();
     let measure = eng.measure();

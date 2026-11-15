@@ -6,17 +6,24 @@ use hiero_core::geometry::{GRID, Point, js_round};
 use hiero_core::model::ConnectionId;
 use hiero_core::routing::{StraightRange, straight_range};
 
-use crate::model::Conceptual;
+use crate::model::{Conceptual, ConceptualKind};
 use crate::scene::drawn_arrows;
 
 /// Straight arrows snap to half a grid step.
 pub const ARROW_STEP: f64 = GRID / 2.0;
 
-/// Where a straight arrow can run between the arrow's elements, if anywhere.
+/// Where a straight arrow can run between the arrow's elements, if anywhere. Nowhere for an
+/// arrow to or from an actor, which always meets it in the middle.
 pub fn range_for(eng: &Engine<Conceptual>, id: &ConnectionId) -> Option<StraightRange> {
     let connection = eng.connection(id)?;
     let source = eng.laid(&connection.source_id)?;
     let target = eng.laid(&connection.target_id)?;
+    if [source, target]
+        .iter()
+        .any(|e| e.el.kind == ConceptualKind::Actor)
+    {
+        return None;
+    }
     straight_range(&source.rect, &target.rect)
 }
 
