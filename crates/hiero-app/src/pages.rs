@@ -1248,7 +1248,17 @@ impl App {
                 }
             });
             ui.add_space(5.0);
+            // The line under the toolbar runs from edge to edge of the window, past the page's
+            // margin, as the canvas under it does.
             let line = ui.separator();
+            let y = line.rect.center().y;
+            let x = line.rect.x_range();
+            let edges = egui::Rangef::new(x.min - PAGE_MARGIN, x.max + PAGE_MARGIN);
+            ui.painter().with_clip_rect(ui.ctx().content_rect()).hline(
+                edges,
+                y,
+                ui.visuals().widgets.noninteractive.bg_stroke,
+            );
             // The palette, canvas, and properties fill the window to its left, right, and bottom
             // edges and meet the toolbar's line, past the page's margin, so no strip of the page
             // shows around the canvas.
