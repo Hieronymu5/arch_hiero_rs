@@ -616,10 +616,13 @@ impl App {
                 } else {
                     Color32::BLACK
                 };
+                // Moved in so its lettering, about 1 point into the image, lines up with the
+                // pages' content, CONTENT_INSET in from the edge.
+                ui.add_space(f32::from(CONTENT_INSET) - 1.0);
                 let logo = ui
                     .add(
                         egui::Image::new(egui::include_image!("../assets/logo.png"))
-                            .fit_to_exact_size(egui::vec2(60.0, 45.0))
+                            .fit_to_exact_size(egui::vec2(53.0, 35.0))
                             .tint(tint)
                             .sense(egui::Sense::click()),
                     )
@@ -644,14 +647,16 @@ impl App {
                     // The title on one line with the description under it, each cut short when
                     // there isn't room. The description's full text shows on hover.
                     let room = (ui.available_width() - 260.0).max(120.0);
-                    ui.allocate_ui(egui::vec2(room, 45.0), |ui| {
+                    ui.allocate_ui(egui::vec2(room, 35.0), |ui| {
                         ui.vertical(|ui| {
+                            // No gap between the lines, so both fit beside the logo.
+                            ui.spacing_mut().item_spacing.y = 0.0;
                             // A title alone is centred on the logo; one with a description sits
                             // above it.
                             let description = description.filter(|d| !d.is_empty());
-                            ui.add_space(if description.is_some() { 4.0 } else { 11.0 });
+                            ui.add_space(if description.is_some() { 0.0 } else { 8.0 });
                             let title = RichText::new(title)
-                                .font(fonts::bold(18.0))
+                                .font(fonts::bold(16.0))
                                 .color(ui.visuals().strong_text_color());
                             ui.horizontal(|ui| {
                                 // Leave room for the badge, about 90 points wide.
@@ -666,7 +671,8 @@ impl App {
                             });
                             if let Some(description) = description {
                                 ui.add(
-                                    egui::Label::new(RichText::new(&description).weak()).truncate(),
+                                    egui::Label::new(RichText::new(&description).size(13.0).weak())
+                                        .truncate(),
                                 )
                                 .on_hover_text(description);
                             }
