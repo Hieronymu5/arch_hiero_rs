@@ -251,6 +251,13 @@ impl App {
         }
     }
 
+    /// Goes back to the diagram at `index` in the back list, as a step in the path to the open
+    /// diagram (see `trail`), leaving the pages after it behind.
+    pub fn go_back_to(&mut self, index: usize) {
+        self.back.truncate(index + 1);
+        self.go_back();
+    }
+
     pub fn go_back(&mut self) {
         let target = self.back.pop().unwrap_or(Page::List);
         // Going back to a diagram another was opened from opens it again, as it was.

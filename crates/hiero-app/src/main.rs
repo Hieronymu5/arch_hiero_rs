@@ -7,6 +7,7 @@ mod editors;
 mod format;
 mod list_sort;
 mod pages;
+mod trail;
 mod worker;
 
 use std::path::{Path, PathBuf};

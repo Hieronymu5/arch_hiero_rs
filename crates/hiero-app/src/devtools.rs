@@ -3,7 +3,8 @@
 //!
 //! - `ARCH_HIERO_DB`: the database file to use instead of the usual one. The list of recent
 //!   databases is neither read nor changed.
-//! - `ARCH_HIERO_OPEN`: the name of a diagram to open on start.
+//! - `ARCH_HIERO_OPEN`: the name of a diagram to open on start, or several separated by " > "
+//!   to open in turn, as clicking from one to the next would.
 //! - `ARCH_HIERO_NEW`: a diagram type, such as `physical`, to create a diagram of and open.
 //! - `ARCH_HIERO_SELECT`: the name of an element to select in the open diagram.
 //! - `ARCH_HIERO_VIEW`: set to view the open diagram rather than edit it.
@@ -53,10 +54,14 @@ impl DevTools {
 
     pub fn frame(&mut self, app: &mut App, ctx: &egui::Context) {
         self.frame += 1;
-        if let Some(name) = self.open.take()
-            && let Some(summary) = app.list.iter().find(|s| s.meta.name == name).cloned()
-        {
-            app.open_diagram(&summary.meta.id, false);
+        // Several names, such as "Sales > Payments", open each in turn, as clicking through
+        // them would.
+        if let Some(names) = self.open.take() {
+            for name in names.split(" > ") {
+                if let Some(summary) = app.list.iter().find(|s| s.meta.name == name).cloned() {
+                    app.open_diagram(&summary.meta.id, false);
+                }
+            }
         }
         if let Some(kind) = self.new.take()
             && let Some(t) = hiero_core::model::DiagramTypeId::parse(&kind)

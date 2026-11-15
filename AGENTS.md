@@ -125,7 +125,7 @@ Before you call a change done, run `cargo fmt --all`, the clippy command above, 
 The app reads these environment variables (see `crates/hiero-app/src/devtools.rs`):
 
 - `ARCH_HIERO_DB=<path>`: use a scratch database instead of the real one. Always do this when testing.
-- `ARCH_HIERO_OPEN=<diagram name>` or `ARCH_HIERO_NEW=<type>`: open or create a diagram on start.
+- `ARCH_HIERO_OPEN=<diagram name>` or `ARCH_HIERO_NEW=<type>`: open or create a diagram on start. Several names separated by ` > ` open in turn, as clicking from one to the next would.
 - `ARCH_HIERO_SELECT=<element name>`: select an element.
 - `ARCH_HIERO_VIEW=1`: view the open diagram rather than edit it.
 - `ARCH_HIERO_THEME=light|dark`: show this run in that theme, without saving it.

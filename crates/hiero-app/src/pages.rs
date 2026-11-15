@@ -19,6 +19,7 @@ use hiero_store::Status;
 use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
 use crate::format::date;
 use crate::list_sort::{Column, ListSort, tree_rows};
+use crate::trail::{NAME_MAX, abbreviate, trail};
 
 /// A database's file name.
 fn database_name(path: &Path) -> String {
@@ -607,6 +608,16 @@ impl App {
             .unwrap_or_default()
     }
 
+    /// Goes straight to the list of diagrams, leaving every page before it behind.
+    fn go_to_list(&mut self) {
+        if !matches!(self.page, Page::List) {
+            self.flush_save();
+            self.back.clear();
+            self.page = Page::List;
+            self.refresh_list();
+        }
+    }
+
     pub fn top_bar(&mut self, ui: &mut Ui) {
         egui::Panel::top("top-bar").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -630,11 +641,8 @@ impl App {
                 logo.widget_info(|| {
                     egui::WidgetInfo::labeled(egui::Role::Link, true, "ArchHiero, go to diagrams")
                 });
-                if logo.clicked() && !matches!(self.page, Page::List) {
-                    self.flush_save();
-                    self.back.clear();
-                    self.page = Page::List;
-                    self.refresh_list();
+                if logo.clicked() {
+                    self.go_to_list();
                 }
                 if let Some((title, description)) = self.page_heading() {
                     // In the editor and the history, the diagram's version tag goes
@@ -647,6 +655,22 @@ impl App {
                     // The title on one line with the description under it, each cut short when
                     // there isn't room. The description's full text shows on hover.
                     let room = (ui.available_width() - 260.0).max(120.0);
+                    // In the editor, the diagrams the open one was reached through come
+                    // before its name, from the list on: "Diagrams / Sales / Payments".
+                    let path: Vec<(Option<usize>, String)> = match &self.page {
+                        Page::Editor(id) => std::iter::once((None, "Diagrams".to_owned()))
+                            .chain(trail(&self.back, id).into_iter().map(|(at, id)| {
+                                let name = self
+                                    .list
+                                    .iter()
+                                    .find(|s| s.meta.id == id)
+                                    .map_or_else(|| "Diagram".to_owned(), |s| s.meta.name.clone());
+                                (Some(at), name)
+                            }))
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                    let mut jump: Option<Option<usize>> = None;
                     ui.allocate_ui(egui::vec2(room, 35.0), |ui| {
                         ui.vertical(|ui| {
                             // No gap between the lines, so both fit beside the logo.
@@ -663,6 +687,22 @@ impl App {
                                 let badge_room = if status.is_some() { 90.0 } else { 0.0 };
                                 ui.scope(|ui| {
                                     ui.set_max_width(ui.available_width() - badge_room);
+                                    ui.spacing_mut().item_spacing.x = 6.0;
+                                    for (at, name) in &path {
+                                        let short = abbreviate(name, NAME_MAX);
+                                        let link = ui.add(egui::Link::new(
+                                            RichText::new(&short).font(fonts::bold(16.0)),
+                                        ));
+                                        let link = if short == *name {
+                                            link
+                                        } else {
+                                            link.on_hover_text(name)
+                                        };
+                                        if link.clicked() {
+                                            jump = Some(*at);
+                                        }
+                                        ui.label(RichText::new("/").size(16.0).weak());
+                                    }
                                     ui.add(egui::Label::new(title).truncate());
                                 });
                                 if let Some(status) = status {
@@ -678,6 +718,11 @@ impl App {
                             }
                         });
                     });
+                    match jump {
+                        Some(Some(at)) => self.go_back_to(at),
+                        Some(None) => self.go_to_list(),
+                        None => {}
+                    }
                 }
                 // The theme picker, then the accent colour picker, at the end of the bar.
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
