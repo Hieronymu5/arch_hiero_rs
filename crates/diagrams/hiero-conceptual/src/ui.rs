@@ -335,6 +335,17 @@ mod tests {
             ]))
         }
 
+        /// Three elements, and one far off, so the drawing is larger than the window even
+        /// while viewing, which shows only the drawing.
+        fn wide() -> Self {
+            Self::with(serde_json::json!([
+                { "id": "u1", "kind": "actor", "label": "Rep", "x": 40, "y": 40 },
+                { "id": "u2", "kind": "actor", "label": "Agent", "x": 240, "y": 40 },
+                { "id": "a1", "kind": "application", "label": "CRM", "x": 40, "y": 300 },
+                { "id": "a2", "kind": "application", "label": "ERP", "x": 2000, "y": 1300 },
+            ]))
+        }
+
         fn with(elements: serde_json::Value) -> Self {
             let elements = serde_json::from_value(elements).unwrap();
             let eng = Engine::<Conceptual>::new(elements, vec![], DiagramColors::default())
@@ -380,8 +391,10 @@ mod tests {
                 .read_response(self.salt.with("canvas"))
                 .unwrap()
                 .rect;
+            // Where the paper starts: the canvas's corner, or while viewing, the drawing's.
             View {
                 scroll,
+                corner: self.editor.view().corner,
                 ..View::default()
             }
             .transform(canvas)
@@ -670,7 +683,7 @@ mod tests {
     #[test]
     fn dragging_with_the_middle_button_moves_the_canvas() {
         for viewing in [false, true] {
-            let mut w = Window::new();
+            let mut w = Window::wide();
             w.editor.set_viewing(viewing);
             w.frame(vec![], Modifiers::NONE);
             let u1 = w.editor.eng.laid(&"u1".into()).unwrap().rect;
@@ -689,7 +702,7 @@ mod tests {
     fn viewing_only_moves_the_canvas() {
         use hiero_editor::DiagramEditor;
 
-        let mut w = Window::new();
+        let mut w = Window::wide();
         let u1 = w.editor.eng.laid(&"u1".into()).unwrap().rect;
         let u2 = w.editor.eng.laid(&"u2".into()).unwrap().rect;
         w.editor.eng.select(&"u1".into());
@@ -716,7 +729,7 @@ mod tests {
         };
         w.frame(vec![delete, Event::Cut], Modifiers::NONE);
         w.frame(vec![Event::Paste("Hello".into())], Modifiers::NONE);
-        assert_eq!(w.editor.eng.elements().len(), 3);
+        assert_eq!(w.editor.eng.elements().len(), 4);
         assert!(w.editor.take_changes().is_empty());
         assert!(w.editor.take_notice().is_none());
         // Editing again, a click selects.

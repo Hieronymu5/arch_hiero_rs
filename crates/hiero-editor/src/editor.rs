@@ -12,7 +12,7 @@ use hiero_core::engine::{
     Conn, Corner, DiagramType, Dir, El, Engine, Laid, Placement, validate_label,
 };
 use hiero_core::geometry::{GRID, Point, Rect, Size};
-use hiero_core::layout::canvas_rect;
+use hiero_core::layout::{canvas_rect, viewed_area};
 use hiero_core::look::{HOVER_EXTRA_WIDTH, link_mark, link_mark_corner};
 use hiero_core::model::{ColorScheme, ConnectionId, DiagramId, ElementId, LineWeight};
 use hiero_core::scene::{Node, Scene, first_text_color, outlines};
@@ -1052,13 +1052,21 @@ impl<T: DiagramView> Editor<T> {
             ),
         };
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Canvas, true, &label));
+        // While viewing, the paper is only as big as the drawing, so there's no empty paper to
+        // scroll to.
+        let area = if self.viewing {
+            viewed_area(self.still_scene().bounds, self.eng.canvas())
+        } else {
+            canvas_rect(self.eng.canvas())
+        };
+        self.view = self.view.with_paper(area);
         self.view.clamp(rect);
         let painter = ui.painter_at(rect);
         let dark = dark_canvas(ui.ctx());
         let (paper_color, around) = paper_colors(dark);
         painter.rect_filled(rect, 0.0, around);
         let xf = self.view.transform(rect);
-        let paper = xf.rect(canvas_rect(self.eng.canvas()));
+        let paper = xf.rect(area);
         painter.rect_filled(paper, 0.0, paper_color);
         // Viewing never shows the grid.
         if !self.viewing && show_grid(ui.ctx()) {
@@ -1133,14 +1141,7 @@ impl<T: DiagramView> Editor<T> {
         let scene = if dragging {
             T::scene(&self.eng, &displayed, self.slide())
         } else {
-            match &self.scene_cache {
-                Some((changes, scene)) if *changes == self.eng.changes() => scene.clone(),
-                _ => {
-                    let scene = T::scene(&self.eng, &displayed, None);
-                    self.scene_cache = Some((self.eng.changes(), scene.clone()));
-                    scene
-                }
-            }
+            self.still_scene().clone()
         };
         paint_scene(&painter, &scene, xf, &mut self.cache, 1.0, dark);
         self.paint_link_marks(&painter, &scene, xf, &displayed, dragging);
@@ -1149,6 +1150,17 @@ impl<T: DiagramView> Editor<T> {
             self.paint_overlays(&painter, xf, &displayed, &response, ui);
         }
         self.zoom_control(ui, rect);
+    }
+
+    /// The scene when nothing is being dragged, built again only when the content changed.
+    fn still_scene(&mut self) -> &Scene {
+        let changes = self.eng.changes();
+        if self.scene_cache.as_ref().is_none_or(|(c, _)| *c != changes) {
+            let scene = T::scene(&self.eng, &self.displayed(), None);
+            self.scene_cache = Some((changes, scene));
+        }
+        let (_, scene) = self.scene_cache.as_ref().expect("built above");
+        scene
     }
 
     fn paint_grid(&self, painter: &egui::Painter, xf: Transform, clip: egui::Rect) {

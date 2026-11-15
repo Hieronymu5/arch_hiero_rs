@@ -10,6 +10,22 @@ pub const fn canvas_rect(canvas: Size) -> Rect {
     Rect::new(0.0, 0.0, canvas.width, canvas.height)
 }
 
+/// The part of a canvas of size `canvas` that shows a drawing covering `bounds`, as viewing
+/// shows it: the drawing with a one-grid margin, on whole grid steps, so there's no empty paper
+/// to scroll to. An empty drawing shows the whole canvas.
+pub fn viewed_area(bounds: Rect, canvas: Size) -> Rect {
+    if bounds.width <= 0.0 && bounds.height <= 0.0 {
+        return canvas_rect(canvas);
+    }
+    let down = |value: f64| ((value - GRID) / GRID).floor() * GRID;
+    let up = |value: f64| ((value + GRID) / GRID).ceil() * GRID;
+    let left = down(bounds.x).max(0.0);
+    let top = down(bounds.y).max(0.0);
+    let right = up(bounds.right()).min(canvas.width).max(left);
+    let bottom = up(bounds.bottom()).min(canvas.height).max(top);
+    Rect::new(left, top, right - left, bottom - top)
+}
+
 /// Where elements can be placed automatically on a canvas of size `canvas`: all of it less a
 /// one-grid margin.
 pub const fn canvas_area(canvas: Size) -> Rect {
@@ -301,6 +317,21 @@ pub fn distribute(sizes: &[f64], minimums: &[f64], total: f64) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn viewing_shows_the_drawing_with_a_margin_on_the_grid() {
+        let canvas = DEFAULT_CANVAS;
+        assert_eq!(
+            viewed_area(Rect::new(205.0, 100.0, 300.0, 150.0), canvas),
+            Rect::new(180.0, 80.0, 360.0, 200.0)
+        );
+        // Never past the canvas.
+        assert_eq!(
+            viewed_area(Rect::new(5.0, 10.0, canvas.width, 50.0), canvas),
+            Rect::new(0.0, 0.0, canvas.width, 80.0)
+        );
+        assert_eq!(viewed_area(Rect::default(), canvas), canvas_rect(canvas));
+    }
 
     #[test]
     fn snap_to_canvas_keeps_elements_on_the_canvas() {

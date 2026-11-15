@@ -2,6 +2,7 @@
 
 use egui::{Pos2, Rect, Vec2};
 use hiero_core::geometry::{DEFAULT_CANVAS, Size};
+use hiero_core::layout::canvas_rect;
 
 use crate::paint::Transform;
 
@@ -20,8 +21,12 @@ const MARGIN: f32 = 0.0;
 pub struct View {
     pub zoom: f32,
     pub scroll: Vec2,
-    /// The paper's size in canvas pixels: the diagram's canvas.
+    /// The paper's size in canvas pixels: the diagram's canvas, or while viewing, the part
+    /// of it the drawing covers.
     pub paper: Vec2,
+    /// Where the paper's top-left corner is, in canvas pixels: the canvas's, or while viewing,
+    /// the drawing's.
+    pub corner: Vec2,
 }
 
 impl Default for View {
@@ -30,6 +35,7 @@ impl Default for View {
             zoom: ZOOM_MAX,
             scroll: Vec2::new(MARGIN, MARGIN),
             paper: Vec2::ZERO,
+            corner: Vec2::ZERO,
         }
         .with_canvas(DEFAULT_CANVAS)
     }
@@ -38,14 +44,22 @@ impl Default for View {
 impl View {
     pub fn transform(&self, viewport: Rect) -> Transform {
         Transform {
-            origin: viewport.min + self.scroll,
+            origin: viewport.min + self.scroll - self.corner * self.zoom,
             zoom: self.zoom,
         }
     }
 
     /// The view of a canvas of `size`.
-    pub fn with_canvas(mut self, size: Size) -> Self {
-        self.paper = Vec2::new(size.width as f32, size.height as f32);
+    pub fn with_canvas(self, size: Size) -> Self {
+        self.with_paper(canvas_rect(size))
+    }
+
+    /// The view of `area` of the canvas, keeping what's on screen where it is.
+    pub fn with_paper(mut self, area: hiero_core::geometry::Rect) -> Self {
+        let corner = Vec2::new(area.x as f32, area.y as f32);
+        self.scroll += (corner - self.corner) * self.zoom;
+        self.corner = corner;
+        self.paper = Vec2::new(area.width as f32, area.height as f32);
         self
     }
 
@@ -75,7 +89,7 @@ impl View {
     /// viewport, `margin` points in from its edges, showing the left end of a span too wide to
     /// fit. Returns how far it scrolled, negative to the left.
     pub fn reveal_x(&mut self, left: f32, right: f32, viewport: Rect, margin: f32) -> f32 {
-        let start = viewport.min.x + self.scroll.x;
+        let start = self.transform(viewport).origin.x;
         let (screen_left, screen_right) = (start + left * self.zoom, start + right * self.zoom);
         let mut d = 0.0;
         if screen_right > viewport.max.x - margin {
@@ -112,6 +126,27 @@ mod tests {
         view.scroll.x = -10_000.0;
         view.clamp(viewport);
         (view, viewport)
+    }
+
+    #[test]
+    fn showing_part_of_the_canvas_keeps_the_drawing_in_place_and_starts_the_paper_there() {
+        let viewport = Rect::from_min_size(Pos2::ZERO, Vec2::new(500.0, 400.0));
+        let mut view = View {
+            zoom: 0.5,
+            scroll: Vec2::new(-100.0, -60.0),
+            ..View::default()
+        };
+        let point = hiero_core::geometry::Point::new(700.0, 300.0);
+        let before = view.transform(viewport).pos(point);
+        view = view.with_paper(hiero_core::geometry::Rect::new(
+            600.0, 200.0, 1600.0, 1200.0,
+        ));
+        assert_eq!(view.transform(viewport).pos(point), before);
+        // Scrolled as far left and up as it goes, the paper's corner meets the viewport's.
+        view.scroll = Vec2::new(1000.0, 1000.0);
+        view.clamp(viewport);
+        let corner = hiero_core::geometry::Point::new(600.0, 200.0);
+        assert_eq!(view.transform(viewport).pos(corner), viewport.min);
     }
 
     #[test]
