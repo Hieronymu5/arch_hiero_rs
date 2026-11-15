@@ -134,6 +134,8 @@ pub enum NameAt {
     TopCenter,
     TopLeft,
     BottomLeft,
+    /// Centred along the bottom, such as a domain's under what it holds.
+    BottomCenter,
 }
 
 /// How an element looks, apart from its position, size, and text.
@@ -147,6 +149,9 @@ pub struct Look {
     /// Draws an actor as a group: three people, or bots, one in front of two.
     pub group: bool,
     pub name_at: NameAt,
+    /// The size of a container's, box's, or cloud's name, in pixels. Unset means the usual:
+    /// 20 along a container's top or bottom, 16 in its corner or in a box or cloud.
+    pub name_size: Option<f64>,
     /// Square corners on a container.
     pub square: bool,
     /// Its border colour, such as a shade of its fill. Unset means the borders colour.
@@ -179,6 +184,7 @@ impl Look {
             agent: false,
             group: false,
             name_at: NameAt::TopCenter,
+            name_size: None,
             square: false,
             border_color: None,
             dashed: false,
@@ -862,22 +868,31 @@ pub fn draw_element(
 
     match look.shape {
         Shape::Container => {
-            let style = if look.name_at == NameAt::BottomLeft {
+            let usual = if look.name_at == NameAt::BottomLeft {
                 CORNER_NAME
             } else {
                 CONTAINER_NAME
             };
+            // A name in its own size keeps the usual spacing between lines.
+            let style = match look.name_size {
+                Some(size) => TextStyle {
+                    size,
+                    line_height: (size * 1.3).round(),
+                    ..usual
+                },
+                None => usual,
+            };
             let name = wrap_text(&element.label, text_width, style, measure);
+            let bottom_top = y + height - 8.0 - name.len() as f64 * style.line_height;
             let text = match look.name_at {
                 NameAt::TopCenter => text_lines(&name, center_x, y + 8.0, style, Anchor::Middle),
                 NameAt::TopLeft => text_lines(&name, x + PADDING_X, y + 4.0, style, Anchor::Start),
-                NameAt::BottomLeft => text_lines(
-                    &name,
-                    x + PADDING_X,
-                    y + height - 8.0 - name.len() as f64 * style.line_height,
-                    style,
-                    Anchor::Start,
-                ),
+                NameAt::BottomLeft => {
+                    text_lines(&name, x + PADDING_X, bottom_top, style, Anchor::Start)
+                }
+                NameAt::BottomCenter => {
+                    text_lines(&name, center_x, bottom_top, style, Anchor::Middle)
+                }
             };
             let mut nodes = vec![Node::rect(
                 element.rect,
@@ -955,7 +970,16 @@ pub fn draw_element(
             } else {
                 text_width
             };
-            let name = wrap_text(&element.label, inner, NAME, measure);
+            // A name in its own size keeps the usual spacing between lines.
+            let name_style = match look.name_size {
+                Some(size) => TextStyle {
+                    size,
+                    line_height: (size * 1.5).round(),
+                    ..NAME
+                },
+                None => NAME,
+            };
+            let name = wrap_text(&element.label, inner, name_style, measure);
             let description = match element.description.as_deref() {
                 Some(d) if !d.is_empty() => wrap_text(
                     d,
@@ -974,7 +998,7 @@ pub fn draw_element(
             } else {
                 DESCRIPTION_GAP
             };
-            let content_height = name.len() as f64 * NAME.line_height
+            let content_height = name.len() as f64 * name_style.line_height
                 + gap
                 + description.len() as f64 * DESCRIPTION.line_height;
             let top = if look.text_at_top {
@@ -999,11 +1023,11 @@ pub fn draw_element(
             } else {
                 Node::rect(element.rect, 6.0, paint)
             };
-            let mut text = text_lines(&name, center_x, top, NAME, Anchor::Middle);
+            let mut text = text_lines(&name, center_x, top, name_style, Anchor::Middle);
             text.extend(text_lines(
                 &description,
                 center_x,
-                top + name.len() as f64 * NAME.line_height + gap,
+                top + name.len() as f64 * name_style.line_height + gap,
                 DESCRIPTION,
                 Anchor::Middle,
             ));
@@ -1342,6 +1366,53 @@ mod tests {
         // Name on one line (15 chars × 8.8 = 132 ≤ 180), description under it.
         assert!(svg.contains(r#"<text x="140" y="85.3" text-anchor="middle" font-size="16" font-weight="700">Customer Portal</text>"#));
         assert!(svg.contains(r#"font-size="13" font-weight="400">Self-service website</text>"#));
+    }
+
+    /// The y of the first `<text>` at `x` in `svg`, and its font size.
+    fn text_at(svg: &str, x: &str) -> (f64, String) {
+        let prefix = format!(r#"<text x="{x}" y=""#);
+        let start = svg.find(&prefix).expect("text at x") + prefix.len();
+        let rest = &svg[start..];
+        let y = rest[..rest.find('"').unwrap()].parse().unwrap();
+        let size = &rest[rest.find(r#"font-size=""#).unwrap() + 11..];
+        (y, size[..size.find('"').unwrap()].to_owned())
+    }
+
+    #[test]
+    fn a_name_can_have_its_own_size_and_sit_along_a_containers_bottom() {
+        let draw = |e: &LookElement| {
+            let nodes = draw_element(
+                e,
+                &EstimateText,
+                &DiagramColors::default(),
+                LineWeight::Thick,
+            );
+            scene_to_svg(
+                "t",
+                &Scene {
+                    nodes,
+                    bounds: e.rect,
+                    text_color: TEXT.into(),
+                    marker_color: "#0066cc".into(),
+                    background: BACKGROUND.into(),
+                },
+            )
+        };
+        let mut domain = element(Shape::Container, Rect::new(0.0, 0.0, 400.0, 300.0));
+        domain.description = None;
+        let (top, size) = text_at(&draw(&domain), "200");
+        assert!(top < 40.0);
+        assert_eq!(size, "20");
+        domain.look.name_at = NameAt::BottomCenter;
+        domain.look.name_size = Some(24.0);
+        let (bottom, size) = text_at(&draw(&domain), "200");
+        // Centred, a 31 px line above the 8 px under it.
+        assert!((265.0..292.0).contains(&bottom), "{bottom}");
+        assert_eq!(size, "24");
+        let mut process = element(Shape::Box, Rect::new(0.0, 0.0, 200.0, 60.0));
+        process.description = None;
+        process.look.name_size = Some(12.0);
+        assert_eq!(text_at(&draw(&process), "100").1, "12");
     }
 
     #[test]

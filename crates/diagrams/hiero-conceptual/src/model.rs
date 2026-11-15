@@ -41,6 +41,19 @@ impl ComponentType {
     }
 }
 
+/// Where a domain's name sits. Unset means centred along its top.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NamePosition {
+    /// Centred along its bottom, under the applications it holds.
+    Bottom,
+}
+
+/// The usual size of an element's name, in pixels.
+pub const NAME_FONT_SIZE: u32 = 16;
+/// The usual size of a domain's name, in pixels: larger, as a heading for what it holds.
+pub const DOMAIN_FONT_SIZE: u32 = 20;
+
 fn is_false(value: &bool) -> bool {
     !*value
 }
@@ -62,6 +75,25 @@ pub struct ConceptualProps {
     /// Drawn as a cloud, for applications.
     #[serde(default, skip_serializing_if = "is_false")]
     pub cloud_hosted: bool,
+    /// The size of its name, in pixels, for a domain or a box such as an application. Unset
+    /// means the kind's: 20 for a domain, 16 for the others.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<u32>,
+    /// Where a domain's name sits. Unset means centred along its top.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name_position: Option<NamePosition>,
+}
+
+impl ConceptualProps {
+    /// The size of its name, as an element of `kind`.
+    pub fn font_size_of(&self, kind: ConceptualKind) -> u32 {
+        self.font_size.unwrap_or(kind.default_font_size())
+    }
+
+    /// Whether its name sits along its bottom, as a domain's can.
+    pub fn name_at_bottom(&self) -> bool {
+        self.name_position == Some(NamePosition::Bottom)
+    }
 }
 
 /// Whether what an arrow shows happens automatically (solid) or by hand (dashed).
@@ -144,6 +176,10 @@ const FIGURES: i32 = 3;
 
 use ConceptualKind as K;
 
+/// The smallest a process, a job, or an entity can be resized to: as short as it starts, so
+/// making one wider doesn't also make it taller.
+const SMALL_BOX_MIN_SIZE: Size = Size::new(120.0, 40.0);
+
 /// The elements offered in a conceptual diagram's palette.
 pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     KindInfo {
@@ -222,6 +258,8 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
             K::Entity,
             K::File,
         ],
+        resizable: Resizable::Both,
+        min_size: Some(SMALL_BOX_MIN_SIZE),
         size: Some(Size::new(140.0, 40.0)),
         ..KindInfo::new(K::Process, "Process")
     },
@@ -236,11 +274,15 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
             K::File,
         ],
         layer: FIGURES,
+        resizable: Resizable::Both,
+        min_size: Some(SMALL_BOX_MIN_SIZE),
         size: Some(Size::new(160.0, 40.0)),
         ..KindInfo::new(K::Job, "Job")
     },
     KindInfo {
         layer: FIGURES,
+        resizable: Resizable::Both,
+        min_size: Some(SMALL_BOX_MIN_SIZE),
         size: Some(Size::new(140.0, 40.0)),
         ..KindInfo::new(K::Entity, "Entity")
     },
@@ -286,5 +328,32 @@ impl ConceptualKind {
 
     pub const fn can_be_cloud_hosted(self) -> bool {
         matches!(self, Self::Application)
+    }
+
+    /// Whether its name can sit along its bottom instead of its top, as a domain's.
+    pub const fn has_name_position(self) -> bool {
+        matches!(self, Self::Domain)
+    }
+
+    /// Whether its name can be given a larger or smaller font. A component drawn as a figure
+    /// keeps its name's usual size.
+    pub const fn has_font_size(self) -> bool {
+        matches!(
+            self,
+            Self::Domain
+                | Self::Application
+                | Self::Component
+                | Self::Process
+                | Self::Job
+                | Self::Entity
+        )
+    }
+
+    /// The size of its name unless it has its own.
+    pub const fn default_font_size(self) -> u32 {
+        match self {
+            Self::Domain => DOMAIN_FONT_SIZE,
+            _ => NAME_FONT_SIZE,
+        }
     }
 }

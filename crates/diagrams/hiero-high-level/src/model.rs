@@ -135,11 +135,7 @@ pub struct BlockArrow {
     pub two_way: bool,
 }
 
-/// The font sizes offered, in pixels. Any whole size from `FONT_SIZE_MIN` to `FONT_SIZE_MAX`
-/// is valid, as an agent or a file can set.
-pub const FONT_SIZES: [u32; 11] = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32];
-pub const FONT_SIZE_MIN: u32 = 8;
-pub const FONT_SIZE_MAX: u32 = 48;
+pub use hiero_core::name_size::{FONT_SIZE_MAX, FONT_SIZE_MIN, FONT_SIZES};
 
 /// The longest an application's description can be.
 pub const DESCRIPTION_MAX: usize = 500;

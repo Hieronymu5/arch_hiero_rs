@@ -4,6 +4,7 @@ use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Dir, Engine, Laid, validate_length};
 use hiero_core::geometry::{Point, Rect};
 use hiero_core::model::{ArrowPayload, ConnectionId};
+use hiero_core::name_size::font_size_choices;
 use hiero_core::routing::payload_icon_placement;
 use hiero_core::scene::Scene;
 use hiero_editor::theme::page_button;
@@ -13,9 +14,9 @@ use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 use crate::arrows::{self, offset_at, place_automatically, set_manual_offset, straighten};
 use crate::model::{
     ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
-    DESCRIPTION_MAX, TRANSFORMATION_MAX,
+    DESCRIPTION_MAX, NamePosition, TRANSFORMATION_MAX,
 };
-use crate::rules::{arrow_title, normalized_arrow};
+use crate::rules::{arrow_title, figure_of, normalized_arrow};
 use crate::scene::{drawn_arrows, drawn_rect, scene_of};
 
 impl DiagramView for Conceptual {
@@ -69,6 +70,26 @@ impl DiagramView for Conceptual {
         if cx.name_field(ui, element, &mut with) {
             field = Some("label");
         }
+        // The name's size, right after the name it applies to. A figure's name keeps its usual
+        // size, so it's offered only for a box.
+        if kind.has_font_size() && figure_of(&element.el).is_none() {
+            let current = element.el.props.font_size_of(kind);
+            let options: Vec<(u32, String)> = font_size_choices(current)
+                .into_iter()
+                .map(|s| (s, format!("{s} px")))
+                .collect();
+            if let Some(Some(size)) = widgets::select(
+                ui,
+                cx.field_id(element.id(), "font-size"),
+                "Font size",
+                &Some(current),
+                None,
+                &options,
+            ) {
+                with.props.font_size = Some(size);
+                field = Some("font-size");
+            }
+        }
         if element.info.has_description
             && let Some(description) = text_field(
                 ui,
@@ -115,6 +136,19 @@ impl DiagramView for Conceptual {
                         .changed()
                     {
                         field = Some("component-type");
+                    }
+                }
+            });
+        }
+        if kind.has_name_position() {
+            widgets::label(ui, "Name position", false);
+            ui.horizontal_wrapped(|ui| {
+                for (value, label) in [(None, "Top"), (Some(NamePosition::Bottom), "Bottom")] {
+                    if ui
+                        .radio_value(&mut with.props.name_position, value, label)
+                        .changed()
+                    {
+                        field = Some("name-position");
                     }
                 }
             });

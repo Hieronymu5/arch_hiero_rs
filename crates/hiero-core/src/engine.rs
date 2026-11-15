@@ -300,6 +300,12 @@ pub trait DiagramType: Sized + 'static {
         info.header()
     }
 
+    /// The height of a container's footer, below what it holds: its kind's, unless the type
+    /// sizes it to the element, such as to fit a domain's name along its bottom.
+    fn footer_height(_element: &El<Self>, info: &'static KindInfo<Self::Kind>) -> f64 {
+        info.footer()
+    }
+
     /// Whether an element holds others.
     fn holds_elements(_element: &El<Self>, info: &'static KindInfo<Self::Kind>) -> bool {
         !info.can_contain.is_empty()
@@ -1310,11 +1316,11 @@ impl<T: DiagramType> Engine<T> {
 
     pub fn base_resize_limits(&self, element: &Laid<T>) -> ResizeLimits {
         ResizeLimits {
-            min_size: if element.is_region {
+            min_size: element.info.min_size.unwrap_or(if element.is_region {
                 MIN_CONTAINER_SIZE
             } else {
                 MIN_ELEMENT_SIZE
-            },
+            }),
             children: if element.is_container {
                 self.layout
                     .iter()
@@ -1733,7 +1739,7 @@ impl<T: DiagramType> Engine<T> {
                     is_region: is_container && info.container_look == ContainerLook::Region,
                     header: T::header_height(el, info),
                     padding: info.padding(),
-                    footer: info.footer(),
+                    footer: T::footer_height(el, info),
                 }
             })
             .collect();

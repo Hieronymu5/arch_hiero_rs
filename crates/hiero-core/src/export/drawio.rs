@@ -913,27 +913,26 @@ pub fn diagram_to_drawio(
                 style = style
                     .set("fillColor", look.fill.as_deref().unwrap_or(&colors.domains))
                     .set("fontColor", look.text_color.as_deref().unwrap_or(TEXT));
-                if look.name_at != NameAt::TopCenter {
+                // A name in a corner, such as a network's or a zone's, as in the editor.
+                if matches!(look.name_at, NameAt::TopLeft | NameAt::BottomLeft) {
                     style = style.set("align", "left").set("spacingLeft", 10);
                 }
+                let usual_size = if look.name_at == NameAt::BottomLeft {
+                    16.0
+                } else {
+                    20.0
+                };
                 let style = style
                     .set(
                         "verticalAlign",
-                        if look.name_at == NameAt::BottomLeft {
+                        if matches!(look.name_at, NameAt::BottomLeft | NameAt::BottomCenter) {
                             "bottom"
                         } else {
                             "top"
                         },
                     )
                     .set("fontStyle", 1)
-                    .set(
-                        "fontSize",
-                        if look.name_at == NameAt::BottomLeft {
-                            16
-                        } else {
-                            20
-                        },
-                    );
+                    .num("fontSize", look.name_size.unwrap_or(usual_size));
                 cell(
                     e.id.as_str(),
                     &escape_xml(&e.label),
@@ -975,7 +974,7 @@ pub fn diagram_to_drawio(
                 let style = style
                     .set("fillColor", look.fill.as_deref().unwrap_or(BOX_FILL))
                     .set("fontColor", look.text_color.as_deref().unwrap_or(TEXT))
-                    .set("fontSize", 16);
+                    .num("fontSize", look.name_size.unwrap_or(16.0));
                 cell(
                     e.id.as_str(),
                     &escape_xml(&label),
@@ -1377,6 +1376,33 @@ mod tests {
                 || xml.contains(r#"id="d" value="d &amp; co""#)
         );
         assert!(xml.contains(r#"x="40" y="108" width="480" height="180""#));
+    }
+
+    #[test]
+    fn names_keep_their_own_size_and_a_domains_can_sit_along_its_bottom() {
+        let mut domain = element(
+            "d",
+            None,
+            Shape::Container,
+            Rect::new(40.0, 40.0, 480.0, 180.0),
+        );
+        domain.look.name_at = NameAt::BottomCenter;
+        domain.look.name_size = Some(24.0);
+        let mut process = element("p", None, Shape::Box, Rect::new(600.0, 40.0, 140.0, 40.0));
+        process.look.name_size = Some(12.0);
+        let xml = diagram_to_drawio(
+            "T",
+            &[domain, process],
+            &[],
+            None,
+            None,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
+        assert!(xml.contains("verticalAlign=bottom;fontStyle=1;fontSize=24"));
+        // Centred, not in the corner as a zone's name is.
+        assert!(!xml.contains("align=left"));
+        assert!(xml.contains("fontSize=12"));
     }
 
     #[test]

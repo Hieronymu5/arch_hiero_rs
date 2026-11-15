@@ -415,6 +415,10 @@ pub struct KindInfo<K: 'static> {
     pub padding: Option<f64>,
     /// Whether it can be resized. Containers always can.
     pub resizable: Resizable,
+    /// The smallest a resizable element of this kind can be made, such as one that starts
+    /// shorter than other elements. Unset means `MIN_ELEMENT_SIZE`, or `MIN_CONTAINER_SIZE` for
+    /// a region.
+    pub min_size: Option<Size>,
     /// Drawing order for elements not in a container: lower layers behind higher ones.
     pub layer: i32,
     /// Kinds of element this kind can draw arrows to.
@@ -441,6 +445,7 @@ impl<K: Copy> KindInfo<K> {
             footer: None,
             padding: None,
             resizable: Resizable::No,
+            min_size: None,
             layer: 0,
             connects_to: &[],
             palette_heading: None,

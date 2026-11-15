@@ -3,11 +3,12 @@
 use egui::Ui;
 use hiero_core::engine::{Conn, Engine, Laid, validate_length};
 use hiero_core::model::ConnectionId;
+use hiero_core::name_size::font_size_choices;
 use hiero_core::scene::Scene;
 use hiero_editor::widgets::{self, text_field};
 use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
-use crate::model::{BlockArrow, Color, DESCRIPTION_MAX, FONT_SIZES, HighLevel, HighLevelKind};
+use crate::model::{BlockArrow, Color, DESCRIPTION_MAX, HighLevel, HighLevelKind};
 use crate::scene::{drawn_arrows, scene_of};
 
 impl DiagramView for HighLevel {
@@ -45,6 +46,24 @@ impl DiagramView for HighLevel {
         if cx.name_field(ui, element, &mut with) {
             field = Some("label");
         }
+        // The name's size, right after the name it applies to: the usual sizes, and this
+        // element's own when it's another, such as an agent set.
+        let current = props.font_size_of(kind);
+        let options: Vec<(u32, String)> = font_size_choices(current)
+            .into_iter()
+            .map(|s| (s, format!("{s} px")))
+            .collect();
+        if let Some(Some(size)) = widgets::select(
+            ui,
+            cx.field_id(element.id(), "font-size"),
+            "Font size",
+            &Some(current),
+            None,
+            &options,
+        ) {
+            with.props.font_size = Some(size);
+            field = Some("font-size");
+        }
         if element.info.has_description
             && let Some(description) = text_field(
                 ui,
@@ -68,25 +87,6 @@ impl DiagramView for HighLevel {
                 }
             }
         });
-        // The usual sizes, and this element's own when it's another, such as an agent set.
-        let current = props.font_size_of(kind);
-        let mut sizes: Vec<u32> = FONT_SIZES.to_vec();
-        if !sizes.contains(&current) {
-            sizes.push(current);
-            sizes.sort_unstable();
-        }
-        let options: Vec<(u32, String)> = sizes.into_iter().map(|s| (s, s.to_string())).collect();
-        if let Some(Some(size)) = widgets::select(
-            ui,
-            cx.field_id(element.id(), "font-size"),
-            "Font size",
-            &Some(current),
-            None,
-            &options,
-        ) {
-            with.props.font_size = Some(size);
-            field = Some("font-size");
-        }
         // Actors are figures, with no border to dash.
         if kind != HighLevelKind::Actors {
             widgets::label(ui, "Border", false);

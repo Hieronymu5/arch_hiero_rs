@@ -18,6 +18,7 @@ pub mod layout;
 pub mod legend;
 pub mod look;
 pub mod model;
+pub mod name_size;
 pub mod palette;
 pub mod routing;
 pub mod scene;

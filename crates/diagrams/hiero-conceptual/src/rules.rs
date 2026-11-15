@@ -6,13 +6,15 @@ use hiero_core::engine::{
 };
 use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
-use hiero_core::geometry::Size;
+use hiero_core::geometry::{GRID, Size};
+use hiero_core::layout::{CONTAINER_HEADER, CONTAINER_PADDING};
 use hiero_core::look::DiagramColors;
 use hiero_core::model::{DiagramTypeId, ElementId, KindInfo};
+use hiero_core::name_size::{header_for, validate_font_size};
 
 use crate::model::{
     ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
-    ConceptualKind, ConceptualProps, DESCRIPTION_MAX, PALETTE, TRANSFORMATION_MAX,
+    ConceptualKind, ConceptualProps, DESCRIPTION_MAX, NAME_FONT_SIZE, PALETTE, TRANSFORMATION_MAX,
 };
 
 /// A figure drawn above an element's name instead of a box.
@@ -23,6 +25,48 @@ pub enum Figure {
     Database,
     Storage,
     File,
+}
+
+const FONT_SIZE: Field = Field {
+    key: "fontSize",
+    rule: FieldRule::Number,
+};
+
+const NAME_POSITION: Field = Field {
+    key: "namePosition",
+    rule: FieldRule::OneOf {
+        values: &["bottom"],
+        default: Some("top"),
+    },
+};
+
+/// The height of a line of a box's name in `size`, as it's drawn.
+fn name_line_height(size: u32) -> f64 {
+    (f64::from(size) * 1.5).round()
+}
+
+/// The height of the band a domain's name takes along its top or bottom: the usual header for
+/// its own size or smaller, and taller for a larger name, to the grid, so it stays clear of the
+/// applications it holds.
+pub fn name_band(element: &El<Conceptual>) -> f64 {
+    let size = element.props.font_size_of(element.kind);
+    if size <= element.kind.default_font_size() {
+        CONTAINER_HEADER
+    } else {
+        header_for(f64::from(size))
+    }
+}
+
+/// How much taller a box's header gets for its name in its own size, such as an application's
+/// above the components it holds: the extra height of a larger name's line, to the grid.
+pub fn larger_name(element: &El<Conceptual>) -> f64 {
+    let extra = name_line_height(element.props.font_size_of(element.kind))
+        - name_line_height(NAME_FONT_SIZE);
+    if extra > 0.0 {
+        (extra / GRID).ceil() * GRID
+    } else {
+        0.0
+    }
 }
 
 /// The figure an element is drawn as, if any.
@@ -181,18 +225,26 @@ impl DiagramType for Conceptual {
                     rule: FieldRule::True,
                 },
             ],
-            ConceptualKind::Component => &[Field {
-                key: "componentType",
-                rule: FieldRule::OneOf {
-                    values: &["database", "storage"],
-                    default: Some("default"),
+            ConceptualKind::Domain => &[FONT_SIZE, NAME_POSITION],
+            ConceptualKind::Component => &[
+                Field {
+                    key: "componentType",
+                    rule: FieldRule::OneOf {
+                        values: &["database", "storage"],
+                        default: Some("default"),
+                    },
                 },
-            }],
-            ConceptualKind::Application => &[Field {
-                key: "cloudHosted",
-                rule: FieldRule::True,
-            }],
-            _ => &[],
+                FONT_SIZE,
+            ],
+            ConceptualKind::Application => &[
+                Field {
+                    key: "cloudHosted",
+                    rule: FieldRule::True,
+                },
+                FONT_SIZE,
+            ],
+            ConceptualKind::Process | ConceptualKind::Job | ConceptualKind::Entity => &[FONT_SIZE],
+            ConceptualKind::File | ConceptualKind::Section => &[],
         }
     }
 
@@ -209,6 +261,32 @@ impl DiagramType for Conceptual {
         match figure_of(element) {
             Some(Figure::Database | Figure::Storage) => FIGURE_SIZE,
             _ => info.size(),
+        }
+    }
+
+    /// A domain's name takes a band along its top, as tall as its font size needs, or along its
+    /// bottom, leaving the usual gap above what it holds. A box's header, such as an
+    /// application's, grows for a larger name.
+    fn header_height(element: &El<Self>, info: &'static KindInfo<ConceptualKind>) -> f64 {
+        if element.kind.has_name_position() {
+            if element.props.name_at_bottom() {
+                CONTAINER_PADDING
+            } else {
+                name_band(element)
+            }
+        } else if element.kind.has_font_size() {
+            info.header() + larger_name(element)
+        } else {
+            info.header()
+        }
+    }
+
+    /// A domain's name along its bottom takes a band below what it holds, past the usual gap.
+    fn footer_height(element: &El<Self>, info: &'static KindInfo<ConceptualKind>) -> f64 {
+        if element.kind.has_name_position() && element.props.name_at_bottom() {
+            name_band(element) - CONTAINER_PADDING
+        } else {
+            info.footer()
         }
     }
 
@@ -336,6 +414,14 @@ impl DiagramType for Conceptual {
         if !kind.has_component_type() {
             with.props.component_type = None;
         }
+        if !kind.has_name_position() {
+            with.props.name_position = None;
+        }
+        // The kind's own size is the default, so it isn't stored.
+        with.props.font_size = with
+            .props
+            .font_size
+            .filter(|s| kind.has_font_size() && *s != kind.default_font_size());
         let label = with.label.clone();
         let mut announcement = None;
         if kind.can_be_agent() && with.props.agent != selected.el.props.agent {
@@ -358,6 +444,20 @@ impl DiagramType for Conceptual {
             } else {
                 format!("{label} no longer marked as cloud hosted.")
             });
+        }
+        if kind.has_name_position() && with.props.name_position != selected.el.props.name_position {
+            let at = if with.props.name_at_bottom() {
+                "bottom"
+            } else {
+                "top"
+            };
+            announcement = Some(format!("{label}'s name moved to the {at}."));
+        }
+        if kind.has_font_size() && with.props.font_size != selected.el.props.font_size {
+            announcement = Some(format!(
+                "{label}'s name set to {} pixels.",
+                with.props.font_size_of(kind)
+            ));
         }
         if kind.has_component_type() {
             if with.props.component_type.is_some() && selected.child_count > 0 {
@@ -395,7 +495,8 @@ impl DiagramType for Conceptual {
             "Description",
             element.description.as_deref().unwrap_or_default(),
             DESCRIPTION_MAX,
-        )
+        )?;
+        validate_font_size(element.props.font_size_of(element.kind))
     }
 
     fn validate_arrow(arrow: &ConceptualArrow) -> Result<(), String> {
@@ -432,6 +533,7 @@ pub fn normalized_arrow(arrow: ConceptualArrow) -> ConceptualArrow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::NamePosition;
     use hiero_core::geometry::Point;
     use hiero_core::text::EstimateText;
 
@@ -641,5 +743,94 @@ mod tests {
             Conceptual::validate_arrow(&arrow).unwrap_err(),
             "Connector must be 20 characters or fewer."
         );
+    }
+
+    fn change(e: &mut Engine<Conceptual>, of: &str, change: impl FnOnce(&mut El<Conceptual>)) {
+        let mut with = e.element(&id(of)).unwrap().clone();
+        change(&mut with);
+        let parent = with.parent_id.clone();
+        <Conceptual as DiagramType>::apply_element(e, &id(of), with, parent);
+    }
+
+    #[test]
+    fn a_domains_name_band_grows_for_a_larger_name_and_can_move_to_the_bottom() {
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Domain, Point::new(300.0, 200.0));
+        let domain = e.laid(&id("id1")).unwrap();
+        assert_eq!((domain.header, domain.footer), (40.0, 0.0));
+        change(&mut e, "id1", |w| w.props.font_size = Some(32));
+        assert_eq!(e.laid(&id("id1")).unwrap().header, 60.0);
+        assert_eq!(e.announcement, "Domain's name set to 32 pixels.");
+        change(&mut e, "id1", |w| {
+            w.props.name_position = Some(NamePosition::Bottom);
+        });
+        let domain = e.laid(&id("id1")).unwrap();
+        // The usual gap above what it holds, and the name's band below it.
+        assert_eq!((domain.header, domain.footer), (20.0, 40.0));
+        assert_eq!(e.announcement, "Domain's name moved to the bottom.");
+    }
+
+    #[test]
+    fn a_name_at_its_kinds_size_is_left_out() {
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Domain, Point::new(300.0, 200.0));
+        e.add_at_free_position(ConceptualKind::Actor);
+        change(&mut e, "id1", |w| w.props.font_size = Some(20));
+        assert_eq!(e.element(&id("id1")).unwrap().props.font_size, None);
+        // An actor's name keeps its usual size, and its name sits where it always does.
+        change(&mut e, "id2", |w| {
+            w.props.font_size = Some(24);
+            w.props.name_position = Some(NamePosition::Bottom);
+        });
+        let actor = &e.element(&id("id2")).unwrap().props;
+        assert_eq!((actor.font_size, actor.name_position), (None, None));
+    }
+
+    #[test]
+    fn an_applications_header_grows_for_a_larger_name() {
+        let mut e = engine();
+        e.add_at_free_position(ConceptualKind::Application);
+        assert_eq!(e.laid(&id("id1")).unwrap().header, 60.0);
+        change(&mut e, "id1", |w| w.props.font_size = Some(24));
+        // A 36 px line rather than 24: 20 more, on the grid.
+        assert_eq!(e.laid(&id("id1")).unwrap().header, 80.0);
+        change(&mut e, "id1", |w| w.props.font_size = Some(12));
+        assert_eq!(e.laid(&id("id1")).unwrap().header, 60.0);
+    }
+
+    #[test]
+    fn processes_jobs_and_entities_resize_down_to_their_starting_height() {
+        let mut e = engine();
+        for kind in [
+            ConceptualKind::Process,
+            ConceptualKind::Job,
+            ConceptualKind::Entity,
+        ] {
+            e.add_at_free_position(kind);
+        }
+        for of in ["id1", "id2", "id3"] {
+            let laid = e.laid(&id(of)).unwrap().clone();
+            assert_eq!(laid.info.resizable, hiero_core::model::Resizable::Both);
+            let limits = Conceptual::resize_limits(&e, &laid);
+            assert_eq!(limits.min_size, Size::new(120.0, 40.0));
+        }
+    }
+
+    #[test]
+    fn font_sizes_are_whole_pixels_in_range() {
+        let mut with = engine_element(ConceptualKind::Process);
+        with.props.font_size = Some(60);
+        assert_eq!(
+            Conceptual::validate_element(&with).unwrap_err(),
+            "Font size must be from 8 to 48."
+        );
+        with.props.font_size = Some(8);
+        assert!(Conceptual::validate_element(&with).is_ok());
+    }
+
+    fn engine_element(kind: ConceptualKind) -> El<Conceptual> {
+        let mut e = engine();
+        e.add_at_free_position(kind);
+        e.element(&id("id1")).unwrap().clone()
     }
 }

@@ -8,27 +8,12 @@ use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::model::{DiagramTypeId, ElementId, KindInfo, NoColors};
 
 use crate::model::{
-    BlockArrow, DESCRIPTION_MAX, FONT_SIZE_MAX, FONT_SIZE_MIN, HighLevel, HighLevelKind,
-    HighLevelProps, PALETTE,
+    BlockArrow, DESCRIPTION_MAX, HighLevel, HighLevelKind, HighLevelProps, PALETTE,
 };
 
-/// The space above and below a group's name in its header.
-pub const NAME_PADDING: f64 = 8.0;
-/// The shortest a group's header is: two grid squares.
-pub const HEADER_MIN: f64 = 40.0;
-const GRID: f64 = 20.0;
-
-/// The height of a line of text in `size`.
-pub fn line_height(size: f64) -> f64 {
-    (size * 1.25).round()
-}
-
-/// The height of a group's header for a name in `size`: a line with space above and below it,
-/// rounded up to the grid so what the group holds stays on it.
-pub fn header_for(size: f64) -> f64 {
-    let needed = line_height(size) + NAME_PADDING * 2.0;
-    ((needed / GRID).ceil() * GRID).max(HEADER_MIN)
-}
+pub use hiero_core::name_size::{
+    HEADER_MIN, NAME_PADDING, header_for, line_height, validate_font_size,
+};
 
 const APPLICATION_COLOR: Field = Field {
     key: "color",
@@ -161,17 +146,6 @@ fn apply_element(
         );
     }
     eng.apply_changes(id, with, parent_id);
-}
-
-/// Checks a font size: a whole number of pixels, from `FONT_SIZE_MIN` to `FONT_SIZE_MAX`.
-pub fn validate_font_size(size: u32) -> Result<(), String> {
-    if (FONT_SIZE_MIN..=FONT_SIZE_MAX).contains(&size) {
-        Ok(())
-    } else {
-        Err(format!(
-            "Font size must be from {FONT_SIZE_MIN} to {FONT_SIZE_MAX}."
-        ))
-    }
 }
 
 impl DiagramType for HighLevel {

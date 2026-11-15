@@ -9,7 +9,7 @@ use hiero_core::export::drawio::{Legend, LegendLine, Stamp};
 use hiero_core::figures::cloud_edge_point;
 use hiero_core::geometry::{Point, Rect};
 use hiero_core::look::{
-    ArrowLook, DiagramColors, Look, LookElement, Shape, component_name_bottom, draw_diagram,
+    ArrowLook, DiagramColors, Look, LookElement, NameAt, Shape, component_name_bottom, draw_diagram,
 };
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
@@ -84,6 +84,10 @@ pub fn look_of(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> LookElem
         })
     };
     let (fill, text_color) = fill_of(eng, element);
+    let kind = element.el.kind;
+    // A figure's name keeps its usual size.
+    let name_size = (kind.has_font_size() && figure_shape(element).is_none())
+        .then(|| f64::from(element.el.props.font_size_of(kind)));
     LookElement {
         id: element.el.id.clone(),
         parent_id: element.el.parent_id.clone(),
@@ -97,6 +101,12 @@ pub fn look_of(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> LookElem
             agent: element.el.props.agent,
             group: element.el.kind.can_be_group() && element.el.props.group,
             text_at_top: element.text_at_top,
+            name_at: if kind.has_name_position() && element.el.props.name_at_bottom() {
+                NameAt::BottomCenter
+            } else {
+                NameAt::TopCenter
+            },
+            name_size,
             // A shade of its fill, as the other types' borders are.
             border_color: fill.as_deref().map(border_for),
             fill,
