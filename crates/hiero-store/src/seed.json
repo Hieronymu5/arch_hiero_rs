@@ -2303,6 +2303,7 @@
     "description": "The design principles of the Performance Efficiency pillar of the AWS Well-Architected Framework",
     "elements": [
       {
+        "color": "blue",
         "description": "Use computing resources efficiently to meet requirements, and stay efficient as demand and technologies change",
         "height": 420,
         "id": "e68ff897-a158-4dfa-a4b0-1ba158a7fb46",
