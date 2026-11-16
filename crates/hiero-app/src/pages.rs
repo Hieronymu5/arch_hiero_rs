@@ -757,7 +757,7 @@ impl App {
                         egui::accesskit::Live::Polite
                     });
                 });
-                if ui.small_button("Dismiss").clicked() {
+                if page_button(ui, "Dismiss", false).clicked() {
                     self.outcome = None;
                 }
             });
