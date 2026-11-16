@@ -16,7 +16,7 @@ ones). Elements inside a container are always drawn on top of it.
 | Kind | Label | Default size | Fill colour | Can contain | Arrows to | Layer | Notes |
 |---|---|---|---|---|---|---|---|
 | `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | actor, application, component, domain, job, process, entity, file | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. The **Group** option, beside it, draws it as a group, such as a team or a swarm of agents: three people, or bots, one in front of two (as a high level diagram's actors are), scaled by 46/56 to stand as tall as one, so its area, name, and arrows stay where they were. Its lines keep their width. |
-| `domain` | Domain | 480×180 | domains | application | – | 0 | A filled `region` with its name as a header, or along its bottom. Resizable. |
+| `domain` | Domain | 480×180 | domains | application | – | 0 | A filled `region` with its name as a header, or along its bottom, and any description under the name. Resizable. |
 | `application` | Application | 200×100 | applications | component, process, entity, file | actor, application, component, domain, job, process, entity, file | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
 | `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file | actor, application, component, domain, job, process, entity, file | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
 | `process` | Process | 140×40 | processes (dark blue, light text) | – | actor, application, component, domain, job, process, entity, file | 3 | Resizable, down to 120×40. |
@@ -35,7 +35,7 @@ padding around their children.
 | Name | all | Required, at most 100 characters |
 | Font size | domain, application, component, process, job, entity | Right after Name: a select of 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, and 32 px. Stored as `fontSize`, left out for the kind's own: 20 for a domain, 16 for the others. Agents and files can set any whole size from 8 to 48. A domain's name band, and an application's or component's header, grow on the grid to fit a larger name. Not offered for a component drawn as a database or storage, whose name keeps its usual size. |
 | Name position | domain | Radio: Top / Bottom, stored as `namePosition: "bottom"` (unset means Top). At the bottom, the name is centred under the applications it holds. |
-| Description | application | At most 500 characters, shown under the name, each line break starting a new line (also in the exports) |
+| Description | application, domain | At most 500 characters, shown under the name, each line break starting a new line (also in the exports). On a domain it's in 13 px regular, a line of it to a line (blank lines left out, at most three), each cut short with “…” rather than wrapped; the name band grows on the grid to fit it, 8 px above the name and at least 6 px below the description: 60 for one line at the usual size, 80 for two, 100 for three. draw.io shows it under the name in the domain's label. |
 | Bot | actor | Checkbox, stored as `agent: true` |
 | Group | actor | Checkbox beside Bot, stored as `group: true`. Read as "Actor (group of people)" or "(group of bots)". |
 | Cloud hosted | application | Checkbox. The application is drawn as a cloud with its text inside. |
@@ -168,7 +168,7 @@ shared editor engine (`hiero-editor`).
 
 ```jsonc
 // element props, per kind (the common columns are in the elements table)
-{ "description": "…" }          // application
+{ "description": "…" }          // application, domain
 { "agent": true }                // actor
 { "group": true }                // actor
 { "cloudHosted": true }          // application
@@ -193,6 +193,7 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] Per-diagram colours with "Use the default colors"
 - [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [x] View mode, the default when opening from the list: no palette, properties, or grid; the paper fills the window to its edges but scrolls only as far as the drawing goes (with a one-grid margin), which starts in the top-left corner; drag with any button, scroll, zoom, and export (beyond the prototype)
+- [x] A description on domains, under the name in its band, which grows to fit it (beyond the prototype)
 - [x] Path in the top bar: the diagrams the open one was reached through, from "Diagrams" on, each a link back to it; names longer than 24 characters are cut short, with the full name on hover (beyond the prototype)
 - [x] Sub diagrams and links: an element can link to any other diagram, picked in its properties, or add a new one as a sub diagram of its diagram, and opens it by clicking it in view mode; many elements can link to one diagram, and removing a link keeps the diagram. Edit Details lists a diagram's sub diagrams and deletes them; the list shows them under their diagram, and deleting a diagram deletes them. A link to a deleted diagram is dead: it counts as no link, exports leave it out, and saving a version drops it. draw.io exports add linked diagrams, then any other sub diagrams, as linked pages, and .zip exports hold the sub diagrams, which import back under their parents (beyond the prototype)
 - [ ] SVG and draw.io export that match the prototype (snapshot tests) — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

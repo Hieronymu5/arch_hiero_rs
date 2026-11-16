@@ -19,7 +19,7 @@ use hiero_core::scene::{Anchor, Node, Paint, Scene};
 use hiero_core::text::{MeasureText, TextStyle, Weight, wrap_text};
 
 use crate::model::{FONT_SIZE_MIN, HighLevel, HighLevelKind};
-use crate::rules::{NAME_PADDING, line_height};
+use crate::rules::{NAME_PADDING, header_description, line_height};
 
 /// The corner radius of applications and groups.
 pub const RADIUS: f64 = 8.0;
@@ -130,8 +130,8 @@ fn lines_in(room: f64, style: TextStyle, min: f64) -> usize {
 }
 
 /// The text of `element` as it's drawn: at the top of a group that holds something, under
-/// actors' figures, and in the middle otherwise, with an application's or actors' description
-/// under the name as far as it fits.
+/// actors' figures, and in the middle otherwise, with any description under the name as far as
+/// it fits (in a group's header, a line of it to a line).
 pub fn element_text(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> ElementText {
     let rect = element.rect;
     let style = name_style(element);
@@ -139,11 +139,24 @@ pub fn element_text(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> Ele
     match name_place(element) {
         NamePlace::Top => {
             let name = wrap_text(&element.el.label, width, style, measure);
-            let top = rect.y + (element.header - style.line_height) / 2.0;
+            let mut height = name.len() as f64 * style.line_height;
+            // Any description under it in the header, a line of it to a line, each cut short.
+            let small = description_style(element);
+            let description: Vec<String> = header_description(description_of(element))
+                .into_iter()
+                .filter_map(|line| {
+                    wrap_text(line, width, small.with_max_lines(1), measure)
+                        .into_iter()
+                        .next()
+                })
+                .collect();
+            if !description.is_empty() {
+                height += DESCRIPTION_GAP + description.len() as f64 * small.line_height;
+            }
             ElementText {
                 name,
-                description: Vec::new(),
-                top,
+                description,
+                top: rect.y + (element.header - height) / 2.0,
             }
         }
         NamePlace::Middle | NamePlace::Under => {
@@ -411,11 +424,8 @@ fn element_style(element: &Laid<HighLevel>, width: f64) -> Style {
         .num("strokeWidth", width)
         .set("fontColor", TEXT)
         .num("fontSize", style.size)
-        // An application's name is bold in its value, so its description can be regular.
-        .set(
-            "fontStyle",
-            i32::from(element.el.kind == HighLevelKind::Group),
-        )
+        // The name is bold in its value, so a description can be regular.
+        .set("fontStyle", 0)
         .num("spacingLeft", PADDING_X)
         .num("spacingRight", PADDING_X);
     if props.dashed {
@@ -428,10 +438,19 @@ fn element_style(element: &Laid<HighLevel>, width: f64) -> Style {
         out = out.set("container", 1).set("collapsible", 0);
     }
     match name_place(element) {
-        NamePlace::Top => out.set("verticalAlign", "top").set("spacing", 0).num(
-            "spacingTop",
-            round2((element.header - style.line_height) / 2.0),
-        ),
+        NamePlace::Top => {
+            let lines = header_description(description_of(element)).len();
+            let height = if lines == 0 {
+                style.line_height
+            } else {
+                style.line_height
+                    + DESCRIPTION_GAP
+                    + lines as f64 * description_style(element).line_height
+            };
+            out.set("verticalAlign", "top")
+                .set("spacing", 0)
+                .num("spacingTop", round2((element.header - height) / 2.0))
+        }
         NamePlace::Middle | NamePlace::Under => out.set("verticalAlign", "middle"),
     }
 }
@@ -468,17 +487,22 @@ fn actors_cells(element: &Laid<HighLevel>, width: f64) -> Vec<String> {
         .collect()
 }
 
-/// An element's draw.io value, as HTML: a group's name, or an application's in bold with any
-/// description under it in its smaller regular font, keeping its line breaks.
+/// An element's draw.io value, as HTML: its name in bold with any description under it in its
+/// smaller regular font, keeping its line breaks.
 fn drawio_value(element: &Laid<HighLevel>) -> String {
-    let name = escape_xml(&element.el.label);
-    if element.el.kind == HighLevelKind::Group {
-        return name;
-    }
-    let name = format!("<b>{name}</b>");
+    let name = format!("<b>{}</b>", escape_xml(&element.el.label));
+    // A group's header shows a line of its description to a line, as the editor does.
+    let in_header = name_place(element) == NamePlace::Top;
     match description_of(element) {
         Some(text) => {
-            let lines: Vec<String> = text.lines().map(escape_xml).collect();
+            let lines: Vec<String> = if in_header {
+                header_description(Some(text))
+                    .into_iter()
+                    .map(escape_xml)
+                    .collect()
+            } else {
+                text.lines().map(escape_xml).collect()
+            };
             format!(
                 r#"{name}<br><span style="font-size: {}px">{}</span>"#,
                 fmt_num(description_style(element).size),
@@ -821,13 +845,40 @@ mod tests {
     }
 
     #[test]
+    fn a_groups_description_sits_under_its_name_in_a_taller_header() {
+        let e = engine(
+            serde_json::json!([
+                { "id": "g", "kind": "group", "label": "Business", "x": 0, "y": 0,
+                  "width": 400, "height": 200,
+                  "description": "Sales & marketing\n\nSupport\nB\nC" },
+                { "id": "a", "kind": "application", "label": "CRM", "x": 20, "y": 60,
+                  "parentId": "g" },
+            ]),
+            serde_json::json!([]),
+        );
+        let group = e.laid(&"g".into()).unwrap().clone();
+        // A 20 px line for the 16 px name, 2 px, three 18 px lines of 14 px under it, and
+        // 8 px above and below: 92, so 100 on the grid, the 76 px of text in its middle.
+        assert_eq!(group.header, 100.0);
+        let text = element_text(&group, &ESTIMATE);
+        assert_eq!(text.description, ["Sales & marketing", "Support", "B"]);
+        assert_eq!(text.top, 12.0);
+        let xml = to_drawio(&e, "Test", None);
+        assert!(xml.contains(
+            "&lt;b&gt;Business&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 14px&quot;&gt;Sales &amp;amp; marketing&lt;br&gt;Support&lt;br&gt;B&lt;/span&gt;"
+        ), "{xml}");
+        assert!(xml.contains("spacingTop=12"), "{xml}");
+    }
+
+    #[test]
     fn exports_groups_as_drawio_containers_and_arrows_as_attached_wide_arrows() {
         let e = landscape();
         let xml = to_drawio(&e, "Test", None);
         assert!(xml.contains(r#"id="a" value="&lt;b&gt;CRM&lt;/b&gt;""#));
         assert!(xml.contains(r#"parent="g""#));
         assert!(xml.contains("container=1"));
-        assert!(xml.contains("fontSize=24;fontStyle=1;"));
+        assert!(xml.contains(r#"id="g" value="&lt;b&gt;Business&lt;/b&gt;""#));
+        assert!(xml.contains("fontSize=24;fontStyle=0;"));
         assert!(xml.contains("verticalAlign=top;spacing=0;spacingTop=15"));
         // The empty group's name is in its middle, and its border dashed.
         let empty = xml.find(r#"id="e""#).unwrap();

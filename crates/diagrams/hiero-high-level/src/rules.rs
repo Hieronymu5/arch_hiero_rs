@@ -12,8 +12,24 @@ use crate::model::{
 };
 
 pub use hiero_core::name_size::{
-    HEADER_MIN, NAME_PADDING, header_for, line_height, validate_font_size,
+    HEADER_MIN, NAME_PADDING, header_description, header_for, line_height, on_grid,
+    validate_font_size,
 };
+
+use crate::scene::{DESCRIPTION_GAP, description_size};
+
+/// The height of a group's header: its name's line in its font size, and a line for each line
+/// of its description under it, with space above and below, to the grid.
+pub fn group_header(element: &El<HighLevel>) -> f64 {
+    let size = f64::from(element.props.font_size_of(element.kind));
+    let lines = header_description(element.description.as_deref()).len();
+    if lines == 0 {
+        return header_for(size);
+    }
+    let text =
+        line_height(size) + DESCRIPTION_GAP + lines as f64 * line_height(description_size(size));
+    header_for(size).max(on_grid(text + NAME_PADDING * 2.0))
+}
 
 const APPLICATION_COLOR: Field = Field {
     key: "color",
@@ -173,10 +189,10 @@ impl DiagramType for HighLevel {
         &PALETTE
     }
 
-    /// A group's header fits its name in its font size.
+    /// A group's header fits its name in its font size, and any description under it.
     fn header_height(element: &El<Self>, info: &'static KindInfo<HighLevelKind>) -> f64 {
         if element.kind == HighLevelKind::Group {
-            header_for(f64::from(element.props.font_size_of(element.kind)))
+            group_header(element)
         } else {
             info.header()
         }

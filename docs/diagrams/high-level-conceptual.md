@@ -14,18 +14,20 @@ application and group a solid or dashed border.
 ## Elements
 
 The palette offers **Application**, **Group**, and **Actors**. All sizes are in canvas pixels
-and multiples of the 20 px grid. All are resizable and have a name; an application and actors
+and multiples of the 20 px grid. All are resizable and have a name; each
 can also have a description.
 
 | Kind | Label | Default size | Can contain | Drawn as |
 |---|---|---|---|---|
 | `application` | Application | 160×80 | – | A box with round corners (radius 8), its name wrapped in its middle, in bold, with any description under it (2 px below) in regular weight at 85% of the name's size, rounded, at least 8 px. The description keeps its line breaks and is cut with “…” where the box has no more room. |
-| `group` | Group | 400×240 | application, group, actors | A box with round corners (radius 8), drawn behind what it holds. Its name, in bold, sits on one line centred across its top while it holds something, and wrapped in its middle while it's empty. |
+| `group` | Group | 400×240 | application, group, actors | A box with round corners (radius 8), drawn behind what it holds. Its name, in bold, sits on one line centred across its top while it holds something, and wrapped in its middle while it's empty. Any description sits under the name as an application's does: in its header, a line of it to a line (blank lines left out, at most three), each cut short with “…” rather than wrapped; in the middle of an empty group, wrapped as far as it fits. |
 | `actors` | Actors | 160×120 | – | People, such as stakeholders or a team: three person figures (48×46 each) centred 4 px below its top, two side by side at the back, 32 px apart, and one in front, 10 px lower and centred between them, covering most of each, in its colour's fill and border. Its name, in bold, is wrapped under them, 6 px below, with any description under it as an application's is. It has no box or border. |
 
 A group grows to hold what's in it, with 20 px of padding round it and its header above. The
 header fits one line of the group's name, with 8 px above and below it, rounded up to the grid
-and at least 40 px: 40 for names up to 20 px, 60 up to 36 px, and 80 above. An element can't be
+and at least 40 px: 40 for names up to 20 px, 60 up to 36 px, and 80 above. A description makes it taller:
+the name's line, 2 px, and a line of the description's size for each line of it shown, with 8 px
+above and below, rounded up to the grid (60, 80, and 100 for one to three lines at the usual size). An element can't be
 put inside itself or anything it holds.
 
 Groups not in another group are drawn behind applications not in one.
@@ -35,7 +37,7 @@ Groups not in another group are drawn behind applications not in one.
 | Field | Applies to | Rule |
 |---|---|---|
 | Name | all | Required, at most 100 characters |
-| Description | application, actors | Optional, multi-line, at most 500 characters. Stored as the element's `description`, left out when blank. |
+| Description | all | Optional, multi-line, at most 500 characters. Stored as the element's `description`, left out when blank. |
 | Colour | all | Radio: *Blue*, *Green*, *Red*, *Yellow*, or *Grey*. Stored as `color`, left out for the kind's own: blue for an application or actors, grey for a group. |
 | Font size | all | A select of 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, and 32 px. Stored as `fontSize`, left out for the kind's own: 14 for an application or actors, 16 for a group. Agents and files can set any whole size from 8 to 48. |
 | Border | application, group | Radio: *Solid* or *Dashed* (8 on, 4 off). Stored as `dashed: true`, left out for solid. |
@@ -108,7 +110,7 @@ Rust shape: `Element<HighLevelKind, HighLevelProps>` and `Connection<BlockArrow>
 - [x] A colour on every element: blue, green, red, yellow, or grey
 - [x] A font size on every element, a group's header growing to fit it
 - [x] Actors: three people, with their name and an optional description
-- [x] Bold names, and an optional description on applications and actors
+- [x] Bold names, and an optional description on every element, a group's header growing to fit it
 - [x] Solid or dashed borders
 - [x] Wide arrows, one way or both
 - [x] Line thickness, canvas size, view mode, sub diagrams and links, cut/copy/paste (shared)

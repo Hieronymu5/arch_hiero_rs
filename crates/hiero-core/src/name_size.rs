@@ -26,6 +26,27 @@ pub fn header_for(size: f64) -> f64 {
     ((needed / GRID).ceil() * GRID).max(HEADER_MIN)
 }
 
+/// The most lines of a description a header shows under its name.
+pub const HEADER_DESCRIPTION_LINES: usize = 3;
+
+/// The lines of `description` a header shows under its name, such as a domain's or a group's:
+/// each line as written, leaving out blank ones, up to `HEADER_DESCRIPTION_LINES`. They're
+/// cut short, not wrapped, when too wide, so how tall the header is doesn't depend on its width.
+pub fn header_description(description: Option<&str>) -> Vec<&str> {
+    description
+        .unwrap_or_default()
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .take(HEADER_DESCRIPTION_LINES)
+        .collect()
+}
+
+/// `height` rounded up to the grid.
+pub fn on_grid(height: f64) -> f64 {
+    (height / GRID).ceil() * GRID
+}
+
 /// Checks a font size: a whole number of pixels, from `FONT_SIZE_MIN` to `FONT_SIZE_MAX`.
 pub fn validate_font_size(size: u32) -> Result<(), String> {
     if (FONT_SIZE_MIN..=FONT_SIZE_MAX).contains(&size) {
@@ -51,6 +72,16 @@ pub fn font_size_choices(current: u32) -> Vec<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_header_shows_the_written_lines_of_a_description() {
+        assert!(header_description(None).is_empty());
+        assert!(header_description(Some(" \n ")).is_empty());
+        assert_eq!(
+            header_description(Some("Sales\n\n Orders \nBilling\nSupport")),
+            ["Sales", "Orders", "Billing"]
+        );
+    }
 
     #[test]
     fn headers_grow_on_the_grid_for_larger_names() {

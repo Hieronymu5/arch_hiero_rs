@@ -19,7 +19,8 @@ pub enum HighLevelKind {
     /// An application, or anything else shown as a box with its name inside, and an optional
     /// description under it.
     Application,
-    /// A boundary round applications and other groups, or an empty one.
+    /// A boundary round applications and other groups, or an empty one, with an optional
+    /// description under its name.
     Group,
     /// People, such as stakeholders or a team: three actors, one in front of two, with their
     /// name and an optional description under them.
@@ -137,7 +138,7 @@ pub struct BlockArrow {
 
 pub use hiero_core::name_size::{FONT_SIZE_MAX, FONT_SIZE_MIN, FONT_SIZES};
 
-/// The longest an application's description can be.
+/// The longest an element's description can be.
 pub const DESCRIPTION_MAX: usize = 500;
 
 pub const APPLICATION_SIZE: Size = Size::new(160.0, 80.0);
@@ -167,6 +168,7 @@ pub static PALETTE: [KindInfo<HighLevelKind>; 3] = [
         can_contain: EVERYTHING,
         connects_to: EVERYTHING,
         container_look: ContainerLook::Region,
+        has_description: true,
         layer: GROUPS,
         size: Some(GROUP_SIZE),
         ..KindInfo::new(K::Group, "Group")

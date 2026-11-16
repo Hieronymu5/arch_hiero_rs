@@ -8,9 +8,9 @@ use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::geometry::{GRID, Size};
 use hiero_core::layout::{CONTAINER_HEADER, CONTAINER_PADDING};
-use hiero_core::look::DiagramColors;
+use hiero_core::look::{DESCRIPTION, DESCRIPTION_GAP, DiagramColors};
 use hiero_core::model::{DiagramTypeId, ElementId, KindInfo};
-use hiero_core::name_size::{header_for, validate_font_size};
+use hiero_core::name_size::{header_description, header_for, on_grid, validate_font_size};
 
 use crate::model::{
     ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
@@ -47,14 +47,24 @@ fn name_line_height(size: u32) -> f64 {
 
 /// The height of the band a domain's name takes along its top or bottom: the usual header for
 /// its own size or smaller, and taller for a larger name, to the grid, so it stays clear of the
-/// applications it holds.
+/// applications it holds. Any description under the name makes it taller again, by a line for
+/// each line of it.
 pub fn name_band(element: &El<Conceptual>) -> f64 {
     let size = element.props.font_size_of(element.kind);
-    if size <= element.kind.default_font_size() {
+    let band = if size <= element.kind.default_font_size() {
         CONTAINER_HEADER
     } else {
         header_for(f64::from(size))
+    };
+    let lines = header_description(element.description.as_deref()).len();
+    if lines == 0 {
+        return band;
     }
+    // As the name is drawn: 8 px from the edge, on a line 1.3 times its size, with the
+    // description under it and at least the usual header's 6 px after that.
+    let name_line = (f64::from(size) * 1.3).round();
+    let text = name_line + DESCRIPTION_GAP + lines as f64 * DESCRIPTION.line_height;
+    band.max(on_grid(8.0 + text + 6.0))
 }
 
 /// How much taller a box's header gets for its name in its own size, such as an application's
@@ -768,6 +778,37 @@ mod tests {
         // The usual gap above what it holds, and the name's band below it.
         assert_eq!((domain.header, domain.footer), (20.0, 40.0));
         assert_eq!(e.announcement, "Domain's name moved to the bottom.");
+    }
+
+    #[test]
+    fn a_domains_name_band_grows_for_each_line_of_its_description() {
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Domain, Point::new(300.0, 200.0));
+        let band = |e: &Engine<Conceptual>| {
+            let domain = e.laid(&id("id1")).unwrap();
+            (domain.header, domain.footer)
+        };
+        change(&mut e, "id1", |w| w.description = Some("Orders".into()));
+        assert_eq!(
+            e.element(&id("id1")).unwrap().description.as_deref(),
+            Some("Orders")
+        );
+        assert_eq!(band(&e), (60.0, 0.0));
+        change(&mut e, "id1", |w| {
+            w.description = Some("Orders\nBilling\nSupport\nMore".into());
+        });
+        // Three lines at most.
+        assert_eq!(band(&e), (100.0, 0.0));
+        change(&mut e, "id1", |w| {
+            w.description = Some("Orders".into());
+            w.props.font_size = Some(32);
+        });
+        assert_eq!(band(&e), (80.0, 0.0));
+        change(&mut e, "id1", |w| {
+            w.props.font_size = None;
+            w.props.name_position = Some(NamePosition::Bottom);
+        });
+        assert_eq!(band(&e), (20.0, 40.0));
     }
 
     #[test]

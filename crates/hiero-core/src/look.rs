@@ -13,6 +13,7 @@ use crate::figures::{
 use crate::flowchart::{self, FlowShape};
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::model::{ArrowPayload, ColorScheme, ElementId, LineWeight};
+use crate::name_size::header_description;
 use crate::routing::{
     Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT, connector_text_position, label_placement,
     label_text_position, payload_icon_paths, payload_icon_placement, return_arrow_placement,
@@ -883,17 +884,29 @@ pub fn draw_element(
                 None => usual,
             };
             let name = wrap_text(&element.label, text_width, style, measure);
-            let bottom_top = y + height - 8.0 - name.len() as f64 * style.line_height;
-            let text = match look.name_at {
-                NameAt::TopCenter => text_lines(&name, center_x, y + 8.0, style, Anchor::Middle),
-                NameAt::TopLeft => text_lines(&name, x + PADDING_X, y + 4.0, style, Anchor::Start),
-                NameAt::BottomLeft => {
-                    text_lines(&name, x + PADDING_X, bottom_top, style, Anchor::Start)
-                }
-                NameAt::BottomCenter => {
-                    text_lines(&name, center_x, bottom_top, style, Anchor::Middle)
-                }
+            // Any description under the name, a line of it to a line, each cut short to fit.
+            let description = container_description(element, text_width, measure);
+            let name_height = name.len() as f64 * style.line_height;
+            let description_height = if description.is_empty() {
+                0.0
+            } else {
+                DESCRIPTION_GAP + description.len() as f64 * DESCRIPTION.line_height
             };
+            let bottom_top = y + height - 8.0 - name_height - description_height;
+            let (text_x, top, anchor) = match look.name_at {
+                NameAt::TopCenter => (center_x, y + 8.0, Anchor::Middle),
+                NameAt::TopLeft => (x + PADDING_X, y + 4.0, Anchor::Start),
+                NameAt::BottomLeft => (x + PADDING_X, bottom_top, Anchor::Start),
+                NameAt::BottomCenter => (center_x, bottom_top, Anchor::Middle),
+            };
+            let mut text = text_lines(&name, text_x, top, style, anchor);
+            text.extend(text_lines(
+                &description,
+                text_x,
+                top + name_height + DESCRIPTION_GAP,
+                DESCRIPTION,
+                anchor,
+            ));
             let mut nodes = vec![Node::rect(
                 element.rect,
                 if look.square { 0.0 } else { 6.0 },
@@ -1036,6 +1049,23 @@ pub fn draw_element(
             nodes
         }
     }
+}
+
+/// The lines of a container's description, such as a domain's, drawn under its name: each
+/// line as written, cut short to fit `width`.
+pub fn container_description(
+    element: &LookElement,
+    width: f64,
+    measure: &dyn MeasureText,
+) -> Vec<String> {
+    header_description(element.description.as_deref())
+        .into_iter()
+        .filter_map(|line| {
+            wrap_text(line, width, DESCRIPTION.with_max_lines(1), measure)
+                .into_iter()
+                .next()
+        })
+        .collect()
 }
 
 fn draw_section(
@@ -1413,6 +1443,47 @@ mod tests {
         process.description = None;
         process.look.name_size = Some(12.0);
         assert_eq!(text_at(&draw(&process), "100").1, "12");
+    }
+
+    #[test]
+    fn a_containers_description_sits_under_its_name() {
+        let svg = |e: &LookElement| {
+            let nodes = draw_element(
+                e,
+                &EstimateText,
+                &DiagramColors::default(),
+                LineWeight::Thick,
+            );
+            scene_to_svg(
+                "t",
+                &Scene {
+                    nodes,
+                    bounds: e.rect,
+                    text_color: TEXT.into(),
+                    marker_color: "#0066cc".into(),
+                    background: BACKGROUND.into(),
+                },
+            )
+        };
+        let mut domain = element(Shape::Container, Rect::new(0.0, 0.0, 400.0, 300.0));
+        domain.label = "Sales".into();
+        // Each line as written, the long one cut short to fit, at most three.
+        domain.description = Some(format!("Orders\n\n{}\nB\nC", "x".repeat(80)));
+        let top = svg(&domain);
+        assert!(top.contains(r#"<text x="200" y="27" text-anchor="middle" font-size="20" font-weight="700">Sales</text>"#), "{top}");
+        assert!(top.contains(r#"<text x="200" y="48.4" text-anchor="middle" font-size="13" font-weight="400">Orders</text>"#));
+        assert!(top.contains("…</text>"));
+        assert!(top.contains(">B</text>"));
+        assert!(!top.contains(">C</text>"));
+        // Along the bottom, the description is under the name, above the bottom edge.
+        domain.look.name_at = NameAt::BottomCenter;
+        domain.description = Some("Orders".into());
+        let bottom = svg(&domain);
+        let name = bottom.find(">Sales<").unwrap();
+        let description = bottom.find(">Orders<").unwrap();
+        assert!(name < description);
+        let (name_y, _) = text_at(&bottom, "200");
+        assert!((240.0..275.0).contains(&name_y), "{name_y}");
     }
 
     #[test]

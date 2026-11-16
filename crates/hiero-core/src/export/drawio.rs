@@ -16,6 +16,7 @@ use crate::legend::{
 pub use crate::legend::{Legend, LegendLine, Stamp};
 use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
 use crate::model::{ArrowPayload, ConnectionId, ElementId, LineWeight};
+use crate::name_size::header_description;
 use crate::routing::{
     Align, CONNECTOR_BOX_FONT_SIZE, RETURN_ARROW_LENGTH, Vertical, label_placement,
     payload_icon_placement, return_arrow_placement,
@@ -933,9 +934,22 @@ pub fn diagram_to_drawio(
                     )
                     .set("fontStyle", 1)
                     .num("fontSize", look.name_size.unwrap_or(usual_size));
+                // Any description under the name in a smaller regular font, a line of it to a
+                // line, as in the editor.
+                let description = header_description(e.description.as_deref());
+                let label = if description.is_empty() {
+                    escape_xml(&e.label)
+                } else {
+                    let lines: Vec<String> = description.into_iter().map(escape_xml).collect();
+                    format!(
+                        r#"{}<br><span style="font-size: 13px; font-weight: normal">{}</span>"#,
+                        escape_xml(&e.label),
+                        lines.join("<br>")
+                    )
+                };
                 cell(
                     e.id.as_str(),
-                    &escape_xml(&e.label),
+                    &escape_xml(&label),
                     &style.build(),
                     &parent,
                     &geometry,
@@ -1576,6 +1590,32 @@ mod tests {
             LineWeight::Thick,
         );
         assert!(xml.contains(r#"id="b" value="&lt;b&gt;b &amp;amp; co&lt;/b&gt;""#));
+    }
+
+    #[test]
+    fn puts_a_containers_description_under_its_name() {
+        let mut domain = element(
+            "a",
+            None,
+            Shape::Container,
+            Rect::new(0.0, 0.0, 400.0, 200.0),
+        );
+        domain.description = Some("Orders &\n\nBilling".into());
+        let xml = diagram_to_drawio(
+            "T",
+            &[domain],
+            &[],
+            None,
+            None,
+            &DiagramColors::default(),
+            LineWeight::Thick,
+        );
+        assert!(
+            xml.contains(
+                "&lt;br&gt;&lt;span style=&quot;font-size: 13px; font-weight: normal&quot;&gt;Orders &amp;amp;&lt;br&gt;Billing&lt;/span&gt;"
+            ),
+            "{xml}"
+        );
     }
 
     #[test]

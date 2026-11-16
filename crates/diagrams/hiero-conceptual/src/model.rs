@@ -142,7 +142,7 @@ impl ConceptualArrow {
 pub const ARROW_LABEL_MAX: usize = 100;
 pub const CONNECTOR_MAX: usize = 20;
 pub const TRANSFORMATION_MAX: usize = 40;
-/// The longest application description.
+/// The longest description of an application or a domain.
 pub const DESCRIPTION_MAX: usize = 500;
 
 /// Which of the diagram's colours fills elements of a kind.
@@ -200,6 +200,7 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
     },
     KindInfo {
         can_contain: &[K::Application],
+        has_description: true,
         layer: DOMAINS,
         size: Some(Size::new(480.0, 180.0)),
         ..KindInfo::new(K::Domain, "Domain")
