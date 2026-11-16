@@ -15,7 +15,7 @@ use hiero_core::figures::{actor, actors};
 use hiero_core::geometry::{Point, Rect, Size, fmt_num, round2};
 use hiero_core::look::{BACKGROUND, PADDING_X, TEXT, actors_figure, text_lines};
 use hiero_core::model::{ConnectionId, ElementId};
-use hiero_core::name_size::{FittedText, fit_description};
+use hiero_core::name_size::{FittedText, fit_description, fit_description_where};
 use hiero_core::routing::{ConnectionEnds, route_connections};
 use hiero_core::scene::{Anchor, Node, Paint, Scene};
 use hiero_core::text::{MeasureText, TextStyle, Weight, wrap_text};
@@ -203,8 +203,25 @@ pub fn element_text(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> Ele
             );
             let mut height = name.len() as f64 * style.line_height;
             let mut description = Vec::new();
-            let small = description_style(&element.el);
-            if let Some(text) = description_of(element) {
+            let mut small = description_style(&element.el);
+            if element.el.kind == HighLevelKind::Group {
+                // An empty group's description gets smaller until it fits the room under the
+                // name, rather than being cut short.
+                let left = room - height - DESCRIPTION_GAP;
+                let fitted = fit_description_where(
+                    description_of(element),
+                    width,
+                    small,
+                    line_height,
+                    measure,
+                    |fitted| fitted.height() <= left,
+                );
+                if !fitted.lines.is_empty() {
+                    height += DESCRIPTION_GAP + fitted.height();
+                }
+                description = fitted.lines;
+                small = fitted.style;
+            } else if let Some(text) = description_of(element) {
                 let fits = lines_in(room - height - DESCRIPTION_GAP, small, 0.0);
                 if fits > 0 {
                     description = wrap_text(text, width, small.with_max_lines(fits), measure);
@@ -516,8 +533,8 @@ fn drawio_value(element: &Laid<HighLevel>, measure: &dyn MeasureText) -> String 
     let name = format!("<b>{}</b>", escape_xml(&element.el.label));
     match description_of(element) {
         Some(text) => {
-            // A group's header leaves out blank lines, as the editor does.
-            let in_header = name_place(element) == NamePlace::Top;
+            // A group leaves out blank lines, as the editor does.
+            let in_header = element.el.kind == HighLevelKind::Group;
             let lines: Vec<String> = text
                 .lines()
                 .filter(|line| !in_header || !line.trim().is_empty())
@@ -904,6 +921,27 @@ mod tests {
         assert_eq!(text.small.line_height, line_height(text.small.size));
         assert_eq!(text.description.join(" ").split(' ').count(), 40);
         assert!(!text.description.concat().contains('…'));
+        let xml = to_drawio(&e, "Test", None);
+        assert!(xml.contains(&format!("font-size: {}px", fmt_num(text.small.size))));
+    }
+
+    #[test]
+    fn an_empty_groups_description_shrinks_to_fit_rather_than_being_cut() {
+        let e = engine(
+            serde_json::json!([
+                { "id": "e", "kind": "group", "label": "Security", "x": 0, "y": 0,
+                  "width": 200, "height": 120, "description": "word ".repeat(40) },
+            ]),
+            serde_json::json!([]),
+        );
+        let group = e.laid(&"e".into()).unwrap().clone();
+        assert_eq!(name_place(&group), NamePlace::Middle);
+        let text = element_text(&group, &ESTIMATE);
+        assert!(text.small.size < 14.0, "{text:?}");
+        assert_eq!(text.description.join(" ").split(' ').count(), 40);
+        assert!(!text.description.concat().contains('…'));
+        // It fits the room under the name: 120 px less 8 px above and below.
+        assert!(text.height(name_style(&group)) <= 104.0, "{text:?}");
         let xml = to_drawio(&e, "Test", None);
         assert!(xml.contains(&format!("font-size: {}px", fmt_num(text.small.size))));
     }

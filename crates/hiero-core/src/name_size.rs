@@ -56,6 +56,22 @@ pub fn fit_description(
     line_height: impl Fn(f64) -> f64,
     measure: &dyn MeasureText,
 ) -> FittedText {
+    fit_description_where(description, width, style, line_height, measure, |fitted| {
+        fitted.lines.len() <= HEADER_DESCRIPTION_LINES
+    })
+}
+
+/// `description` wrapped across `width` as `fit_description` does, but shrunk until `fits`
+/// says it does, such as into the room left in an empty group, down to `FONT_SIZE_MIN`,
+/// below which it takes what room it needs. It's never cut short.
+pub fn fit_description_where(
+    description: Option<&str>,
+    width: f64,
+    style: TextStyle,
+    line_height: impl Fn(f64) -> f64,
+    measure: &dyn MeasureText,
+    fits: impl Fn(&FittedText) -> bool,
+) -> FittedText {
     let text = description
         .unwrap_or_default()
         .lines()
@@ -78,9 +94,12 @@ pub fn fit_description(
                 style: at,
             };
         }
-        let lines = wrap_text(&text, width.max(1.0), at, measure);
-        if lines.len() <= HEADER_DESCRIPTION_LINES || size - 1.0 < smallest {
-            return FittedText { lines, style: at };
+        let fitted = FittedText {
+            lines: wrap_text(&text, width.max(1.0), at, measure),
+            style: at,
+        };
+        if fits(&fitted) || size - 1.0 < smallest {
+            return fitted;
         }
         size -= 1.0;
     }
