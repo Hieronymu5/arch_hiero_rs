@@ -111,7 +111,7 @@ pub trait TypeOps: Send + Sync {
     ) -> Option<SubDiagramStart>;
 
     /// The diagram as a draw.io file, with its name and description above it, and, for a type
-    /// with a legend, given a `stamp`, a legend under it saying when the file was made and
+    /// with a legend, given a `stamp`, a legend beside it saying when the file was made and
     /// which version it shows.
     fn to_drawio(
         &self,
@@ -120,7 +120,7 @@ pub trait TypeOps: Send + Sync {
     ) -> Result<String, ContentError>;
 
     /// The diagram as an SVG document, and, for a type with a legend, given a `stamp`, a
-    /// legend in its lower-right corner, as in its draw.io file.
+    /// legend beside the drawing, as in its draw.io file.
     fn to_svg(
         &self,
         diagram: &StoredDiagram,
@@ -131,7 +131,7 @@ pub trait TypeOps: Send + Sync {
 /// The scene and agent docs a type adds to its rules.
 pub trait Drawn: DiagramType {
     fn scene(eng: &Engine<Self>) -> Scene;
-    /// Adds the type's legend, stamped with `stamp`, under the drawing in `scene`, for a type
+    /// Adds the type's legend, stamped with `stamp`, beside the drawing in `scene`, for a type
     /// that has one.
     fn add_legend(_eng: &Engine<Self>, _scene: &mut Scene, _stamp: Stamp) {}
     /// The diagram as a draw.io file. A type with a legend draws one given a `stamp`.
@@ -154,8 +154,7 @@ impl Drawn for Conceptual {
         hiero_conceptual::scene::to_drawio(eng, title, Some(heading), stamp.cloned())
     }
     fn add_legend(eng: &Engine<Self>, scene: &mut Scene, stamp: Stamp) {
-        let colors = eng.colors();
-        hiero_conceptual::scene::legend(colors, stamp).add_to(scene, &colors.lines);
+        hiero_conceptual::scene::legend_beside(eng, stamp).add_to(scene);
     }
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_conceptual::scene::scene(eng)
@@ -174,8 +173,11 @@ impl Drawn for Physical {
 }
 
 impl Drawn for DeployedComponent {
-    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, _: Option<&Stamp>) -> String {
-        hiero_deployed::drawio::to_drawio(eng, title, Some(heading))
+    fn drawio(eng: &Engine<Self>, title: &str, heading: &Heading, stamp: Option<&Stamp>) -> String {
+        hiero_deployed::drawio::to_drawio(eng, title, Some(heading), stamp.cloned())
+    }
+    fn add_legend(eng: &Engine<Self>, scene: &mut Scene, stamp: Stamp) {
+        hiero_deployed::scene::legend_beside(eng, stamp).add_to(scene);
     }
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_deployed::scene::scene(eng)
@@ -820,12 +822,13 @@ mod tests {
         // Both lines end in an arrowhead; the manual one is dashed as the diagram's are.
         assert_eq!(svg.matches(r#"marker-end="url(#arrowhead)""#).count(), 2);
         assert_eq!(svg.matches(r#"stroke-dasharray="8 4""#).count(), 1);
-        // The image grows to hold it.
-        let height = |svg: &str| -> f64 {
-            let at = svg.find(r#"height=""#).unwrap() + 8;
+        // The image grows to hold it, to the right of the drawing, and as tall as it.
+        let size = |svg: &str, key: &str| -> f64 {
+            let at = svg.find(&format!(r#"{key}=""#)).unwrap() + key.len() + 2;
             svg[at..].split('"').next().unwrap().parse().unwrap()
         };
-        assert!(height(&svg) > height(&plain) + 150.0);
+        assert!(size(&svg, "width") >= size(&plain, "width") + 40.0 + 260.0);
+        assert!(size(&svg, "height") > 180.0);
         // Other types have none.
         let physical = diagram("firewall", "physical");
         let svg = ops(DiagramTypeId::Physical)

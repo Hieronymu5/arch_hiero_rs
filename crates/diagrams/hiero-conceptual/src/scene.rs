@@ -5,9 +5,10 @@ use std::collections::{HashMap, HashSet};
 
 use hiero_core::color::{border_for, readable_text};
 use hiero_core::engine::{Engine, Laid};
-use hiero_core::export::drawio::{Legend, LegendLine, Stamp};
+use hiero_core::export::drawio::{Legend, LegendBeside, LegendLine, Stamp, Swatch};
 use hiero_core::figures::cloud_edge_point;
 use hiero_core::geometry::{Point, Rect};
+use hiero_core::legend::{LEGEND_GAP, LEGEND_WIDTH};
 use hiero_core::look::{
     ArrowLook, DiagramColors, Look, LookElement, NameAt, Shape, component_name_bottom, draw_diagram,
 };
@@ -327,8 +328,7 @@ pub fn scene(eng: &Engine<Conceptual>) -> Scene {
     scene_of(eng, eng.layout(), None)
 }
 
-/// The diagram as a draw.io file, with `heading` above it.
-/// The legend under a conceptual diagram: its automated and manual lines, and the colours of
+/// The legend beside a conceptual diagram: its automated and manual lines, and the colours of
 /// its domains, applications, components, interfaces (connectors), entities, and processes,
 /// two to a row.
 pub fn legend(colors: &DiagramColors, stamp: Stamp) -> Legend {
@@ -347,14 +347,30 @@ pub fn legend(colors: &DiagramColors, stamp: Stamp) -> Legend {
             ("Process", &colors.processes),
         ]
         .into_iter()
-        .map(|(label, fill)| (label.to_owned(), fill.clone()))
+        .map(|(label, fill)| Swatch::new(label, fill.clone()))
         .collect(),
+        swatch_columns: 2,
+        icons: Vec::new(),
+        icons_title: None,
+        width: LEGEND_WIDTH,
         stamp,
     }
 }
 
-/// The diagram as a draw.io file, with `heading` above it and, given a `stamp`, a legend in
-/// the lower-right corner.
+/// The diagram's legend, stamped with `stamp`, and how it goes beside the drawing: its lines
+/// in the arrows' colour, and its border as wide as the elements' lines.
+pub fn legend_beside(eng: &Engine<Conceptual>, stamp: Stamp) -> LegendBeside {
+    let colors = eng.colors();
+    LegendBeside {
+        legend: legend(colors, stamp),
+        gap: LEGEND_GAP,
+        line_color: colors.lines.clone(),
+        border_width: eng.line_weight().width(),
+    }
+}
+
+/// The diagram as a draw.io file, with `heading` above it and, given a `stamp`, a legend to
+/// the right of the drawing, lined up with its bottom.
 pub fn to_drawio(
     eng: &Engine<Conceptual>,
     title: &str,
@@ -579,7 +595,7 @@ mod tests {
     }
 
     #[test]
-    fn drawio_exports_with_a_stamp_have_a_legend_in_the_lower_right_corner() {
+    fn drawio_exports_with_a_stamp_have_a_legend_beside_the_drawing() {
         let mut e = Engine::<Conceptual>::new(Vec::new(), Vec::new(), DiagramColors::default())
             .with_measure(&ESTIMATE)
             .with_ids(|| "a1".into());
@@ -628,16 +644,50 @@ mod tests {
         assert!(row_of("Entity") > row_of("Interface"));
         assert!(xml.contains(r#"value="Generated 4 Nov 2026""#));
         assert!(xml.contains(r#"id="legend-version" value="Version 3""#));
-        // Under the drawing, lined up with its right edge, and the page grows to hold it.
-        let page = |xml: &str| -> (f64, f64) {
-            let num = |key: &str| {
-                let at = xml.find(&format!(r#"{key}=""#)).unwrap() + key.len() + 2;
-                xml[at..].split('"').next().unwrap().parse().unwrap()
-            };
-            (num("pageWidth"), num("pageHeight"))
+        // To the right of the drawing, 40 away. Taller than the one application, it starts
+        // level with its top, and the page grows to hold it.
+        let num = |xml: &str, from: &str, key: &str| -> f64 {
+            let xml = &xml[xml.find(from).unwrap()..];
+            let at = xml.find(&format!(r#" {key}=""#)).unwrap() + key.len() + 3;
+            xml[at..].split('"').next().unwrap().parse().unwrap()
         };
-        let ((w0, h0), (w1, h1)) = (page(&plain), page(&xml));
-        assert_eq!(w1, w0.max(260.0 + 80.0));
-        assert!(h1 > h0 + 40.0 + 150.0);
+        let (w0, h0) = (
+            num(&plain, "<mxGraphModel", "pageWidth"),
+            num(&plain, "<mxGraphModel", "pageHeight"),
+        );
+        // The page is the drawing with a margin of `origin` all round.
+        let origin = hiero_core::export::drawio::ORIGIN;
+        let (drawn_w, drawn_h) = (w0 - origin * 2.0, h0 - origin * 2.0);
+        let card = r#"id="legend" "#;
+        assert_eq!(num(&xml, card, "x"), origin + drawn_w + 40.0);
+        assert_eq!(num(&xml, card, "y"), origin);
+        let height = num(&xml, card, "height");
+        assert!(height > drawn_h);
+        assert_eq!(num(&xml, "<mxGraphModel", "pageWidth"), w0 + 40.0 + 260.0);
+        assert_eq!(
+            num(&xml, "<mxGraphModel", "pageHeight"),
+            height + origin * 2.0
+        );
+        // Its border is as wide as the diagram's lines.
+        let border = |xml: &str| {
+            let style = &xml[xml.find(card).unwrap()..];
+            let at = style.find("strokeColor=#9ca3af;strokeWidth=").unwrap() + 32;
+            style[at..].split('"').next().unwrap().to_owned()
+        };
+        assert_eq!(
+            border(&xml),
+            hiero_core::geometry::fmt_num(e.line_weight().width())
+        );
+        e.set_line_weight(hiero_core::model::LineWeight::Thin);
+        let thin = to_drawio(
+            &e,
+            "Test",
+            None,
+            Some(Stamp {
+                generated: "4 Nov 2026".into(),
+                version: "Version 3".into(),
+            }),
+        );
+        assert_eq!(border(&thin), "1");
     }
 }

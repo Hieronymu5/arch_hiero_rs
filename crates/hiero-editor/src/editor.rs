@@ -13,6 +13,7 @@ use hiero_core::engine::{
 };
 use hiero_core::geometry::{GRID, Point, Rect, Size};
 use hiero_core::layout::{canvas_rect, viewed_area};
+use hiero_core::legend::{LegendBeside, Stamp};
 use hiero_core::look::{HOVER_EXTRA_WIDTH, link_mark, link_mark_corner};
 use hiero_core::model::{ColorScheme, ConnectionId, DiagramId, ElementId, LineWeight};
 use hiero_core::scene::{Node, Scene, first_text_color, outlines};
@@ -100,6 +101,12 @@ pub trait DiagramView: DiagramType {
     /// An arrow key while an arrow is selected. Returns whether it was used.
     fn connection_key(_eng: &mut Engine<Self>, _dir: Dir, _shift: bool) -> bool {
         false
+    }
+
+    /// The legend shown beside the drawing while viewing, where the exports put it, stamped
+    /// with `stamp`, for a type that has one.
+    fn legend(_eng: &Engine<Self>, _stamp: Stamp) -> Option<LegendBeside> {
+        None
     }
 }
 
@@ -314,6 +321,11 @@ pub struct Editor<T: DiagramView> {
     pub show_help: bool,
     /// Only looking: no palette or properties, and the canvas only moves and zooms.
     viewing: bool,
+    /// The version the legend shown while viewing names, such as "Version 3", as an export
+    /// of the diagram now would.
+    legend_version: String,
+    /// What the legend shown while viewing explains, for screen readers.
+    legend_label: Option<String>,
     focus_name: bool,
     /// A message for the app to show, such as why the clipboard couldn't be pasted.
     notice: Option<String>,
@@ -399,6 +411,8 @@ impl<T: DiagramView> Editor<T> {
             outbox: Vec::new(),
             show_help: false,
             viewing: false,
+            legend_version: "Draft".into(),
+            legend_label: None,
             focus_name: false,
             notice: None,
             diagram_names: BTreeMap::new(),
@@ -494,7 +508,20 @@ impl<T: DiagramView> Editor<T> {
             self.focus = Focus::Canvas;
             self.selection_before_focus = None;
         }
+        if viewing != self.viewing {
+            // Viewing shows the legend, and editing doesn't.
+            self.scene_cache = None;
+        }
         self.viewing = viewing;
+    }
+
+    /// Sets the version the legend shown while viewing names, such as "Version 3" or "Draft
+    /// after version 3".
+    pub fn set_legend_version(&mut self, version: &str) {
+        if self.legend_version != version {
+            version.clone_into(&mut self.legend_version);
+            self.scene_cache = None;
+        }
     }
 
     /// The names of the diagrams elements can open, so they can show the one they open and
@@ -1041,8 +1068,11 @@ impl<T: DiagramView> Editor<T> {
             });
         let label = match focused_label {
             _ if self.viewing => format!(
-                "Diagram, {} elements, view only. Use the arrow keys to move around.",
-                self.eng.elements().len()
+                "Diagram, {} elements, view only. Use the arrow keys to move around.{}",
+                self.eng.elements().len(),
+                self.legend_label
+                    .as_ref()
+                    .map_or_else(String::new, |l| format!(" {l}"))
             ),
             Some(l) => format!("Diagram canvas: {l}"),
             None => format!(
@@ -1054,7 +1084,14 @@ impl<T: DiagramView> Editor<T> {
         // While viewing, the paper is only as big as the drawing, so there's no empty paper to
         // scroll to.
         let area = if self.viewing {
-            viewed_area(self.still_scene().bounds, self.eng.canvas())
+            // The legend can reach past the canvas's edge, and the paper holds it.
+            let bounds = self.still_scene().bounds;
+            let canvas = self.eng.canvas();
+            let canvas = Size::new(
+                canvas.width.max(bounds.right() + GRID),
+                canvas.height.max(bounds.bottom() + GRID),
+            );
+            viewed_area(bounds, canvas)
         } else {
             canvas_rect(self.eng.canvas())
         };
@@ -1159,7 +1196,16 @@ impl<T: DiagramView> Editor<T> {
     fn still_scene(&mut self) -> &Scene {
         let changes = self.eng.changes();
         if self.scene_cache.as_ref().is_none_or(|(c, _)| *c != changes) {
-            let scene = T::scene(&self.eng, &self.displayed(), None);
+            let mut scene = T::scene(&self.eng, &self.displayed(), None);
+            // While viewing, the legend beside the drawing, stamped as an export now would be.
+            let legend = self
+                .viewing
+                .then(|| T::legend(&self.eng, Stamp::today(self.legend_version.clone())))
+                .flatten();
+            if let Some(legend) = &legend {
+                legend.add_to(&mut scene);
+            }
+            self.legend_label = legend.map(|l| l.legend.description());
             self.scene_cache = Some((changes, scene));
         }
         let (_, scene) = self.scene_cache.as_ref().expect("built above");
@@ -2046,6 +2092,8 @@ pub trait DiagramEditor {
     /// Whether it's only being looked at, with nothing to change.
     fn viewing(&self) -> bool;
     fn set_viewing(&mut self, viewing: bool);
+    /// Sets the version the legend shown while viewing names, such as "Version 3".
+    fn set_legend_version(&mut self, version: &str);
     fn announcement(&self) -> &str;
     fn set_announcement(&mut self, text: String);
     /// A message to show, such as why the clipboard couldn't be pasted. Taken once.
@@ -2104,6 +2152,10 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn set_viewing(&mut self, viewing: bool) {
         Editor::set_viewing(self, viewing);
+    }
+
+    fn set_legend_version(&mut self, version: &str) {
+        Editor::set_legend_version(self, version);
     }
 
     fn show_help(&mut self) -> &mut bool {

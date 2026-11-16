@@ -1311,6 +1311,8 @@ impl App {
             rect.min.y = line.rect.center().y + 0.5;
             rect.min.x -= PAGE_MARGIN;
             rect.max += egui::vec2(PAGE_MARGIN, PAGE_MARGIN);
+            // The legend shown while viewing names the version an export now would.
+            open.editor.set_legend_version(&open.status.version_text());
             ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
                 ui.set_clip_rect(rect);
                 open.editor.ui(ui);

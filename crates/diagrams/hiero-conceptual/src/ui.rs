@@ -3,6 +3,7 @@
 use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Dir, Engine, Laid, validate_length};
 use hiero_core::geometry::{Point, Rect};
+use hiero_core::legend::{LegendBeside, Stamp};
 use hiero_core::model::{ArrowPayload, ConnectionId};
 use hiero_core::name_size::font_size_choices;
 use hiero_core::routing::payload_icon_placement;
@@ -21,6 +22,10 @@ use crate::scene::{drawn_arrows, drawn_rect, scene_of};
 
 impl DiagramView for Conceptual {
     const HELP: &'static str = crate::HELP;
+
+    fn legend(eng: &Engine<Self>, stamp: Stamp) -> Option<LegendBeside> {
+        Some(crate::scene::legend_beside(eng, stamp))
+    }
 
     fn scene(
         eng: &Engine<Self>,

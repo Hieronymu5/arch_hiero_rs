@@ -8,13 +8,20 @@ use hiero_core::model::LineWeight;
 use hiero_core::scene::{Anchor, Node, Paint, Scene};
 use hiero_core::text::{MeasureText, TextStyle, Weight, wrap_text};
 
+use std::collections::HashSet;
+
+use hiero_core::export::drawio::{Legend, LegendBeside, LegendIcon, Stamp, Swatch};
+use hiero_core::palette::{
+    CORE_COMPONENT, ComponentColors, EXTERNAL_DEPENDENCY, INTERNAL_DEPENDENCY,
+};
+
 use crate::layout::{
-    BADGE_FONT_SIZE, BULLET_LINE, LAYER_BAR_HEIGHT, LAYER_BAR_LIFT, LAYER_NAME_HEIGHT, LOGO,
-    LOGO_BOX, PROTOCOL_BAR_LIFT, SEPARATOR_LEAN, characteristics, component_parts, is_layer,
+    BADGE_FONT_SIZE, BULLET_LINE, LAYER_BAR_HEIGHT, LAYER_BAR_LIFT, LAYER_GAP, LAYER_NAME_HEIGHT,
+    LOGO, LOGO_BOX, PROTOCOL_BAR_LIFT, SEPARATOR_LEAN, characteristics, component_parts, is_layer,
     layer_name_top, protocol_segments,
 };
 use crate::model::{DeployedComponent, LAYER_PADDING, colors, component_colors};
-use crate::tech_stack;
+use crate::tech_stack::{self, TechItem};
 
 const BAR_TEXT: (f64, Weight) = (11.0, Weight::Bold);
 const LAYER_NAME: (f64, Weight) = (16.0, Weight::Bold);
@@ -292,6 +299,77 @@ pub fn scene_of(eng: &Engine<DeployedComponent>, layout: &[Laid<DeployedComponen
     }
 }
 
+/// The tech stack logos the diagram shows, each once, in the order they're offered: those that
+/// fit in their components' bottom bars, beside any instance count.
+pub fn logos_shown(layout: &[Laid<DeployedComponent>]) -> Vec<&'static TechItem> {
+    let shown: HashSet<&str> = layout
+        .iter()
+        .filter(|e| !is_layer(&e.el))
+        .flat_map(|c| {
+            let tech = tech_stack::items(c.el.props.tech_stack.as_deref().unwrap_or_default());
+            let fits = component_parts(
+                c.rect,
+                c.el.description.as_deref(),
+                tech.len(),
+                c.el.props.instance_count,
+            )
+            .logos
+            .len();
+            tech.into_iter().take(fits).map(|item| item.id)
+        })
+        .collect();
+    tech_stack::TECH_STACK
+        .iter()
+        .filter(|item| shown.contains(item.id))
+        .collect()
+}
+
+/// The legend beside a deployed component diagram: the colours of its core components and its
+/// internal and external dependencies, one under another, each with its own border, then,
+/// under a Technology Stack heading, each of the tech stack `logos` the diagram shows, two to a
+/// row. It's wider than a conceptual diagram's, for their longer names, such as "Microsoft SQL
+/// Server".
+pub fn legend(logos: &[&'static TechItem], stamp: Stamp) -> Legend {
+    let swatch = |c: ComponentColors| Swatch {
+        label: c.label.into(),
+        fill: c.fill.into(),
+        border: Some(c.border.into()),
+    };
+    Legend {
+        lines: Vec::new(),
+        swatches: vec![
+            swatch(CORE_COMPONENT),
+            swatch(INTERNAL_DEPENDENCY),
+            swatch(EXTERNAL_DEPENDENCY),
+        ],
+        swatch_columns: 1,
+        icons: logos
+            .iter()
+            .map(|item| LegendIcon {
+                label: item.label.into(),
+                png: item.png,
+            })
+            .collect(),
+        icons_title: Some("Technology Stack".into()),
+        width: LEGEND_WIDTH,
+        stamp,
+    }
+}
+
+/// The legend's width: wider than the usual, for tech stack names.
+const LEGEND_WIDTH: f64 = 320.0;
+
+/// The diagram's legend, stamped with `stamp`, and how it goes beside the drawing: as far from
+/// the layers as they are from each other, with its border as wide as their lines.
+pub fn legend_beside(eng: &Engine<DeployedComponent>, stamp: Stamp) -> LegendBeside {
+    LegendBeside {
+        legend: legend(&logos_shown(eng.layout()), stamp),
+        gap: LAYER_GAP,
+        line_color: colors::LAYER_BORDER.into(),
+        border_width: eng.line_weight().width(),
+    }
+}
+
 pub fn scene(eng: &Engine<DeployedComponent>) -> Scene {
     scene_of(eng, eng.layout())
 }
@@ -306,6 +384,64 @@ mod tests {
     use hiero_core::text::EstimateText;
 
     static ESTIMATE: EstimateText = EstimateText;
+
+    #[test]
+    fn the_legend_names_the_colours_and_each_logo_shown_once() {
+        let mut e = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {})
+            .with_measure(&ESTIMATE);
+        let tech = |e: &mut Engine<DeployedComponent>, ids: &[&str]| {
+            e.add_at_free_position(DeployedKind::Component);
+            let id = e.selected_id().unwrap().clone();
+            let ids: Vec<String> = ids.iter().map(|&i| i.into()).collect();
+            e.replace(&id, |mut c| {
+                c.props.tech_stack = Some(ids);
+                c
+            });
+        };
+        tech(&mut e, &["postgresql", "aws"]);
+        tech(&mut e, &["aws", "linux"]);
+        // Each once, in the order the catalogue offers them.
+        let labels: Vec<&str> = logos_shown(e.layout()).iter().map(|i| i.label).collect();
+        assert_eq!(labels.len(), 3);
+        assert_eq!(labels[0], "AWS");
+        let stamp = Stamp {
+            generated: "4 Nov 2026".into(),
+            version: "Version 3".into(),
+        };
+        let placed = legend_beside(&e, stamp);
+        assert_eq!(placed.gap, LAYER_GAP);
+        assert_eq!(placed.border_width, e.line_weight().width());
+        let legend = &placed.legend;
+        assert_eq!(
+            legend
+                .swatches
+                .iter()
+                .map(|s| (s.label.as_str(), s.border()))
+                .collect::<Vec<_>>(),
+            [
+                ("Core Component", "#82b366".to_owned()),
+                ("Internal Dependency", "#d6b656".to_owned()),
+                ("External Dependency", "#b85450".to_owned()),
+            ]
+        );
+        assert_eq!(legend.icons.len(), 3);
+        // Only the logos that fit are named: a component shows as many as its bottom bar holds.
+        let mut crowded = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {})
+            .with_measure(&ESTIMATE);
+        let all: Vec<&str> = tech_stack::TECH_STACK.iter().map(|t| t.id).collect();
+        tech(&mut crowded, &all);
+        let fits = logos_shown(crowded.layout()).len();
+        assert!(fits > 0 && fits < all.len());
+        // The SVG draws it beside the layers, with its heading and each logo.
+        let mut scene = scene(&e);
+        let right = scene.bounds.right();
+        placed.add_to(&mut scene);
+        let svg = scene_to_svg("Deploy", &scene);
+        assert!(svg.contains(">Technology Stack</text>"));
+        assert!(svg.contains(">Core Component</text>"));
+        assert!(svg.contains(">AWS</text>"));
+        assert!(scene.bounds.right() > right + LAYER_GAP + 300.0);
+    }
 
     #[test]
     fn draws_layers_components_bars_and_logos() {

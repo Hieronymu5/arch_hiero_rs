@@ -3,6 +3,7 @@
 use egui::Ui;
 use hiero_core::count::InstanceCount;
 use hiero_core::engine::{Engine, Laid, validate_length};
+use hiero_core::legend::{LegendBeside, Stamp};
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
 use hiero_editor::widgets::{self, select, text_field};
@@ -27,6 +28,10 @@ fn parse_count(text: &str) -> Result<Option<InstanceCount>, String> {
 
 impl DiagramView for DeployedComponent {
     const HELP: &'static str = crate::HELP;
+
+    fn legend(eng: &Engine<Self>, stamp: Stamp) -> Option<LegendBeside> {
+        Some(crate::scene::legend_beside(eng, stamp))
+    }
 
     fn scene(
         eng: &Engine<Self>,

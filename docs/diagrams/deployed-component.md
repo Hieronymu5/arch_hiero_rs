@@ -133,6 +133,15 @@ This type has its own SVG and draw.io writers (`deployed_components_to_svg`,
 `deployed_components_to_drawio`), because its anatomy doesn't match the shared element looks.
 Text is fitted with `fit_text`, which truncates with an ellipsis.
 
+Both exports, and viewing, put a legend 20 px to the right of the layers (the gap between
+layers), its bottom level with the drawing's, or level with its top when the legend is the
+taller: a 320 px wide card like the conceptual diagram's, its border as wide as the diagram's
+lines, with the Core Component, Internal Dependency, and External Dependency colours one under
+another, each in its own border, then, under a bold "Technology Stack" heading, each logo the
+diagram shows, once, two to a row, in the catalogue's order, with its name. A logo that doesn't
+fit in its component's bottom bar isn't shown, so it isn't listed. The bottom band has the date
+and the version shown, as the conceptual legend's does. Editing shows no legend.
+
 ## Stored data
 
 ```jsonc

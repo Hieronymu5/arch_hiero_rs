@@ -10,10 +10,10 @@ use crate::color::readable_text;
 use crate::figures::{CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, database};
 use crate::geometry::{Point, Rect, Size, fmt_num, round2};
 use crate::legend::{
-    LEGEND_BAND, LEGEND_BORDER, LEGEND_COLUMN, LEGEND_FOOTER, LEGEND_GAP, LEGEND_HEADER,
-    LEGEND_MUTED, LEGEND_PADDING, LEGEND_ROW, LEGEND_WIDTH,
+    LEGEND_BAND, LEGEND_BORDER, LEGEND_FOOTER, LEGEND_GAP, LEGEND_HEADER, LEGEND_ICON,
+    LEGEND_MUTED, LEGEND_PADDING,
 };
-pub use crate::legend::{Legend, LegendLine, Stamp};
+pub use crate::legend::{Legend, LegendBeside, LegendIcon, LegendLine, Stamp, Swatch};
 use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape, container_description};
 use crate::model::{ArrowPayload, ConnectionId, ElementId, LineWeight};
 use crate::routing::{
@@ -57,9 +57,12 @@ pub struct Heading {
 }
 
 impl Legend {
-    /// The legend's cells, with its top-left corner at `at`, its lines drawn in `line_color`.
-    pub fn cells(&self, at: Point, line_color: &str) -> Vec<String> {
-        let (x, y, w, h) = (at.x, at.y, LEGEND_WIDTH, self.height());
+    /// The legend's cells, with its top-left corner at `at`, its lines drawn in `line_color`
+    /// and its own border `border_width` wide, as the diagram's elements' lines are.
+    pub fn cells(&self, at: Point, line_color: &str, border_width: f64) -> Vec<String> {
+        let layout = self.layout(at);
+        let (x, y, w, h) = (at.x, at.y, layout.width, layout.height);
+        let column = layout.column;
         let text =
             |id: &str, r: Rect, value: &str, size: f64, align: &str, color: &str, bold: bool| {
                 let style = Style::new()
@@ -102,7 +105,7 @@ impl Legend {
         let frame = rounded(Style::new().set("html", 1))
             .set("fillColor", BACKGROUND)
             .set("strokeColor", LEGEND_BORDER)
-            .set("strokeWidth", 1);
+            .num("strokeWidth", border_width);
         let mut cells = vec![
             cell(
                 "legend",
@@ -119,9 +122,7 @@ impl Legend {
                 "",
             ),
         ];
-        let mut top = y + LEGEND_HEADER + 12.0;
-        for (i, l) in self.lines.iter().enumerate() {
-            let left = x + LEGEND_PADDING + i as f64 * LEGEND_COLUMN;
+        for (i, (l, at)) in self.lines.iter().zip(&layout.lines).enumerate() {
             let mut style = Style::new()
                 .set("html", 1)
                 .set("rounded", 0)
@@ -133,16 +134,16 @@ impl Legend {
             if l.dashed {
                 style = style.set("dashed", 1).set("dashPattern", "4 2 4 2");
             }
-            let middle = fmt_num(round2(top + 9.0));
+            let middle = fmt_num(round2(at.y + 9.0));
             cells.push(format!(
                 "        <mxCell id=\"legend-line-{i}\" value=\"\" style=\"{}\" edge=\"1\" parent=\"1\">\n          <mxGeometry relative=\"1\" as=\"geometry\">\n            <mxPoint x=\"{}\" y=\"{middle}\" as=\"sourcePoint\" />\n            <mxPoint x=\"{}\" y=\"{middle}\" as=\"targetPoint\" />\n          </mxGeometry>\n        </mxCell>",
                 style.build(),
-                fmt_num(round2(left)),
-                fmt_num(round2(left + 36.0)),
+                fmt_num(round2(at.x)),
+                fmt_num(round2(at.x + 36.0)),
             ));
             cells.push(text(
                 &format!("legend-line-{i}-label"),
-                Rect::new(left + 44.0, top, LEGEND_COLUMN - 46.0, 18.0),
+                Rect::new(at.x + 44.0, at.y, column - 46.0, 18.0),
                 &l.label,
                 11.0,
                 "left",
@@ -150,29 +151,61 @@ impl Legend {
                 false,
             ));
         }
-        if !self.lines.is_empty() {
-            top += 32.0;
-        }
-        for (i, (label, fill)) in self.swatches.iter().enumerate() {
-            let left = x + LEGEND_PADDING + (i % 2) as f64 * LEGEND_COLUMN;
-            let row = top + (i / 2) as f64 * LEGEND_ROW;
+        for (i, (s, at)) in self.swatches.iter().zip(&layout.swatches).enumerate() {
             let style = Style::new()
                 .set("html", 1)
                 .set("rounded", 0)
-                .set("fillColor", fill)
-                .set("strokeColor", crate::color::border_for(fill))
+                .set("fillColor", &s.fill)
+                .set("strokeColor", s.border())
                 .set("strokeWidth", 1);
             cells.push(cell(
                 &format!("legend-swatch-{i}"),
                 "",
                 &style.build(),
                 "1",
-                &rect_attributes(Rect::new(left, row, 14.0, 14.0)),
+                &rect_attributes(Rect::new(at.x, at.y, 14.0, 14.0)),
             ));
             cells.push(text(
                 &format!("legend-swatch-{i}-label"),
-                Rect::new(left + 22.0, row - 2.0, LEGEND_COLUMN - 24.0, 18.0),
-                label,
+                Rect::new(at.x + 22.0, at.y - 2.0, column - 24.0, 18.0),
+                &s.label,
+                11.0,
+                "left",
+                TEXT,
+                false,
+            ));
+        }
+        if let (Some(title), Some(at)) = (&self.icons_title, layout.icons_title) {
+            cells.push(text(
+                "legend-icons-title",
+                Rect::new(at.x, at.y + 2.0, w - LEGEND_PADDING * 2.0, 18.0),
+                title,
+                12.0,
+                "left",
+                TEXT,
+                true,
+            ));
+        }
+        for (i, (icon, at)) in self.icons.iter().zip(&layout.icons).enumerate() {
+            // draw.io keeps data URLs in styles without ";base64", as ";" separates styles.
+            let data = base64::engine::general_purpose::STANDARD.encode(icon.png);
+            let style = Style::new()
+                .set("shape", "image")
+                .set("html", 1)
+                .set("aspect", "fixed")
+                .set("imageAspect", 0)
+                .set("image", format!("data:image/png,{data}"));
+            cells.push(cell(
+                &format!("legend-icon-{i}"),
+                "",
+                &style.build(),
+                "1",
+                &rect_attributes(Rect::new(at.x, at.y, LEGEND_ICON, LEGEND_ICON)),
+            ));
+            cells.push(text(
+                &format!("legend-icon-{i}-label"),
+                Rect::new(at.x + 23.0, at.y - 1.0, column - 24.0, 18.0),
+                &icon.label,
                 11.0,
                 "left",
                 TEXT,
@@ -1286,15 +1319,15 @@ pub fn diagram_to_drawio(
         }),
         bottom + offset_y - ORIGIN,
     );
-    // Under the drawing, lined up with its right edge, and as wide as the page at least.
+    // To the right of the drawing, lined up with its bottom, below any heading, and the page
+    // big enough for it.
     if let Some(legend) = legend {
-        page.width = page.width.max(LEGEND_WIDTH);
-        let at = Point::new(
-            ORIGIN + page.width - LEGEND_WIDTH,
-            ORIGIN + page.height + LEGEND_GAP,
-        );
-        cells.extend(legend.cells(at, &colors.lines));
-        page.height += LEGEND_GAP + legend.height();
+        let top = min_y + offset_y;
+        let drawing = Rect::new(ORIGIN, top, max_x - min_x, bottom + offset_y - top);
+        let at = legend.beside(drawing, LEGEND_GAP);
+        cells.extend(legend.cells(at, &colors.lines, weight.width()));
+        page.width = page.width.max(at.x + legend.width - ORIGIN);
+        page.height = page.height.max(at.y + legend.height() - ORIGIN);
     }
     wrap(title, page, &cells)
 }

@@ -5,7 +5,7 @@
 use base64::Engine as _;
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::export::drawio::{
-    HEADING_GAP, HEADING_MIN_WIDTH, Heading, ORIGIN, Style, heading_cell, wrap,
+    HEADING_GAP, HEADING_MIN_WIDTH, Heading, ORIGIN, Stamp, Style, heading_cell, wrap,
 };
 use hiero_core::export::svg::escape_xml;
 use hiero_core::geometry::{Point, Rect, Size, fmt_num, round2};
@@ -17,7 +17,7 @@ use crate::layout::{
     layer_name_top, protocol_segments,
 };
 use crate::model::{DeployedComponent, LAYER_PADDING, colors, component_colors};
-use crate::scene::CORNER_RADIUS;
+use crate::scene::{CORNER_RADIUS, legend_beside};
 use crate::tech_stack;
 
 const BULLET_INDENT: f64 = 16.0;
@@ -330,11 +330,14 @@ fn component_cells(
     cells
 }
 
-/// The diagram as a draw.io file, with `heading` above it.
+/// The diagram as a draw.io file, with `heading` above it and, given a `stamp`, a legend to
+/// the right of the drawing, lined up with its bottom: what its colours mean, and the names of
+/// its tech stack's logos.
 pub fn to_drawio(
     eng: &Engine<DeployedComponent>,
     title: &str,
     heading: Option<&Heading>,
+    stamp: Option<Stamp>,
 ) -> String {
     let layout = eng.layout();
     let left = layout
@@ -393,7 +396,7 @@ pub fn to_drawio(
         .map(|e| e.rect.bottom())
         .fold(f64::NEG_INFINITY, f64::max);
     let bottom = if layout.is_empty() { 0.0 } else { bottom };
-    let page = Size::new(
+    let mut page = Size::new(
         (right - left).max(if heading.is_some() {
             HEADING_MIN_WIDTH
         } else {
@@ -401,6 +404,20 @@ pub fn to_drawio(
         }),
         bottom + offset.y - ORIGIN,
     );
+    // As far from the layers as they are from each other, its bottom level with the drawing's,
+    // or level with its top, under any heading, when the legend is the taller.
+    if let Some(stamp) = stamp {
+        let placed = legend_beside(eng, stamp);
+        let drawing = Rect::new(ORIGIN, top + offset.y, right - left, bottom - top);
+        let at = placed.legend.beside(drawing, placed.gap);
+        cells.extend(
+            placed
+                .legend
+                .cells(at, &placed.line_color, placed.border_width),
+        );
+        page.width = page.width.max(at.x + placed.legend.width - ORIGIN);
+        page.height = page.height.max(at.y + placed.legend.height() - ORIGIN);
+    }
     wrap(title, page, &cells)
 }
 
@@ -427,7 +444,7 @@ mod tests {
             c.description = Some("One\nTwo".into());
             c
         });
-        let xml = to_drawio(&e, "D", None);
+        let xml = to_drawio(&e, "D", None, None);
         assert!(xml.contains("container=1;collapsible=0;recursiveResize=0"));
         assert!(xml.contains(&format!("{id}-protocol-0")));
         assert!(xml.contains("data:image/png,"));
@@ -435,7 +452,41 @@ mod tests {
         assert!(xml.contains(&format!(r#"id="{id}-instances" value="2–4""#)));
         assert!(xml.contains("strokeColor=#82b366;strokeWidth=1"));
         e.set_line_weight(LineWeight::Thick);
-        assert!(to_drawio(&e, "D", None).contains("strokeColor=#82b366;strokeWidth=2"));
+        assert!(to_drawio(&e, "D", None, None).contains("strokeColor=#82b366;strokeWidth=2"));
+    }
+
+    #[test]
+    fn a_stamp_adds_a_legend_beside_the_layers() {
+        let mut e = Engine::<DeployedComponent>::new(Vec::new(), Vec::new(), NoColors {})
+            .with_measure(&ESTIMATE);
+        e.add_at_free_position(DeployedKind::Component);
+        let id = e.selected_id().unwrap().clone();
+        e.replace(&id, |mut c| {
+            c.props.tech_stack = Some(vec!["aws".into()]);
+            c
+        });
+        assert!(!to_drawio(&e, "D", None, None).contains("legend"));
+        let stamp = Stamp {
+            generated: "4 Nov 2026".into(),
+            version: "Version 3".into(),
+        };
+        let xml = to_drawio(&e, "D", None, Some(stamp));
+        assert!(xml.contains(r#"id="legend-title" value="Legend""#));
+        assert!(xml.contains(r#"id="legend-icons-title" value="Technology Stack""#));
+        assert!(xml.contains(r#"id="legend-icon-0-label" value="AWS""#));
+        // Each swatch in its own border.
+        assert!(xml.contains("fillColor=#fff2cc;strokeColor=#d6b656"));
+        // As far to the right of the layers as they are from each other.
+        let num = |from: &str, key: &str| -> f64 {
+            let xml = &xml[xml.find(from).unwrap()..];
+            let at = xml.find(&format!(r#" {key}=""#)).unwrap() + key.len() + 3;
+            xml[at..].split('"').next().unwrap().parse().unwrap()
+        };
+        let layer = e.layout().iter().find(|l| is_layer(&l.el)).unwrap().rect;
+        assert_eq!(
+            num(r#"id="legend" "#, "x"),
+            ORIGIN + layer.width + crate::layout::LAYER_GAP
+        );
     }
 
     #[test]
@@ -455,6 +506,6 @@ mod tests {
             fmt_num((layer.width + 80.0).ceil()),
             fmt_num((layer.height + LAYER_BAR_LIFT + 80.0).ceil()),
         );
-        assert!(to_drawio(&e, "D", None).contains(&page));
+        assert!(to_drawio(&e, "D", None, None).contains(&page));
     }
 }
