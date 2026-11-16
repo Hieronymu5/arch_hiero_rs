@@ -13,7 +13,7 @@ use crate::figures::{
 use crate::flowchart::{self, FlowShape};
 use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::model::{ArrowPayload, ColorScheme, ElementId, LineWeight};
-use crate::name_size::header_description;
+use crate::name_size::{FittedText, fit_description};
 use crate::routing::{
     Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT, connector_text_position, label_placement,
     label_text_position, payload_icon_paths, payload_icon_placement, return_arrow_placement,
@@ -884,13 +884,14 @@ pub fn draw_element(
                 None => usual,
             };
             let name = wrap_text(&element.label, text_width, style, measure);
-            // Any description under the name, a line of it to a line, each cut short to fit.
-            let description = container_description(element, text_width, measure);
+            // Any description under the name, wrapped, in a smaller font if it needs more than
+            // three lines.
+            let description = container_description(element.description.as_deref(), width, measure);
             let name_height = name.len() as f64 * style.line_height;
-            let description_height = if description.is_empty() {
+            let description_height = if description.lines.is_empty() {
                 0.0
             } else {
-                DESCRIPTION_GAP + description.len() as f64 * DESCRIPTION.line_height
+                DESCRIPTION_GAP + description.height()
             };
             let bottom_top = y + height - 8.0 - name_height - description_height;
             let (text_x, top, anchor) = match look.name_at {
@@ -901,10 +902,10 @@ pub fn draw_element(
             };
             let mut text = text_lines(&name, text_x, top, style, anchor);
             text.extend(text_lines(
-                &description,
+                &description.lines,
                 text_x,
                 top + name_height + DESCRIPTION_GAP,
-                DESCRIPTION,
+                description.style,
                 anchor,
             ));
             let mut nodes = vec![Node::rect(
@@ -1051,21 +1052,21 @@ pub fn draw_element(
     }
 }
 
-/// The lines of a container's description, such as a domain's, drawn under its name: each
-/// line as written, cut short to fit `width`.
+/// A container's description, such as a domain's, as it's drawn under its name in a container
+/// `width` wide: wrapped inside its padding to at most three lines, in a smaller font when it
+/// needs more, and never cut short.
 pub fn container_description(
-    element: &LookElement,
+    description: Option<&str>,
     width: f64,
     measure: &dyn MeasureText,
-) -> Vec<String> {
-    header_description(element.description.as_deref())
-        .into_iter()
-        .filter_map(|line| {
-            wrap_text(line, width, DESCRIPTION.with_max_lines(1), measure)
-                .into_iter()
-                .next()
-        })
-        .collect()
+) -> FittedText {
+    fit_description(
+        description,
+        width - PADDING_X * 2.0,
+        DESCRIPTION,
+        |size| (size * DESCRIPTION.line_height / DESCRIPTION.size).round(),
+        measure,
+    )
 }
 
 fn draw_section(
@@ -1467,14 +1468,24 @@ mod tests {
         };
         let mut domain = element(Shape::Container, Rect::new(0.0, 0.0, 400.0, 300.0));
         domain.label = "Sales".into();
-        // Each line as written, the long one cut short to fit, at most three.
-        domain.description = Some(format!("Orders\n\n{}\nB\nC", "x".repeat(80)));
+        // Wrapped to three lines at most, in a smaller font when it needs more, never cut.
+        domain.description = Some("Orders\n\nB".into());
         let top = svg(&domain);
         assert!(top.contains(r#"<text x="200" y="27" text-anchor="middle" font-size="20" font-weight="700">Sales</text>"#), "{top}");
         assert!(top.contains(r#"<text x="200" y="48.4" text-anchor="middle" font-size="13" font-weight="400">Orders</text>"#));
-        assert!(top.contains("…</text>"));
-        assert!(top.contains(">B</text>"));
-        assert!(!top.contains(">C</text>"));
+        assert!(top.contains(r#"<text x="200" y="65.4" text-anchor="middle" font-size="13" font-weight="400">B</text>"#));
+        // 40 words take four lines down to 11 px across the 380 px inside, and three at 10 px.
+        domain.description = Some("word ".repeat(40));
+        let small = svg(&domain);
+        assert_eq!(
+            small
+                .matches(r#"font-size="10" font-weight="400">word"#)
+                .count(),
+            3,
+            "{small}"
+        );
+        assert!(!small.contains('…'));
+        assert_eq!(small.matches("word").count(), 40);
         // Along the bottom, the description is under the name, above the bottom edge.
         domain.look.name_at = NameAt::BottomCenter;
         domain.description = Some("Orders".into());

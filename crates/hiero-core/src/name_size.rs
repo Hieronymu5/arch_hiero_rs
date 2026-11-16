@@ -2,6 +2,7 @@
 //! conceptual diagram's domains and boxes, and how tall a header is to fit one.
 
 use crate::geometry::GRID;
+use crate::text::{MeasureText, TextStyle, wrap_text};
 
 /// The font sizes offered, in pixels. Any whole size from `FONT_SIZE_MIN` to `FONT_SIZE_MAX`
 /// is valid, as an agent or a file can set.
@@ -26,20 +27,63 @@ pub fn header_for(size: f64) -> f64 {
     ((needed / GRID).ceil() * GRID).max(HEADER_MIN)
 }
 
-/// The most lines of a description a header shows under its name.
+/// The most lines a description under a name in a header wraps to before its font shrinks.
 pub const HEADER_DESCRIPTION_LINES: usize = 3;
 
-/// The lines of `description` a header shows under its name, such as a domain's or a group's:
-/// each line as written, leaving out blank ones, up to `HEADER_DESCRIPTION_LINES`. They're
-/// cut short, not wrapped, when too wide, so how tall the header is doesn't depend on its width.
-pub fn header_description(description: Option<&str>) -> Vec<&str> {
-    description
+/// A description fitted under a name in a header: its lines, and the style they're drawn in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FittedText {
+    pub lines: Vec<String>,
+    pub style: TextStyle,
+}
+
+impl FittedText {
+    /// How tall its lines are, without the gap above them.
+    pub fn height(&self) -> f64 {
+        self.lines.len() as f64 * self.style.line_height
+    }
+}
+
+/// `description` wrapped across `width` in `style`, for a header such as a domain's or a
+/// group's, with lines `line_height` tall for a font size. It wraps to at most
+/// `HEADER_DESCRIPTION_LINES` lines, a pixel smaller at a time until it fits, down to
+/// `FONT_SIZE_MIN`. It's never cut short: what still doesn't fit at that size takes more lines.
+/// Blank lines are left out; other line breaks are kept.
+pub fn fit_description(
+    description: Option<&str>,
+    width: f64,
+    style: TextStyle,
+    line_height: impl Fn(f64) -> f64,
+    measure: &dyn MeasureText,
+) -> FittedText {
+    let text = description
         .unwrap_or_default()
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .take(HEADER_DESCRIPTION_LINES)
-        .collect()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let smallest = f64::from(FONT_SIZE_MIN).min(style.size);
+    let mut size = style.size;
+    loop {
+        let at = TextStyle {
+            size,
+            line_height: line_height(size),
+            max_lines: usize::MAX,
+            ..style
+        };
+        if text.is_empty() {
+            return FittedText {
+                lines: Vec::new(),
+                style: at,
+            };
+        }
+        let lines = wrap_text(&text, width.max(1.0), at, measure);
+        if lines.len() <= HEADER_DESCRIPTION_LINES || size - 1.0 < smallest {
+            return FittedText { lines, style: at };
+        }
+        size -= 1.0;
+    }
 }
 
 /// `height` rounded up to the grid.
@@ -74,13 +118,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_header_shows_the_written_lines_of_a_description() {
-        assert!(header_description(None).is_empty());
-        assert!(header_description(Some(" \n ")).is_empty());
+    fn a_description_wraps_to_three_lines_then_shrinks_and_is_never_cut() {
+        use crate::text::{EstimateText, Weight};
+        let style = TextStyle::new(13.0, Weight::Regular, 17.0, 1);
+        let fit = |text: &str, width: f64| {
+            fit_description(
+                Some(text),
+                width,
+                style,
+                |size| (size * 17.0 / 13.0).round(),
+                &EstimateText,
+            )
+        };
+        assert!(fit(" \n ", 200.0).lines.is_empty());
+        // 13 px: 7.15 px a character, so 27 to a 200 px line. Blank lines are left out.
+        let short = fit("Orders\n\nBilling", 200.0);
+        assert_eq!(short.lines, ["Orders", "Billing"]);
+        assert_eq!((short.style.size, short.style.line_height), (13.0, 17.0));
+        // Three lines' worth at 13 px fits as it is.
+        let three = fit(&"word ".repeat(15), 200.0);
+        assert_eq!((three.lines.len(), three.style.size), (3, 13.0));
+        // Four lines' worth shrinks until it takes three.
+        let four = fit(&"word ".repeat(20), 200.0);
+        assert_eq!(four.lines.len(), 3);
+        assert!(four.style.size < 13.0 && four.style.size >= 8.0);
         assert_eq!(
-            header_description(Some("Sales\n\n Orders \nBilling\nSupport")),
-            ["Sales", "Orders", "Billing"]
+            four.style.line_height,
+            (four.style.size * 17.0 / 13.0).round()
         );
+        // Too much for three lines even at 8 px: more lines, nothing cut.
+        let long = fit(&"word ".repeat(100), 200.0);
+        assert_eq!(long.style.size, 8.0);
+        assert!(long.lines.len() > 3);
+        assert!(!long.lines.concat().contains('…'));
+        assert_eq!(long.lines.join(" ").split_whitespace().count(), 100);
     }
 
     #[test]

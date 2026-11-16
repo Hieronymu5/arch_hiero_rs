@@ -14,13 +14,13 @@ use crate::legend::{
     LEGEND_MUTED, LEGEND_PADDING, LEGEND_ROW, LEGEND_WIDTH,
 };
 pub use crate::legend::{Legend, LegendLine, Stamp};
-use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape};
+use crate::look::{ArrowLook, DiagramColors, LookElement, NameAt, Shape, container_description};
 use crate::model::{ArrowPayload, ConnectionId, ElementId, LineWeight};
-use crate::name_size::header_description;
 use crate::routing::{
     Align, CONNECTOR_BOX_FONT_SIZE, RETURN_ARROW_LENGTH, Vertical, label_placement,
     payload_icon_placement, return_arrow_placement,
 };
+use crate::text::font_metrics;
 
 #[allow(clippy::wildcard_imports, reason = "the stencil table")]
 use super::stencils::*;
@@ -934,16 +934,26 @@ pub fn diagram_to_drawio(
                     )
                     .set("fontStyle", 1)
                     .num("fontSize", look.name_size.unwrap_or(usual_size));
-                // Any description under the name in a smaller regular font, a line of it to a
-                // line, as in the editor.
-                let description = header_description(e.description.as_deref());
-                let label = if description.is_empty() {
+                // Any description under the name in a smaller regular font, at the size the
+                // editor draws it, keeping its line breaks for draw.io to wrap.
+                let description =
+                    container_description(e.description.as_deref(), e.rect.width, font_metrics());
+                let label = if description.lines.is_empty() {
                     escape_xml(&e.label)
                 } else {
-                    let lines: Vec<String> = description.into_iter().map(escape_xml).collect();
+                    let lines: Vec<String> = e
+                        .description
+                        .as_deref()
+                        .unwrap_or_default()
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty())
+                        .map(escape_xml)
+                        .collect();
                     format!(
-                        r#"{}<br><span style="font-size: 13px; font-weight: normal">{}</span>"#,
+                        r#"{}<br><span style="font-size: {}px; font-weight: normal">{}</span>"#,
                         escape_xml(&e.label),
+                        fmt_num(description.style.size),
                         lines.join("<br>")
                     )
                 };

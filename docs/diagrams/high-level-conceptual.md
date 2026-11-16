@@ -20,14 +20,15 @@ can also have a description.
 | Kind | Label | Default size | Can contain | Drawn as |
 |---|---|---|---|---|
 | `application` | Application | 160×80 | – | A box with round corners (radius 8), its name wrapped in its middle, in bold, with any description under it (2 px below) in regular weight at 85% of the name's size, rounded, at least 8 px. The description keeps its line breaks and is cut with “…” where the box has no more room. |
-| `group` | Group | 400×240 | application, group, actors | A box with round corners (radius 8), drawn behind what it holds. Its name, in bold, sits on one line centred across its top while it holds something, and wrapped in its middle while it's empty. Any description sits under the name as an application's does: in its header, a line of it to a line (blank lines left out, at most three), each cut short with “…” rather than wrapped; in the middle of an empty group, wrapped as far as it fits. |
+| `group` | Group | 400×240 | application, group, actors | A box with round corners (radius 8), drawn behind what it holds. Its name, in bold, sits on one line centred across its top while it holds something, and wrapped in its middle while it's empty. Any description sits under the name as an application's does: in its header, wrapped across the group (blank lines left out) to at most three lines, its font a pixel smaller at a time until it fits in three, down to 8 px, below which it takes more lines, so it's never cut short; in the middle of an empty group, wrapped as far as it fits. |
 | `actors` | Actors | 160×120 | – | People, such as stakeholders or a team: three person figures (48×46 each) centred 4 px below its top, two side by side at the back, 32 px apart, and one in front, 10 px lower and centred between them, covering most of each, in its colour's fill and border. Its name, in bold, is wrapped under them, 6 px below, with any description under it as an application's is. It has no box or border. |
 
 A group grows to hold what's in it, with 20 px of padding round it and its header above. The
 header fits one line of the group's name, with 8 px above and below it, rounded up to the grid
 and at least 40 px: 40 for names up to 20 px, 60 up to 36 px, and 80 above. A description makes it taller:
-the name's line, 2 px, and a line of the description's size for each line of it shown, with 8 px
-above and below, rounded up to the grid (60, 80, and 100 for one to three lines at the usual size). An element can't be
+the name's line, 2 px, and the description's lines, with 8 px above and below, rounded up to the
+grid (60, 80, and 100 for one to three lines at the usual size). When the header grows over what
+the group holds, that moves down, and the group grows to fit it. An element can't be
 put inside itself or anything it holds.
 
 Groups not in another group are drawn behind applications not in one.

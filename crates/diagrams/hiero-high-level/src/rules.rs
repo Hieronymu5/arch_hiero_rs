@@ -12,22 +12,21 @@ use crate::model::{
 };
 
 pub use hiero_core::name_size::{
-    HEADER_MIN, NAME_PADDING, header_description, header_for, line_height, on_grid,
-    validate_font_size,
+    HEADER_MIN, NAME_PADDING, header_for, line_height, on_grid, validate_font_size,
 };
+use hiero_core::text::MeasureText;
 
-use crate::scene::{DESCRIPTION_GAP, description_size};
+use crate::scene::{DESCRIPTION_GAP, header_description};
 
-/// The height of a group's header: its name's line in its font size, and a line for each line
-/// of its description under it, with space above and below, to the grid.
-pub fn group_header(element: &El<HighLevel>) -> f64 {
+/// The height of a group's header: its name's line in its font size, and its description
+/// wrapped under it across the group's `width`, with space above and below, to the grid.
+pub fn group_header(element: &El<HighLevel>, width: f64, measure: &dyn MeasureText) -> f64 {
     let size = f64::from(element.props.font_size_of(element.kind));
-    let lines = header_description(element.description.as_deref()).len();
-    if lines == 0 {
+    let description = header_description(element, width, measure);
+    if description.lines.is_empty() {
         return header_for(size);
     }
-    let text =
-        line_height(size) + DESCRIPTION_GAP + lines as f64 * line_height(description_size(size));
+    let text = line_height(size) + DESCRIPTION_GAP + description.height();
     header_for(size).max(on_grid(text + NAME_PADDING * 2.0))
 }
 
@@ -190,9 +189,14 @@ impl DiagramType for HighLevel {
     }
 
     /// A group's header fits its name in its font size, and any description under it.
-    fn header_height(element: &El<Self>, info: &'static KindInfo<HighLevelKind>) -> f64 {
+    fn header_height(
+        element: &El<Self>,
+        info: &'static KindInfo<HighLevelKind>,
+        width: f64,
+        measure: &dyn MeasureText,
+    ) -> f64 {
         if element.kind == HighLevelKind::Group {
-            group_header(element)
+            group_header(element, width, measure)
         } else {
             info.header()
         }

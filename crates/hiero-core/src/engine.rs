@@ -295,14 +295,25 @@ pub trait DiagramType: Sized + 'static {
     }
 
     /// The height of a container's header, above what it holds: its kind's, unless the type
-    /// sizes it to the element, such as to fit a group's name in its own font size.
-    fn header_height(_element: &El<Self>, info: &'static KindInfo<Self::Kind>) -> f64 {
+    /// sizes it to the element, such as to fit a group's name in its own font size, or its
+    /// description wrapped across its `width`, measured with `measure`.
+    fn header_height(
+        _element: &El<Self>,
+        info: &'static KindInfo<Self::Kind>,
+        _width: f64,
+        _measure: &dyn MeasureText,
+    ) -> f64 {
         info.header()
     }
 
     /// The height of a container's footer, below what it holds: its kind's, unless the type
     /// sizes it to the element, such as to fit a domain's name along its bottom.
-    fn footer_height(_element: &El<Self>, info: &'static KindInfo<Self::Kind>) -> f64 {
+    fn footer_height(
+        _element: &El<Self>,
+        info: &'static KindInfo<Self::Kind>,
+        _width: f64,
+        _measure: &dyn MeasureText,
+    ) -> f64 {
         info.footer()
     }
 
@@ -640,7 +651,47 @@ impl<T: DiagramType> Engine<T> {
     pub fn set_elements(&mut self, elements: Vec<El<T>>) {
         self.elements = T::arrange(self, elements);
         self.relayout();
+        self.keep_children_below_headers();
         self.changes += 1;
+    }
+
+    /// Moves what a container holds down, with everything inside it, when its header has grown
+    /// over it, such as for a longer description or a larger name, so its children start
+    /// below the header again. The container grows to hold them.
+    fn keep_children_below_headers(&mut self) {
+        // Each pass fixes one container; a nested one can need another pass after its parent.
+        for _ in 0..=self.layout.len() {
+            let mut highest: HashMap<&ElementId, f64> = HashMap::new();
+            for e in &self.layout {
+                if let Some(parent) = &e.el.parent_id {
+                    let y = highest.entry(parent).or_insert(f64::INFINITY);
+                    *y = y.min(e.rect.y);
+                }
+            }
+            let overlapped = self.layout.iter().find_map(|c| {
+                let top = c.rect.y + c.header;
+                let highest = *highest.get(c.id())?;
+                (c.is_container && c.child_count > 0 && highest < top - 0.01)
+                    .then(|| (c.id().clone(), top - highest))
+            });
+            let Some((id, down)) = overlapped else {
+                return;
+            };
+            let moved = descendant_ids(&self.elements, &id);
+            let elements: Vec<El<T>> = self
+                .elements
+                .iter()
+                .cloned()
+                .map(|mut e| {
+                    if moved.contains(&e.id) {
+                        e.y += down;
+                    }
+                    e
+                })
+                .collect();
+            self.elements = T::arrange(self, elements);
+            self.relayout();
+        }
     }
 
     pub fn set_connections(&mut self, connections: Vec<Conn<T>>) {
@@ -1716,9 +1767,7 @@ impl<T: DiagramType> Engine<T> {
             rect: Rect,
             is_container: bool,
             is_region: bool,
-            header: f64,
             padding: f64,
-            footer: f64,
         }
         let sized: Vec<Sized<'_, T::Kind, T::Props>> = elements
             .iter()
@@ -1737,9 +1786,7 @@ impl<T: DiagramType> Engine<T> {
                     ),
                     is_container,
                     is_region: is_container && info.container_look == ContainerLook::Region,
-                    header: T::header_height(el, info),
                     padding: info.padding(),
-                    footer: T::footer_height(el, info),
                 }
             })
             .collect();
@@ -1761,10 +1808,14 @@ impl<T: DiagramType> Engine<T> {
             }
         }
 
+        /// Each element's header and footer.
+        type Bands = [(f64, f64)];
+
         fn fit<K, P>(
             i: usize,
             seen: &mut Vec<usize>,
             sized: &[Sized<'_, K, P>],
+            bands: &Bands,
             children: &[Vec<usize>],
             fitted: &mut HashMap<usize, Size>,
         ) -> Size {
@@ -1781,7 +1832,7 @@ impl<T: DiagramType> Engine<T> {
                 .map(|c| {
                     Rect::from_parts(
                         sized[c].rect.position(),
-                        fit(c, seen, sized, children, fitted),
+                        fit(c, seen, sized, bands, children, fitted),
                     )
                 })
                 .collect();
@@ -1790,9 +1841,9 @@ impl<T: DiagramType> Engine<T> {
             let size = fit_container(
                 &ContainerRect {
                     rect: s.rect,
-                    header: s.header,
+                    header: bands[i].0,
                     padding: s.padding,
-                    footer: s.footer,
+                    footer: bands[i].1,
                 },
                 &kids,
             );
@@ -1800,10 +1851,33 @@ impl<T: DiagramType> Engine<T> {
             size
         }
 
+        // A container's width doesn't depend on its header or footer, but they can depend on
+        // its width, such as a description wrapped across it. So the widths come first, then
+        // the headers and footers for them, and then the heights.
+        let bands_at = |widths: &dyn Fn(usize) -> f64| -> Vec<(f64, f64)> {
+            sized
+                .iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    let width = widths(i);
+                    (
+                        T::header_height(s.el, s.info, width, self.measure),
+                        T::footer_height(s.el, s.info, width, self.measure),
+                    )
+                })
+                .collect()
+        };
+        let mut fitted: HashMap<usize, Size> = HashMap::new();
+        let first = bands_at(&|i| sized[i].rect.width);
+        for i in 0..sized.len() {
+            fit(i, &mut Vec::new(), &sized, &first, &children, &mut fitted);
+        }
+        let widths: Vec<f64> = (0..sized.len()).map(|i| fitted[&i].width).collect();
+        let bands = bands_at(&|i| widths[i]);
         let mut fitted: HashMap<usize, Size> = HashMap::new();
         let mut laid: Vec<Option<Laid<T>>> = (0..sized.len())
             .map(|i| {
-                let size = fit(i, &mut Vec::new(), &sized, &children, &mut fitted);
+                let size = fit(i, &mut Vec::new(), &sized, &bands, &children, &mut fitted);
                 let s = &sized[i];
                 let child_count = children[i].len();
                 Some(Laid {
@@ -1812,9 +1886,9 @@ impl<T: DiagramType> Engine<T> {
                     info: s.info,
                     is_container: s.is_container,
                     is_region: s.is_region,
-                    header: s.header,
+                    header: bands[i].0,
                     padding: s.padding,
-                    footer: s.footer,
+                    footer: bands[i].1,
                     text_at_top: s.is_container && !s.is_region && child_count > 0,
                     is_resizable: s.is_container || s.info.resizable != Resizable::No,
                     child_count,

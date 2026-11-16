@@ -8,9 +8,10 @@ use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
 use hiero_core::geometry::{GRID, Size};
 use hiero_core::layout::{CONTAINER_HEADER, CONTAINER_PADDING};
-use hiero_core::look::{DESCRIPTION, DESCRIPTION_GAP, DiagramColors};
+use hiero_core::look::{DESCRIPTION_GAP, DiagramColors, container_description};
 use hiero_core::model::{DiagramTypeId, ElementId, KindInfo};
-use hiero_core::name_size::{header_description, header_for, on_grid, validate_font_size};
+use hiero_core::name_size::{header_for, on_grid, validate_font_size};
+use hiero_core::text::MeasureText;
 
 use crate::model::{
     ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
@@ -47,23 +48,23 @@ fn name_line_height(size: u32) -> f64 {
 
 /// The height of the band a domain's name takes along its top or bottom: the usual header for
 /// its own size or smaller, and taller for a larger name, to the grid, so it stays clear of the
-/// applications it holds. Any description under the name makes it taller again, by a line for
-/// each line of it.
-pub fn name_band(element: &El<Conceptual>) -> f64 {
+/// applications it holds. Any description under the name makes it taller again, wrapped across
+/// the domain's `width` as it's drawn.
+pub fn name_band(element: &El<Conceptual>, width: f64, measure: &dyn MeasureText) -> f64 {
     let size = element.props.font_size_of(element.kind);
     let band = if size <= element.kind.default_font_size() {
         CONTAINER_HEADER
     } else {
         header_for(f64::from(size))
     };
-    let lines = header_description(element.description.as_deref()).len();
-    if lines == 0 {
+    let description = container_description(element.description.as_deref(), width, measure);
+    if description.lines.is_empty() {
         return band;
     }
     // As the name is drawn: 8 px from the edge, on a line 1.3 times its size, with the
     // description under it and at least the usual header's 6 px after that.
     let name_line = (f64::from(size) * 1.3).round();
-    let text = name_line + DESCRIPTION_GAP + lines as f64 * DESCRIPTION.line_height;
+    let text = name_line + DESCRIPTION_GAP + description.height();
     band.max(on_grid(8.0 + text + 6.0))
 }
 
@@ -277,12 +278,17 @@ impl DiagramType for Conceptual {
     /// A domain's name takes a band along its top, as tall as its font size needs, or along its
     /// bottom, leaving the usual gap above what it holds. A box's header, such as an
     /// application's, grows for a larger name.
-    fn header_height(element: &El<Self>, info: &'static KindInfo<ConceptualKind>) -> f64 {
+    fn header_height(
+        element: &El<Self>,
+        info: &'static KindInfo<ConceptualKind>,
+        width: f64,
+        measure: &dyn MeasureText,
+    ) -> f64 {
         if element.kind.has_name_position() {
             if element.props.name_at_bottom() {
                 CONTAINER_PADDING
             } else {
-                name_band(element)
+                name_band(element, width, measure)
             }
         } else if element.kind.has_font_size() {
             info.header() + larger_name(element)
@@ -292,9 +298,14 @@ impl DiagramType for Conceptual {
     }
 
     /// A domain's name along its bottom takes a band below what it holds, past the usual gap.
-    fn footer_height(element: &El<Self>, info: &'static KindInfo<ConceptualKind>) -> f64 {
+    fn footer_height(
+        element: &El<Self>,
+        info: &'static KindInfo<ConceptualKind>,
+        width: f64,
+        measure: &dyn MeasureText,
+    ) -> f64 {
         if element.kind.has_name_position() && element.props.name_at_bottom() {
-            name_band(element) - CONTAINER_PADDING
+            name_band(element, width, measure) - CONTAINER_PADDING
         } else {
             info.footer()
         }
@@ -795,9 +806,21 @@ mod tests {
         );
         assert_eq!(band(&e), (60.0, 0.0));
         change(&mut e, "id1", |w| {
-            w.description = Some("Orders\nBilling\nSupport\nMore".into());
+            w.description = Some("Orders\nBilling\nSupport".into());
         });
-        // Three lines at most.
+        assert_eq!(band(&e), (100.0, 0.0));
+        // A long one wraps across the 480 px domain to three lines in a smaller font, which
+        // takes less room than three of 13 px.
+        change(&mut e, "id1", |w| w.description = Some("word ".repeat(60)));
+        assert_eq!(band(&e), (80.0, 0.0));
+        // At the smallest size it takes more lines, so nothing is cut: five 10 px lines of 8 px.
+        change(&mut e, "id1", |w| w.description = Some("word ".repeat(100)));
+        let fitted = container_description(
+            e.element(&id("id1")).unwrap().description.as_deref(),
+            480.0,
+            e.measure(),
+        );
+        assert_eq!((fitted.lines.len(), fitted.style.size), (5, 8.0));
         assert_eq!(band(&e), (100.0, 0.0));
         change(&mut e, "id1", |w| {
             w.description = Some("Orders".into());
@@ -809,6 +832,35 @@ mod tests {
             w.props.name_position = Some(NamePosition::Bottom);
         });
         assert_eq!(band(&e), (20.0, 40.0));
+    }
+
+    #[test]
+    fn what_a_domain_holds_moves_down_when_its_band_grows() {
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Domain, Point::new(300.0, 200.0));
+        let domain = e.laid(&id("id1")).unwrap().rect;
+        e.palette_drop(
+            ConceptualKind::Application,
+            Point::new(domain.x + 120.0, domain.y + 80.0),
+        );
+        let app = e.laid(&id("id2")).unwrap().clone();
+        assert_eq!(app.el.parent_id, Some(id("id1")));
+        let below = |e: &Engine<Conceptual>| {
+            let domain = e.laid(&id("id1")).unwrap();
+            let app = e.laid(&id("id2")).unwrap();
+            app.rect.y - (domain.rect.y + domain.header)
+        };
+        assert!(below(&e) >= 0.0);
+        change(&mut e, "id1", |w| {
+            w.description = Some("Orders\nBilling\nSupport".into());
+        });
+        let moved = e.laid(&id("id2")).unwrap().rect;
+        assert!(below(&e) >= 0.0, "{}", below(&e));
+        assert!(moved.y > app.rect.y);
+        assert_eq!(moved.x, app.rect.x);
+        // The domain grows to hold it.
+        let domain = e.laid(&id("id1")).unwrap().rect;
+        assert!(domain.bottom() >= moved.bottom());
     }
 
     #[test]
