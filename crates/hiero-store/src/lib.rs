@@ -1885,13 +1885,13 @@ mod tests {
                 sample.meta.name
             );
         }
-        assert_eq!(seed_diagrams().len(), 10);
+        assert_eq!(seed_diagrams().len(), 17);
     }
 
     #[test]
     fn samples_load_once() {
         let mut store = Store::open_in_memory().unwrap();
-        assert_eq!(store.load_samples().unwrap(), 10);
+        assert_eq!(store.load_samples().unwrap(), 17);
         assert_eq!(store.load_samples().unwrap(), 0);
         let names: Vec<String> = store
             .list()
@@ -1906,6 +1906,13 @@ mod tests {
                 "Arch Hiero - MCP Capabilities",
                 "Arch Hiero - MCP Server Components",
                 "Arch Hiero - System Context",
+                "AWS - Cost Optimization",
+                "AWS - Operational Excellence",
+                "AWS - Performance Efficiency",
+                "AWS - Reliability",
+                "AWS - Security",
+                "AWS - Sustainability",
+                "AWS - Well-Architected Framework",
                 "Enterprise Architecture Overview",
                 "OAuth 2.0 Login",
                 "Online Order",
@@ -1931,8 +1938,15 @@ mod tests {
             .iter()
             .filter_map(|e| e.props.get(SUB_DIAGRAM)?.as_str())
             .collect();
-        assert_eq!(opened.len(), all.len() - 1);
-        for other in all.iter().filter(|s| s.meta.id != samples.meta.id) {
+        // The AWS pillars are opened from the framework's diagram, not from Samples.
+        let pillar =
+            |name: &str| name.starts_with("AWS - ") && name != "AWS - Well-Architected Framework";
+        let shown: Vec<&Summary> = all
+            .iter()
+            .filter(|s| s.meta.id != samples.meta.id && !pillar(&s.meta.name))
+            .collect();
+        assert_eq!(opened.len(), shown.len());
+        for other in shown {
             assert!(
                 opened.contains(&other.meta.id.0.as_str()),
                 "{}",
@@ -1950,6 +1964,31 @@ mod tests {
                     other.meta.name
                 );
             }
+        }
+    }
+
+    #[test]
+    fn the_aws_framework_sample_opens_a_diagram_for_each_pillar() {
+        let mut store = Store::open_in_memory().unwrap();
+        store.load_samples().unwrap();
+        let all = store.list().unwrap();
+        let framework = all
+            .iter()
+            .find(|s| s.meta.name == "AWS - Well-Architected Framework")
+            .unwrap();
+        let record = store.get(&framework.meta.id).unwrap().unwrap();
+        let opened: Vec<(&str, &str)> = record
+            .diagram
+            .content
+            .elements
+            .iter()
+            .filter_map(|e| Some((e.label.as_str(), e.props.get(SUB_DIAGRAM)?.as_str()?)))
+            .collect();
+        assert_eq!(opened.len(), 6);
+        for (pillar, id) in opened {
+            let diagram = all.iter().find(|s| s.meta.id.0 == id).unwrap();
+            assert_eq!(diagram.meta.name, format!("AWS - {pillar}"));
+            assert_eq!(diagram.parent.as_ref(), Some(&framework.meta.id));
         }
     }
 

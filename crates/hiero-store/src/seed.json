@@ -1730,14 +1730,14 @@
     "lineWeight": "medium",
     "description": "Every sample diagram, by kind: open a block to see its diagram",
     "createdAt": "2026-11-07T09:00:00.000Z",
-    "updatedAt": "2026-11-07T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z",
     "elements": [
       {
         "height": 180,
         "id": "32286413-48fe-48a3-917e-6c9a9f24a468",
         "kind": "group",
         "label": "Conceptual",
-        "width": 460,
+        "width": 680,
         "x": 40,
         "y": 40
       },
@@ -1766,12 +1766,24 @@
         "subDiagramId": "7227e761-2cae-4c0a-b99c-aa62a897a467"
       },
       {
+        "description": "Conceptual - High Level",
+        "height": 100,
+        "id": "782c3259-98b6-4833-ba7b-9fba2652bb0c",
+        "kind": "block",
+        "label": "AWS - Well-Architected Framework",
+        "parentId": "32286413-48fe-48a3-917e-6c9a9f24a468",
+        "width": 200,
+        "x": 500,
+        "y": 100,
+        "subDiagramId": "e23201c3-4522-40b0-b7ee-35451e5bad97"
+      },
+      {
         "height": 180,
         "id": "18db11f5-8a2a-4291-9e00-67cab0718dcb",
         "kind": "group",
         "label": "Infrastructure",
         "width": 460,
-        "x": 560,
+        "x": 780,
         "y": 40
       },
       {
@@ -1783,7 +1795,7 @@
         "label": "Website Example - Active - Active",
         "parentId": "18db11f5-8a2a-4291-9e00-67cab0718dcb",
         "width": 200,
-        "x": 580,
+        "x": 800,
         "y": 100,
         "subDiagramId": "d1a6a000-0000-4000-8000-000000000003"
       },
@@ -1796,7 +1808,7 @@
         "label": "Standard 3 -Tier Application",
         "parentId": "18db11f5-8a2a-4291-9e00-67cab0718dcb",
         "width": 200,
-        "x": 800,
+        "x": 1020,
         "y": 100,
         "subDiagramId": "d1a6a000-0000-4000-8000-000000000002"
       },
@@ -1883,5 +1895,659 @@
       }
     ],
     "connections": []
+  },
+  {
+    "id": "e23201c3-4522-40b0-b7ee-35451e5bad97",
+    "name": "AWS - Well-Architected Framework",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The six pillars of the AWS Well-Architected Framework: open a pillar to see its design principles",
+    "elements": [
+      {
+        "description": "Six pillars for designing and running reliable, secure, efficient, cost-effective, and sustainable workloads in the cloud",
+        "height": 380,
+        "id": "39c2de01-cfd0-438a-8766-7407af520b75",
+        "kind": "group",
+        "label": "AWS Well-Architected Framework",
+        "width": 800,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "description": "Run and monitor systems to deliver business value, and keep improving the processes and procedures that support them",
+        "height": 120,
+        "id": "6d45f5f0-1e03-47e7-94db-427720cd63a1",
+        "kind": "block",
+        "label": "Operational Excellence",
+        "parentId": "39c2de01-cfd0-438a-8766-7407af520b75",
+        "width": 240,
+        "x": 60,
+        "y": 140,
+        "subDiagramId": "8ba9c0c7-8c12-4221-83a6-9b32873fd251"
+      },
+      {
+        "color": "red",
+        "description": "Protect data, systems, and assets, using cloud technologies to improve your security",
+        "height": 120,
+        "id": "f1e1ee56-06d6-4b5d-a9eb-9f1db9ece021",
+        "kind": "block",
+        "label": "Security",
+        "parentId": "39c2de01-cfd0-438a-8766-7407af520b75",
+        "width": 240,
+        "x": 320,
+        "y": 140,
+        "subDiagramId": "74208f54-b07a-4c11-8274-356be4d07932"
+      },
+      {
+        "color": "green",
+        "description": "A workload performing its intended function correctly and consistently, whenever it's expected to",
+        "height": 120,
+        "id": "99e3f310-002c-4fb4-946a-b09d4d68cc56",
+        "kind": "block",
+        "label": "Reliability",
+        "parentId": "39c2de01-cfd0-438a-8766-7407af520b75",
+        "width": 240,
+        "x": 580,
+        "y": 140,
+        "subDiagramId": "dbbe4ba5-dc30-4eba-ab33-2ead433f6097"
+      },
+      {
+        "description": "Use computing resources efficiently to meet requirements, and stay efficient as demand and technologies change",
+        "height": 120,
+        "id": "4bb483f3-c4df-4077-91ab-67d1dd1e4ac2",
+        "kind": "block",
+        "label": "Performance Efficiency",
+        "parentId": "39c2de01-cfd0-438a-8766-7407af520b75",
+        "width": 240,
+        "x": 60,
+        "y": 280,
+        "subDiagramId": "aff5bb73-de6b-4b70-ac5e-f54bb431d6b0"
+      },
+      {
+        "color": "yellow",
+        "description": "Run systems to deliver business value at the lowest price point",
+        "height": 120,
+        "id": "3c2bc36b-9219-4b4e-8da8-cbf2e024b4f9",
+        "kind": "block",
+        "label": "Cost Optimization",
+        "parentId": "39c2de01-cfd0-438a-8766-7407af520b75",
+        "width": 240,
+        "x": 320,
+        "y": 280,
+        "subDiagramId": "999f320d-b279-40ca-98c1-17fc790c7381"
+      },
+      {
+        "color": "green",
+        "description": "Minimise the environmental impacts of running cloud workloads",
+        "height": 120,
+        "id": "b4b8734f-7dd3-46e3-98ed-8c497744945c",
+        "kind": "block",
+        "label": "Sustainability",
+        "parentId": "39c2de01-cfd0-438a-8766-7407af520b75",
+        "width": 240,
+        "x": 580,
+        "y": 280,
+        "subDiagramId": "4a09d1db-4b77-4f73-8417-f25f88511421"
+      }
+    ],
+    "connections": [],
+    "createdAt": "2026-11-16T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z"
+  },
+  {
+    "id": "8ba9c0c7-8c12-4221-83a6-9b32873fd251",
+    "name": "AWS - Operational Excellence",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The design principles of the Operational Excellence pillar of the AWS Well-Architected Framework",
+    "elements": [
+      {
+        "color": "blue",
+        "description": "Run and monitor systems to deliver business value, and keep improving the processes and procedures that support them",
+        "height": 580,
+        "id": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "kind": "group",
+        "label": "Operational Excellence",
+        "width": 800,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "description": "Align teams, leadership, and operating models to the outcomes the business needs",
+        "height": 140,
+        "id": "19889332-8c5b-4f14-a1da-73331d58407b",
+        "kind": "block",
+        "label": "Organize teams around business outcomes",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 60,
+        "y": 140
+      },
+      {
+        "description": "Understand how the workload behaves, performs, and is used, so you can act on it",
+        "height": 140,
+        "id": "01d47141-b519-4ebc-83e3-8833d8caf0a9",
+        "kind": "block",
+        "label": "Implement observability for actionable insights",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 320,
+        "y": 140
+      },
+      {
+        "description": "Define the workload and its operations as code, with guardrails, to limit human error",
+        "height": 140,
+        "id": "2d0c60a2-04e0-4fa4-a4b3-859c8e2d827b",
+        "kind": "block",
+        "label": "Safely automate where possible",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 580,
+        "y": 140
+      },
+      {
+        "description": "Small changes are easier to test and to undo, and reduce the scope of a failure",
+        "height": 140,
+        "id": "c708d99d-58a4-48f3-a9a0-0251f0e1a687",
+        "kind": "block",
+        "label": "Make frequent, small, reversible changes",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 60,
+        "y": 300
+      },
+      {
+        "description": "Keep runbooks current as the workload evolves, and rehearse them in game days",
+        "height": 140,
+        "id": "0d62a04d-4fd5-4144-9617-50937eb445d9",
+        "kind": "block",
+        "label": "Refine operations procedures frequently",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 320,
+        "y": 300
+      },
+      {
+        "description": "Run pre-mortems, test failure scenarios, and know how you'll respond",
+        "height": 140,
+        "id": "cc0d0e92-f9f0-4902-b005-f711a99c0a26",
+        "kind": "block",
+        "label": "Anticipate failure",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 580,
+        "y": 300
+      },
+      {
+        "description": "Share what you learn from events and failures across teams",
+        "height": 140,
+        "id": "12c0dd84-5938-452b-b894-9f051493d874",
+        "kind": "block",
+        "label": "Learn from all operational events and metrics",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 60,
+        "y": 460
+      },
+      {
+        "description": "Let AWS run what it can, to reduce your operational burden",
+        "height": 140,
+        "id": "2a2d725c-9bd2-4a12-8a59-c056ed23cd83",
+        "kind": "block",
+        "label": "Use managed services",
+        "parentId": "5864f4a4-6963-44e0-876b-f5f56f58969b",
+        "width": 240,
+        "x": 320,
+        "y": 460
+      }
+    ],
+    "connections": [],
+    "createdAt": "2026-11-16T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z"
+  },
+  {
+    "id": "74208f54-b07a-4c11-8274-356be4d07932",
+    "name": "AWS - Security",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The design principles of the Security pillar of the AWS Well-Architected Framework",
+    "elements": [
+      {
+        "color": "red",
+        "description": "Protect data, systems, and assets, using cloud technologies to improve your security",
+        "height": 580,
+        "id": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "kind": "group",
+        "label": "Security",
+        "width": 800,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "color": "red",
+        "description": "Least privilege, separation of duties, centralised identity, and no long-term static credentials",
+        "height": 140,
+        "id": "919450e3-2cf5-4885-839a-220f1cdba125",
+        "kind": "block",
+        "label": "Implement a strong identity foundation",
+        "parentId": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "width": 240,
+        "x": 60,
+        "y": 140
+      },
+      {
+        "color": "red",
+        "description": "Monitor, alert on, and audit actions and changes in real time",
+        "height": 140,
+        "id": "f2fa1e72-2b03-4501-9bff-c1c00ccd8e6a",
+        "kind": "block",
+        "label": "Maintain traceability",
+        "parentId": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "width": 240,
+        "x": 320,
+        "y": 140
+      },
+      {
+        "color": "red",
+        "description": "Defence in depth: the network edge, VPC, load balancing, every instance, OS, application, and code",
+        "height": 140,
+        "id": "c29e4488-df09-4c96-a1be-0aea28df9f38",
+        "kind": "block",
+        "label": "Apply security at all layers",
+        "parentId": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "width": 240,
+        "x": 580,
+        "y": 140
+      },
+      {
+        "color": "red",
+        "description": "Security controls defined and managed as code, in version control",
+        "height": 140,
+        "id": "99a03d32-2f8a-4eef-a0a5-9a06efaed1ae",
+        "kind": "block",
+        "label": "Automate security best practices",
+        "parentId": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "width": 240,
+        "x": 60,
+        "y": 300
+      },
+      {
+        "color": "red",
+        "description": "Classify data by sensitivity, and use encryption, tokenisation, and access control",
+        "height": 140,
+        "id": "c152eaf7-83fb-4812-a547-e439876606a1",
+        "kind": "block",
+        "label": "Protect data in transit and at rest",
+        "parentId": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "width": 240,
+        "x": 320,
+        "y": 300
+      },
+      {
+        "color": "red",
+        "description": "Reduce direct access and manual processing of data with tools and automation",
+        "height": 140,
+        "id": "d7ec916b-9c42-4143-8276-d6c9448f4b81",
+        "kind": "block",
+        "label": "Keep people away from data",
+        "parentId": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "width": 240,
+        "x": 580,
+        "y": 300
+      },
+      {
+        "color": "red",
+        "description": "Have incident management processes, and run simulations to rehearse them",
+        "height": 140,
+        "id": "0726f21c-0596-4190-873b-06f55c2af406",
+        "kind": "block",
+        "label": "Prepare for security events",
+        "parentId": "139eec3c-bae5-4ea6-9367-fb5540ec37bc",
+        "width": 240,
+        "x": 60,
+        "y": 460
+      }
+    ],
+    "connections": [],
+    "createdAt": "2026-11-16T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z"
+  },
+  {
+    "id": "dbbe4ba5-dc30-4eba-ab33-2ead433f6097",
+    "name": "AWS - Reliability",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The design principles of the Reliability pillar of the AWS Well-Architected Framework",
+    "elements": [
+      {
+        "color": "green",
+        "description": "A workload performing its intended function correctly and consistently, whenever it's expected to",
+        "height": 420,
+        "id": "ef684323-afd9-4c7a-b421-60f25dfa085f",
+        "kind": "group",
+        "label": "Reliability",
+        "width": 800,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "color": "green",
+        "description": "Monitor key performance indicators and trigger automation when a threshold is breached",
+        "height": 140,
+        "id": "6086df6a-5a82-47bf-ada8-f45c1d252681",
+        "kind": "block",
+        "label": "Automatically recover from failure",
+        "parentId": "ef684323-afd9-4c7a-b421-60f25dfa085f",
+        "width": 240,
+        "x": 60,
+        "y": 140
+      },
+      {
+        "color": "green",
+        "description": "Use automation to simulate failures, and validate how you recover",
+        "height": 140,
+        "id": "f02e0c0e-12cf-4a9e-9967-c5e74cb7d57d",
+        "kind": "block",
+        "label": "Test recovery procedures",
+        "parentId": "ef684323-afd9-4c7a-b421-60f25dfa085f",
+        "width": 240,
+        "x": 320,
+        "y": 140
+      },
+      {
+        "color": "green",
+        "description": "Replace one large resource with many small ones, so no failure is shared by all",
+        "height": 140,
+        "id": "6fbb04f6-a231-443d-9b1f-039ab6f3c235",
+        "kind": "block",
+        "label": "Scale horizontally to increase aggregate workload availability",
+        "parentId": "ef684323-afd9-4c7a-b421-60f25dfa085f",
+        "width": 240,
+        "x": 580,
+        "y": 140
+      },
+      {
+        "color": "green",
+        "description": "Monitor demand and utilisation, and add or remove resources automatically",
+        "height": 140,
+        "id": "0a86e805-058d-446d-ad52-c95cec9f0a6e",
+        "kind": "block",
+        "label": "Stop guessing capacity",
+        "parentId": "ef684323-afd9-4c7a-b421-60f25dfa085f",
+        "width": 240,
+        "x": 60,
+        "y": 300
+      },
+      {
+        "color": "green",
+        "description": "Make changes to infrastructure with automation, so they can be tracked and reviewed",
+        "height": 140,
+        "id": "5012c0db-ca51-4384-a64d-db990cf0c8a2",
+        "kind": "block",
+        "label": "Manage change through automation",
+        "parentId": "ef684323-afd9-4c7a-b421-60f25dfa085f",
+        "width": 240,
+        "x": 320,
+        "y": 300
+      }
+    ],
+    "connections": [],
+    "createdAt": "2026-11-16T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z"
+  },
+  {
+    "id": "aff5bb73-de6b-4b70-ac5e-f54bb431d6b0",
+    "name": "AWS - Performance Efficiency",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The design principles of the Performance Efficiency pillar of the AWS Well-Architected Framework",
+    "elements": [
+      {
+        "description": "Use computing resources efficiently to meet requirements, and stay efficient as demand and technologies change",
+        "height": 420,
+        "id": "e68ff897-a158-4dfa-a4b0-1ba158a7fb46",
+        "kind": "group",
+        "label": "Performance Efficiency",
+        "width": 800,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "description": "Consume complex technologies as services, so teams focus on the product rather than running them",
+        "height": 140,
+        "id": "27572e10-2903-44eb-ab95-0b24af9d7563",
+        "kind": "block",
+        "label": "Democratize advanced technologies",
+        "parentId": "e68ff897-a158-4dfa-a4b0-1ba158a7fb46",
+        "width": 240,
+        "x": 60,
+        "y": 140
+      },
+      {
+        "description": "Deploy in several Regions to give customers lower latency at minimal cost",
+        "height": 140,
+        "id": "40df52eb-9e0d-4ae7-9ccb-91ae06d7c654",
+        "kind": "block",
+        "label": "Go global in minutes",
+        "parentId": "e68ff897-a158-4dfa-a4b0-1ba158a7fb46",
+        "width": 240,
+        "x": 320,
+        "y": 140
+      },
+      {
+        "description": "Remove the need to run and maintain physical servers for traditional compute",
+        "height": 140,
+        "id": "fdd2bf63-82c1-45d8-b739-d7c594a0996f",
+        "kind": "block",
+        "label": "Use serverless architectures",
+        "parentId": "e68ff897-a158-4dfa-a4b0-1ba158a7fb46",
+        "width": 240,
+        "x": 580,
+        "y": 140
+      },
+      {
+        "description": "Virtual, automatable resources make it quick to compare instance, storage, or configuration types",
+        "height": 140,
+        "id": "d0548010-f67d-4dc6-8d41-16ca7c7a2bea",
+        "kind": "block",
+        "label": "Experiment more often",
+        "parentId": "e68ff897-a158-4dfa-a4b0-1ba158a7fb46",
+        "width": 240,
+        "x": 60,
+        "y": 300
+      },
+      {
+        "description": "Use the technology approach that best fits how the data is accessed",
+        "height": 140,
+        "id": "c86f9873-b679-40b7-bf9e-12bf9bcff4b9",
+        "kind": "block",
+        "label": "Consider mechanical sympathy",
+        "parentId": "e68ff897-a158-4dfa-a4b0-1ba158a7fb46",
+        "width": 240,
+        "x": 320,
+        "y": 300
+      }
+    ],
+    "connections": [],
+    "createdAt": "2026-11-16T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z"
+  },
+  {
+    "id": "999f320d-b279-40ca-98c1-17fc790c7381",
+    "name": "AWS - Cost Optimization",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The design principles of the Cost Optimization pillar of the AWS Well-Architected Framework",
+    "elements": [
+      {
+        "description": "Run systems to deliver business value at the lowest price point",
+        "height": 420,
+        "id": "891d82b5-54bc-4103-a6ee-435517acbbec",
+        "kind": "group",
+        "label": "Cost Optimization",
+        "width": 800,
+        "x": 40,
+        "y": 40,
+        "color": "yellow"
+      },
+      {
+        "color": "yellow",
+        "description": "Invest in the capabilities, knowledge, and processes to become a cost-efficient organisation",
+        "height": 140,
+        "id": "8f3afd68-a115-4601-bf0c-0b415353918f",
+        "kind": "block",
+        "label": "Implement cloud financial management",
+        "parentId": "891d82b5-54bc-4103-a6ee-435517acbbec",
+        "width": 240,
+        "x": 60,
+        "y": 140
+      },
+      {
+        "color": "yellow",
+        "description": "Pay only for the computing resources you use, and scale them with business needs",
+        "height": 140,
+        "id": "61b01bed-f343-4460-88f4-424d5b0660f7",
+        "kind": "block",
+        "label": "Adopt a consumption model",
+        "parentId": "891d82b5-54bc-4103-a6ee-435517acbbec",
+        "width": 240,
+        "x": 320,
+        "y": 140
+      },
+      {
+        "color": "yellow",
+        "description": "Measure the business output of the workload and the costs of delivering it",
+        "height": 140,
+        "id": "cc881222-7bec-482f-bcf6-24cadb67d0e2",
+        "kind": "block",
+        "label": "Measure overall efficiency",
+        "parentId": "891d82b5-54bc-4103-a6ee-435517acbbec",
+        "width": 240,
+        "x": 580,
+        "y": 140
+      },
+      {
+        "color": "yellow",
+        "description": "Let AWS rack, stack, and power servers, so you focus on customers and projects",
+        "height": 140,
+        "id": "9c1a8f05-64f4-45d4-845a-faa6d9efa1ea",
+        "kind": "block",
+        "label": "Stop spending money on undifferentiated heavy lifting",
+        "parentId": "891d82b5-54bc-4103-a6ee-435517acbbec",
+        "width": 240,
+        "x": 60,
+        "y": 300
+      },
+      {
+        "color": "yellow",
+        "description": "Identify the cost and usage of workloads and attribute them to their owners",
+        "height": 140,
+        "id": "5978fcd2-2199-48d7-aa0b-f70ba0ac9b49",
+        "kind": "block",
+        "label": "Analyze and attribute expenditure",
+        "parentId": "891d82b5-54bc-4103-a6ee-435517acbbec",
+        "width": 240,
+        "x": 320,
+        "y": 300
+      }
+    ],
+    "connections": [],
+    "createdAt": "2026-11-16T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z"
+  },
+  {
+    "id": "4a09d1db-4b77-4f73-8417-f25f88511421",
+    "name": "AWS - Sustainability",
+    "type": "high-level-conceptual",
+    "lineWeight": "medium",
+    "description": "The design principles of the Sustainability pillar of the AWS Well-Architected Framework",
+    "elements": [
+      {
+        "color": "green",
+        "description": "Minimise the environmental impacts of running cloud workloads",
+        "height": 420,
+        "id": "a9360d70-feca-4b2d-8718-064981c58106",
+        "kind": "group",
+        "label": "Sustainability",
+        "width": 800,
+        "x": 40,
+        "y": 40
+      },
+      {
+        "color": "green",
+        "description": "Measure the impact of the workload and model its future impact",
+        "height": 140,
+        "id": "c3f0b66b-d16d-473e-bf8e-f04ef8dee437",
+        "kind": "block",
+        "label": "Understand your impact",
+        "parentId": "a9360d70-feca-4b2d-8718-064981c58106",
+        "width": 240,
+        "x": 60,
+        "y": 140
+      },
+      {
+        "color": "green",
+        "description": "Set long-term goals for each workload, and model the return on investment",
+        "height": 140,
+        "id": "42baa267-4835-48da-8dc4-3c4d7928a479",
+        "kind": "block",
+        "label": "Establish sustainability goals",
+        "parentId": "a9360d70-feca-4b2d-8718-064981c58106",
+        "width": 240,
+        "x": 320,
+        "y": 140
+      },
+      {
+        "color": "green",
+        "description": "Right-size workloads and remove idle resources for efficient use of energy",
+        "height": 140,
+        "id": "86038b17-c27b-4d50-be99-a57fdcb7c7f9",
+        "kind": "block",
+        "label": "Maximize utilization",
+        "parentId": "a9360d70-feca-4b2d-8718-064981c58106",
+        "width": 240,
+        "x": 580,
+        "y": 140
+      },
+      {
+        "color": "green",
+        "description": "Design for flexibility, so efficient new technologies can be adopted quickly",
+        "height": 140,
+        "id": "e99ac087-ca80-4366-974c-9b222aa1d5f7",
+        "kind": "block",
+        "label": "Anticipate and adopt new, more efficient hardware and software offerings",
+        "parentId": "a9360d70-feca-4b2d-8718-064981c58106",
+        "width": 240,
+        "x": 60,
+        "y": 300
+      },
+      {
+        "color": "green",
+        "description": "Shared services across a broad customer base maximise resource utilisation",
+        "height": 140,
+        "id": "672db93a-f4ba-4591-8057-5de5fcefa81f",
+        "kind": "block",
+        "label": "Use managed services",
+        "parentId": "a9360d70-feca-4b2d-8718-064981c58106",
+        "width": 240,
+        "x": 320,
+        "y": 300
+      },
+      {
+        "color": "green",
+        "description": "Reduce the energy or resources customers need to use your services",
+        "height": 140,
+        "id": "2d7b795a-d070-47eb-b882-25e7cf2bbc3f",
+        "kind": "block",
+        "label": "Reduce the downstream impact of your cloud workloads",
+        "parentId": "a9360d70-feca-4b2d-8718-064981c58106",
+        "width": 240,
+        "x": 580,
+        "y": 300
+      }
+    ],
+    "connections": [],
+    "createdAt": "2026-11-16T09:00:00.000Z",
+    "updatedAt": "2026-11-16T09:00:00.000Z"
   }
 ]
