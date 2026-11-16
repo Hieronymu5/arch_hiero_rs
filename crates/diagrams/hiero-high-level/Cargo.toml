@@ -1,6 +1,6 @@
 [package]
 name = "hiero-high-level"
-description = "High level conceptual diagrams for Arch Hiero: applications in groups, and wide arrows between them"
+description = "High level conceptual diagrams for Arch Hiero: blocks in groups, and wide arrows between them"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

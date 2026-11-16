@@ -648,6 +648,35 @@ fn seeds_are_valid_files() {
     }
 }
 
+/// A high level diagram's blocks were once applications: a file from then still imports,
+/// and exports with them as blocks.
+#[test]
+fn a_high_level_file_with_applications_imports_them_as_blocks() {
+    let old = file(json!({
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "Landscape",
+        "type": "high-level-conceptual",
+        "elements": [
+            {"id": "g", "kind": "group", "label": "Business", "x": 0, "y": 0,
+             "width": 400, "height": 240},
+            {"id": "a", "kind": "application", "label": "CRM", "parentId": "g",
+             "x": 20, "y": 60, "width": 160, "height": 80}
+        ],
+        "connections": [],
+        "createdAt": "2026-10-01T09:00:00.000Z",
+        "updatedAt": "2026-10-01T09:00:00.000Z"
+    }));
+    let diagram = diagram_from_file(&old).unwrap_or_else(|e| panic!("{e}"));
+    let saved: Value = serde_json::from_str(&diagram_file_json(&diagram)).unwrap();
+    let kinds: Vec<&str> = saved["diagram"]["elements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, ["group", "block"]);
+}
+
 /// Diagrams built by edits, with values given in forms that aren't canonical, export as
 /// files that import.
 #[test]

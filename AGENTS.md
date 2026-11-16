@@ -57,7 +57,7 @@ SQLite. Read this before working on diagrams:
 - `docs/diagrams/sequence.md`: the Sequence type, also new: participants in a row, and
   messages in time order.
 - `docs/diagrams/high-level-conceptual.md`: the Conceptual - High Level type, also new:
-  applications in groups (which nest), and wide arrows between them.
+  blocks in groups (which nest), and wide arrows between them.
 
 Crate boundaries:
 

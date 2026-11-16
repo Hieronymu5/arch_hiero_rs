@@ -1,7 +1,7 @@
 //! The high level conceptual diagram type, its two kinds of element, and what they and its
 //! arrows have.
 //!
-//! A diagram is applications and groups: a group holds applications and other groups, or
+//! A diagram is blocks and groups: a group holds blocks and other groups, or
 //! nothing, as a boundary to show something without its parts. Wide arrows join any two of
 //! them, where the picture needs one.
 
@@ -16,10 +16,11 @@ pub struct HighLevel;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HighLevelKind {
-    /// An application, or anything else shown as a box with its name inside, and an optional
-    /// description under it.
-    Application,
-    /// A boundary round applications and other groups, or an empty one, with an optional
+    /// A block: an application, a concept, a chapter, or anything else shown as a box with its
+    /// name inside, and an optional description under it. Stored as `application` before it was renamed; still read that way.
+    #[serde(alias = "application")]
+    Block,
+    /// A boundary round blocks and other groups, or an empty one, with an optional
     /// description under its name.
     Group,
     /// People, such as stakeholders or a team: three actors, one in front of two, with their
@@ -28,11 +29,11 @@ pub enum HighLevelKind {
 }
 
 impl HighLevelKind {
-    /// The colour it's drawn in unless it has its own: applications and actors blue, groups
+    /// The colour it's drawn in unless it has its own: blocks and actors blue, groups
     /// grey.
     pub const fn default_color(self) -> Color {
         match self {
-            Self::Application | Self::Actors => Color::Blue,
+            Self::Block | Self::Actors => Color::Blue,
             Self::Group => Color::Grey,
         }
     }
@@ -40,13 +41,13 @@ impl HighLevelKind {
     /// The size of its name unless it has its own.
     pub const fn default_font_size(self) -> u32 {
         match self {
-            Self::Application | Self::Actors => 14,
+            Self::Block | Self::Actors => 14,
             Self::Group => 16,
         }
     }
 }
 
-/// A colour an application or group is drawn in: a light fill with a darker border.
+/// A colour a block or group is drawn in: a light fill with a darker border.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Color {
@@ -98,15 +99,15 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
-/// What an application or group has beyond the common fields. Each is left out at its kind's
+/// What a block or group has beyond the common fields. Each is left out at its kind's
 /// default, so every look has one spelling.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HighLevelProps {
-    /// Unset is the kind's colour: blue for an application, grey for a group.
+    /// Unset is the kind's colour: blue for a block, grey for a group.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<Color>,
-    /// The size of its name, in pixels. Unset is the kind's: 14 for an application, 16 for a
+    /// The size of its name, in pixels. Unset is the kind's: 14 for a block, 16 for a
     /// group.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<u32>,
@@ -141,28 +142,28 @@ pub use hiero_core::name_size::{FONT_SIZE_MAX, FONT_SIZE_MIN, FONT_SIZES};
 /// The longest an element's description can be.
 pub const DESCRIPTION_MAX: usize = 500;
 
-pub const APPLICATION_SIZE: Size = Size::new(160.0, 80.0);
+pub const BLOCK_SIZE: Size = Size::new(160.0, 80.0);
 pub const GROUP_SIZE: Size = Size::new(400.0, 240.0);
 pub const ACTORS_SIZE: Size = Size::new(160.0, 120.0);
 
 /// The drawing order of elements not in a group: groups at the back.
 const GROUPS: i32 = 0;
-const APPLICATIONS: i32 = 1;
+const BLOCKS: i32 = 1;
 
 use HighLevelKind as K;
 
 /// Arrows join any two elements, and a group holds any.
-const EVERYTHING: &[HighLevelKind] = &[K::Application, K::Group, K::Actors];
+const EVERYTHING: &[HighLevelKind] = &[K::Block, K::Group, K::Actors];
 
 /// The elements offered in the palette.
 pub static PALETTE: [KindInfo<HighLevelKind>; 3] = [
     KindInfo {
         connects_to: EVERYTHING,
         has_description: true,
-        layer: APPLICATIONS,
+        layer: BLOCKS,
         resizable: Resizable::Both,
-        size: Some(APPLICATION_SIZE),
-        ..KindInfo::new(K::Application, "Application")
+        size: Some(BLOCK_SIZE),
+        ..KindInfo::new(K::Block, "Block")
     },
     KindInfo {
         can_contain: EVERYTHING,
@@ -176,9 +177,23 @@ pub static PALETTE: [KindInfo<HighLevelKind>; 3] = [
     KindInfo {
         connects_to: EVERYTHING,
         has_description: true,
-        layer: APPLICATIONS,
+        layer: BLOCKS,
         resizable: Resizable::Both,
         size: Some(ACTORS_SIZE),
         ..KindInfo::new(K::Actors, "Actors")
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_block_was_once_an_application_and_still_reads_as_one() {
+        let kind = |text: &str| serde_json::from_value::<HighLevelKind>(text.into()).unwrap();
+        assert_eq!(kind("block"), HighLevelKind::Block);
+        assert_eq!(kind("application"), HighLevelKind::Block);
+        // It's written under its new name.
+        assert_eq!(serde_json::to_value(HighLevelKind::Block).unwrap(), "block");
+    }
+}

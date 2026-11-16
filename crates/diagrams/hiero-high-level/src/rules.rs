@@ -30,7 +30,7 @@ pub fn group_header(element: &El<HighLevel>, width: f64, measure: &dyn MeasureTe
     header_for(size).max(on_grid(text + NAME_PADDING * 2.0))
 }
 
-const APPLICATION_COLOR: Field = Field {
+const BLOCK_COLOR: Field = Field {
     key: "color",
     rule: FieldRule::OneOf {
         values: &["green", "red", "yellow", "grey"],
@@ -56,9 +56,9 @@ const DASHED: Field = Field {
     rule: FieldRule::True,
 };
 
-const APPLICATION_FIELDS: &[Field] = &[APPLICATION_COLOR, FONT_SIZE, DASHED];
-/// Actors are blue unless set otherwise, as applications are, and have no border to dash.
-const ACTORS_FIELDS: &[Field] = &[APPLICATION_COLOR, FONT_SIZE];
+const BLOCK_FIELDS: &[Field] = &[BLOCK_COLOR, FONT_SIZE, DASHED];
+/// Actors are blue unless set otherwise, as blocks are, and have no border to dash.
+const ACTORS_FIELDS: &[Field] = &[BLOCK_COLOR, FONT_SIZE];
 const GROUP_FIELDS: &[Field] = &[GROUP_COLOR, FONT_SIZE, DASHED];
 const ARROW_FIELDS: &[Field] = &[Field {
     key: "twoWay",
@@ -178,7 +178,7 @@ impl DiagramType for HighLevel {
 
     fn file_fields(kind: HighLevelKind) -> &'static [Field] {
         match kind {
-            HighLevelKind::Application => APPLICATION_FIELDS,
+            HighLevelKind::Block => BLOCK_FIELDS,
             HighLevelKind::Group => GROUP_FIELDS,
             HighLevelKind::Actors => ACTORS_FIELDS,
         }
@@ -273,11 +273,11 @@ mod tests {
     }
 
     #[test]
-    fn groups_hold_applications_and_groups() {
+    fn groups_hold_blocks_and_groups() {
         let mut e = test_engine();
         e.palette_drop(HighLevelKind::Group, Point::new(600.0, 400.0));
         e.palette_drop(HighLevelKind::Group, Point::new(560.0, 380.0));
-        e.palette_drop(HighLevelKind::Application, Point::new(540.0, 360.0));
+        e.palette_drop(HighLevelKind::Block, Point::new(540.0, 360.0));
         assert_eq!(e.element(&id("id2")).unwrap().parent_id, Some(id("id1")));
         assert_eq!(e.element(&id("id3")).unwrap().parent_id, Some(id("id2")));
         let outer = e.laid(&id("id1")).unwrap().clone();
@@ -293,9 +293,9 @@ mod tests {
     fn arrows_join_anything_but_a_group_and_what_it_holds() {
         let mut e = test_engine();
         e.palette_drop(HighLevelKind::Group, Point::new(600.0, 400.0));
-        e.palette_drop(HighLevelKind::Application, Point::new(560.0, 380.0));
+        e.palette_drop(HighLevelKind::Block, Point::new(560.0, 380.0));
         e.palette_drop(HighLevelKind::Group, Point::new(1600.0, 400.0));
-        e.palette_drop(HighLevelKind::Application, Point::new(1600.0, 1400.0));
+        e.palette_drop(HighLevelKind::Block, Point::new(1600.0, 1400.0));
         assert_eq!(e.element(&id("id2")).unwrap().parent_id, Some(id("id1")));
         assert!(!e.can_connect(&id("id1"), &id("id2")));
         assert!(!e.can_connect(&id("id2"), &id("id1")));
@@ -308,20 +308,20 @@ mod tests {
         let group = e.laid(&id("id3")).unwrap().clone();
         assert_eq!(
             HighLevel::extra_details(&e, &group),
-            ["arrow from Application", "two-way arrow with Group"]
+            ["arrow from Block", "two-way arrow with Group"]
         );
     }
 
     #[test]
     fn looks_are_kept_apart_from_the_kinds_usual_one() {
         let mut e = test_engine();
-        e.add_at_free_position(HighLevelKind::Application);
+        e.add_at_free_position(HighLevelKind::Block);
         e.add_at_free_position(HighLevelKind::Group);
         change(&mut e, "id1", |w| {
             w.props.color = Some(Color::Blue);
             w.props.font_size = Some(14);
         });
-        // Blue and 14 are an application's own, so they're left out.
+        // Blue and 14 are a block's own, so they're left out.
         assert_eq!(
             e.element(&id("id1")).unwrap().props,
             HighLevelProps::default()
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn font_sizes_are_whole_pixels_in_range() {
         let mut e = test_engine();
-        e.add_at_free_position(HighLevelKind::Application);
+        e.add_at_free_position(HighLevelKind::Block);
         let mut with = e.element(&id("id1")).unwrap().clone();
         with.props.font_size = Some(60);
         assert_eq!(

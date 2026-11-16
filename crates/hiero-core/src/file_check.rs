@@ -618,9 +618,10 @@ fn check_element<'a, T: DiagramType>(
     let kind_names: Vec<&str> = kinds.iter().map(|(name, _)| name.as_str()).collect();
     let info = match object.get("kind") {
         None => return Err(at(missing("kind"))),
-        Some(kind) => kinds
-            .iter()
-            .find(|(name, _)| kind.as_str() == Some(name.as_str()))
+        // Read as loading reads it, so a kind's former name, kept as an alias, counts too.
+        Some(kind) => serde_json::from_value::<T::Kind>(kind.clone())
+            .ok()
+            .and_then(|kind| kinds.iter().find(|(_, info)| info.kind == kind))
             .map(|(_, info)| *info)
             .ok_or_else(|| at(one_of("kind", &kind_names)))?,
     };

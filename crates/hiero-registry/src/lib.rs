@@ -74,6 +74,9 @@ pub trait TypeOps: Send + Sync {
     fn new_content(&self) -> StoredContent;
     /// Checks that content can be opened as this type, and that every element and arrow is valid.
     fn validate(&self, content: &StoredContent) -> Result<(), ContentError>;
+    /// Writes each element's kind under its current name, such as a kind once named otherwise
+    /// and still read by that name. Leaves a kind it doesn't know as it is.
+    fn rename_kinds(&self, content: &mut StoredContent);
     /// Checks a file's diagram object of this type, from its description on, returning the
     /// message for the first rule it breaks (see `hiero_core::file_check`).
     fn check_file_diagram(&self, diagram: &Map<String, Value>) -> Result<(), String>;
@@ -233,7 +236,7 @@ impl Drawn for HighLevel {
     fn scene(eng: &Engine<Self>) -> Scene {
         hiero_high_level::scene::scene(eng)
     }
-    const PROPS_DOC: &'static str = "A Conceptual - High Level diagram shows a landscape at a glance: applications (boxes, 160 × 80) and actors (people, such as stakeholders or a team: three person figures, one in front of two, 160 × 120) in groups, and wide arrows between them where they're needed. A group holds applications, actors, and other groups, set with parent_id, and grows to hold them; it can also be empty, as a boundary for something shown without its parts. Names are bold. A group's name sits at its top, or in its middle while it's empty; an application's is in its middle, and actors' under their figures; any element's optional description (at most 500 characters, keeping line breaks) is under the name in a smaller regular font; in a group's header it wraps to at most three lines, in a smaller font (down to 8 px) when it needs more, never cut short, and the header grows to fit it, moving what the group holds down; in an empty group it shrinks (down to 8 px) to fit under the name instead of being cut. Element props, for every kind: {color: \"blue\" | \"green\" | \"red\" | \"yellow\" | \"grey\" (omit for the kind's usual one: blue for an application or actors, grey for a group), fontSize: a whole number of pixels from 8 to 48 (omit for 14 on an application or actors, 16 on a group; a group's header grows to fit its name), dashed: true (omit for a solid border; not for actors, which have none)}. Arrows join any two elements except a group and anything inside it, and are drawn as wide grey block arrows between their facing sides. Arrow props: {twoWay: true (a head at each end; omit for one, at the target)}.";
+    const PROPS_DOC: &'static str = "A Conceptual - High Level diagram shows a landscape at a glance: blocks (boxes, 160 × 80: an application, a concept, a chapter, or anything else; the kind was called \"application\" before, which is still accepted) and actors (people, such as stakeholders or a team: three person figures, one in front of two, 160 × 120) in groups, and wide arrows between them where they're needed. A group holds blocks, actors, and other groups, set with parent_id, and grows to hold them; it can also be empty, as a boundary for something shown without its parts. Names are bold. A group's name sits at its top, or in its middle while it's empty; a block's is in its middle, and actors' under their figures; any element's optional description (at most 500 characters, keeping line breaks) is under the name in a smaller regular font; in a group's header it wraps to at most three lines, in a smaller font (down to 8 px) when it needs more, never cut short, and the header grows to fit it, moving what the group holds down; in an empty group it shrinks (down to 8 px) to fit under the name instead of being cut. Element props, for every kind: {color: \"blue\" | \"green\" | \"red\" | \"yellow\" | \"grey\" (omit for the kind's usual one: blue for a block or actors, grey for a group), fontSize: a whole number of pixels from 8 to 48 (omit for 14 on a block or actors, 16 on a group; a group's header grows to fit its name), dashed: true (omit for a solid border; not for actors, which have none)}. Arrows join any two elements except a group and anything inside it, and are drawn as wide grey block arrows between their facing sides. Arrow props: {twoWay: true (a head at each end; omit for one, at the target)}.";
 }
 
 struct Entry<T>(PhantomData<fn() -> T>);
@@ -291,6 +294,17 @@ impl<T: Drawn> TypeOps for Entry<T> {
 
     fn normalize_colors(&self, colors: &BTreeMap<String, String>) -> BTreeMap<String, String> {
         T::Colors::from_overrides(colors).overrides()
+    }
+
+    fn rename_kinds(&self, content: &mut StoredContent) {
+        for element in &mut content.elements {
+            let current = serde_json::from_value::<T::Kind>(Value::String(element.kind.clone()))
+                .ok()
+                .and_then(|kind| serde_json::to_value(kind).ok());
+            if let Some(Value::String(name)) = current {
+                element.kind = name;
+            }
+        }
     }
 
     fn new_content(&self) -> StoredContent {
@@ -552,6 +566,8 @@ pub fn diagram_from_file(file: &Value) -> Result<StoredDiagram, DiagramFileError
     let ops = ops(diagram_type);
     ops.check_file_diagram(diagram).map_err(DiagramFileError)?;
     let mut stored = diagram_from_json(&file["diagram"])?;
+    // A file from before a kind was renamed is stored under the new name.
+    ops.rename_kinds(&mut stored.content);
     // A file that doesn't say how thick its lines are, such as the prototype's, gets medium
     // ones, as a new diagram does.
     if file["diagram"].get("lineWeight").is_none() {

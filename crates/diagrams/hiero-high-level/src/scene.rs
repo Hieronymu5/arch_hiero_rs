@@ -1,4 +1,4 @@
-//! How a high level conceptual diagram is drawn: groups and applications as rounded boxes in
+//! How a high level conceptual diagram is drawn: groups and blocks as rounded boxes in
 //! their colours, solid or dashed, with their names in their own font size, and the arrows as
 //! wide block arrows between them. Also its draw.io file.
 
@@ -23,7 +23,7 @@ use hiero_core::text::{MeasureText, TextStyle, Weight, wrap_text};
 use crate::model::{FONT_SIZE_MIN, HighLevel, HighLevelKind};
 use crate::rules::{NAME_PADDING, line_height};
 
-/// The corner radius of applications and groups.
+/// The corner radius of blocks and groups.
 pub const RADIUS: f64 = 8.0;
 /// A dashed border's dashes and gaps.
 pub const DASH: (f64, f64) = (8.0, 4.0);
@@ -48,7 +48,7 @@ pub const DESCRIPTION_GAP: f64 = 2.0;
 pub enum NamePlace {
     /// On one line across the top, in a group's header, above what it holds.
     Top,
-    /// Wrapped, in the middle: an application's, or an empty group's.
+    /// Wrapped, in the middle: a block's, or an empty group's.
     Middle,
     /// Wrapped, under the figures: actors'.
     Under,
@@ -575,7 +575,7 @@ impl FlexArrow {
 }
 
 /// The diagram as a draw.io file, with `heading` above it: groups as containers holding what
-/// they hold, applications as boxes, and arrows as wide arrows attached to their elements.
+/// they hold, blocks as boxes, and arrows as wide arrows attached to their elements.
 pub fn to_drawio(eng: &Engine<HighLevel>, title: &str, heading: Option<&Heading>) -> String {
     let layout = eng.layout();
     let arrows = drawn_arrows(eng, layout);
@@ -688,11 +688,11 @@ mod tests {
             serde_json::json!([
                 { "id": "g", "kind": "group", "label": "Business", "x": 0, "y": 0,
                   "width": 400, "height": 200, "color": "green", "fontSize": 24 },
-                { "id": "a", "kind": "application", "label": "CRM", "x": 20, "y": 60,
+                { "id": "a", "kind": "block", "label": "CRM", "x": 20, "y": 60,
                   "parentId": "g" },
                 { "id": "e", "kind": "group", "label": "Security", "x": 600, "y": 0,
                   "width": 200, "height": 200, "dashed": true },
-                { "id": "b", "kind": "application", "label": "Billing", "x": 0, "y": 400,
+                { "id": "b", "kind": "block", "label": "Billing", "x": 0, "y": 400,
                   "color": "yellow", "fontSize": 20 },
             ]),
             serde_json::json!([
@@ -729,9 +729,9 @@ mod tests {
         assert_eq!(description_size(8.0), 8.0);
         let e = engine(
             serde_json::json!([
-                { "id": "a", "kind": "application", "label": "CRM", "x": 0, "y": 0,
+                { "id": "a", "kind": "block", "label": "CRM", "x": 0, "y": 0,
                   "description": "Leads\nAccounts" },
-                { "id": "b", "kind": "application", "label": "Billing", "x": 0, "y": 200,
+                { "id": "b", "kind": "block", "label": "Billing", "x": 0, "y": 200,
                   "height": 40, "description": "Doesn't fit" },
             ]),
             serde_json::json!([]),
@@ -806,7 +806,7 @@ mod tests {
     fn draws_each_element_in_its_colour_and_border() {
         let e = landscape();
         let svg = scene_to_svg("Test", &scene(&e));
-        // Green, yellow, the application's usual blue, and the empty group's usual grey, which is
+        // Green, yellow, the block's usual blue, and the empty group's usual grey, which is
         // dashed.
         for (fill, border) in [
             ("#d5e8d4", "#356b24"),
@@ -888,7 +888,7 @@ mod tests {
                 serde_json::json!([
                     { "id": "g", "kind": "group", "label": "Business", "x": 0, "y": 0,
                       "width": 400, "height": 200, "description": description },
-                    { "id": "a", "kind": "application", "label": "CRM", "x": 20, "y": 60,
+                    { "id": "a", "kind": "block", "label": "CRM", "x": 20, "y": 60,
                       "parentId": "g" },
                 ]),
                 serde_json::json!([]),
