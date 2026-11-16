@@ -617,6 +617,25 @@ mod tests {
     }
 
     #[test]
+    fn a_row_with_protocols_starts_lower_to_keep_its_gap_under_the_name() {
+        let mut e = engine();
+        e.add_at_free_position(DeployedKind::Component);
+        e.add_at_free_position(DeployedKind::Component);
+        let rect = |e: &DEngine, i: &str| e.laid(&id(i)).unwrap().rect;
+        assert_eq!(rect(&e, "id1").y, 60.0);
+        assert_eq!(rect(&e, "id2").height, 250.0);
+        // The bar stands 10 above its component, so the row moves down 10, both components
+        // with it, and the layer grows by as much.
+        e.replace(&id("id1"), |mut c| {
+            c.props.protocols = Some(vec!["HTTPS".into()]);
+            c
+        });
+        assert_eq!(rect(&e, "id1").y, 70.0);
+        assert_eq!(rect(&e, "id3").y, 70.0);
+        assert_eq!(rect(&e, "id2").height, 260.0);
+    }
+
+    #[test]
     fn components_go_after_the_selected_one_and_swap() {
         let mut e = engine();
         e.add_at_free_position(DeployedKind::Component);

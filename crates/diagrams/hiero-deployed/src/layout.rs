@@ -247,6 +247,15 @@ pub fn characteristics(element: &Dc) -> &[String] {
     element.props.characteristics.as_deref().unwrap_or_default()
 }
 
+/// Whether a component has a protocols bar across its top.
+pub fn has_protocols(element: &Dc) -> bool {
+    element
+        .props
+        .protocols
+        .as_ref()
+        .is_some_and(|p| !p.is_empty())
+}
+
 /// The size an element takes before it's arranged, for working out its middle.
 pub fn provisional_size(element: &Dc) -> Size {
     let natural = if is_layer(element) {
@@ -376,7 +385,14 @@ pub fn arrange_layers(elements: Vec<Dc>) -> Vec<Dc> {
     let mut placed: HashMap<ElementId, Rect> = HashMap::new();
     let mut y = LAYERS_ORIGIN.y;
     for row in &rows {
-        let header = layer_header(characteristics(&row.layer));
+        // A protocols bar stands above its component, so a row with one starts that much
+        // lower, leaving the gap under the layer's name that a row without one has.
+        let lift = if row.components.iter().any(|(c, _)| has_protocols(c)) {
+            PROTOCOL_BAR_LIFT
+        } else {
+            0.0
+        };
+        let header = layer_header(characteristics(&row.layer)) + lift;
         let height = if row.components.is_empty() {
             empty_layer_height(characteristics(&row.layer))
         } else {

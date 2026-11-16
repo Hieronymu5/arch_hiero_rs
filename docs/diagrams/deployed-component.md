@@ -14,7 +14,7 @@ description, its tech stack logos, and its instance count.
 
 | Kind | Label | Can contain | Notes |
 |---|---|---|---|
-| `layer` | Layer | component | Header is 50 (40 with no characteristics), padding 20. Sized by its contents, so it can't be resized. |
+| `layer` | Layer | component | Header is 50 (40 with no characteristics), and 10 more when any of its components has protocols, so the protocols bar standing over a component's top keeps the gap under the layer's name that a component without one has. Padding 20. Sized by its contents, so it can't be resized. |
 | `component` | Component | – | Has a description. Sized by its description. |
 
 This type has no free placement. Everything is **arranged** automatically:

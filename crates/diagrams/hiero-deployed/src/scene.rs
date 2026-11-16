@@ -327,8 +327,8 @@ mod tests {
         assert!(svg.contains(r#"href="data:image/png;base64,"#));
         assert!(svg.contains(">Serves pages</text>"));
         assert!(svg.contains(">50+</text>"));
-        // Cropped to include the protocol bar raised over the component's top.
-        assert!(svg.contains(r#"viewBox="0 0 900 290""#));
+        // The layer, 10 taller for the row moved down under the protocol bar.
+        assert!(svg.contains(r#"viewBox="0 0 900 300""#));
         e.set_line_weight(LineWeight::Thick);
         let svg = scene_to_svg("Deploy", &scene(&e));
         assert!(svg.contains(r##"fill="#d5e8d4" stroke="#82b366" stroke-width="2""##));
