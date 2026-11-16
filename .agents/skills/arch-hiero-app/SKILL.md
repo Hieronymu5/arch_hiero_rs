@@ -6,7 +6,7 @@ argument-hint: "[the diagram to build, and where to save it]"
 
 # Arch Hiero diagrams
 
-Arch Hiero is a desktop app that draws four types of architecture diagram. Its MCP server, `arch-hiero-mcp`, reads and edits the same SQLite database as the app, so whatever you build shows up in the app straight away, and the user can undo it there. You build a diagram with a few tool calls, check how it came out, fix it, and export it.
+Arch Hiero is a desktop app that draws these types of architecture diagram, among others. Its MCP server, `arch-hiero-mcp`, reads and edits the same SQLite database as the app, so whatever you build shows up in the app straight away, and the user can undo it there. You build a diagram with a few tool calls, check how it came out, fix it, and export it.
 
 | Type | Shows | Arrows |
 | --- | --- | --- |
@@ -14,6 +14,7 @@ Arch Hiero is a desktop app that draws four types of architecture diagram. Its M
 | `physical` | Users, servers, databases, load balancers, firewalls, gateways, and storage in zones and networks | Protocol and port |
 | `deployed-component` | Components in layers, such as network zones, with protocols and tech stacks | None |
 | `c4` | The C4 model: people, systems, containers (websites, services, queues, databases, and more), and components, in boundaries. Its `subtype` (`context`, `container`, or `component`) names the level | Relationships: dashed, with a description and technology |
+| `high-level-conceptual` | A landscape at a glance: blocks in groups, groups in groups or empty, each with its own colour, font size, and border | Wide arrows, one way or both |
 
 ## 1. Connect to the server
 
@@ -61,7 +62,8 @@ An arrow joins the sides of its two elements that face each other, and runs stra
 - **One arrow between two elements in a column:** make their sides overlap, and the arrow runs straight down the middle of the overlap. Give them the same centre to run it down the middle of both.
 - **Several elements above a wide one:** each arrow runs straight down from the middle of the element it comes from, as long as they're 40 pixels apart.
 - **Arrows to a cloud hosted application** end on the cloud's outline, so they still run straight.
-- **`manualOffset` (conceptual arrows only)** pins an arrow straight at a position you choose, even close to another arrow: the arrow's x (for an arrow running up or down) or y (across) minus the source element's left (or top) edge. It's kept within where the two facing sides overlap, 10 pixels clear of their corners. For example, an actor at `x` 40, 120 wide, above an application at `x` 40, 420 wide: `"manualOffset": 60` runs the arrow down the actor's middle, at x 100. Set it to `null` to place the arrow automatically again.
+- **Arrows to and from a conceptual actor** meet it in the middle of its side instead, so they don't slide along it as it moves. They run straight out of the actor's middle while the other element's facing side reaches across it, 10 pixels clear of its corners, and at a slant otherwise. So put the actor's centre over the part of the other element it should meet.
+- **`manualOffset` (conceptual arrows only)** pins an arrow straight at a position you choose (but not one to or from an actor), even close to another arrow: the arrow's x (for an arrow running up or down) or y (across) minus the source element's left (or top) edge. It's kept within where the two facing sides overlap, 10 pixels clear of their corners. For example, a job at `x` 40, 120 wide, above an application at `x` 40, 420 wide: `"manualOffset": 60` runs the arrow down the job's middle, at x 100. Set it to `null` to place the arrow automatically again.
 - **A user reaching several elements:** on a conceptual diagram, draw the actor again, with the same name, above each application it uses, so every arrow runs straight down. On a physical diagram, such as one user reaching two data centres, not every arrow can be straight, so centre the user between them.
 
 ## 3. Build
@@ -86,7 +88,7 @@ Put the whole diagram, or each large part, in one `edit_diagram` batch.
 
    Pass the same `ARCH_HIERO_DB` as the server if it uses its own database. The window shows the top-left of the canvas at 100%, so check a large diagram in parts, or export it as SVG and render that with `rsvg-convert` if it's installed. Look for cut-off names, labels and arrows that overlap, and arrows that run through text, such as a horizontal arrow through a "×2" instance badge, which sits to the right of a figure.
 3. **Shorten long names:** a figure's name gets two lines under it, about 12 characters each, so use "HTTPD Proxy" rather than "Apache HTTP Reverse Proxy". Split a deployed component's description into short lines.
-4. **Save:** export SVG and draw.io with `export_diagram` and a `path` where the user asked, named after the diagram, such as `physical-3-tier-web-app.svg`. Then call `save_version` with a description of what you built, so the diagram shows as Saved. Say which arrows aren't straight and why.
+4. **Save:** export SVG and draw.io with `export_diagram` and a `path` where the user asked, named after the diagram, such as `physical-3-tier-web-app.svg`. A conceptual or deployed component diagram's exports have a legend to the right of the drawing, lined up with its bottom. Then call `save_version` with a description of what you built, so the diagram shows as Saved. Say which arrows aren't straight and why.
 
 Start from the example closest to what you're building, in `examples/`.
 
@@ -100,6 +102,7 @@ Start from the example closest to what you're building, in `examples/`.
 - An `actor` is a person, or a bot with `"agent": true`. Give it `"group": true` for a team or a group, such as a sales team or a swarm of agents: it's drawn as three people, or three bots, one in front of two, in the same 120 × 80 area, so its arrows attach as one actor's do.
 - When one actor uses several applications, such as a user who asks Claude Code for a diagram and then views it in Arch Hiero, add a separate `actor` with the same `label` above each application rather than one actor with angled arrows to all of them.
 - Put what's inside an application with `parent_id`: components, processes, entities, and files. A `component` with `"componentType": "database"` is drawn as a cylinder, and `"storage"` as a stack of drives, each 120 × 80 with the name underneath, and then it can't hold anything. A `file` is data kept as a file, such as an export or a CSV: a page with a folded corner, 120 × 80, in the data colour. Processes, entities, and files take arrows from actors, applications, components, jobs, and processes; entities and files don't start them. Actors take arrows from other actors, applications, components, jobs, and processes, such as a system that sends someone a report. An application's header, with its name and description, is 60 tall. An arrow from above to something inside an application crosses the header, whose text is centred, so put that thing to one side, such as the right third of the application.
+- A `domain` can have a `description` under its name: wrapped across the domain to at most three lines, in a smaller font (down to 8 px) when it needs more, and never cut short. Its name band grows by about 20 pixels for each line, and the applications it holds move down with it.
 - Give each arrow to an application its interface as `connector`, such as `Web`, `REST API`, or `JDBC`, and a short `label`.
 - Use `"mode": "manual"` (dashed) for something a person does, and `"bidirectional": true` when data comes back, such as a job pulling data.
 - Use a `job` for scheduled work, such as an extract. It can have arrows to actors, applications, components, processes, entities, and files.
@@ -131,3 +134,9 @@ Start from the example closest to what you're building, in `examples/`.
 - Model each message queue or topic as its own `queue` or `topic` container, not the message bus as one. Put publishers on its left with "Publishes messages to" and subscribers on its right pointing back at it with "Subscribes to messages from". For a simple point-to-point coupling you can instead leave the queue out and set the relationship's `technology` to `via Queue X`.
 - Put containers in a `boundary` round their system, and components in a `boundary` with `"boundaryType": "container"`, with `parent_id`; a container boundary can sit inside its system's. Boundaries keep 60 pixels at their bottom for their name and description, and take no arrows.
 - Give every relationship a `description` that reads as a sentence from source to target, such as "Makes API requests to", and on container and component diagrams a `technology`, such as `JSON/HTTPS`. The text sits on the middle of the arrow, so leave about 120 pixels between elements it joins.
+
+### High level conceptual
+
+- Kinds are `block` (160 × 80: an application, a concept, a chapter, or anything else, with an optional `description` under its name; it was called `application` before, which is still accepted), `actors` (people, such as stakeholders or a team: three person figures with the name and an optional `description` under them, 160 × 120), and `group` (400 × 240), which holds blocks, actors, and other groups with `parent_id`, or nothing, as a boundary. A group grows to hold what's in it; its name sits on one line across its top while it holds something, and in its middle while it's empty. A group can have a `description` too: in its header, wrapped across the group to at most three lines, in a smaller font (down to 8 px) when it needs more, and never cut short; the header grows by about 20 pixels for each line, and what the group holds moves down with it. In an empty group, it's wrapped under the name and gets smaller until it fits.
+- Every element has a `color` (blue, green, red, yellow, or grey; a block is blue and a group grey unless set), a `fontSize` (a whole number from 8 to 48; 14 for a block, 16 for a group, whose header grows to fit it), and `dashed` for a dashed border (not on actors, which have none).
+- Arrows are wide block arrows between any two elements, except a group and anything in it. Give `twoWay` for a head at each end. They run straight where the two elements' facing sides overlap, so line elements up, and leave 80 pixels or more between them for the arrow to show.
