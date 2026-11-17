@@ -9,11 +9,12 @@ use hiero_core::history::validate_version_description;
 use hiero_core::model::{
     DiagramId, DiagramTypeId, LineWeight, validate_description, validate_name,
 };
-use hiero_editor::fonts;
+use hiero_editor::editor::{set_show_grid, show_grid};
 use hiero_editor::theme::{
     Accent, CONTENT_INSET, danger_button, field_label, form_style, page_button, palette,
     row_button, set_accent,
 };
+use hiero_editor::{DiagramEditor, fonts};
 use hiero_store::Status;
 
 use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
@@ -381,6 +382,153 @@ fn theme_icon(
                 .map(|(x, y)| at(x, y))
                 .collect();
             painter.add(egui::Shape::closed_line(points, stroke));
+        }
+    }
+}
+
+/// The toolbar's controls for how the canvas is shown: while editing, Grid, which shows or
+/// hides the grid for every diagram; then Zoom out, the zoom, which resets it to 100%, and Zoom
+/// in. Zooming says the new zoom to screen readers. They're laid out left to right in a box of
+/// their own width, so Tab visits them in the order they're seen.
+fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) {
+    const BUTTON: egui::Vec2 = egui::vec2(28.0, 24.0);
+    const LEVEL: egui::Vec2 = egui::vec2(48.0, 24.0);
+    const GAP: f32 = 2.0;
+    const GRID_GAP: f32 = 6.0;
+    let viewing = editor.viewing();
+    let zoom_width = 2.0 * BUTTON.x + LEVEL.x + 2.0 * GAP;
+    let width = if viewing {
+        zoom_width
+    } else {
+        BUTTON.x + GAP + GRID_GAP + zoom_width
+    };
+    ui.allocate_ui_with_layout(
+        egui::vec2(width, BUTTON.y),
+        Layout::left_to_right(Align::Center),
+        |ui| {
+            ui.spacing_mut().item_spacing.x = GAP;
+            // Viewing never shows the grid.
+            if !viewing {
+                let shown = show_grid(ui.ctx());
+                let grid = quiet_button(ui, BUTTON, "Grid", true, Some(shown), grid_icon);
+                let hint = if shown {
+                    "Hide the grid"
+                } else {
+                    "Show the grid"
+                };
+                if grid.on_hover_text(hint).clicked() {
+                    set_show_grid(ui.ctx(), !shown);
+                }
+                ui.add_space(GRID_GAP);
+            }
+            let (can_in, can_out) = editor.can_zoom();
+            let before = editor.zoom_percent();
+            let zoom_out = quiet_button(ui, BUTTON, "Zoom out", can_out, None, |p, c, col| {
+                magnifier_icon(p, c, col, false);
+            });
+            if zoom_out.on_hover_text("Zoom out (Cmd+Minus)").clicked() && can_out {
+                editor.zoom_by(-1);
+            }
+            let label = format!("Zoom {before}%, reset to 100%");
+            let level = quiet_button(ui, LEVEL, &label, true, None, |p, c, col| {
+                p.text(
+                    c,
+                    egui::Align2::CENTER_CENTER,
+                    format!("{before}%"),
+                    egui::FontId::proportional(13.0),
+                    col,
+                );
+            });
+            if level.on_hover_text("Reset to 100%").clicked() {
+                editor.reset_zoom();
+            }
+            let zoom_in = quiet_button(ui, BUTTON, "Zoom in", can_in, None, |p, c, col| {
+                magnifier_icon(p, c, col, true);
+            });
+            if zoom_in.on_hover_text("Zoom in (Cmd+Plus)").clicked() && can_in {
+                editor.zoom_by(1);
+            }
+            let after = editor.zoom_percent();
+            if after != before {
+                editor.set_announcement(format!("Zoom {after}%"));
+            }
+        },
+    );
+}
+
+/// A quiet toolbar button, set apart from the buttons that change the diagram: no face, its
+/// icon in the muted text colour, shaded in the accent while hovered, or while `pressed` is
+/// `Some(true)` for a toggle. One that can't be used is faded but stays focusable, so focus
+/// stays put at the least and the most zoom; its clicks are for the caller to ignore.
+fn quiet_button(
+    ui: &mut Ui,
+    size: egui::Vec2,
+    label: &str,
+    enabled: bool,
+    pressed: Option<bool>,
+    icon: impl FnOnce(&egui::Painter, egui::Pos2, Color32),
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+    let response = response.on_hover_cursor(if enabled {
+        egui::CursorIcon::PointingHand
+    } else {
+        egui::CursorIcon::NotAllowed
+    });
+    response.widget_info(|| match pressed {
+        Some(on) => egui::WidgetInfo::selected(egui::Role::Button, enabled, on, label),
+        None => egui::WidgetInfo::labeled(egui::Role::Button, enabled, label),
+    });
+    let colors = palette(ui);
+    let painter = ui.painter();
+    let shaded = enabled && (response.hovered() || pressed == Some(true));
+    let color = if !enabled {
+        colors.text_muted.gamma_multiply(0.45)
+    } else if shaded {
+        painter.rect_filled(
+            rect,
+            egui::CornerRadius::same(6),
+            colors.accent.gamma_multiply(0.12),
+        );
+        colors.accent
+    } else {
+        colors.text_muted
+    };
+    if response.has_focus() {
+        painter.rect_stroke(
+            rect,
+            egui::CornerRadius::same(6),
+            egui::Stroke::new(2.0, colors.accent),
+            egui::StrokeKind::Inside,
+        );
+    }
+    icon(painter, rect.center(), color);
+    response
+}
+
+/// Paints the prototype's 18px magnifier, drawn on a 20-unit grid: with a plus to zoom in, or a
+/// minus to zoom out.
+fn magnifier_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32, plus: bool) {
+    let scale = 18.0 / 20.0;
+    let at = |x: f32, y: f32| center + egui::vec2(x - 10.0, y - 10.0) * scale;
+    let stroke = egui::Stroke::new(1.8 * scale, color);
+    painter.circle_stroke(at(8.5, 8.5), 5.75 * scale, stroke);
+    let line = |from: (f32, f32), to: (f32, f32)| {
+        painter.line_segment([at(from.0, from.1), at(to.0, to.1)], stroke);
+    };
+    line((13.0, 13.0), (17.5, 17.5));
+    line((6.0, 8.5), (11.0, 8.5));
+    if plus {
+        line((8.5, 6.0), (8.5, 11.0));
+    }
+}
+
+/// Paints the prototype's 18px grid icon: three rows of three dots, on a 20-unit grid.
+fn grid_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32) {
+    let scale = 18.0 / 20.0;
+    for y in [4.0, 10.0, 16.0] {
+        for x in [4.0, 10.0, 16.0] {
+            let at = center + egui::vec2(x - 10.0, y - 10.0) * scale;
+            painter.circle_filled(at, 1.4 * scale, color);
         }
     }
 }
@@ -1275,11 +1423,20 @@ impl App {
                     if !viewing && page_button(ui, "Edit Details", false).clicked() {
                         action = Some("details");
                     }
+                    // How the canvas is shown on the right: the grid, while editing, then the
+                    // zoom; and the diagram's type in the room left between.
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(format!("{} diagram", open.record.type_label()))
-                                .font(fonts::bold(16.0))
-                                .color(ui.visuals().strong_text_color()),
+                        view_controls(ui, open.editor.as_mut());
+                        ui.with_layout(
+                            Layout::centered_and_justified(egui::Direction::LeftToRight),
+                            |ui| {
+                                let color = palette(ui).text_muted;
+                                ui.label(
+                                    RichText::new(format!("{} diagram", open.record.type_label()))
+                                        .font(fonts::bold(14.0))
+                                        .color(color),
+                                );
+                            },
                         );
                     });
                 });

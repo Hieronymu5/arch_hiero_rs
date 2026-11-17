@@ -21,7 +21,7 @@ use hiero_core::stored::{ContentError, StoredContent};
 
 use crate::paint::{PaintCache, Transform, color, paint_nodes, paint_scene, world_line};
 use crate::theme::{element_button, page_button, palette, selection_color};
-use crate::view::{View, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
+use crate::view::{View, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
 
 /// An arrow as drawn, for selecting it with the pointer.
@@ -269,7 +269,7 @@ struct PaletteDrag(usize);
 const VIEW_HELP: &str = concat!(
     "• You're viewing this diagram: nothing can be changed. Press Edit to change it.\n",
     "• Drag with any mouse button, scroll (with Shift to scroll sideways), or use the arrow keys to move around.\n",
-    "• Scroll with Cmd or Ctrl held, pinch on a trackpad, press Cmd or Ctrl and + or -, or use the Zoom slider in the canvas's corner to zoom."
+    "• Scroll with Cmd or Ctrl held, pinch on a trackpad, press Cmd or Ctrl and + or -, or use Zoom out and Zoom in above it to zoom."
 );
 
 /// How far the pointer moves, in canvas pixels, before a press on empty canvas draws a box.
@@ -302,8 +302,13 @@ fn grid_id() -> Id {
     Id::unique("hiero-editor.show-grid")
 }
 
-fn show_grid(ctx: &egui::Context) -> bool {
+pub fn show_grid(ctx: &egui::Context) -> bool {
     ctx.data_mut(|d| d.get_persisted(grid_id())).unwrap_or(true)
+}
+
+/// Shows or hides the grid, for every diagram.
+pub fn set_show_grid(ctx: &egui::Context, show: bool) {
+    ctx.data_mut(|d| d.insert_persisted(grid_id(), show));
 }
 
 /// The diagram editor for diagram type `T`.
@@ -370,10 +375,10 @@ fn wheel_scroll(
     }
 }
 
-/// The zoom after `steps` presses of the zoom keys (negative to zoom out): each moves to the next
-/// multiple of twice the slider's step.
+/// The zoom after `steps` presses of the zoom keys or the toolbar's zoom buttons (negative to
+/// zoom out): each moves to the next multiple of the step.
 fn zoom_by_keys(zoom: f32, steps: i32) -> f32 {
-    let step = ZOOM_STEP * 2.0;
+    let step = ZOOM_STEP;
     let at = zoom / step;
     // Snap first, so 0.35 zooms in to 0.4 and out to 0.3.
     let from = if steps > 0 {
@@ -1189,7 +1194,6 @@ impl<T: DiagramView> Editor<T> {
         if !self.viewing {
             self.paint_overlays(&painter, xf, &displayed, &response, ui);
         }
-        self.zoom_control(ui, rect);
     }
 
     /// The scene when nothing is being dragged, built again only when the content changed.
@@ -1409,41 +1413,6 @@ impl<T: DiagramView> Editor<T> {
             );
         }
         let _ = color;
-    }
-
-    fn zoom_control(&mut self, ui: &mut Ui, rect: egui::Rect) {
-        // Narrower while viewing, which has no grid checkbox, so it still ends at the right.
-        let width = if self.viewing { 225.0 } else { 320.0 };
-        let area = egui::Rect::from_min_size(
-            rect.right_bottom() - Vec2::new(width + 10.0, 40.0),
-            Vec2::new(width, 32.0),
-        );
-        ui.scope_builder(egui::UiBuilder::new().max_rect(area), |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Zoom");
-                    let mut percent = (self.view.zoom * 100.0).round();
-                    let slider =
-                        egui::Slider::new(&mut percent, (ZOOM_MIN * 100.0)..=(ZOOM_MAX * 100.0))
-                            .step_by(f64::from(ZOOM_STEP * 100.0))
-                            // Clamping would round the zoom to a step every frame, undoing
-                            // smaller changes, such as a slow turn of the wheel.
-                            // `zoom_around` keeps it in range.
-                            .clamping(egui::SliderClamping::Never)
-                            .suffix("%");
-                    if ui.add(slider).changed() {
-                        self.view.zoom_around(percent / 100.0, rect.center(), rect);
-                    }
-                    if !self.viewing {
-                        ui.separator();
-                        let mut grid = show_grid(ui.ctx());
-                        if ui.checkbox(&mut grid, "Grid").changed() {
-                            ui.data_mut(|d| d.insert_persisted(grid_id(), grid));
-                        }
-                    }
-                });
-            });
-        });
     }
 
     // Pointer
@@ -1975,10 +1944,51 @@ impl<T: DiagramView> Editor<T> {
             }
         });
         if steps != 0 {
-            self.view
-                .zoom_around(zoom_by_keys(self.view.zoom, steps), rect.center(), rect);
-            self.view.clamp(rect);
+            self.zoom_to(zoom_by_keys(self.view.zoom, steps), rect);
         }
+    }
+
+    /// Zooms to `zoom`, around the middle of the canvas.
+    fn zoom_to(&mut self, zoom: f32, rect: egui::Rect) {
+        self.view.zoom_around(zoom, rect.center(), rect);
+        self.view.clamp(rect);
+    }
+
+    /// Zooms in `steps` steps, or out with `steps` below 0, around the middle of the canvas, as
+    /// the toolbar's zoom buttons do. Before the canvas has been shown it only changes the zoom.
+    pub fn zoom_by(&mut self, steps: i32) {
+        self.zoom_toward(zoom_by_keys(self.view.zoom, steps));
+    }
+
+    /// Zooms back to the canvas's own size, as the toolbar's zoom does.
+    pub fn reset_zoom(&mut self) {
+        self.zoom_toward(ZOOM_DEFAULT);
+    }
+
+    fn zoom_toward(&mut self, zoom: f32) {
+        match self.viewport {
+            Some(rect) => self.zoom_to(zoom, rect),
+            None => self.view.zoom = zoom.clamp(ZOOM_MIN, ZOOM_MAX),
+        }
+    }
+
+    /// How large the canvas is drawn, as a whole percentage.
+    pub fn zoom_percent(&self) -> u32 {
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the zoom is between 10% and 200%"
+        )]
+        let percent = (self.view.zoom * 100.0).round() as u32;
+        percent
+    }
+
+    /// Whether there's further to zoom in, and further to zoom out.
+    pub fn can_zoom(&self) -> (bool, bool) {
+        (
+            self.view.zoom < ZOOM_MAX - 1e-3,
+            self.view.zoom > ZOOM_MIN + 1e-3,
+        )
     }
 
     /// Moves the canvas for an arrow key, further with Shift.
@@ -2094,6 +2104,14 @@ pub trait DiagramEditor {
     fn set_viewing(&mut self, viewing: bool);
     /// Sets the version the legend shown while viewing names, such as "Version 3".
     fn set_legend_version(&mut self, version: &str);
+    /// Zooms in `steps` steps, or out with `steps` below 0, around the middle of the canvas.
+    fn zoom_by(&mut self, steps: i32);
+    /// Zooms back to the canvas's own size.
+    fn reset_zoom(&mut self);
+    /// How large the canvas is drawn, as a whole percentage.
+    fn zoom_percent(&self) -> u32;
+    /// Whether there's further to zoom in, and further to zoom out.
+    fn can_zoom(&self) -> (bool, bool);
     fn announcement(&self) -> &str;
     fn set_announcement(&mut self, text: String);
     /// A message to show, such as why the clipboard couldn't be pasted. Taken once.
@@ -2156,6 +2174,22 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn set_legend_version(&mut self, version: &str) {
         Editor::set_legend_version(self, version);
+    }
+
+    fn zoom_by(&mut self, steps: i32) {
+        Editor::zoom_by(self, steps);
+    }
+
+    fn reset_zoom(&mut self) {
+        Editor::reset_zoom(self);
+    }
+
+    fn zoom_percent(&self) -> u32 {
+        Editor::zoom_percent(self)
+    }
+
+    fn can_zoom(&self) -> (bool, bool) {
+        Editor::can_zoom(self)
     }
 
     fn show_help(&mut self) -> &mut bool {
@@ -2236,7 +2270,8 @@ mod tests {
         assert!(near(zoom_by_keys(0.5, -1), 0.4));
         assert!(near(zoom_by_keys(0.35, 1), 0.4));
         assert!(near(zoom_by_keys(0.35, -1), 0.3));
-        assert!(near(zoom_by_keys(1.0, 1), ZOOM_MAX));
+        assert!(near(zoom_by_keys(1.0, 1), 1.1));
+        assert!(near(zoom_by_keys(2.0, 1), ZOOM_MAX));
         assert!(near(zoom_by_keys(0.1, -1), ZOOM_MIN));
     }
 }

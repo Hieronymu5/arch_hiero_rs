@@ -6,11 +6,13 @@ use hiero_core::layout::canvas_rect;
 
 use crate::paint::Transform;
 
-/// The zoom range, as fractions. To be revisited once the zoom has been tried in use.
+/// The zoom range, as fractions: from a tenth of the canvas's own size up to twice it.
 pub const ZOOM_MIN: f32 = 0.10;
-pub const ZOOM_MAX: f32 = 1.00;
-/// The slider's step.
-pub const ZOOM_STEP: f32 = 0.05;
+pub const ZOOM_MAX: f32 = 2.00;
+/// The canvas's own size, which a diagram opens at and the toolbar's zoom resets to.
+pub const ZOOM_DEFAULT: f32 = 1.00;
+/// The step of the zoom keys and the toolbar's zoom buttons.
+pub const ZOOM_STEP: f32 = 0.10;
 
 /// Space kept around the paper when scrolled to an edge: none, so the paper meets the panels.
 const MARGIN: f32 = 0.0;
@@ -35,7 +37,7 @@ pub struct View {
 impl Default for View {
     fn default() -> Self {
         Self {
-            zoom: ZOOM_MAX,
+            zoom: ZOOM_DEFAULT,
             scroll: Vec2::new(MARGIN, MARGIN),
             paper: Vec2::ZERO,
             corner: Vec2::ZERO,

@@ -23,7 +23,7 @@ pub const HELP: &str = concat!(
     "• Drag a message up or down, or select it and use the up and down arrow keys, to change its place in time. Select a message to change its text and whether it's a call, asynchronous, or a return.\n",
     "• Select a participant to choose its colour, blue, green, red, or yellow, which its lifeline takes too.\n",
     "• Press Enter to edit a participant's name (and an application's or component's description), and Delete to remove it, with its messages, or the selected message.\n",
-    "• Drag with the right or middle mouse button, or scroll (with Shift to scroll sideways), to move around. Scroll with Cmd or Ctrl held, pinch on a trackpad, press Cmd or Ctrl and + or -, or use the Zoom slider in the canvas's corner to zoom."
+    "• Drag with the right or middle mouse button, or scroll (with Shift to scroll sideways), to move around. Scroll with Cmd or Ctrl held, pinch on a trackpad, press Cmd or Ctrl and + or -, or use Zoom out and Zoom in above it to zoom. Turn off Grid beside the zoom to hide the grid's dots; elements still line up with it."
 );
 
 /// A new diagram measured by estimate, with its ids counted from `id1`: its user, then its
