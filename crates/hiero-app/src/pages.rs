@@ -11,8 +11,8 @@ use hiero_core::model::{
 };
 use hiero_editor::editor::{set_show_grid, show_grid};
 use hiero_editor::theme::{
-    Accent, CONTENT_INSET, danger_button, field_label, form_style, page_button, palette,
-    row_button, set_accent,
+    Accent, CONTENT_INSET, danger_button, export_button, field_label, form_style, page_button,
+    palette, row_button, set_accent,
 };
 use hiero_editor::{DiagramEditor, fonts};
 use hiero_store::Status;
@@ -1411,12 +1411,13 @@ impl App {
                     }
                     let has_content = open.editor.has_content();
                     let svg =
-                        ui.add_enabled_ui(has_content, |ui| page_button(ui, "Export SVG", false));
+                        ui.add_enabled_ui(has_content, |ui| export_button(ui, "SVG", "Export SVG"));
                     if svg.inner.clicked() {
                         action = Some("svg");
                     }
-                    let drawio = ui
-                        .add_enabled_ui(has_content, |ui| page_button(ui, "Export draw.io", false));
+                    let drawio = ui.add_enabled_ui(has_content, |ui| {
+                        export_button(ui, "draw.io", "Export draw.io")
+                    });
                     if drawio.inner.clicked() {
                         action = Some("drawio");
                     }

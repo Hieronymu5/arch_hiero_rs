@@ -330,6 +330,42 @@ pub fn accent_button(
     outlined_button(ui, text, accent, main, padding, font_size)
 }
 
+/// An export page action, such as Export SVG: a secondary [`page_button`] showing only the
+/// `format`, such as "SVG", and a download icon after it, which saves room in the toolbar. Its
+/// accessible name and tooltip are the full `action`.
+pub fn export_button(ui: &mut Ui, format: &str, action: &str) -> egui::Response {
+    let accent = palette(ui).accent;
+    outlined_button_with(
+        ui,
+        format,
+        action,
+        Some(download_icon),
+        accent,
+        false,
+        egui::vec2(12.0, 5.0),
+        PAGE_BUTTON_FONT_SIZE,
+    )
+    .on_hover_text(action)
+}
+
+/// The size of a button's icon, and the gap before it.
+const BUTTON_ICON: f32 = 16.0;
+const BUTTON_ICON_GAP: f32 = 6.0;
+
+/// Paints the prototype's 16px download icon, drawn on a 20-unit grid: an arrow down into a tray.
+fn download_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32) {
+    let scale = BUTTON_ICON / 20.0;
+    let at = |x: f32, y: f32| center + egui::vec2(x - 10.0, y - 10.0) * scale;
+    let stroke = egui::Stroke::new(1.8 * scale, color);
+    let path = |points: &[(f32, f32)]| {
+        let points = points.iter().map(|&(x, y)| at(x, y)).collect();
+        painter.add(egui::Shape::line(points, stroke));
+    };
+    path(&[(10.0, 3.0), (10.0, 13.0)]);
+    path(&[(5.5, 8.5), (10.0, 13.0), (14.5, 8.5)]);
+    path(&[(3.5, 14.0), (3.5, 16.5), (16.5, 16.5), (16.5, 14.0)]);
+}
+
 /// How thick a button's bottom edge is, under its face, when it isn't pressed.
 const BUTTON_EDGE: f32 = 1.0;
 
@@ -345,17 +381,41 @@ fn outlined_button(
     padding: egui::Vec2,
     font_size: f32,
 ) -> egui::Response {
+    outlined_button_with(ui, text, text, None, accent, main, padding, font_size)
+}
+
+/// An icon painted after a button's text, around the point given.
+type ButtonIcon = fn(&egui::Painter, egui::Pos2, Color32);
+
+/// An [`outlined_button`] named `name` for screen readers, with `icon` after its text.
+#[expect(clippy::too_many_arguments, reason = "the button's look, in one place")]
+fn outlined_button_with(
+    ui: &mut Ui,
+    text: &str,
+    name: &str,
+    icon: Option<ButtonIcon>,
+    accent: Color32,
+    main: bool,
+    padding: egui::Vec2,
+    font_size: f32,
+) -> egui::Response {
     let colors = palette(ui);
     let dark = ui.visuals().dark_mode;
     let font = crate::fonts::font_id(font_size, Weight::Regular);
     let galley = ui
         .painter()
         .layout_no_wrap(text.to_owned(), font, Color32::PLACEHOLDER);
-    let size = (galley.size() + 2.0 * padding + egui::vec2(0.0, BUTTON_EDGE - 1.0))
+    let icon_width = if icon.is_some() {
+        BUTTON_ICON_GAP + BUTTON_ICON
+    } else {
+        0.0
+    };
+    let content = egui::vec2(galley.size().x + icon_width, galley.size().y);
+    let size = (content + 2.0 * padding + egui::vec2(0.0, BUTTON_EDGE - 1.0))
         .max(egui::vec2(0.0, ui.spacing().interact_size.y));
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
     let enabled = ui.is_enabled();
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, text));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, name));
     let hovered = enabled && response.hovered();
     let pressed = enabled && response.is_pointer_button_down_on();
     if hovered {
@@ -431,7 +491,14 @@ fn outlined_button(
         ],
         egui::Stroke::new(1.0, line),
     );
-    let text_pos = face_rect.center() - galley.size() / 2.0;
+    let text_pos = face_rect.center() - content / 2.0;
+    if let Some(icon) = icon {
+        let center = egui::pos2(
+            text_pos.x + galley.size().x + BUTTON_ICON_GAP + BUTTON_ICON / 2.0,
+            face_rect.center().y,
+        );
+        icon(painter, center, text_color);
+    }
     painter.galley(text_pos, galley, text_color);
     if response.has_focus() {
         painter.rect_stroke(
