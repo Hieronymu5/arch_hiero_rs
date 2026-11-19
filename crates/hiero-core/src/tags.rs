@@ -38,6 +38,11 @@ pub struct DiagramScene {
     pub tags: Vec<String>,
 }
 
+/// A new random id for a tag or a scene.
+pub fn new_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
 /// What's wrong with `name` as the name of a `kind` of thing, such as a tag or a scene, among
 /// `named` (each an id and a name), other than the one `except`, if anything: it must be there,
 /// at most [`TAG_NAME_MAX`] characters long, and not already taken, ignoring case.
@@ -265,7 +270,7 @@ pub fn replace_tags(
                 ));
             }
             Some(id) => id.clone(),
-            None => uuid::Uuid::new_v4().to_string(),
+            None => new_id(),
         };
         tags.push(DiagramTag {
             id,

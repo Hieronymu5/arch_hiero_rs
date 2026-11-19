@@ -797,4 +797,60 @@ mod tests {
             Some("The clipboard doesn’t hold diagram elements.")
         );
     }
+
+    #[test]
+    fn tags_hide_their_elements_and_are_applied_by_clicking() {
+        use hiero_core::tags::{DiagramScene, DiagramTag};
+        let mut w = Window::new();
+        let tag = |id: &str| DiagramTag {
+            id: id.into(),
+            name: id.to_uppercase(),
+        };
+        let scene = DiagramScene {
+            id: "s".into(),
+            name: "First".into(),
+            tags: vec!["one".into()],
+        };
+        w.editor.set_tags(&[tag("one"), tag("two")], &[scene]);
+        // Applying a tag: clicking an element puts it in the tag, and selects nothing.
+        w.editor.apply_tag(Some("two"));
+        let crm = w.editor.eng.laid(&"a1".into()).unwrap().rect;
+        let click = w.screen(crm.center(), Vec2::ZERO);
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.editor.eng.element(&"a1".into()).unwrap().tags, ["two"]);
+        assert!(w.selection().is_empty());
+        assert_eq!(w.editor.take_changes().len(), 1);
+        // Again takes it out, and Escape stops applying.
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert!(w.editor.eng.element(&"a1".into()).unwrap().tags.is_empty());
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        w.frame(
+            vec![Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            }],
+            Modifiers::NONE,
+        );
+        w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.selection(), ["a1"]);
+        // Hiding the tag hides its element; while editing it's still drawn, faint.
+        w.editor.toggle_tag("two");
+        w.frame(vec![], Modifiers::NONE);
+        assert_eq!(
+            w.editor.tag_hidden().into_iter().collect::<Vec<_>>(),
+            [ElementId::from("a1")]
+        );
+        w.editor.set_all_tags(true);
+        assert!(w.editor.tag_hidden().is_empty());
+        // While viewing, the first scene shows only its tag, whatever was hidden by hand.
+        w.editor.set_viewing(true);
+        w.frame(vec![], Modifiers::NONE);
+        assert_eq!(
+            w.editor.tag_hidden().into_iter().collect::<Vec<_>>(),
+            [ElementId::from("a1")]
+        );
+    }
 }

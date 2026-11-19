@@ -24,6 +24,8 @@ use crate::theme::{element_button, page_button, palette, selection_color};
 use crate::view::{View, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
 
+mod tags;
+
 /// An arrow as drawn, for selecting it with the pointer.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArrowLine {
@@ -202,6 +204,8 @@ pub enum DiagramRequest {
     Add { element: ElementId, name: String },
     /// Open a diagram, to view or to edit.
     Open { diagram: DiagramId, viewing: bool },
+    /// Open the diagram's Edit Details on its Tags, where tags are added, renamed, and deleted.
+    EditTags,
 }
 
 /// A change the editor made, for the app to save and add to the undo history.
@@ -321,7 +325,9 @@ pub struct Editor<T: DiagramView> {
     cache: PaintCache,
     scene_cache: Option<(u64, Scene)>,
     /// The marks on the elements that open a diagram, for the content they were made from.
-    link_marks: Option<(u64, Vec<Node>)>,
+    link_marks: Option<(u64, std::collections::BTreeSet<ElementId>, Vec<Node>)>,
+    /// The diagram's tags and scenes, and what's shown of them.
+    tag: tags::TagState,
     outbox: Vec<Change>,
     pub show_help: bool,
     /// Only looking: no palette or properties, and the canvas only moves and zooms.
@@ -413,6 +419,7 @@ impl<T: DiagramView> Editor<T> {
             cache: PaintCache::default(),
             scene_cache: None,
             link_marks: None,
+            tag: tags::TagState::default(),
             outbox: Vec::new(),
             show_help: false,
             viewing: false,
@@ -516,6 +523,7 @@ impl<T: DiagramView> Editor<T> {
         if viewing != self.viewing {
             // Viewing shows the legend, and editing doesn't.
             self.scene_cache = None;
+            self.tag.viewing_changed();
         }
         self.viewing = viewing;
     }
@@ -526,6 +534,7 @@ impl<T: DiagramView> Editor<T> {
         if self.legend_version != version {
             version.clone_into(&mut self.legend_version);
             self.scene_cache = None;
+            self.tag.cache.clear();
         }
     }
 
@@ -568,7 +577,15 @@ impl<T: DiagramView> Editor<T> {
     /// The topmost element under a world point that opens a diagram.
     fn opener_element_at(&self, p: Point) -> Option<&Laid<T>> {
         let layout = self.eng.layout();
-        let hit = |e: &&Laid<T>| T::drawn_rect(&self.eng, e).contains_point(p);
+        // While viewing, what its tags hide can't be clicked.
+        let hidden = if self.viewing {
+            self.tag_hidden()
+        } else {
+            std::collections::BTreeSet::new()
+        };
+        let hit = |e: &&Laid<T>| {
+            !hidden.contains(&e.el.id) && T::drawn_rect(&self.eng, e).contains_point(p)
+        };
         layout
             .iter()
             .rev()
@@ -615,17 +632,23 @@ impl<T: DiagramView> Editor<T> {
         xf: Transform,
         elements: &[Laid<T>],
         dragging: bool,
+        hidden: &std::collections::BTreeSet<ElementId>,
     ) {
         let changes = self.eng.changes();
         let marks = match &self.link_marks {
-            Some((made, marks)) if !dragging && *made == changes => marks.clone(),
+            Some((made, was_hidden, marks))
+                if !dragging && *made == changes && was_hidden == hidden =>
+            {
+                marks.clone()
+            }
             _ => {
+                // None on what its tags hide, which is faint or not drawn.
                 let marks: Vec<Node> = elements
                     .iter()
-                    .filter(|e| self.opens(&e.el).is_some())
+                    .filter(|e| self.opens(&e.el).is_some() && !hidden.contains(&e.el.id))
                     .map(|e| self.link_mark_for(e, false))
                     .collect();
-                self.link_marks = (!dragging).then(|| (changes, marks.clone()));
+                self.link_marks = (!dragging).then(|| (changes, hidden.clone(), marks.clone()));
                 marks
             }
         };
@@ -693,8 +716,9 @@ impl<T: DiagramView> Editor<T> {
         // The bar is just wide enough for the longest name, "Load Balancer". Its id carries
         // the default width, so a width saved before the default changed is dropped.
         const ELEMENTS_WIDTH: u16 = 149;
-        // While viewing, the canvas has the whole width.
-        if !self.viewing {
+        // While viewing, the canvas has the whole width, but for the tags or scenes when the
+        // diagram has some.
+        if !self.viewing || self.tag.has_any() {
             egui::Panel::left(self.salt.with(("elements", ELEMENTS_WIDTH)))
                 .frame(palette_frame)
                 .resizable(true)
@@ -703,7 +727,17 @@ impl<T: DiagramView> Editor<T> {
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
                         .auto_shrink(false)
-                        .show(ui, |ui| self.palette_ui(ui));
+                        .show(ui, |ui| {
+                            if !self.viewing {
+                                self.palette_ui(ui);
+                            }
+                            if self.tag.has_any() {
+                                if !self.viewing {
+                                    ui.add_space(12.0);
+                                }
+                                self.tags_ui(ui);
+                            }
+                        });
                 });
         }
         // With nothing or several selected, the canvas gets the room.
@@ -1183,13 +1217,26 @@ impl<T: DiagramView> Editor<T> {
             Drag::None | Drag::Pan { .. } | Drag::Select { .. }
         );
         let displayed = self.displayed().into_owned();
-        let scene = if dragging {
-            T::scene(&self.eng, &displayed, self.slide())
-        } else {
-            self.still_scene().clone()
+        let now = ui.input(|i| i.time);
+        self.tick_scenes(ui.ctx(), now);
+        let hidden = self.tag_hidden();
+        let scene = match self.paint_tagged(&painter, xf, &displayed, dragging, dark, &hidden, now)
+        {
+            Some(scene) => scene,
+            None => {
+                let scene = if dragging {
+                    T::scene(&self.eng, &displayed, self.slide())
+                } else {
+                    self.still_scene().clone()
+                };
+                paint_scene(&painter, &scene, xf, &mut self.cache, 1.0, dark);
+                scene
+            }
         };
-        paint_scene(&painter, &scene, xf, &mut self.cache, 1.0, dark);
-        self.paint_link_marks(&painter, &scene, xf, &displayed, dragging);
+        self.paint_link_marks(&painter, &scene, xf, &displayed, dragging, &hidden);
+        if !self.viewing {
+            self.paint_applying_rings(&painter, xf, &displayed, palette(ui).accent);
+        }
         self.paint_link_hover(&painter, xf, &response, ui);
         if !self.viewing {
             self.paint_overlays(&painter, xf, &displayed, &response, ui);
@@ -1567,6 +1614,15 @@ impl<T: DiagramView> Editor<T> {
     }
 
     fn press(&mut self, pos: Pos2, world: Point, modifiers: egui::Modifiers, xf: Transform) {
+        // While a tag is applied, a press puts the element in it or takes it out, and moves
+        // nothing.
+        if self.tag.applying.is_some()
+            && let Some(id) = Self::element_at(&self.eng, world).map(|e| e.el.id.clone())
+        {
+            self.toggle_in_applying(&id);
+            self.focus = Focus::Element(id);
+            return;
+        }
         // Handles of the selected element.
         if let Some(selected) = self.eng.selected().cloned() {
             for corner in self.handles(&selected) {
@@ -1595,7 +1651,14 @@ impl<T: DiagramView> Editor<T> {
         }
         // Arrows.
         let lines = T::arrow_lines(&self.eng, self.eng.layout(), None);
-        let hit = lines.iter().rev().find(|l| {
+        // An arrow its tags hide isn't drawn, so can't be picked.
+        let hidden = self.tag_hidden();
+        let shown = |l: &&ArrowLine| {
+            self.eng
+                .connection(&l.id)
+                .is_some_and(|c| !hidden.contains(&c.source_id) && !hidden.contains(&c.target_id))
+        };
+        let hit = lines.iter().rev().filter(shown).find(|l| {
             l.boxes.iter().any(|b| b.contains_point(world))
                 || distance_to_segment(pos, xf.pos(l.from), xf.pos(l.to)) <= 6.0
         });
@@ -1833,6 +1896,20 @@ impl<T: DiagramView> Editor<T> {
             else {
                 continue;
             };
+            // While a tag is applied, Enter or Space puts the focused element in it or takes it
+            // out, and Escape stops applying it.
+            if self.tag.applying.is_some() && !self.viewing {
+                if key == Key::Escape {
+                    self.apply_tag(None);
+                    continue;
+                }
+                if matches!(key, Key::Enter | Key::Space)
+                    && let Focus::Element(id) = self.focus.clone()
+                {
+                    self.toggle_in_applying(&id);
+                    continue;
+                }
+            }
             let shift = modifiers.shift;
             let dir = match key {
                 Key::ArrowLeft => Some(Dir::Left),
@@ -2025,7 +2102,13 @@ impl<T: DiagramView> Editor<T> {
                     }
                 }
                 egui::Event::Paste(text) => match Clip::<T>::from_text(&text) {
-                    Ok(clip) => {
+                    Ok(mut clip) => {
+                        // Pasted from another diagram, elements keep only the tags this one has.
+                        for element in &mut clip.elements {
+                            element
+                                .tags
+                                .retain(|t| self.tag.tags.iter().any(|k| k.id == *t));
+                        }
                         self.act(None, |eng| eng.paste(&clip));
                         if let Some(first) = self.eng.selection.first() {
                             self.focus = Focus::Element(first.clone());
@@ -2104,6 +2187,12 @@ pub trait DiagramEditor {
     fn set_viewing(&mut self, viewing: bool);
     /// Sets the version the legend shown while viewing names, such as "Version 3".
     fn set_legend_version(&mut self, version: &str);
+    /// Sets the diagram's tags and scenes.
+    fn set_tags(
+        &mut self,
+        tags: &[hiero_core::tags::DiagramTag],
+        scenes: &[hiero_core::tags::DiagramScene],
+    );
     /// Zooms in `steps` steps, or out with `steps` below 0, around the middle of the canvas.
     fn zoom_by(&mut self, steps: i32);
     /// Zooms back to the canvas's own size.
@@ -2178,6 +2267,14 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn zoom_by(&mut self, steps: i32) {
         Editor::zoom_by(self, steps);
+    }
+
+    fn set_tags(
+        &mut self,
+        tags: &[hiero_core::tags::DiagramTag],
+        scenes: &[hiero_core::tags::DiagramScene],
+    ) {
+        Editor::set_tags(self, tags, scenes);
     }
 
     fn reset_zoom(&mut self) {

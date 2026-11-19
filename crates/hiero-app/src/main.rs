@@ -7,6 +7,7 @@ mod editors;
 mod format;
 mod list_sort;
 mod pages;
+mod tags_tab;
 mod trail;
 mod worker;
 

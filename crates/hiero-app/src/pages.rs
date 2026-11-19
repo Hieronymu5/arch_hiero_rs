@@ -11,13 +11,13 @@ use hiero_core::model::{
 };
 use hiero_editor::editor::{set_show_grid, show_grid};
 use hiero_editor::theme::{
-    Accent, CONTENT_INSET, danger_button, export_button, field_label, form_style, page_button,
-    palette, row_button, set_accent,
+    Accent, CONTENT_INSET, choice_button, danger_button, export_button, field_label, form_style,
+    page_button, palette, row_button, set_accent,
 };
 use hiero_editor::{DiagramEditor, fonts};
 use hiero_store::Status;
 
-use crate::app::{App, DetailsForm, Dialog, ExportFormat, Outcome, Page};
+use crate::app::{App, DetailsForm, DetailsTab, Dialog, ExportFormat, Outcome, Page, TagsForm};
 use crate::format::date;
 use crate::list_sort::{Column, ListSort, tree_rows};
 use crate::trail::{NAME_MAX, abbreviate, trail};
@@ -42,7 +42,7 @@ fn display_folder(folder: &Path) -> String {
 /// Something to do once a dialog closes.
 type Action = Box<dyn FnOnce(&mut App)>;
 
-fn error_text(ui: &Ui, text: &str) -> RichText {
+pub(crate) fn error_text(ui: &Ui, text: &str) -> RichText {
     RichText::new(text).color(palette(ui).error)
 }
 
@@ -628,7 +628,7 @@ fn paint_toggle(ui: &Ui, response: &egui::Response, plus: bool) {
 
 /// A table of rows separated by subtle rules, like the prototype's tables. `rows` adds the
 /// cells and calls `end_row` after each row, which records where the rule goes.
-fn ruled_grid(
+pub(crate) fn ruled_grid(
     ui: &mut Ui,
     id: &str,
     columns: usize,
@@ -742,7 +742,8 @@ impl App {
                     ),
             ),
             Page::History(id) => Some((format!("History of {}", self.diagram_name(id)), None)),
-            _ => None,
+            Page::Details(id) => Some((format!("Edit Details of {}", self.diagram_name(id)), None)),
+            Page::New => None,
         }
     }
 
@@ -1237,9 +1238,56 @@ impl App {
         };
         let meta = open.record.meta.clone();
         let min_canvas = open.editor.min_canvas();
-        ui.heading(RichText::new("Edit Details").font(fonts::bold(26.0)));
-        ui.add_space(8.0);
-        egui::ScrollArea::vertical().show(ui, |ui| {
+        // Back to the diagram, above every tab, where the diagram's page has its Back.
+        if page_button(ui, "Back", true).clicked() {
+            self.go_back();
+            return;
+        }
+        ui.add_space(12.0);
+        // The page's sections, one at a time, chosen from the list on the left, drawn as the
+        // diagram's Elements panel's items are.
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(150.0);
+                for tab in DetailsTab::ALL {
+                    let chosen = self.form.tab == tab;
+                    let response = choice_button(ui, tab.label(), 32.0, chosen);
+                    response.widget_info(|| {
+                        egui::WidgetInfo::selected(egui::Role::Tab, true, chosen, tab.label())
+                    });
+                    if response.clicked() {
+                        self.form.tab = tab;
+                        self.form.tags.focus = false;
+                    }
+                }
+            });
+            ui.add_space(20.0);
+            ui.vertical(|ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| match self.form.tab {
+                    DetailsTab::Details => self.details_tab(ui, id, &meta, min_canvas),
+                    DetailsTab::SubDiagrams => {
+                        ui.heading(RichText::new("Sub Diagrams").font(fonts::bold(18.0)));
+                        self.sub_diagrams_section(ui, id);
+                    }
+                    DetailsTab::Tags => self.tags_tab(ui),
+                    DetailsTab::Scenes => self.scenes_tab(ui),
+                });
+            });
+        });
+    }
+
+    /// The diagram's details, saved by Save Changes, which returns to the diagram.
+    fn details_tab(
+        &mut self,
+        ui: &mut Ui,
+        id: &DiagramId,
+        meta: &hiero_core::model::DiagramMeta,
+        min_canvas: Size,
+    ) {
+        let _ = id;
+        ui.heading(RichText::new("Details").font(fonts::bold(18.0)));
+        ui.add_space(4.0);
+        {
             let valid = self.details_fields(ui, false);
             let ops = hiero_registry::ops(meta.diagram_type);
             if let Some(weight) = &mut self.form.line_weight {
@@ -1303,11 +1351,10 @@ impl App {
                     self.go_back();
                 }
             });
-            self.sub_diagrams_section(ui, id);
             ui.add_space(10.0);
             ui.label(RichText::new(format!("Created {}", date(&meta.created_at))).weak());
             ui.label(RichText::new(format!("Last updated {}", date(&meta.updated_at))).weak());
-        });
+        }
     }
 
     /// The diagram's own sub diagrams, each of which can be deleted, with its own.
@@ -1324,10 +1371,9 @@ impl App {
             }
         };
         if children.is_empty() {
+            ui.label("This diagram has no sub diagrams.");
             return;
         }
-        ui.add_space(14.0);
-        field_label(ui, "Sub diagrams", false);
         ui.label(
             RichText::new(
                 "Removing one deletes it now, with its own sub diagrams. Elements that open it are left with no link.",
@@ -1507,6 +1553,8 @@ impl App {
             error: None,
             opened_from: None,
             focus_name: false,
+            tab: DetailsTab::Details,
+            tags: TagsForm::default(),
         };
         let id = meta.id.clone();
         self.go(Page::Details(id));

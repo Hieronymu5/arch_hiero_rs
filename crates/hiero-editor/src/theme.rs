@@ -348,6 +348,24 @@ pub fn export_button(ui: &mut Ui, format: &str, action: &str) -> egui::Response 
     .on_hover_text(action)
 }
 
+/// A secondary page button showing only `icon`, `width` wide, named `name` for screen readers
+/// and in its tooltip.
+pub fn icon_button(ui: &mut Ui, icon: ButtonIcon, name: &str, width: f32) -> egui::Response {
+    let accent = palette(ui).accent;
+    let padding = egui::vec2(((width - BUTTON_ICON) / 2.0).max(4.0), 5.0);
+    outlined_button_with(
+        ui,
+        "",
+        name,
+        Some(icon),
+        accent,
+        false,
+        padding,
+        PAGE_BUTTON_FONT_SIZE,
+    )
+    .on_hover_text(name)
+}
+
 /// The size of a button's icon, and the gap before it.
 const BUTTON_ICON: f32 = 16.0;
 const BUTTON_ICON_GAP: f32 = 6.0;
@@ -385,7 +403,7 @@ fn outlined_button(
 }
 
 /// An icon painted after a button's text, around the point given.
-type ButtonIcon = fn(&egui::Painter, egui::Pos2, Color32);
+pub type ButtonIcon = fn(&egui::Painter, egui::Pos2, Color32);
 
 /// An [`outlined_button`] named `name` for screen readers, with `icon` after its text.
 #[expect(clippy::too_many_arguments, reason = "the button's look, in one place")]
@@ -405,8 +423,14 @@ fn outlined_button_with(
     let galley = ui
         .painter()
         .layout_no_wrap(text.to_owned(), font, Color32::PLACEHOLDER);
+    // With no text, the icon alone, with no gap before it.
+    let gap = if text.is_empty() {
+        0.0
+    } else {
+        BUTTON_ICON_GAP
+    };
     let icon_width = if icon.is_some() {
-        BUTTON_ICON_GAP + BUTTON_ICON
+        gap + BUTTON_ICON
     } else {
         0.0
     };
@@ -494,7 +518,7 @@ fn outlined_button_with(
     let text_pos = face_rect.center() - content / 2.0;
     if let Some(icon) = icon {
         let center = egui::pos2(
-            text_pos.x + galley.size().x + BUTTON_ICON_GAP + BUTTON_ICON / 2.0,
+            text_pos.x + galley.size().x + gap + BUTTON_ICON / 2.0,
             face_rect.center().y,
         );
         icon(painter, center, text_color);
@@ -516,6 +540,12 @@ fn outlined_button_with(
 /// each theme's own accent. It's drawn here rather than by egui's button because the drag area
 /// around it takes the hover.
 pub fn element_button(ui: &mut Ui, text: &str, height: f32) -> egui::Response {
+    choice_button(ui, text, height, false)
+}
+
+/// An [`element_button`] that can be the one chosen, such as the scene showing: its border then
+/// thicker and in the accent, and its text bold in the accent.
+pub fn choice_button(ui: &mut Ui, text: &str, height: f32, chosen: bool) -> egui::Response {
     let colors = palette(ui);
     let size = egui::vec2(ui.available_width(), height);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
@@ -537,13 +567,18 @@ pub fn element_button(ui: &mut Ui, text: &str, height: f32) -> egui::Response {
                 colors.text,
             )
         };
+        let (border, color, width) = if chosen {
+            (colors.accent, colors.accent, 2.0)
+        } else {
+            (border, color, 1.0)
+        };
         let painter = ui.painter();
         let radius = egui::CornerRadius::same(6);
         painter.rect(
             rect,
             radius,
             fill,
-            egui::Stroke::new(1.0, border),
+            egui::Stroke::new(width, border),
             egui::StrokeKind::Inside,
         );
         if response.has_focus() {
@@ -554,11 +589,17 @@ pub fn element_button(ui: &mut Ui, text: &str, height: f32) -> egui::Response {
                 egui::StrokeKind::Outside,
             );
         }
+        let font = egui::TextStyle::Button.resolve(ui.style());
+        let font = if chosen {
+            crate::fonts::font_id(font.size, Weight::SemiBold)
+        } else {
+            font
+        };
         painter.text(
             egui::pos2(rect.left() + 10.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             text,
-            egui::TextStyle::Button.resolve(ui.style()),
+            font,
             color,
         );
     }

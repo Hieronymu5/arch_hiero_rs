@@ -533,6 +533,45 @@ impl<T: DiagramType> Engine<T> {
         engine
     }
 
+    /// A copy of the engine for drawing only the elements `keep` accepts, where they're laid
+    /// out now, and, with `arrows`, the arrows between two of them. It isn't for editing: its
+    /// layout isn't arranged again, and it makes no ids.
+    #[must_use]
+    pub fn only(&self, keep: impl Fn(&ElementId) -> bool, arrows: bool) -> Self {
+        Self {
+            elements: self
+                .elements
+                .iter()
+                .filter(|e| keep(&e.id))
+                .cloned()
+                .collect(),
+            connections: if arrows {
+                self.connections
+                    .iter()
+                    .filter(|c| keep(&c.source_id) && keep(&c.target_id))
+                    .cloned()
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            layout: self
+                .layout
+                .iter()
+                .filter(|e| keep(&e.el.id))
+                .cloned()
+                .collect(),
+            colors: self.colors.clone(),
+            line_weight: self.line_weight,
+            canvas: self.canvas,
+            selection: Vec::new(),
+            selected_connection: None,
+            announcement: String::new(),
+            measure: self.measure,
+            next_id: Box::new(String::new),
+            changes: self.changes,
+        }
+    }
+
     /// An engine for a new diagram, with what the type starts with.
     pub fn new_diagram(colors: T::Colors) -> Self {
         let mut engine = Self::new(Vec::new(), Vec::new(), colors);

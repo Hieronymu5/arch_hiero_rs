@@ -106,6 +106,49 @@ enum OpenError {
     Load(String),
 }
 
+/// The sections of a diagram's Edit Details page, each a tab in the list on its left.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DetailsTab {
+    #[default]
+    Details,
+    SubDiagrams,
+    Tags,
+    Scenes,
+}
+
+impl DetailsTab {
+    pub const ALL: [Self; 4] = [Self::Details, Self::SubDiagrams, Self::Tags, Self::Scenes];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Details => "Details",
+            Self::SubDiagrams => "Sub Diagrams",
+            Self::Tags => "Tags",
+            Self::Scenes => "Scenes",
+        }
+    }
+}
+
+/// What's being typed on the Tags and Scenes tabs.
+#[derive(Debug, Clone, Default)]
+pub struct TagsForm {
+    /// The name of a tag to add, and what's wrong with it.
+    pub new_tag: String,
+    pub new_tag_error: Option<String>,
+    /// The tag being renamed, its new name, and what's wrong with it.
+    pub renaming: Option<(String, String, Option<String>)>,
+    /// The tag whose deletion is being confirmed.
+    pub confirming: Option<String>,
+    /// The scene being edited in the scene form, unless it's adding one.
+    pub editing_scene: Option<String>,
+    pub scene_name: String,
+    pub scene_tags: BTreeSet<String>,
+    pub scene_name_error: Option<String>,
+    pub scene_tags_error: Option<String>,
+    /// Whether a field takes focus when it's next shown.
+    pub focus: bool,
+}
+
 /// The fields of the Add diagram and Edit details forms.
 #[derive(Debug, Clone, Default)]
 pub struct DetailsForm {
@@ -130,6 +173,9 @@ pub struct DetailsForm {
     /// Whether the Name field takes focus when it's next shown, as when the Add diagram page
     /// opens.
     pub focus_name: bool,
+    /// The Edit Details section showing.
+    pub tab: DetailsTab,
+    pub tags: TagsForm,
 }
 
 /// The database in use and the ones used before it.
@@ -383,6 +429,10 @@ impl App {
         let diagram_type = open.record.meta.diagram_type;
         match request {
             DiagramRequest::Open { diagram, viewing } => self.open_diagram(&diagram, viewing),
+            DiagramRequest::EditTags => {
+                self.start_details();
+                self.form.tab = DetailsTab::Tags;
+            }
             DiagramRequest::Add { element, name } => {
                 // A sub diagram starts as the same type as the diagram it's in. Its type may
                 // say what it starts as for this element, such as a C4 container diagram with a
@@ -531,6 +581,7 @@ impl App {
         open.editor.set_colors(&open.record.colors);
         open.editor.set_line_weight(open.record.line_weight());
         open.editor.set_canvas(open.record.canvas());
+        open.editor.set_tags(&open.record.tags, &open.record.scenes);
     }
 
     pub fn undo(&mut self) {
@@ -732,6 +783,30 @@ impl App {
             }
             Err(e) => self.form.error = Some(format!("The diagram couldn't be saved. {e}")),
         }
+    }
+
+    /// Changes the open diagram's tags or scenes with `change`, as one undo step, saved at
+    /// once. Returns whether anything changed.
+    pub fn change_tags(&mut self, change: impl FnOnce(&mut StoredDiagram)) -> bool {
+        let Some(open) = &mut self.open else {
+            return false;
+        };
+        let id = open.record.meta.id.clone();
+        let before = DiagramSnapshot::of(&open.record);
+        change(&mut open.record);
+        if DiagramSnapshot::of(&open.record) == before {
+            return false;
+        }
+        if let Err(e) = open.editor.replace_content(&open.record.content) {
+            open.save_failed = Some(e.to_string());
+        }
+        open.editor.set_tags(&open.record.tags, &open.record.scenes);
+        let stack = self.undo_stack(&id);
+        stack.break_group();
+        stack.push(before);
+        self.save_due = Some(Instant::now());
+        self.flush_save();
+        true
     }
 
     /// Applies the Edit details form to the open diagram, as one undo step.

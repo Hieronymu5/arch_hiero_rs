@@ -3,6 +3,7 @@
 //!
 //! - `ARCH_HIERO_DB`: the database file to use instead of the usual one. The list of recent
 //!   databases is neither read nor changed.
+//! - `ARCH_HIERO_SAMPLES`: set to load the sample diagrams on start, into an empty database.
 //! - `ARCH_HIERO_OPEN`: the name of a diagram to open on start, or several separated by " > "
 //!   to open in turn, as clicking from one to the next would.
 //! - `ARCH_HIERO_NEW`: a diagram type, such as `physical`, to create a diagram of and open.
@@ -10,7 +11,8 @@
 //! - `ARCH_HIERO_VIEW`: set to view the open diagram rather than edit it.
 //! - `ARCH_HIERO_THEME`: `light` or `dark`, to show this run in that theme without saving it
 //!   (read in `main.rs`).
-//! - `ARCH_HIERO_DETAILS`: set to show the open diagram's Edit Details page.
+//! - `ARCH_HIERO_DETAILS`: set to show the open diagram's Edit Details page, on the tab it
+//!   names, such as `tags`, if any.
 //! - `ARCH_HIERO_SCREENSHOT`: a PNG path; the window is saved there after it has settled, and
 //!   the app quits.
 //! - `ARCH_HIERO_SCREENSHOT_AFTER`: how many seconds to wait before the screenshot.
@@ -22,11 +24,13 @@ use crate::app::App;
 
 #[derive(Default)]
 pub struct DevTools {
+    samples: bool,
     open: Option<String>,
     new: Option<String>,
     select: Option<String>,
     view: bool,
-    details: bool,
+    /// The Edit Details tab to show, by its label, such as "Tags"; empty for the first.
+    details: Option<String>,
     screenshot: Option<std::path::PathBuf>,
     frame: u32,
     started: Option<std::time::Instant>,
@@ -38,11 +42,12 @@ pub struct DevTools {
 impl DevTools {
     pub fn from_env() -> Self {
         Self {
+            samples: std::env::var_os("ARCH_HIERO_SAMPLES").is_some(),
             open: std::env::var("ARCH_HIERO_OPEN").ok(),
             new: std::env::var("ARCH_HIERO_NEW").ok(),
             select: std::env::var("ARCH_HIERO_SELECT").ok(),
             view: std::env::var_os("ARCH_HIERO_VIEW").is_some(),
-            details: std::env::var_os("ARCH_HIERO_DETAILS").is_some(),
+            details: std::env::var("ARCH_HIERO_DETAILS").ok(),
             delay: std::env::var("ARCH_HIERO_SCREENSHOT_AFTER")
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -54,6 +59,9 @@ impl DevTools {
 
     pub fn frame(&mut self, app: &mut App, ctx: &egui::Context) {
         self.frame += 1;
+        if std::mem::take(&mut self.samples) && app.list.is_empty() {
+            app.load_samples();
+        }
         // Several names, such as "Sales > Payments", open each in turn, as clicking through
         // them would.
         if let Some(names) = self.open.take() {
@@ -85,8 +93,17 @@ impl DevTools {
         {
             open.editor.set_viewing(true);
         }
-        if self.frame > 5 && app.open.is_some() && std::mem::take(&mut self.details) {
+        if self.frame > 5
+            && app.open.is_some()
+            && let Some(tab) = self.details.take()
+        {
             app.start_details();
+            if let Some(tab) = crate::app::DetailsTab::ALL
+                .into_iter()
+                .find(|t| t.label().eq_ignore_ascii_case(&tab))
+            {
+                app.form.tab = tab;
+            }
         }
         let Some(path) = self.screenshot.clone() else {
             return;
