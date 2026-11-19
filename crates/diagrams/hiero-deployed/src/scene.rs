@@ -5,7 +5,7 @@
 use hiero_core::engine::{Engine, Laid};
 use hiero_core::geometry::{Point, Rect, round2};
 use hiero_core::model::LineWeight;
-use hiero_core::scene::{Anchor, Node, Paint, Scene};
+use hiero_core::scene::{Anchor, Node, Paint, Scene, Tone};
 use hiero_core::text::{MeasureText, TextStyle, Weight, wrap_text};
 
 use std::collections::HashSet;
@@ -224,6 +224,8 @@ fn draw_component(
                 fill: Some(colors::LOGO_FILL.into()),
                 stroke: Some(color.border.into()),
                 stroke_width: Some(width),
+                // White on the dark canvas too, as the prototype's is, so dark logos show.
+                tone: Some(Tone::Light),
                 ..Paint::default()
             },
         ));

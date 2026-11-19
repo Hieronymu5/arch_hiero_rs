@@ -182,7 +182,12 @@ impl DiagramView for DeployedComponent {
                                 item.png,
                             )
                             .fit_to_exact_size(egui::vec2(18.0, 18.0));
-                            ui.add(image);
+                            // On a white chip, so dark logos show in the dark theme.
+                            egui::Frame::new()
+                                .fill(egui::Color32::WHITE)
+                                .inner_margin(1)
+                                .corner_radius(3)
+                                .show(ui, |ui| ui.add(image));
                             if ui.checkbox(&mut has, item.label).changed() {
                                 let (target, tech) = (id.clone(), item.id);
                                 cx.apply(None, move |eng| toggle_tech(eng, &target, tech));

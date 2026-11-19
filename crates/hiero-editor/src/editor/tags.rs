@@ -482,7 +482,7 @@ impl<T: DiagramView> Editor<T> {
             && let Some(legend) = T::legend(&self.eng, Stamp::today(self.legend_version.clone()))
         {
             shown.bounds = T::scene(&self.eng, displayed, None).bounds;
-            legend.add_to(&mut shown);
+            legend.add_to_canvas(&mut shown);
         }
         if !dragging {
             if self.tag.cache.len() >= 2 {

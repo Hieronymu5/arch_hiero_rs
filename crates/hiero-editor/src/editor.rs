@@ -1254,7 +1254,7 @@ impl<T: DiagramView> Editor<T> {
                 .then(|| T::legend(&self.eng, Stamp::today(self.legend_version.clone())))
                 .flatten();
             if let Some(legend) = &legend {
-                legend.add_to(&mut scene);
+                legend.add_to_canvas(&mut scene);
             }
             self.legend_label = legend.map(|l| l.legend.description());
             self.scene_cache = Some((changes, scene));

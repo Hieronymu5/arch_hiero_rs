@@ -25,6 +25,7 @@ const HUE_ROTATE_180: [[f64; 3]; 3] = [
 pub fn map(rgb: [u8; 3], tone: Tone) -> [u8; 3] {
     match tone {
         Tone::Paper => PAPER,
+        Tone::Light => rgb,
         Tone::Element => {
             let inverted = rgb.map(|c| {
                 let c = f64::from(c) / 255.0;

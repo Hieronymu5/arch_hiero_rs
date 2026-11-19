@@ -4,7 +4,7 @@
 //! its bottom (see [`Legend::beside`]).
 
 use crate::geometry::{Point, Rect, fmt_num, round2};
-use crate::scene::{Anchor, Marker, Node, Paint, Scene};
+use crate::scene::{Anchor, Marker, Node, Paint, Scene, Tone};
 use crate::text::Weight;
 
 const TEXT: &str = "#1b1f24";
@@ -398,6 +398,33 @@ impl LegendBeside {
             b.bottom().max(bottom) - top,
         );
     }
+
+    /// Adds the legend to `scene` as [`add_to`](Self::add_to) does, for the editor's canvas:
+    /// with each icon on a white chip that stays white on the dark canvas, so a dark logo still
+    /// shows, as the canvas's logos do. Exports have no chips.
+    pub fn add_to_canvas(&self, scene: &mut Scene) {
+        let start = scene.nodes.len();
+        self.add_to(scene);
+        for node in scene.nodes.split_off(start) {
+            if let Node::Image { rect, .. } = &node {
+                scene.nodes.push(Node::rect(
+                    Rect::new(
+                        rect.x - 1.0,
+                        rect.y - 1.0,
+                        rect.width + 2.0,
+                        rect.height + 2.0,
+                    ),
+                    3.0,
+                    Paint {
+                        fill: Some("#ffffff".into()),
+                        tone: Some(Tone::Light),
+                        ..Paint::default()
+                    },
+                ));
+            }
+            scene.nodes.push(node);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -492,5 +519,45 @@ mod tests {
         assert_eq!(border, Some(3.0));
         assert_eq!(scene.bounds.right(), 400.0 + 40.0 + LEGEND_WIDTH + 1.5);
         assert_eq!(scene.bounds.bottom(), 301.5);
+    }
+
+    #[test]
+    fn on_the_canvas_each_icon_sits_on_a_white_chip_that_stays_white() {
+        let mut legend = plain(2);
+        legend.icons = vec![LegendIcon {
+            label: "Java".into(),
+            png: &[],
+        }];
+        let beside = LegendBeside {
+            legend,
+            gap: 20.0,
+            line_color: "#000000".into(),
+            border_width: 1.0,
+        };
+        let empty = || Scene {
+            nodes: Vec::new(),
+            bounds: Rect::new(0.0, 0.0, 100.0, 100.0),
+            text_color: "#000000".into(),
+            marker_color: "#000000".into(),
+            background: "#ffffff".into(),
+        };
+        let (mut export, mut canvas) = (empty(), empty());
+        beside.add_to(&mut export);
+        beside.add_to_canvas(&mut canvas);
+        // The export has no chip; the canvas has one just under the icon.
+        assert_eq!(canvas.nodes.len(), export.nodes.len() + 1);
+        let at = canvas
+            .nodes
+            .iter()
+            .position(|n| matches!(n, Node::Image { .. }))
+            .unwrap();
+        let Node::Rect { paint, .. } = &canvas.nodes[at - 1] else {
+            panic!("no chip under the icon");
+        };
+        assert_eq!(paint.tone, Some(Tone::Light));
+        assert_eq!(
+            crate::dark::map([255, 255, 255], Tone::Light),
+            [255, 255, 255]
+        );
     }
 }

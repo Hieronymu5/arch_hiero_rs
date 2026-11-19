@@ -52,7 +52,7 @@ characteristics), then the layer name.
 | Bars and the instance oval | `#f5f5f5` |
 | Characteristics bar border and separators | the layer's border |
 | Protocol bar border and separators | the component's border |
-| Logo boxes | `#ffffff` |
+| Logo boxes | `#ffffff`, white on the dark canvas too, so dark logos show |
 | Text | `#1b1f24` |
 
 Each component's own colours depend on its **Type**:
@@ -138,7 +138,8 @@ layers), its bottom level with the drawing's, or level with its top when the leg
 taller: a 320 px wide card like the conceptual diagram's, its border as wide as the diagram's
 lines, with the Core Component, Internal Dependency, and External Dependency colours one under
 another, each in its own border, then, under a bold "Technology Stack" heading, each logo the
-diagram shows, once, two to a row, in the catalogue's order, with its name. A logo that doesn't
+diagram shows, once, two to a row, in the catalogue's order, with its name (on the canvas, each
+on a white chip, so dark logos show in the dark theme; exports have no chips). A logo that doesn't
 fit in its component's bottom bar isn't shown, so it isn't listed. The bottom band has the date
 and the version shown, as the conceptual legend's does. Editing shows no legend.
 

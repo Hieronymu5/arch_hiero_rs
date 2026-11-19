@@ -13,6 +13,9 @@ pub enum Tone {
     Element,
     /// The paper's own colour, such as the gap a caption makes in its line.
     Paper,
+    /// Its light colour on the dark canvas too, such as the white chip behind a logo, so a
+    /// dark logo still shows.
+    Light,
 }
 
 /// Fill and stroke, inherited from groups as in SVG. `None` inherits; a fill of `"none"`
