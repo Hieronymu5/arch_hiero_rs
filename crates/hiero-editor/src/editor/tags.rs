@@ -525,17 +525,16 @@ impl<T: DiagramView> Editor<T> {
             None
         };
         let now_picture = self.picture(hidden, displayed, dragging);
-        let draw = |editor: &mut Self, (shown, hidden): &(Scene, Scene), opacity: f32| {
+        // Each picture's elements shown, at `opacity`, and with `faint`, those it hides. A fade
+        // draws the hidden ones of only one of its ends, so those hidden in both stay as faint
+        // as ever rather than being drawn twice.
+        let draw = |editor: &mut Self,
+                    (shown, hidden): &(Scene, Scene),
+                    opacity: f32,
+                    with_faint: bool| {
             paint_scene(painter, shown, xf, &mut editor.cache, opacity, dark);
-            if let Some(faint) = faint {
-                paint_scene(
-                    painter,
-                    hidden,
-                    xf,
-                    &mut editor.cache,
-                    faint * opacity,
-                    dark,
-                );
+            if let Some(faint) = faint.filter(|_| with_faint) {
+                paint_scene(painter, hidden, xf, &mut editor.cache, faint, dark);
             }
         };
         match fade {
@@ -545,18 +544,20 @@ impl<T: DiagramView> Editor<T> {
                 let before = self.hidden_by(&before_tags);
                 let before_picture = self.picture(&before, displayed, dragging);
                 if hidden.is_subset(&before) {
-                    // What this scene adds fades in over the one before.
-                    draw(self, &before_picture, 1.0);
-                    draw(self, &now_picture, t);
+                    // What this scene adds fades in over the one before, which already draws
+                    // faint everything this one still hides.
+                    draw(self, &before_picture, 1.0, true);
+                    draw(self, &now_picture, t, false);
                 } else if before.is_subset(hidden) {
-                    // What the one before showed and this one doesn't fades out.
-                    draw(self, &now_picture, 1.0);
-                    draw(self, &before_picture, 1.0 - t);
+                    // What the one before showed and this one doesn't fades out, over this
+                    // one, which draws faint everything either hides.
+                    draw(self, &now_picture, 1.0, true);
+                    draw(self, &before_picture, 1.0 - t, false);
                 } else {
-                    draw(self, &now_picture, 1.0);
+                    draw(self, &now_picture, 1.0, true);
                 }
             }
-            None => draw(self, &now_picture, 1.0),
+            None => draw(self, &now_picture, 1.0, true),
         }
         Some(now_picture.0)
     }
