@@ -648,6 +648,8 @@ pub fn new_diagram(
         line_weight: None,
         canvas: None,
         subtype: None,
+        tags: Vec::new(),
+        scenes: Vec::new(),
         content: ops(diagram_type).new_content(),
     };
     diagram.set_line_weight(LineWeight::Medium);

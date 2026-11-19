@@ -35,10 +35,14 @@ pub enum EditOp {
         y: Option<f64>,
         #[serde(default)]
         props: Option<Map<String, Value>>,
+        /// The diagram's tags to put it in, by id or name.
+        #[serde(default)]
+        tags: Option<Vec<String>>,
     },
-    /// Changes an element's name, description, properties (merged), container, or the diagram
-    /// it opens. A `parent_id` of "" takes it out of its container, and a `sub_diagram_id` of
-    /// "" stops it opening one.
+    /// Changes an element's name, description, properties (merged), container, the diagram it
+    /// opens, or the tags it's in. A `parent_id` of "" takes it out of its container, a
+    /// `sub_diagram_id` of "" stops it opening one, and `tags` replaces its tags, by id or name
+    /// (an empty list takes it out of them all).
     UpdateElement {
         id: String,
         #[serde(default)]
@@ -51,6 +55,8 @@ pub enum EditOp {
         props: Option<Map<String, Value>>,
         #[serde(default)]
         sub_diagram_id: Option<String>,
+        #[serde(default)]
+        tags: Option<Vec<String>>,
     },
     /// Moves an element's top-left corner to `x`, `y`, as dragging it there would.
     MoveElement {
@@ -141,6 +147,8 @@ struct Batch<'a, T: DiagramType> {
     refs: &'a mut HashMap<String, String>,
     /// The diagram being edited.
     diagram: DiagramId,
+    /// Its tags, which elements can be put in.
+    tags: Vec<hiero_core::tags::DiagramTag>,
 }
 
 impl<T: DiagramType> Batch<'_, T> {
@@ -155,6 +163,24 @@ impl<T: DiagramType> Batch<'_, T> {
             return Err(format!("there's no element “{text}”"));
         }
         Ok(id)
+    }
+
+    /// The ids of the diagram's tags named in `given`, by id or name (ignoring case), each once,
+    /// in the order of the diagram's tags.
+    fn tag_ids(&self, given: &[String]) -> Result<Vec<String>, String> {
+        let mut ids = Vec::new();
+        for text in given {
+            let wanted = text.trim().to_lowercase();
+            let tag = self
+                .tags
+                .iter()
+                .find(|t| t.id == *text || t.name.trim().to_lowercase() == wanted)
+                .ok_or_else(|| {
+                    format!("there's no tag “{text}”; add it with update_diagram_details first")
+                })?;
+            ids.push(tag.id.clone());
+        }
+        Ok(hiero_core::tags::in_tag_order(&ids, &self.tags))
     }
 
     fn connection_id(&self, text: &str) -> Result<ConnectionId, String> {
@@ -199,7 +225,9 @@ impl<T: DiagramType> Batch<'_, T> {
                 x,
                 y,
                 props,
+                tags,
             } => {
+                let tags = tags.as_deref().map(|t| self.tag_ids(t)).transpose()?;
                 let kind = Self::kind(kind)?;
                 let parent = parent_id
                     .as_deref()
@@ -245,6 +273,12 @@ impl<T: DiagramType> Batch<'_, T> {
                 if let Some(r) = reference {
                     self.refs.insert(r.clone(), id.0.clone());
                 }
+                if let Some(tags) = tags {
+                    self.eng.replace(&id, |mut e| {
+                        e.tags = tags;
+                        e
+                    });
+                }
                 if label.is_some() || description.is_some() || props.is_some() {
                     self.update(
                         &id,
@@ -267,8 +301,16 @@ impl<T: DiagramType> Batch<'_, T> {
                 parent_id,
                 props,
                 sub_diagram_id,
+                tags,
             } => {
                 let id = self.element_id(id)?;
+                if let Some(tags) = tags {
+                    let tags = self.tag_ids(tags)?;
+                    self.eng.replace(&id, |mut e| {
+                        e.tags = tags;
+                        e
+                    });
+                }
                 if let Some(sub) = sub_diagram_id {
                     let sub = Some(DiagramId::from(sub.as_str())).filter(|s| !s.0.is_empty());
                     if sub.as_ref() == Some(&self.diagram) {
@@ -510,6 +552,7 @@ pub fn apply<T: DiagramType>(
         eng,
         refs: &mut refs,
         diagram: diagram.meta.id.clone(),
+        tags: diagram.tags.clone(),
     };
     let mut messages = Vec::new();
     for (index, op) in ops.iter().enumerate() {

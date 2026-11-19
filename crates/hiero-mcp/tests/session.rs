@@ -166,6 +166,57 @@ async fn an_agent_builds_versions_and_exports_a_physical_diagram() {
         "{refused}"
     );
 
+    // Tags group elements, and scenes show some of them; deleting a tag untags its elements
+    // and drops the scenes that showed only it.
+    let (ok, tagged) = call(
+        &client,
+        "update_diagram_details",
+        json!({"id": id, "tags": [{"name": "Phase 1"}],
+               "scenes": [{"name": "First", "tags": ["phase 1"]}]}),
+    )
+    .await;
+    assert!(ok, "{tagged}");
+    let tagged: Value = serde_json::from_str(&tagged).unwrap();
+    let tag = tagged["diagram"]["tags"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(tagged["diagram"]["scenes"][0]["tags"], json!([tag]));
+    let element = tagged["diagram"]["elements"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (ok, edited) = call(
+        &client,
+        "edit_diagram",
+        json!({"id": id, "ops": [{"op": "update_element", "id": element, "tags": ["Phase 1"]}]}),
+    )
+    .await;
+    assert!(ok, "{edited}");
+    let edited: Value = serde_json::from_str(&edited).unwrap();
+    assert_eq!(edited["diagram"]["elements"][0]["tags"], json!([tag]));
+    let (ok, refused) = call(
+        &client,
+        "edit_diagram",
+        json!({"id": id, "ops": [{"op": "update_element", "id": element, "tags": ["Later"]}]}),
+    )
+    .await;
+    assert!(
+        !ok && refused.contains("there's no tag “Later”"),
+        "{refused}"
+    );
+    let (ok, untagged) = call(
+        &client,
+        "update_diagram_details",
+        json!({"id": id, "tags": []}),
+    )
+    .await;
+    assert!(ok, "{untagged}");
+    let untagged: Value = serde_json::from_str(&untagged).unwrap();
+    assert!(untagged["diagram"].get("tags").is_none());
+    assert!(untagged["diagram"].get("scenes").is_none());
+    assert!(untagged["diagram"]["elements"][0].get("tags").is_none());
+
     // Export SVG as text, and a zip to a file.
     let (ok, svg) = call(
         &client,

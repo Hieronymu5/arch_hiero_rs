@@ -16,6 +16,7 @@ use crate::file_check::colors_key;
 use crate::geometry::{DEFAULT_CANVAS, Size};
 use crate::model::{DiagramId, DiagramMeta, DiagramTypeId, LineWeight};
 use crate::stored::{StoredConnection, StoredContent, StoredDiagram, StoredElement};
+use crate::tags::{DiagramScene, DiagramTag};
 
 /// What the JSON file says it is, so a file from something else isn't taken for a diagram.
 pub const DIAGRAM_FILE_FORMAT: &str = "arch-hiero-diagram";
@@ -72,6 +73,11 @@ struct FileDiagram<'a> {
     /// type's first.
     #[serde(skip_serializing_if = "Option::is_none")]
     subtype: Option<&'a str>,
+    /// Left out when there are none.
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    tags: &'a [DiagramTag],
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    scenes: &'a [DiagramScene],
     elements: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     connections: Option<Vec<Value>>,
@@ -118,6 +124,8 @@ fn file_diagram(diagram: &StoredDiagram) -> FileDiagram<'_> {
         canvas_width: Some(diagram.canvas().width).filter(|w| *w != DEFAULT_CANVAS.width),
         canvas_height: Some(diagram.canvas().height).filter(|h| *h != DEFAULT_CANVAS.height),
         subtype: diagram.subtype.as_deref(),
+        tags: &diagram.tags,
+        scenes: &diagram.scenes,
         elements: diagram
             .content
             .elements
@@ -321,6 +329,14 @@ pub fn diagram_from_json(diagram: &Value) -> Result<StoredDiagram, DiagramFileEr
             diagram_type.subtype(s).is_some()
                 && diagram_type.subtypes().first().map(|f| f.id) != Some(s.as_str())
         }),
+        tags: d
+            .get("tags")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
+        scenes: d
+            .get("scenes")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
         content: StoredContent {
             elements,
             connections,

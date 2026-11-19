@@ -153,9 +153,42 @@ pub struct DetailsParams {
     /// means the type's first. A diagram's JSON has it in "subtype", left out at the first.
     #[serde(default)]
     pub subtype: Option<String>,
+    /// The diagram's tags, replacing them all, in the order they play: named sets of elements
+    /// that are shown or hidden together. Give each {id, name} to keep a tag (renamed, if the
+    /// name is new), or {name} alone to add one. A tag left out is deleted: its elements are
+    /// taken out of it, and scenes that showed only it are deleted. Names are unique, ignoring
+    /// case, and at most 40 characters. Put elements in tags with edit_diagram's "tags". A
+    /// diagram's JSON has them in "tags", left out when there are none.
+    #[serde(default)]
+    pub tags: Option<Vec<TagParam>>,
+    /// The diagram's scenes, replacing them all, in the order they're stepped through while
+    /// viewing: each {id?, name, tags}, showing the elements of the tags named (by id or name,
+    /// at least one) and hiding the rest of the tags' elements; elements in no tag show in every
+    /// scene. Set after "tags", so it can name tags added in the same call. A diagram's JSON has
+    /// them in "scenes".
+    #[serde(default)]
+    pub scenes: Option<Vec<SceneParam>>,
     /// The revision from get_diagram. If the diagram changed since, the update is refused.
     #[serde(default)]
     pub expected_revision: Option<i64>,
+}
+
+/// A diagram's tag, to keep (with its id) or add (without one).
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct TagParam {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub name: String,
+}
+
+/// A diagram's scene, to keep (with its id) or add (without one), and the tags it shows.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct SceneParam {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub name: String,
+    /// The tags it shows, by id or name.
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -167,7 +200,8 @@ pub struct EditParams {
     /// sub_diagram_id? (the id of an existing diagram the element links to and opens, a more
     /// detailed one of what it stands for; any number of elements can link to the same one,
     /// and linking or unlinking never creates, deletes, or moves a diagram; "" removes the
-    /// link)},
+    /// link), tags? (replaces the diagram's tags the element is in, by id or name; [] takes it
+    /// out of them all; add_element takes tags? too)},
     /// move_element {id, x, y}, resize_element {id, width, height}, remove_element {id} (also
     /// removes its arrows; what a container holds stays on the diagram, outside it, except a
     /// deployed component layer's components, which go with it), add_connection {ref?, source_id, target_id, props?}, update_connection {id, props},
@@ -434,7 +468,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Changes a diagram's name, description, colours, line weight (how thick elements' lines are), canvas size (the area elements can be placed on), or subtype (such as a C4 diagram's level). Its type can't be changed."
+        description = "Changes a diagram's name, description, colours, line weight (how thick elements' lines are), canvas size (the area elements can be placed on), subtype (such as a C4 diagram's level), tags (named sets of elements shown or hidden together), or scenes (views showing some of the tags, stepped through while viewing). Its type can't be changed."
     )]
     pub async fn update_diagram_details(
         &self,
@@ -478,6 +512,20 @@ impl HieroServer {
             if let Some(subtype) = &p.subtype {
                 check_subtype(d.meta.diagram_type, subtype).map_err(StoreError::Corrupt)?;
                 d.set_subtype(subtype);
+            }
+            if let Some(tags) = &p.tags {
+                let given: Vec<_> = tags
+                    .iter()
+                    .map(|t| (t.id.clone(), t.name.clone()))
+                    .collect();
+                hiero_core::tags::replace_tags(d, &given).map_err(StoreError::Corrupt)?;
+            }
+            if let Some(scenes) = &p.scenes {
+                let given: Vec<_> = scenes
+                    .iter()
+                    .map(|s| (s.id.clone(), s.name.clone(), s.tags.clone()))
+                    .collect();
+                hiero_core::tags::replace_scenes(d, &given).map_err(StoreError::Corrupt)?;
             }
             store.save(
                 &record.diagram,

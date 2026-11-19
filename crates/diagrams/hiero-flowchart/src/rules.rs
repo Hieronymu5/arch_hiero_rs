@@ -96,6 +96,7 @@ fn new_element(eng: &mut Engine<Flowchart>, kind: FlowchartKind, at: (f64, f64))
         description: None,
         parent_id: None,
         sub_diagram_id: None,
+        tags: Vec::new(),
         props: FlowchartProps::default(),
         width: None,
         height: None,

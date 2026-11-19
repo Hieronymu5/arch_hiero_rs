@@ -452,6 +452,12 @@ CREATE INDEX diagrams_by_name ON diagrams(name COLLATE NOCASE);
 CREATE INDEX diagrams_by_parent ON diagrams(parent_diagram_id);
 ";
 
+/// Adds a diagram's tags and scenes, each a JSON list, left out when it has none.
+const MIGRATION_11: &str = r"
+ALTER TABLE diagrams ADD COLUMN tags TEXT CHECK (tags IS NULL OR json_valid(tags));
+ALTER TABLE diagrams ADD COLUMN scenes TEXT CHECK (scenes IS NULL OR json_valid(scenes));
+";
+
 fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(MIGRATION_1),
@@ -464,6 +470,7 @@ fn migrations() -> Migrations<'static> {
         M::up(MIGRATION_8),
         M::up(MIGRATION_9),
         M::up(MIGRATION_10),
+        M::up(MIGRATION_11),
     ])
 }
 
@@ -1089,7 +1096,7 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
     let row = conn
         .query_row(
             "SELECT type, name, description, colors, created_at, updated_at, revision,
-                    line_weight, canvas_width, canvas_height, subtype
+                    line_weight, canvas_width, canvas_height, subtype, tags, scenes
              FROM diagrams WHERE id = ?1",
             params![id.0],
             |row| {
@@ -1105,6 +1112,8 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
                     row.get::<_, Option<f64>>(8)?,
                     row.get::<_, Option<f64>>(9)?,
                     row.get::<_, Option<String>>(10)?,
+                    row.get::<_, Option<String>>(11)?,
+                    row.get::<_, Option<String>>(12)?,
                 ))
             },
         )
@@ -1121,6 +1130,8 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
         canvas_width,
         canvas_height,
         subtype,
+        tags,
+        scenes,
     )) = row
     else {
         return Ok(None);
@@ -1195,6 +1206,8 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
             line_weight,
             canvas,
             subtype,
+            tags: read_list(tags.as_deref(), "tags")?,
+            scenes: read_list(scenes.as_deref(), "scenes")?,
             content: StoredContent {
                 elements,
                 connections,
@@ -1204,13 +1217,29 @@ fn read_record(conn: &Connection, id: &DiagramId) -> Result<Option<Record>> {
     }))
 }
 
+/// A diagram's tags or scenes, from their column.
+fn read_list<T: serde::de::DeserializeOwned>(json: Option<&str>, what: &str) -> Result<Vec<T>> {
+    json.map_or_else(
+        || Ok(Vec::new()),
+        |text| {
+            serde_json::from_str(text)
+                .map_err(|_| StoreError::Corrupt(format!("A diagram's {what} are damaged.")))
+        },
+    )
+}
+
+/// A diagram's tags or scenes for their column: NULL when there are none.
+fn list_json<T: serde::Serialize>(items: &[T]) -> Option<String> {
+    (!items.is_empty()).then(|| serde_json::to_string(items).expect("lists serialise"))
+}
+
 fn insert_diagram(tx: &Transaction<'_>, diagram: &StoredDiagram) -> Result<()> {
     let m = &diagram.meta;
     tx.execute(
         "INSERT INTO diagrams (id, type, name, description, colors, line_weight, content_hash,
                                revision, next_version, created_at, updated_at,
-                               canvas_width, canvas_height, subtype)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 1, ?8, ?9, ?10, ?11, ?12)",
+                               canvas_width, canvas_height, subtype, tags, scenes)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 1, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             m.id.0,
             m.diagram_type.as_str(),
@@ -1224,6 +1253,8 @@ fn insert_diagram(tx: &Transaction<'_>, diagram: &StoredDiagram) -> Result<()> {
             diagram.canvas.map(|c| c.width),
             diagram.canvas.map(|c| c.height),
             diagram.subtype,
+            list_json(&diagram.tags),
+            list_json(&diagram.scenes),
         ],
     )?;
     insert_content(tx, &m.id, &diagram.content)
@@ -1274,7 +1305,8 @@ fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) ->
     let changed = tx.execute(
         "UPDATE diagrams SET name = ?2, description = ?3, colors = ?4, line_weight = ?5,
                 content_hash = ?6, revision = revision + 1, updated_at = ?7,
-                canvas_width = ?9, canvas_height = ?10, subtype = ?11
+                canvas_width = ?9, canvas_height = ?10, subtype = ?11, tags = ?12,
+                scenes = ?13
          WHERE id = ?1 AND revision = ?8",
         params![
             m.id.0,
@@ -1288,6 +1320,8 @@ fn write_record(tx: &Transaction<'_>, diagram: &StoredDiagram, revision: i64) ->
             diagram.canvas.map(|c| c.width),
             diagram.canvas.map(|c| c.height),
             diagram.subtype,
+            list_json(&diagram.tags),
+            list_json(&diagram.scenes),
         ],
     )?;
     if changed == 0 {
@@ -1353,6 +1387,8 @@ mod tests {
             line_weight: None,
             canvas: None,
             subtype: None,
+            tags: Vec::new(),
+            scenes: Vec::new(),
             content: StoredContent {
                 elements: vec![
                     StoredElement::from_json(&json!({"id": "a", "kind": "actor", "label": "A", "x": 40, "y": 40})).unwrap(),
@@ -1363,6 +1399,40 @@ mod tests {
                 ],
             },
         }
+    }
+
+    #[test]
+    fn tags_and_scenes_are_kept_in_the_record_and_its_versions() {
+        use hiero_core::tags::{DiagramScene, DiagramTag, element_tags, set_element_tags};
+        let mut store = Store::open_in_memory().unwrap();
+        let record = store
+            .create(&diagram("t", DiagramTypeId::Conceptual))
+            .unwrap();
+        assert!(record.diagram.tags.is_empty());
+        let mut tagged = record.diagram.clone();
+        tagged.tags = vec![DiagramTag {
+            id: "x".into(),
+            name: "Phase 1".into(),
+        }];
+        tagged.scenes = vec![DiagramScene {
+            id: "s".into(),
+            name: "First".into(),
+            tags: vec!["x".into()],
+        }];
+        set_element_tags(&mut tagged.content.elements[0], vec!["x".into()]);
+        store.save(&tagged, Some(record.revision)).unwrap();
+        let got = store.get(&"t".into()).unwrap().unwrap().diagram;
+        assert_eq!((&got.tags, &got.scenes), (&tagged.tags, &tagged.scenes));
+        assert_eq!(element_tags(&got.content.elements[0]), ["x"]);
+        // Tags change the content, so it's a draft until a version is saved.
+        assert_eq!(store.status(&"t".into()).unwrap().label(), "Draft · v1");
+        assert_eq!(store.save_version(&"t".into(), None).unwrap(), Some(2));
+        assert_eq!(
+            store.get_version(&"t".into(), 2).unwrap().unwrap().tags,
+            tagged.tags
+        );
+        let (reverted, _) = store.revert_to_version(&"t".into(), 1, None).unwrap();
+        assert!(reverted.diagram.tags.is_empty() && reverted.diagram.scenes.is_empty());
     }
 
     #[test]

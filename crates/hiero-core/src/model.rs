@@ -344,6 +344,10 @@ pub struct Element<K, P> {
     /// The diagram this element opens: a more detailed diagram of what it stands for.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sub_diagram_id: Option<DiagramId>,
+    /// The ids of the diagram's tags the element is in, each once, in the order of the
+    /// diagram's tags. It shows while any of them does; one in no tag always shows.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     #[serde(flatten)]
     pub props: P,
     /// Size set by resizing. Unset means the kind's natural size.
@@ -667,6 +671,7 @@ mod tests {
             description: None,
             parent_id: Some("p".into()),
             sub_diagram_id: None,
+            tags: Vec::new(),
             props: Props { agent: true },
             width: None,
             height: Some(120.0),

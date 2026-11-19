@@ -497,6 +497,7 @@ fn new_element(
         description: None,
         parent_id: parent,
         sub_diagram_id: None,
+        tags: Vec::new(),
         props: PhysicalProps::default(),
         width: None,
         height: None,

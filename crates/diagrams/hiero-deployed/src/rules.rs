@@ -37,6 +37,7 @@ fn new_element(eng: &mut DEngine, kind: DeployedKind, label: &str) -> El<Deploye
         description: None,
         parent_id: None,
         sub_diagram_id: None,
+        tags: Vec::new(),
         props: DeployedProps::default(),
         width: None,
         height: None,

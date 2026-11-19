@@ -10,6 +10,7 @@ use serde_json::{Map, Value};
 
 use crate::geometry::{DEFAULT_CANVAS, Size};
 use crate::model::{Connection, ConnectionId, DiagramMeta, Element, ElementId, LineWeight};
+use crate::tags::{DiagramScene, DiagramTag};
 
 /// Keys that are columns of their own rather than properties.
 const ELEMENT_KEYS: [&str; 9] = [
@@ -69,6 +70,10 @@ pub struct StoredDiagram {
     /// The kind of diagram within its type, such as a C4 diagram's level, when it isn't the
     /// type's first.
     pub subtype: Option<String>,
+    /// The diagram's tags, in the order they play.
+    pub tags: Vec<DiagramTag>,
+    /// The diagram's scenes, in the order they're stepped through.
+    pub scenes: Vec<DiagramScene>,
     pub content: StoredContent,
 }
 

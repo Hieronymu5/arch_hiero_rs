@@ -494,6 +494,10 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
         }
     }
 
+    // 11, continued. The tags and scenes, left out when there are none.
+    let tag_ids = check_tags(diagram).map_err(at)?;
+    check_scenes(diagram, &tag_ids).map_err(at)?;
+
     // 12. The dates.
     for key in ["createdAt", "updatedAt"] {
         let text = match diagram.get(key) {
@@ -531,12 +535,124 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
                 | "canvasWidth"
                 | "canvasHeight"
                 | "subtype"
+                | "tags"
+                | "scenes"
         ) || (has_colors && k == colors_key)
     };
     if let Some(key) = first_unknown(diagram, allowed) {
         return Err(at(format!("“{key}” isn’t a field a diagram has.")));
     }
-    check_content::<T>(elements, connections)
+    check_content::<T>(elements, connections)?;
+    check_element_tags(elements, &tag_ids)
+}
+
+/// The tags or scenes of a diagram: a list, left out when it's empty.
+fn named_list<'a>(diagram: &'a Object, key: &str) -> Result<&'a [Value], String> {
+    match diagram.get(key) {
+        None => Ok(&[]),
+        Some(value) if is_empty(value) => Err(left_out(key)),
+        Some(Value::Array(items)) => Ok(items),
+        Some(_) => Err(must_be(key, "a list")),
+    }
+}
+
+/// A tag's or a scene's id and name, as a message names it: "The tag “Name”", or "A tag".
+fn id_and_name<'a>(
+    item: &'a Value,
+    what: &str,
+    seen: &mut BTreeSet<&'a str>,
+) -> Result<(&'a Object, &'a str, &'a str, String), String> {
+    let object = item
+        .as_object()
+        .ok_or_else(|| format!("A {what} must be an object."))?;
+    let where_ = match object.get("name").and_then(Value::as_str) {
+        Some(name) => format!("The {what} “{name}”"),
+        None => format!("A {what}"),
+    };
+    let at = |message: String| format!("{where_}: {message}");
+    let id = required_text(object, "id").map_err(at)?;
+    if !seen.insert(id) {
+        return Err(format!("The {what} id {id} is used twice."));
+    }
+    let name = match object.get("name") {
+        None => return Err(at(missing("name"))),
+        Some(Value::String(name)) => name.as_str(),
+        Some(_) => return Err(at(must_be("name", "text"))),
+    };
+    Ok((object, id, name, where_))
+}
+
+/// Checks a diagram's tags (beyond the prototype's file checks of its time): each with an id
+/// used once and a name no other has, ignoring case. Returns their ids.
+fn check_tags(diagram: &Object) -> Result<BTreeSet<String>, String> {
+    let mut ids = BTreeSet::new();
+    let mut names = BTreeSet::new();
+    for tag in named_list(diagram, "tags")? {
+        let (object, _, name, where_) = id_and_name(tag, "tag", &mut ids)?;
+        if let Some(problem) = crate::tags::name_problem(name, [], "tag", None) {
+            return Err(format!("{where_}: {problem}"));
+        }
+        if !names.insert(name.trim().to_lowercase()) {
+            return Err(format!("There’s already a tag called {}.", name.trim()));
+        }
+        if let Some(key) = first_unknown(object, |k| matches!(k, "id" | "name")) {
+            return Err(format!("{where_}: “{key}” isn’t a field a tag has."));
+        }
+    }
+    Ok(ids.into_iter().map(str::to_owned).collect())
+}
+
+/// Checks a diagram's scenes: each with an id used once, a name no other has, ignoring case,
+/// and one or more of the diagram's tags, each once.
+fn check_scenes(diagram: &Object, tag_ids: &BTreeSet<String>) -> Result<(), String> {
+    let mut ids = BTreeSet::new();
+    let mut named: Vec<(&str, &str)> = Vec::new();
+    for scene in named_list(diagram, "scenes")? {
+        let (object, id, name, where_) = id_and_name(scene, "scene", &mut ids)?;
+        let at = |message: String| format!("{where_}: {message}");
+        if let Some(problem) = crate::tags::name_problem(name, named.clone(), "scene", None) {
+            return Err(at(problem));
+        }
+        named.push((id, name));
+        let tags = required_list(object, "tags").map_err(at)?;
+        if tags.is_empty() {
+            return Err(at("A scene must show at least one tag.".into()));
+        }
+        let tags: Vec<&str> = tags
+            .iter()
+            .map(Value::as_str)
+            .collect::<Option<_>>()
+            .ok_or_else(|| at(must_be("tags", "a list of text")))?;
+        tags_known(&tags, tag_ids).map_err(at)?;
+        if let Some(key) = first_unknown(object, |k| matches!(k, "id" | "name" | "tags")) {
+            return Err(at(format!("“{key}” isn’t a field a scene has.")));
+        }
+    }
+    Ok(())
+}
+
+/// Checks that `tags` name each tag once, and only the diagram's.
+fn tags_known(tags: &[&str], tag_ids: &BTreeSet<String>) -> Result<(), String> {
+    if tags.iter().collect::<BTreeSet<_>>().len() != tags.len() {
+        return Err("“tags” must name each tag once.".into());
+    }
+    match tags.iter().find(|t| !tag_ids.contains(**t)) {
+        Some(unknown) => Err(format!("The tag {unknown} isn’t one of the diagram’s.")),
+        None => Ok(()),
+    }
+}
+
+/// Checks that each element's tags are the diagram's, each once.
+fn check_element_tags(elements: &[Value], tag_ids: &BTreeSet<String>) -> Result<(), String> {
+    for element in elements {
+        let tags: Vec<&str> = match element.get("tags").and_then(Value::as_array) {
+            Some(tags) => tags.iter().filter_map(Value::as_str).collect(),
+            None => continue,
+        };
+        tags_known(&tags, tag_ids)
+            .map_err(|m| format!("{}: {m}", element_prefix(element.as_object())))?;
+    }
+    Ok(())
 }
 
 /// Checks a diagram's elements and arrows (checks 16 to 32), as in a file or on the clipboard.
@@ -649,12 +765,32 @@ fn check_element<'a, T: DiagramType>(
             return Err(at(must_be("subDiagramId", "text")));
         }
     }
+    // Which tags it's in; whether they're the diagram's is checked with the diagram.
+    if let Some(tags) = object.get("tags") {
+        if is_empty(tags) {
+            return Err(at(left_out("tags")));
+        }
+        let list = tags
+            .as_array()
+            .ok_or_else(|| at(must_be("tags", "a list")))?;
+        if !list.iter().all(Value::is_string) {
+            return Err(at(must_be("tags", "a list of text")));
+        }
+    }
     // 22.
     let fields = T::file_fields(info.kind);
     let allowed = |k: &str| {
         matches!(
             k,
-            "id" | "kind" | "label" | "x" | "y" | "width" | "height" | "parentId" | "subDiagramId"
+            "id" | "kind"
+                | "label"
+                | "x"
+                | "y"
+                | "width"
+                | "height"
+                | "parentId"
+                | "subDiagramId"
+                | "tags"
         ) || (info.has_description && k == "description")
             || fields.iter().any(|f| f.key == k)
     };

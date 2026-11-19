@@ -286,6 +286,7 @@ pub fn sub_diagram(element: &El<C4>) -> Option<(&'static str, El<C4>)> {
         description: None,
         parent_id: None,
         sub_diagram_id: None,
+        tags: Vec::new(),
         props: C4Props {
             boundary_type,
             ..C4Props::default()

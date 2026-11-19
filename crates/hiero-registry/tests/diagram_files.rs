@@ -351,6 +351,133 @@ fn canvas_sizes() {
     assert!(written["diagram"].get("canvasHeight").is_none());
 }
 
+/// The conceptual file with two tags, the bot in both and the CRM in one, and a scene.
+fn tagged() -> Value {
+    let mut file = conceptual();
+    let d = at(&mut file, D);
+    d.insert(
+        "tags".into(),
+        json!([{"id": "happy", "name": "Happy path"}, {"id": "stock", "name": "Out of stock"}]),
+    );
+    d.insert(
+        "scenes".into(),
+        json!([{"id": "s1", "name": "First", "tags": ["happy"]}]),
+    );
+    at(&mut file, "/diagram/elements/0").insert("tags".into(), json!(["happy", "stock"]));
+    at(&mut file, "/diagram/elements/2").insert("tags".into(), json!(["happy"]));
+    file
+}
+
+#[test]
+fn tags_and_scenes() {
+    let diagram = diagram_from_file(&tagged()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(diagram.tags.len(), 2);
+    assert_eq!(diagram.scenes[0].tags, ["happy"]);
+    assert_eq!(
+        read_diagram_file(&diagram_to_zip(&diagram)).unwrap(),
+        diagram
+    );
+
+    let left_out = "must be left out when it’s empty or the default.";
+    assert_eq!(
+        refused(tagged(), set(D, "tags", json!([]))),
+        format!("The diagram: “tags” {left_out}")
+    );
+    assert_eq!(
+        refused(tagged(), set("/diagram/elements/2", "tags", json!([]))),
+        format!("“CRM”: “tags” {left_out}")
+    );
+    let named = |name: Value| {
+        set(
+            D,
+            "tags",
+            json!([{"id": "happy", "name": "Happy path"}, {"id": "stock", "name": name}]),
+        )
+    };
+    assert_eq!(
+        refused(tagged(), named(json!("HAPPY PATH"))),
+        "The diagram: There’s already a tag called HAPPY PATH."
+    );
+    assert_eq!(
+        refused(tagged(), named(json!(" "))),
+        "The diagram: The tag “ ”: Enter a name."
+    );
+    assert_eq!(
+        refused(tagged(), named(json!("x".repeat(41)))),
+        format!(
+            "The diagram: The tag “{}”: A tag's name must be 40 characters or fewer.",
+            "x".repeat(41)
+        )
+    );
+    assert_eq!(
+        refused(
+            tagged(),
+            set(
+                D,
+                "tags",
+                json!([{"id": "happy", "name": "A"}, {"id": "happy", "name": "B"}])
+            )
+        ),
+        "The diagram: The tag id happy is used twice."
+    );
+    assert_eq!(
+        refused(
+            tagged(),
+            set(
+                D,
+                "tags",
+                json!([{"id": "happy", "name": "Happy path", "colour": "red"}])
+            )
+        ),
+        "The diagram: The tag “Happy path”: “colour” isn’t a field a tag has."
+    );
+    assert_eq!(
+        refused(
+            tagged(),
+            set("/diagram/elements/2", "tags", json!(["gone"]))
+        ),
+        "“CRM”: The tag gone isn’t one of the diagram’s."
+    );
+    assert_eq!(
+        refused(
+            tagged(),
+            set("/diagram/elements/2", "tags", json!(["happy", "happy"]))
+        ),
+        "“CRM”: “tags” must name each tag once."
+    );
+    assert_eq!(
+        refused(tagged(), set("/diagram/elements/2", "tags", json!("happy"))),
+        "“CRM”: “tags” must be a list."
+    );
+    let scene = |value: Value| set(D, "scenes", json!([value]));
+    assert_eq!(
+        refused(
+            tagged(),
+            scene(json!({"id": "s1", "name": "First", "tags": []}))
+        ),
+        "The diagram: The scene “First”: A scene must show at least one tag."
+    );
+    assert_eq!(
+        refused(
+            tagged(),
+            scene(json!({"id": "s1", "name": "First", "tags": ["gone"]}))
+        ),
+        "The diagram: The scene “First”: The tag gone isn’t one of the diagram’s."
+    );
+    assert_eq!(
+        refused(
+            tagged(),
+            set(
+                D,
+                "scenes",
+                json!([{"id": "a", "name": "One", "tags": ["happy"]},
+                       {"id": "b", "name": "one", "tags": ["stock"]}])
+            )
+        ),
+        "The diagram: The scene “one”: There's already a scene called one."
+    );
+}
+
 #[test]
 fn elements_on_their_own() {
     let c = conceptual;

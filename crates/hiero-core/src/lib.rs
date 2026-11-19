@@ -23,4 +23,5 @@ pub mod palette;
 pub mod routing;
 pub mod scene;
 pub mod stored;
+pub mod tags;
 pub mod text;

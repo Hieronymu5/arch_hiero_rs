@@ -11,6 +11,7 @@ use crate::model::LineWeight;
 use crate::stored::{
     StoredConnection, StoredContent, StoredDiagram, StoredElement, canonical_json,
 };
+use crate::tags::{DiagramScene, DiagramTag};
 
 /// The longest description a saved version can have.
 pub const VERSION_DESCRIPTION_MAX: usize = 200;
@@ -34,6 +35,8 @@ pub struct DiagramSnapshot {
     pub line_weight: Option<LineWeight>,
     pub canvas: Option<Size>,
     pub subtype: Option<String>,
+    pub tags: Vec<DiagramTag>,
+    pub scenes: Vec<DiagramScene>,
     pub content: StoredContent,
 }
 
@@ -46,6 +49,8 @@ impl DiagramSnapshot {
             line_weight: diagram.line_weight,
             canvas: diagram.canvas,
             subtype: diagram.subtype.clone(),
+            tags: diagram.tags.clone(),
+            scenes: diagram.scenes.clone(),
             content: diagram.content.clone(),
         }
     }
@@ -58,6 +63,8 @@ impl DiagramSnapshot {
         diagram.line_weight = self.line_weight;
         diagram.canvas = self.canvas;
         diagram.subtype.clone_from(&self.subtype);
+        diagram.tags.clone_from(&self.tags);
+        diagram.scenes.clone_from(&self.scenes);
         diagram.content.clone_from(&self.content);
     }
 
@@ -81,6 +88,13 @@ impl DiagramSnapshot {
         // Left out at the type's first, for the same reason.
         if let Some(subtype) = &self.subtype {
             value["subtype"] = json!(subtype);
+        }
+        // Left out when there are none, for the same reason.
+        if !self.tags.is_empty() {
+            value["tags"] = json!(self.tags);
+        }
+        if !self.scenes.is_empty() {
+            value["scenes"] = json!(self.scenes);
         }
         value
     }
@@ -198,6 +212,8 @@ mod tests {
                 updated_at: "2026-01-01T00:00:00.000Z".into(),
             },
             colors: BTreeMap::new(),
+            tags: Vec::new(),
+            scenes: Vec::new(),
             line_weight: None,
             canvas: None,
             subtype: None,

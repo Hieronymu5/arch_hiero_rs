@@ -227,6 +227,7 @@ fn new_participant(eng: &mut SEngine, kind: SequenceKind, label: &str, x: f64) -
         description: None,
         parent_id: None,
         sub_diagram_id: None,
+        tags: Vec::new(),
         props: SequenceProps::default(),
         width: None,
         height: None,
