@@ -503,6 +503,30 @@ fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) -> Option<&'static
     action
 }
 
+/// The diagram's type, in the room left on a toolbar row, centred on the window rather than
+/// on that room, so it stays put whatever buttons are beside it: between editing and viewing,
+/// and on Edit Details. Where it would run into them, it moves aside to fit.
+fn diagram_type_label(ui: &mut Ui, text: String) {
+    let color = palette(ui).text_muted;
+    let font = fonts::bold(14.0);
+    let room = ui.available_rect_before_wrap();
+    let size = ui
+        .painter()
+        .layout_no_wrap(text.clone(), font.clone(), color)
+        .size()
+        .min(room.size());
+    let label = egui::Label::new(RichText::new(text).font(font).color(color))
+        .wrap_mode(egui::TextWrapMode::Truncate);
+    let half = size.x / 2.0;
+    let centre = ui.ctx().content_rect().center().x;
+    let x = centre.clamp(
+        room.left() + half,
+        (room.right() - half).max(room.left() + half),
+    );
+    let rect = egui::Rect::from_center_size(egui::pos2(x, room.center().y), size);
+    ui.put(rect, label);
+}
+
 /// A quiet toolbar button, set apart from the buttons that change the diagram: no face, its
 /// icon in the muted text colour, shaded in the accent while hovered, or while `pressed` is
 /// `Some(true)` for a toggle. One that can't be used is faded but stays focusable, so focus
@@ -1318,22 +1342,12 @@ impl App {
         let meta = open.record.meta.clone();
         let min_canvas = open.editor.min_canvas();
         // Back to the diagram, above every tab, where the diagram's page has its Back, and the
-        // diagram's type in the room after it, as on the diagram's page.
+        // diagram's type where it is on the diagram's page.
         let type_label = format!("{} diagram", open.record.type_label());
         let back = ui
             .horizontal(|ui| {
                 let back = page_button(ui, "Back", true).clicked();
-                ui.with_layout(
-                    Layout::centered_and_justified(egui::Direction::LeftToRight),
-                    |ui| {
-                        let color = palette(ui).text_muted;
-                        ui.label(
-                            RichText::new(type_label)
-                                .font(fonts::bold(14.0))
-                                .color(color),
-                        );
-                    },
-                );
+                diagram_type_label(ui, type_label);
                 back
             })
             .inner;
@@ -1552,23 +1566,12 @@ impl App {
                         }
                     }
                     // On the right the downloads, then how the canvas is shown: the grid, while
-                    // editing, the help, and the zoom; and the diagram's type in the room left
-                    // between.
+                    // editing, the help, and the zoom; and the diagram's type between.
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if let Some(export) = view_controls(ui, open.editor.as_mut()) {
                             action = Some(export);
                         }
-                        ui.with_layout(
-                            Layout::centered_and_justified(egui::Direction::LeftToRight),
-                            |ui| {
-                                let color = palette(ui).text_muted;
-                                ui.label(
-                                    RichText::new(format!("{} diagram", open.record.type_label()))
-                                        .font(fonts::bold(14.0))
-                                        .color(color),
-                                );
-                            },
-                        );
+                        diagram_type_label(ui, format!("{} diagram", open.record.type_label()));
                     });
                 });
                 if let Some(message) = &open.save_failed {
