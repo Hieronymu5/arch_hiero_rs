@@ -28,6 +28,9 @@ The Tags panel sits under the palette, and shows only once the diagram has tags.
   Space on one, then puts it in the tag or takes it out, and selects or moves nothing. The tag's
   elements are ringed in the accent. Clicking the name again, or pressing Escape, stops applying.
 - **While editing, the heading "Tags"** opens Edit Details on its Tags tab.
+- **The selected element's properties** have a Tags section, above its arrows, with a checkbox
+  for each tag, ticked for those it's in. Ticking one puts it in the tag, and unticking takes it
+  out, as one undo step. It shows only once the diagram has tags.
 - **Which tags are hidden isn't saved:** each visit starts with all of them shown.
 - **Pasting** keeps only the tags the diagram has.
 

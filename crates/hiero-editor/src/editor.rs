@@ -882,6 +882,7 @@ impl<T: DiagramView> Editor<T> {
         let mut focus_name_id = None;
         let mut request = None;
         let mut link: Option<(ElementId, Option<DiagramId>)> = None;
+        let mut tag_change: Option<(ElementId, String, bool)> = None;
         if let Some(id) = cx.eng.selected_connection.clone()
             && let Some(connection) = cx.eng.connection(&id).cloned()
         {
@@ -953,6 +954,17 @@ impl<T: DiagramView> Editor<T> {
                     }
                 }
             }
+            // A checkbox for each of the diagram's tags, ticked for those it's in.
+            if !self.tag.tags.is_empty() {
+                ui.add_space(5.0);
+                heading(ui, "Tags");
+                for tag in &self.tag.tags {
+                    let mut on = element.el.tags.contains(&tag.id);
+                    if ui.checkbox(&mut on, &tag.name).changed() {
+                        tag_change = Some((element.id().clone(), tag.id.clone(), on));
+                    }
+                }
+            }
             if T::ID.has_arrows() {
                 let arrows = cx.eng.arrows_of(element.id());
                 let can_draw = Engine::<T>::can_connect_from(&element);
@@ -1021,6 +1033,9 @@ impl<T: DiagramView> Editor<T> {
         }
         if let Some((element, diagram)) = link {
             self.link_diagram(&element, diagram);
+        }
+        if let Some((element, tag, into)) = tag_change {
+            self.set_element_tag(&element, &tag, into);
         }
         if remove_selection {
             self.act(None, |eng| {

@@ -320,19 +320,24 @@ impl<T: DiagramView> Editor<T> {
 
     /// Puts an element in the tag being applied, or takes it out when it's in it.
     pub(super) fn toggle_in_applying(&mut self, id: &ElementId) {
-        let Some(tag) = self
-            .tag
-            .applying
-            .as_ref()
-            .and_then(|a| self.tag.tags.iter().find(|t| t.id == *a))
-            .cloned()
-        else {
+        let (Some(tag), Some(element)) = (self.tag.applying.clone(), self.eng.element(id)) else {
+            return;
+        };
+        let into = !element.tags.contains(&tag);
+        self.set_element_tag(id, &tag, into);
+    }
+
+    /// Puts an element in the tag `tag_id`, or takes it out, as one undo step, and says so.
+    pub(super) fn set_element_tag(&mut self, id: &ElementId, tag_id: &str, into: bool) {
+        let Some(tag) = self.tag.tags.iter().find(|t| t.id == tag_id).cloned() else {
             return;
         };
         let Some(element) = self.eng.element(id) else {
             return;
         };
-        let into = !element.tags.contains(&tag.id);
+        if element.tags.contains(&tag.id) == into {
+            return;
+        }
         let label = element.label.clone();
         let order: Vec<String> = self.tag.tags.iter().map(|t| t.id.clone()).collect();
         self.act(None, |eng| {
