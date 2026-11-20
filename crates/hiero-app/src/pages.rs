@@ -11,8 +11,8 @@ use hiero_core::model::{
 };
 use hiero_editor::editor::{set_show_grid, show_grid};
 use hiero_editor::theme::{
-    Accent, CONTENT_INSET, choice_button, danger_button, export_button, field_label, form_style,
-    page_button, palette, row_button, set_accent,
+    Accent, CONTENT_INSET, DOWNLOAD_ICON, choice_button, danger_button, download_icon, field_label,
+    form_style, page_button, palette, row_button, set_accent,
 };
 use hiero_editor::{DiagramEditor, fonts};
 use hiero_store::Status;
@@ -386,27 +386,67 @@ fn theme_icon(
     }
 }
 
-/// The toolbar's controls for how the canvas is shown: while editing, Grid, which shows or
-/// hides the grid for every diagram; then Zoom out, the zoom, which resets it to 100%, and Zoom
-/// in. Zooming says the new zoom to screen readers. They're laid out left to right in a box of
-/// their own width, so Tab visits them in the order they're seen.
-fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) {
+/// The toolbar's quiet controls on the right: Export SVG and Export draw.io, each shown as the
+/// format and a download icon; then how the canvas is shown: while editing, Grid, which shows
+/// or hides the grid for every diagram; Help, which shows or hides the editor's instructions;
+/// then Zoom out, the zoom, which resets it to 100%, and Zoom in. Zooming says the new zoom to
+/// screen readers. They're laid out left to right in a box of their own width, so Tab visits
+/// them in the order they're seen. Returns `"svg"` or `"drawio"` when a download is clicked.
+fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) -> Option<&'static str> {
     const BUTTON: egui::Vec2 = egui::vec2(28.0, 24.0);
     const LEVEL: egui::Vec2 = egui::vec2(48.0, 24.0);
     const GAP: f32 = 2.0;
-    const GRID_GAP: f32 = 6.0;
+    const GROUP_GAP: f32 = 6.0;
+    const EXPORT_FONT: f32 = 13.0;
+    const EXPORT_PADDING: f32 = 8.0;
+    const EXPORT_ICON_GAP: f32 = 4.0;
     let viewing = editor.viewing();
+    let has_content = editor.has_content();
+    let font = egui::FontId::proportional(EXPORT_FONT);
+    let exports = [
+        ("SVG", "Export SVG", "svg"),
+        ("draw.io", "Export draw.io", "drawio"),
+    ]
+    .map(|(format, name, action)| {
+        let text = ui
+            .painter()
+            .layout_no_wrap(format.to_owned(), font.clone(), Color32::PLACEHOLDER)
+            .size()
+            .x;
+        let width = 2.0 * EXPORT_PADDING + text + EXPORT_ICON_GAP + DOWNLOAD_ICON;
+        (format, name, action, width)
+    });
+    let exports_width: f32 = exports.iter().map(|e| e.3).sum::<f32>() + GAP;
     let zoom_width = 2.0 * BUTTON.x + LEVEL.x + 2.0 * GAP;
-    let width = if viewing {
-        zoom_width
-    } else {
-        BUTTON.x + GAP + GRID_GAP + zoom_width
-    };
+    let grid_width = if viewing { 0.0 } else { BUTTON.x + GAP };
+    let width =
+        exports_width + GAP + GROUP_GAP + grid_width + BUTTON.x + GAP + GROUP_GAP + zoom_width;
+    let mut action = None;
     ui.allocate_ui_with_layout(
         egui::vec2(width, BUTTON.y),
         Layout::left_to_right(Align::Center),
         |ui| {
             ui.spacing_mut().item_spacing.x = GAP;
+            for (format, name, export, width) in exports {
+                let size = egui::vec2(width, BUTTON.y);
+                let button = quiet_button(ui, size, name, has_content, None, |p, c, col| {
+                    let left = c.x - width / 2.0 + EXPORT_PADDING;
+                    let text = p.text(
+                        egui::pos2(left, c.y),
+                        egui::Align2::LEFT_CENTER,
+                        format,
+                        font.clone(),
+                        col,
+                    );
+                    let icon =
+                        egui::pos2(text.right() + EXPORT_ICON_GAP + DOWNLOAD_ICON / 2.0, c.y);
+                    download_icon(p, icon, col);
+                });
+                if button.on_hover_text(name).clicked() && has_content {
+                    action = Some(export);
+                }
+            }
+            ui.add_space(GROUP_GAP);
             // Viewing never shows the grid.
             if !viewing {
                 let shown = show_grid(ui.ctx());
@@ -419,8 +459,14 @@ fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) {
                 if grid.on_hover_text(hint).clicked() {
                     set_show_grid(ui.ctx(), !shown);
                 }
-                ui.add_space(GRID_GAP);
             }
+            // Shaded while the help shows.
+            let help = editor.show_help();
+            let button = quiet_button(ui, BUTTON, "Help", true, Some(*help), help_icon);
+            if button.on_hover_text("Help").clicked() {
+                *help = !*help;
+            }
+            ui.add_space(GROUP_GAP);
             let (can_in, can_out) = editor.can_zoom();
             let before = editor.zoom_percent();
             let zoom_out = quiet_button(ui, BUTTON, "Zoom out", can_out, None, |p, c, col| {
@@ -454,6 +500,7 @@ fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) {
             }
         },
     );
+    action
 }
 
 /// A quiet toolbar button, set apart from the buttons that change the diagram: no face, its
@@ -520,6 +567,38 @@ fn magnifier_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32, p
     if plus {
         line((8.5, 6.0), (8.5, 11.0));
     }
+}
+
+/// Paints the prototype's 18px help icon, drawn on a 20-unit grid: a question mark in a circle.
+fn help_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32) {
+    use std::f32::consts::PI;
+    const STEPS: u8 = 16;
+    let scale = 18.0 / 20.0;
+    let at = |x: f32, y: f32| center + egui::vec2(x - 10.0, y - 10.0) * scale;
+    let stroke = egui::Stroke::new(1.7 * scale, color);
+    painter.circle_stroke(at(10.0, 10.0), 7.75 * scale, stroke);
+    // The hook: over the top of a circle about (10, 7.75), from its left round to its lower
+    // right, then a curve down into the stem.
+    let end = 1.95_f32.atan2(1.15);
+    let mut points: Vec<egui::Pos2> = (0..=STEPS)
+        .map(|i| {
+            let angle = PI + (PI + end) * f32::from(i) / f32::from(STEPS);
+            at(10.0 + 2.25 * angle.cos(), 7.75 + 2.25 * angle.sin())
+        })
+        .collect();
+    let (p0, c1, c2, p3) = ((11.15, 9.7), (10.45, 10.1), (10.0, 10.65), (10.0, 11.5));
+    for i in 1..=STEPS / 2 {
+        let t = f32::from(i) / f32::from(STEPS / 2);
+        let u = 1.0 - t;
+        let bez = |a: f32, b: f32, c: f32, d: f32| {
+            u * u * u * a + 3.0 * u * u * t * b + 3.0 * u * t * t * c + t * t * t * d
+        };
+        points.push(at(bez(p0.0, c1.0, c2.0, p3.0), bez(p0.1, c1.1, c2.1, p3.1)));
+    }
+    points.push(at(10.0, 11.75));
+    painter.add(egui::Shape::line(points, stroke));
+    // The dot, as the prototype's round stroke draws it.
+    painter.circle_filled(at(10.0, 14.25), (0.4 + 1.7 / 2.0) * scale, color);
 }
 
 /// Paints the prototype's 18px grid icon: three rows of three dots, on a 20-unit grid.
@@ -1238,8 +1317,27 @@ impl App {
         };
         let meta = open.record.meta.clone();
         let min_canvas = open.editor.min_canvas();
-        // Back to the diagram, above every tab, where the diagram's page has its Back.
-        if page_button(ui, "Back", true).clicked() {
+        // Back to the diagram, above every tab, where the diagram's page has its Back, and the
+        // diagram's type in the room after it, as on the diagram's page.
+        let type_label = format!("{} diagram", open.record.type_label());
+        let back = ui
+            .horizontal(|ui| {
+                let back = page_button(ui, "Back", true).clicked();
+                ui.with_layout(
+                    Layout::centered_and_justified(egui::Direction::LeftToRight),
+                    |ui| {
+                        let color = palette(ui).text_muted;
+                        ui.label(
+                            RichText::new(type_label)
+                                .font(fonts::bold(14.0))
+                                .color(color),
+                        );
+                    },
+                );
+                back
+            })
+            .inner;
+        if back {
             self.go_back();
             return;
         }
@@ -1428,6 +1526,9 @@ impl App {
                         open.editor.set_viewing(!viewing);
                     }
                     if !viewing {
+                        if page_button(ui, "Edit Details", false).clicked() {
+                            action = Some("details");
+                        }
                         let save = ui.add_enabled_ui(!open.status.saved, |ui| {
                             page_button(ui, "Save", false)
                         });
@@ -1450,30 +1551,13 @@ impl App {
                             action = Some("history");
                         }
                     }
-                    // Filled while the help shows.
-                    let help = open.editor.show_help();
-                    if page_button(ui, "Help", *help).clicked() {
-                        *help = !*help;
-                    }
-                    let has_content = open.editor.has_content();
-                    let svg =
-                        ui.add_enabled_ui(has_content, |ui| export_button(ui, "SVG", "Export SVG"));
-                    if svg.inner.clicked() {
-                        action = Some("svg");
-                    }
-                    let drawio = ui.add_enabled_ui(has_content, |ui| {
-                        export_button(ui, "draw.io", "Export draw.io")
-                    });
-                    if drawio.inner.clicked() {
-                        action = Some("drawio");
-                    }
-                    if !viewing && page_button(ui, "Edit Details", false).clicked() {
-                        action = Some("details");
-                    }
-                    // How the canvas is shown on the right: the grid, while editing, then the
-                    // zoom; and the diagram's type in the room left between.
+                    // On the right the downloads, then how the canvas is shown: the grid, while
+                    // editing, the help, and the zoom; and the diagram's type in the room left
+                    // between.
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        view_controls(ui, open.editor.as_mut());
+                        if let Some(export) = view_controls(ui, open.editor.as_mut()) {
+                            action = Some(export);
+                        }
                         ui.with_layout(
                             Layout::centered_and_justified(egui::Direction::LeftToRight),
                             |ui| {

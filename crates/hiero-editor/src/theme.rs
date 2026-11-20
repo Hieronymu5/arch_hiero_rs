@@ -330,24 +330,6 @@ pub fn accent_button(
     outlined_button(ui, text, accent, main, padding, font_size)
 }
 
-/// An export page action, such as Export SVG: a secondary [`page_button`] showing only the
-/// `format`, such as "SVG", and a download icon after it, which saves room in the toolbar. Its
-/// accessible name and tooltip are the full `action`.
-pub fn export_button(ui: &mut Ui, format: &str, action: &str) -> egui::Response {
-    let accent = palette(ui).accent;
-    outlined_button_with(
-        ui,
-        format,
-        action,
-        Some(download_icon),
-        accent,
-        false,
-        egui::vec2(12.0, 5.0),
-        PAGE_BUTTON_FONT_SIZE,
-    )
-    .on_hover_text(action)
-}
-
 /// A secondary page button showing only `icon`, `width` wide, named `name` for screen readers
 /// and in its tooltip.
 pub fn icon_button(ui: &mut Ui, icon: ButtonIcon, name: &str, width: f32) -> egui::Response {
@@ -370,9 +352,12 @@ pub fn icon_button(ui: &mut Ui, icon: ButtonIcon, name: &str, width: f32) -> egu
 const BUTTON_ICON: f32 = 16.0;
 const BUTTON_ICON_GAP: f32 = 6.0;
 
+/// The size of the download icon.
+pub const DOWNLOAD_ICON: f32 = BUTTON_ICON;
+
 /// Paints the prototype's 16px download icon, drawn on a 20-unit grid: an arrow down into a tray.
-fn download_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32) {
-    let scale = BUTTON_ICON / 20.0;
+pub fn download_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32) {
+    let scale = DOWNLOAD_ICON / 20.0;
     let at = |x: f32, y: f32| center + egui::vec2(x - 10.0, y - 10.0) * scale;
     let stroke = egui::Stroke::new(1.8 * scale, color);
     let path = |points: &[(f32, f32)]| {
