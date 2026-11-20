@@ -103,6 +103,16 @@ impl Rect {
             && inner.bottom() <= self.bottom()
     }
 
+    /// The rect grown by `by` on every side.
+    pub fn expand(self, by: f64) -> Self {
+        Self::new(
+            self.x - by,
+            self.y - by,
+            self.width + by * 2.0,
+            self.height + by * 2.0,
+        )
+    }
+
     pub fn with_position(self, p: Point) -> Self {
         Self {
             x: p.x,

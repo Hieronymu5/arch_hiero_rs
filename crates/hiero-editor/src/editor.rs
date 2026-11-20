@@ -19,7 +19,7 @@ use hiero_core::model::{ColorScheme, ConnectionId, DiagramId, ElementId, LineWei
 use hiero_core::scene::{Node, Scene, first_text_color, outlines};
 use hiero_core::stored::{ContentError, StoredContent};
 
-use crate::paint::{PaintCache, Transform, color, paint_nodes, paint_scene, world_line};
+use crate::paint::{PaintCache, Transform, color, paint_nodes, paint_scene_hiding, world_line};
 use crate::theme::{element_button, page_button, palette, selection_color};
 use crate::view::{View, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
@@ -1080,6 +1080,14 @@ impl<T: DiagramView> Editor<T> {
 
     // The canvas
 
+    /// The text hidden while it's typed over in place.
+    fn inline_hidden(&self) -> Vec<hiero_core::scene::PlacedText> {
+        self.inline
+            .as_ref()
+            .map(|e| e.hidden.clone())
+            .unwrap_or_default()
+    }
+
     fn displayed(&self) -> Cow<'_, [Laid<T>]> {
         match &self.drag {
             Drag::Move {
@@ -1271,7 +1279,8 @@ impl<T: DiagramView> Editor<T> {
                 } else {
                     self.still_scene().clone()
                 };
-                paint_scene(&painter, &scene, xf, &mut self.cache, 1.0, dark);
+                let hide = self.inline_hidden();
+                paint_scene_hiding(&painter, &scene, xf, &mut self.cache, 1.0, dark, &hide);
                 scene
             }
         };
@@ -2038,7 +2047,7 @@ impl<T: DiagramView> Editor<T> {
                 // F2 types a new name in place, as double-clicking does.
                 Key::F2 => {
                     if let Focus::Element(id) = self.focus.clone() {
-                        self.start_name_edit(&id);
+                        self.start_name_edit(&id, None);
                     }
                 }
                 Key::Enter => {

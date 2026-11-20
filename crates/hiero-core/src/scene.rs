@@ -221,6 +221,67 @@ pub struct Scene {
     pub background: String,
 }
 
+/// A piece of text in a scene, where it's drawn on the page, past any groups it's in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacedText {
+    /// x, and the baseline's y.
+    pub at: Point,
+    pub anchor: Anchor,
+    pub size: f64,
+    pub weight: Weight,
+    pub text: String,
+}
+
+impl PlacedText {
+    /// The box the text takes: from a little above its capitals to a little below its
+    /// baseline.
+    pub fn rect(&self, measure: &dyn crate::text::MeasureText) -> Rect {
+        let width = measure.width(&self.text, self.size, self.weight);
+        let left = match self.anchor {
+            Anchor::Start => self.at.x,
+            Anchor::Middle => self.at.x - width / 2.0,
+            Anchor::End => self.at.x - width,
+        };
+        Rect::new(left, self.at.y - self.size * 0.8, width, self.size)
+    }
+}
+
+/// Every piece of text in `nodes`, where it's drawn.
+pub fn placed_texts(nodes: &[Node]) -> Vec<PlacedText> {
+    fn walk(nodes: &[Node], offset: Point, out: &mut Vec<PlacedText>) {
+        for node in nodes {
+            match node {
+                Node::Text {
+                    at,
+                    anchor,
+                    size,
+                    weight,
+                    text,
+                    ..
+                } => out.push(PlacedText {
+                    at: Point::new(at.x + offset.x, at.y + offset.y),
+                    anchor: *anchor,
+                    size: *size,
+                    weight: *weight,
+                    text: text.clone(),
+                }),
+                Node::Group {
+                    translate,
+                    children,
+                    ..
+                } => {
+                    let by = translate.unwrap_or_default();
+                    walk(children, Point::new(offset.x + by.x, offset.y + by.y), out);
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(nodes, Point::default(), &mut out);
+    out
+}
+
 /// The lines of `nodes` alone, `extra` wider, with no fills, text, or images: drawn over the
 /// shapes, they thicken their outlines, such as a hovered element's.
 pub fn outlines(nodes: &[Node], extra: f64) -> Vec<Node> {
@@ -457,6 +518,33 @@ enum Token {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn placed_texts_are_found_past_the_groups_they_are_in() {
+        let text = |x: f64, text: &str| Node::Text {
+            at: Point::new(x, 20.0),
+            anchor: Anchor::Middle,
+            size: 10.0,
+            weight: Weight::Bold,
+            text: text.into(),
+            fill: None,
+            halo: None,
+        };
+        let nodes = vec![
+            text(5.0, "Name"),
+            Node::Group {
+                translate: Some(Point::new(100.0, 50.0)),
+                paint: Paint::default(),
+                children: vec![text(0.0, "Moved")],
+            },
+        ];
+        let placed = placed_texts(&nodes);
+        assert_eq!(placed.len(), 2);
+        assert_eq!(placed[1].at, Point::new(100.0, 70.0));
+        let rect = placed[0].rect(&crate::text::EstimateText);
+        assert!((rect.center().x - 5.0).abs() < 1e-9);
+        assert!((rect.y - 12.0).abs() < 1e-9 && (rect.bottom() - 22.0).abs() < 1e-9);
+    }
 
     #[test]
     fn parses_figure_paths() {

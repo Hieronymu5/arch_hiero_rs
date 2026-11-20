@@ -1015,4 +1015,47 @@ mod tests {
         assert_eq!(label(&w), None);
         assert_eq!(w.editor.eng.announcement, "Arrow's text removed.");
     }
+
+    #[test]
+    fn double_clicking_a_description_types_it_in_place_over_several_lines() {
+        use hiero_core::scene::placed_texts;
+        let mut w = Window::with(serde_json::json!([
+            { "id": "a1", "kind": "application", "label": "CRM",
+              "description": "Logs calls", "x": 40, "y": 300 },
+        ]));
+        let scene = Conceptual::scene(&w.editor.eng, w.editor.eng.layout(), None);
+        let at = |text: &str| {
+            let placed = placed_texts(&scene.nodes)
+                .into_iter()
+                .find(|t| t.text == text)
+                .unwrap();
+            placed.rect(&ESTIMATE).center()
+        };
+        let (description, name) = (at("Logs calls"), at("CRM"));
+        w.double_click(w.screen(description, Vec2::ZERO));
+        w.type_text("Logs calls");
+        // Shift+Enter starts a new line, and Enter saves.
+        let shift_enter = Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::SHIFT,
+        };
+        w.frame(vec![shift_enter], Modifiers::SHIFT);
+        w.type_text("and e-mails");
+        w.key(egui::Key::Enter);
+        let element = w.editor.eng.element(&"a1".into()).unwrap();
+        assert_eq!(
+            element.description.as_deref(),
+            Some("Logs calls\nand e-mails")
+        );
+        assert_eq!(element.label, "CRM");
+        assert_eq!(w.editor.eng.announcement, "CRM's description changed.");
+        // Its name still opens its name.
+        w.double_click(w.screen(name, Vec2::ZERO));
+        w.type_text("Sales CRM");
+        w.key(egui::Key::Enter);
+        assert_eq!(w.label("a1"), "Sales CRM");
+    }
 }

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use egui::epaint::{CircleShape, EllipseShape, Mesh, PathStroke, RectShape};
 use egui::{Color32, CornerRadius, Pos2, Shape, Stroke, StrokeKind, TextureHandle, Vec2};
 use hiero_core::geometry::{Point, Rect};
-use hiero_core::scene::{Anchor, Node, Paint, Scene, Seg, Tone, parse_path};
+use hiero_core::scene::{Anchor, Node, Paint, PlacedText, Scene, Seg, Tone, parse_path};
 use hiero_core::text::font_metrics;
 use lyon_path::builder::SvgPathBuilder;
 use lyon_path::geom::{Angle, euclid::Vector2D};
@@ -246,6 +246,8 @@ struct Ctx<'a> {
     opacity: f32,
     /// Recolours the scene for the dark canvas.
     dark: bool,
+    /// Text left out, such as what's being typed over in place.
+    hide: &'a [PlacedText],
 }
 
 impl Ctx<'_> {
@@ -300,6 +302,20 @@ pub fn paint_scene(
     opacity: f32,
     dark: bool,
 ) {
+    paint_scene_hiding(painter, scene, xf, cache, opacity, dark, &[]);
+}
+
+/// Paints `scene` as [`paint_scene`] does, but for the text in `hide`, such as what's being
+/// typed over in place.
+pub fn paint_scene_hiding(
+    painter: &egui::Painter,
+    scene: &Scene,
+    xf: Transform,
+    cache: &mut PaintCache,
+    opacity: f32,
+    dark: bool,
+    hide: &[PlacedText],
+) {
     let root = Paint::fill(scene.text_color.clone());
     let mut ctx = Ctx {
         painter,
@@ -308,6 +324,7 @@ pub fn paint_scene(
         scene,
         opacity,
         dark,
+        hide,
     };
     for node in &scene.nodes {
         paint_node(&mut ctx, node, &root, Point::default());
@@ -331,6 +348,7 @@ pub fn paint_nodes(
         scene,
         opacity: 1.0,
         dark,
+        hide: &[],
     };
     for node in nodes {
         paint_node(&mut ctx, node, &root, Point::default());
@@ -510,6 +528,10 @@ fn paint_node(ctx: &mut Ctx<'_>, node: &Node, parent: &Paint, offset: Point) {
             fill,
             halo,
         } => {
+            let placed = offset_point(*at, offset);
+            if ctx.hide.iter().any(|h| h.at == placed && h.text == *text) {
+                return;
+            }
             let color_hex = fill
                 .clone()
                 .or_else(|| parent.fill.clone())

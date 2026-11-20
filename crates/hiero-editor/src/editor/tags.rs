@@ -20,7 +20,7 @@ use hiero_core::scene::Scene;
 use hiero_core::tags::{DiagramScene, DiagramTag, hidden_element_ids, hidden_in_scene};
 
 use super::{DiagramRequest, DiagramView, Editor};
-use crate::paint::{Transform, paint_scene};
+use crate::paint::{Transform, paint_scene_hiding};
 use crate::theme::{choice_button, icon_button, palette};
 use crate::widgets::heading;
 
@@ -533,13 +533,16 @@ impl<T: DiagramView> Editor<T> {
         // Each picture's elements shown, at `opacity`, and with `faint`, those it hides. A fade
         // draws the hidden ones of only one of its ends, so those hidden in both stay as faint
         // as ever rather than being drawn twice.
+        // Leaving out the text typed over in place.
+        let hide = self.inline_hidden();
         let draw = |editor: &mut Self,
                     (shown, hidden): &(Scene, Scene),
                     opacity: f32,
                     with_faint: bool| {
-            paint_scene(painter, shown, xf, &mut editor.cache, opacity, dark);
+            let cache = &mut editor.cache;
+            paint_scene_hiding(painter, shown, xf, cache, opacity, dark, &hide);
             if let Some(faint) = faint.filter(|_| with_faint) {
-                paint_scene(painter, hidden, xf, &mut editor.cache, faint, dark);
+                paint_scene_hiding(painter, hidden, xf, cache, faint, dark, &hide);
             }
         };
         match fade {
