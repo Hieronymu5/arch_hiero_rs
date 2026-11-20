@@ -2,7 +2,8 @@
 
 use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Engine, Laid, validate_length};
-use hiero_core::geometry::Point;
+use hiero_core::geometry::{Point, Rect};
+use hiero_core::look::ArrowText;
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
 use hiero_editor::widgets::{self, text_field};
@@ -24,6 +25,40 @@ impl DiagramView for C4 {
         _slide: Option<(&ConnectionId, f64)>,
     ) -> Scene {
         scene_of(eng, layout)
+    }
+
+    fn arrow_texts(
+        eng: &Engine<Self>,
+        layout: &[Laid<Self>],
+    ) -> Vec<(ConnectionId, ArrowText, Rect)> {
+        drawn_arrows(eng, layout)
+            .into_iter()
+            .flat_map(|a| {
+                a.look
+                    .text_rects(eng.measure())
+                    .into_iter()
+                    .map(move |(field, rect)| (a.id.clone(), field, rect))
+            })
+            .collect()
+    }
+
+    const LINE_TEXT: Option<ArrowText> = Some(ArrowText::Description);
+
+    fn arrow_text(arrow: &Self::Arrow, field: ArrowText) -> String {
+        if field == ArrowText::Description {
+            arrow.description.clone().unwrap_or_default()
+        } else {
+            String::new()
+        }
+    }
+
+    fn with_arrow_text(arrow: &Self::Arrow, field: ArrowText, text: &str) -> Self::Arrow {
+        let text = (!text.trim().is_empty()).then(|| text.trim().to_owned());
+        let mut arrow = arrow.clone();
+        if field == ArrowText::Description {
+            arrow.description = text;
+        }
+        arrow
     }
 
     fn arrow_lines(

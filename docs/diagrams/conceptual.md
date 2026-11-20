@@ -139,8 +139,8 @@ These live in `hiero-core::figures` because more than one diagram type uses them
 
 ## Interaction specific to this type
 
-Everything else (palette, select, multi-select, move, snap, resize, delete, pan and zoom) is the
-shared editor engine (`hiero-editor`).
+Everything else (palette, select, multi-select, move, snap, resize, delete, pan and zoom, and
+typing names and arrow text in place) is the shared editor engine (`hiero-editor`).
 
 - Dropping an application on a domain puts it inside the domain. Dropping a component on an
   application puts it inside the application. Dropping a process, entity, or file on an
@@ -198,4 +198,5 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] A description on domains, under the name in its band, which grows to fit it (beyond the prototype)
 - [x] Path in the top bar: the diagrams the open one was reached through, from "Diagrams" on, each a link back to it; names longer than 24 characters are cut short, with the full name on hover (beyond the prototype)
 - [x] Sub diagrams and links: an element can link to any other diagram, picked in its properties, or add a new one as a sub diagram of its diagram, and opens it by clicking it in view mode; many elements can link to one diagram, and removing a link keeps the diagram. Edit Details lists a diagram's sub diagrams and deletes them; the list shows them under their diagram, and deleting a diagram deletes them. A link to a deleted diagram is dead: it counts as no link, exports leave it out, and saving a version drops it. draw.io exports add linked diagrams, then any other sub diagrams, as linked pages, and .zip exports hold the sub diagrams, which import back under their parents (beyond the prototype)
+- [x] Typing in place on the canvas: double-clicking an element, or F2 on it, opens a field over its name; double-clicking an arrow's text, connector, or transformation opens a field over it, and double-clicking its line opens its text. Enter or moving away saves, Escape cancels, and the properties' rules apply, with a problem shown under the field. Flowchart arrows and sequence messages take their text the same way, and C4 relationships their description
 - [ ] SVG and draw.io export that match the prototype (snapshot tests) — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

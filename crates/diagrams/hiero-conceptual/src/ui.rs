@@ -4,6 +4,7 @@ use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Dir, Engine, Laid, validate_length};
 use hiero_core::geometry::{Point, Rect};
 use hiero_core::legend::{LegendBeside, Stamp};
+use hiero_core::look::ArrowText;
 use hiero_core::model::{ArrowPayload, ConnectionId};
 use hiero_core::name_size::font_size_choices;
 use hiero_core::routing::payload_icon_placement;
@@ -33,6 +34,46 @@ impl DiagramView for Conceptual {
         slide: Option<(&ConnectionId, f64)>,
     ) -> Scene {
         scene_of(eng, layout, slide)
+    }
+
+    fn arrow_texts(
+        eng: &Engine<Self>,
+        layout: &[Laid<Self>],
+    ) -> Vec<(ConnectionId, ArrowText, Rect)> {
+        drawn_arrows(eng, layout, None)
+            .into_iter()
+            .flat_map(|a| {
+                a.look
+                    .text_rects(eng.measure())
+                    .into_iter()
+                    .map(move |(field, rect)| (a.id.clone(), field, rect))
+            })
+            .collect()
+    }
+
+    const LINE_TEXT: Option<ArrowText> = Some(ArrowText::Label);
+
+    fn arrow_text(arrow: &Self::Arrow, field: ArrowText) -> String {
+        match field {
+            ArrowText::Label => arrow.label.as_ref(),
+            ArrowText::Connector => arrow.connector.as_ref(),
+            ArrowText::Transformation => arrow.transformation.as_ref(),
+            ArrowText::Description => None,
+        }
+        .cloned()
+        .unwrap_or_default()
+    }
+
+    fn with_arrow_text(arrow: &Self::Arrow, field: ArrowText, text: &str) -> Self::Arrow {
+        let text = (!text.trim().is_empty()).then(|| text.trim().to_owned());
+        let mut arrow = arrow.clone();
+        match field {
+            ArrowText::Label => arrow.label = text,
+            ArrowText::Connector => arrow.connector = text,
+            ArrowText::Transformation => arrow.transformation = text,
+            ArrowText::Description => {}
+        }
+        arrow
     }
 
     fn arrow_lines(
@@ -319,6 +360,8 @@ mod tests {
     use hiero_editor::view::View;
 
     use crate::Conceptual;
+    use hiero_core::look::ArrowText;
+    use hiero_editor::DiagramView;
 
     static ESTIMATE: EstimateText = EstimateText;
 
@@ -417,6 +460,10 @@ mod tests {
                 pressed,
                 modifiers,
             };
+            // Long enough after any click before that the two don't make a double-click.
+            for _ in 0..20 {
+                self.frame(vec![], Modifiers::NONE);
+            }
             self.frame(vec![Event::PointerMoved(from)], modifiers);
             self.frame(vec![press(from, true)], modifiers);
             for t in [0.25, 0.5, 0.75, 1.0] {
@@ -424,6 +471,46 @@ mod tests {
             }
             self.frame(vec![press(to, false)], modifiers);
             self.frame(vec![], Modifiers::NONE);
+        }
+
+        /// Double-clicks at `at`.
+        fn double_click(&mut self, at: Pos2) {
+            let press = |pressed| Event::PointerButton {
+                pos: at,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            // Long enough after any click before that it doesn't count with it.
+            for _ in 0..20 {
+                self.frame(vec![], Modifiers::NONE);
+            }
+            self.frame(vec![Event::PointerMoved(at)], Modifiers::NONE);
+            self.frame(vec![press(true), press(false)], Modifiers::NONE);
+            self.frame(vec![press(true), press(false)], Modifiers::NONE);
+            // The field opens, focused, with its text selected.
+            self.frame(vec![], Modifiers::NONE);
+        }
+
+        fn key(&mut self, key: egui::Key) {
+            let event = Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            };
+            self.frame(vec![event], Modifiers::NONE);
+            self.frame(vec![], Modifiers::NONE);
+        }
+
+        /// Types `text` over what's selected in the focused field.
+        fn type_text(&mut self, text: &str) {
+            self.frame(vec![Event::Text(text.into())], Modifiers::NONE);
+        }
+
+        fn label(&self, id: &str) -> String {
+            self.editor.eng.element(&id.into()).unwrap().label.clone()
         }
 
         fn selection(&self) -> Vec<&str> {
@@ -852,5 +939,80 @@ mod tests {
             w.editor.tag_hidden().into_iter().collect::<Vec<_>>(),
             [ElementId::from("a1")]
         );
+    }
+
+    #[test]
+    fn double_clicking_an_element_types_its_name_in_place() {
+        let mut w = Window::new();
+        let crm = w.editor.eng.laid(&"a1".into()).unwrap().rect;
+        let at = w.screen(crm.center(), Vec2::ZERO);
+        w.double_click(at);
+        w.type_text("Sales CRM");
+        w.key(egui::Key::Enter);
+        assert_eq!(w.label("a1"), "Sales CRM");
+        assert_eq!(w.editor.eng.announcement, "Renamed CRM to Sales CRM.");
+        // Escape leaves it as it was.
+        w.double_click(at);
+        w.type_text("Other");
+        w.key(egui::Key::Escape);
+        assert_eq!(w.label("a1"), "Sales CRM");
+        // An empty name is refused, and the field stays open to say so, until Escape.
+        w.double_click(at);
+        w.key(egui::Key::Backspace);
+        w.key(egui::Key::Enter);
+        assert_eq!(w.label("a1"), "Sales CRM");
+        w.type_text("CRM");
+        w.key(egui::Key::Enter);
+        assert_eq!(w.label("a1"), "CRM");
+    }
+
+    #[test]
+    fn f2_types_the_focused_elements_name_in_place() {
+        let mut w = Window::new();
+        let crm = w.editor.eng.laid(&"a1".into()).unwrap().rect;
+        let at = w.screen(crm.center(), Vec2::ZERO);
+        w.drag(at, at, PointerButton::Primary, Modifiers::NONE);
+        w.key(egui::Key::F2);
+        w.type_text("ERP");
+        w.key(egui::Key::Enter);
+        assert_eq!(w.label("a1"), "ERP");
+        // Clicking away saves too.
+        w.key(egui::Key::F2);
+        w.type_text("Billing");
+        let away = w.screen(Point::new(900.0, 700.0), Vec2::ZERO);
+        w.drag(away, away, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.label("a1"), "Billing");
+    }
+
+    #[test]
+    fn double_clicking_an_arrows_text_or_line_types_its_text_in_place() {
+        let mut w = Window::new();
+        w.editor.eng.add_connection(&"u1".into(), &"a1".into());
+        let id = w.editor.eng.connections()[0].id.clone();
+        w.frame(vec![], Modifiers::NONE);
+        let line = Conceptual::arrow_lines(&w.editor.eng, w.editor.eng.layout(), None)
+            .into_iter()
+            .find(|l| l.id == id)
+            .unwrap();
+        let middle = Point::new(
+            f64::midpoint(line.from.x, line.to.x),
+            f64::midpoint(line.from.y, line.to.y),
+        );
+        // The line gives an arrow with no text some.
+        w.double_click(w.screen(middle, Vec2::ZERO));
+        w.type_text("Logs calls");
+        w.key(egui::Key::Enter);
+        let label = |w: &Window| w.editor.eng.connection(&id).unwrap().props.label.clone();
+        assert_eq!(label(&w).as_deref(), Some("Logs calls"));
+        // The text itself, where it's drawn, opens it too; cleared, it's taken away.
+        let (_, _, rect) = Conceptual::arrow_texts(&w.editor.eng, w.editor.eng.layout())
+            .into_iter()
+            .find(|(a, field, _)| *a == id && *field == ArrowText::Label)
+            .unwrap();
+        w.double_click(w.screen(rect.center(), Vec2::ZERO));
+        w.key(egui::Key::Backspace);
+        w.key(egui::Key::Enter);
+        assert_eq!(label(&w), None);
+        assert_eq!(w.editor.eng.announcement, "Arrow's text removed.");
     }
 }

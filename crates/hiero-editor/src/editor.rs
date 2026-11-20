@@ -14,7 +14,7 @@ use hiero_core::engine::{
 use hiero_core::geometry::{GRID, Point, Rect, Size};
 use hiero_core::layout::{canvas_rect, viewed_area};
 use hiero_core::legend::{LegendBeside, Stamp};
-use hiero_core::look::{HOVER_EXTRA_WIDTH, link_mark, link_mark_corner};
+use hiero_core::look::{ArrowText, HOVER_EXTRA_WIDTH, link_mark, link_mark_corner};
 use hiero_core::model::{ColorScheme, ConnectionId, DiagramId, ElementId, LineWeight};
 use hiero_core::scene::{Node, Scene, first_text_color, outlines};
 use hiero_core::stored::{ContentError, StoredContent};
@@ -24,6 +24,7 @@ use crate::theme::{element_button, page_button, palette, selection_color};
 use crate::view::{View, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP};
 use crate::widgets::{self, heading, select, text_field};
 
+mod inline;
 mod tags;
 
 /// An arrow as drawn, for selecting it with the pointer.
@@ -74,6 +75,29 @@ pub trait DiagramView: DiagramType {
     /// starts. Unset puts it just off the element's right side, half way down.
     fn connect_handle_at(_eng: &Engine<Self>, _element: &Laid<Self>) -> Option<Point> {
         None
+    }
+
+    /// Where the arrows' texts are drawn, each with its arrow and the text it shows, so
+    /// double-clicking one types it in place.
+    fn arrow_texts(
+        _eng: &Engine<Self>,
+        _layout: &[Laid<Self>],
+    ) -> Vec<(ConnectionId, ArrowText, Rect)> {
+        Vec::new()
+    }
+
+    /// The text double-clicking an arrow's line types in place, for a type whose arrows have
+    /// text.
+    const LINE_TEXT: Option<ArrowText> = None;
+
+    /// An arrow's text `field`, empty when it has none.
+    fn arrow_text(_arrow: &Self::Arrow, _field: ArrowText) -> String {
+        String::new()
+    }
+
+    /// The arrow with its text `field` set to `text`, or taken away when `text` is empty.
+    fn with_arrow_text(arrow: &Self::Arrow, _field: ArrowText, _text: &str) -> Self::Arrow {
+        arrow.clone()
     }
 
     /// The type's fields for the selected element.
@@ -328,6 +352,8 @@ pub struct Editor<T: DiagramView> {
     link_marks: Option<(u64, std::collections::BTreeSet<ElementId>, Vec<Node>)>,
     /// The diagram's tags and scenes, and what's shown of them.
     tag: tags::TagState,
+    /// A name or an arrow's text being typed in place on the canvas.
+    inline: Option<inline::InlineEdit>,
     outbox: Vec<Change>,
     pub show_help: bool,
     /// Only looking: no palette or properties, and the canvas only moves and zooms.
@@ -426,6 +452,7 @@ impl<T: DiagramView> Editor<T> {
             legend_version: "Draft".into(),
             legend_label: None,
             focus_name: false,
+            inline: None,
             notice: None,
             diagram_names: BTreeMap::new(),
             request: None,
@@ -1256,6 +1283,11 @@ impl<T: DiagramView> Editor<T> {
         if !self.viewing {
             self.paint_overlays(&painter, xf, &displayed, &response, ui);
         }
+        if self.viewing {
+            self.inline = None;
+        } else {
+            self.inline_ui(ui, xf, id);
+        }
     }
 
     /// The scene when nothing is being dragged, built again only when the content changed.
@@ -1532,6 +1564,14 @@ impl<T: DiagramView> Editor<T> {
         }
         if released {
             self.release(world);
+        }
+        // Double-clicking types a name or an arrow's text in place.
+        let double = ui.input(|i| {
+            i.pointer
+                .button_double_clicked(egui::PointerButton::Primary)
+        });
+        if double && response.hovered() && matches!(self.drag, Drag::None) {
+            self.double_click(pos, world, xf);
         }
         // Cursor hints.
         if response.hovered() {
@@ -1993,6 +2033,12 @@ impl<T: DiagramView> Editor<T> {
                     if let Focus::Element(id) = self.focus.clone() {
                         let base = self.selection_before_focus.take();
                         self.eng.toggle_selected(&id, base);
+                    }
+                }
+                // F2 types a new name in place, as double-clicking does.
+                Key::F2 => {
+                    if let Focus::Element(id) = self.focus.clone() {
+                        self.start_name_edit(&id);
                     }
                 }
                 Key::Enter => {

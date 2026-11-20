@@ -4,6 +4,7 @@
 use egui::Ui;
 use hiero_core::engine::{Conn, DiagramType, Dir, Engine, Laid, validate_length};
 use hiero_core::geometry::{Point, Rect};
+use hiero_core::look::ArrowText;
 use hiero_core::model::ConnectionId;
 use hiero_core::scene::Scene;
 use hiero_editor::theme::page_button;
@@ -16,7 +17,9 @@ use crate::model::{
 };
 use crate::rules::{arrow_title, normalized_arrow};
 use crate::scene::{drawn_rect, scene_of, timeline_of};
-use crate::timeline::{SELF_HEIGHT, SELF_WIDTH, head_bottom, head_shape, index_at, is_figure};
+use crate::timeline::{
+    LABEL_SIZE, LABEL_WEIGHT, SELF_HEIGHT, SELF_WIDTH, head_bottom, head_shape, index_at, is_figure,
+};
 
 /// Moves the message `id` one place earlier or later. Returns whether it could.
 fn step_message(eng: &mut Engine<Sequence>, id: &ConnectionId, later: bool) -> bool {
@@ -73,6 +76,43 @@ impl DiagramView for Sequence {
         slide: Option<(&ConnectionId, f64)>,
     ) -> Scene {
         scene_of(eng, layout, slide)
+    }
+
+    fn arrow_texts(
+        eng: &Engine<Self>,
+        layout: &[Laid<Self>],
+    ) -> Vec<(ConnectionId, ArrowText, Rect)> {
+        timeline_of(eng, layout, None)
+            .messages
+            .into_iter()
+            .filter_map(|m| {
+                let label = m.label.as_ref()?;
+                let (at, centred) = m.label_at();
+                let width = eng.measure().width(label, LABEL_SIZE, LABEL_WEIGHT);
+                let left = if centred { at.x - width / 2.0 } else { at.x };
+                let rect = Rect::new(left - 2.0, at.y - LABEL_SIZE, width + 4.0, LABEL_SIZE + 4.0);
+                Some((m.id, ArrowText::Label, rect))
+            })
+            .collect()
+    }
+
+    const LINE_TEXT: Option<ArrowText> = Some(ArrowText::Label);
+
+    fn arrow_text(arrow: &Self::Arrow, field: ArrowText) -> String {
+        if field == ArrowText::Label {
+            arrow.label.clone().unwrap_or_default()
+        } else {
+            String::new()
+        }
+    }
+
+    fn with_arrow_text(arrow: &Self::Arrow, field: ArrowText, text: &str) -> Self::Arrow {
+        let text = (!text.trim().is_empty()).then(|| text.trim().to_owned());
+        let mut arrow = arrow.clone();
+        if field == ArrowText::Label {
+            arrow.label = text;
+        }
+        arrow
     }
 
     fn arrow_lines(

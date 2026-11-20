@@ -247,6 +247,87 @@ pub struct ArrowLook {
     pub annotation: bool,
 }
 
+/// An arrow's text that can be typed in place on the canvas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArrowText {
+    /// Its text, such as a conceptual arrow's or a sequence diagram message's.
+    Label,
+    /// The box between it and its target, such as "API".
+    Connector,
+    /// The box on its middle, such as "Map fields".
+    Transformation,
+    /// A C4 relationship's description.
+    Description,
+}
+
+impl ArrowText {
+    /// What it's called when it's said to have changed.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Label => "Arrow's text",
+            Self::Connector => "Connector",
+            Self::Transformation => "Transformation",
+            Self::Description => "Relationship's description",
+        }
+    }
+
+    /// Its key in the stored arrow, which names its field in the properties panel too.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Label => "label",
+            Self::Connector => "connector",
+            Self::Transformation => "transformation",
+            Self::Description => "description",
+        }
+    }
+}
+
+/// The box `width` wide that text of `size` takes, written from `at` on its baseline, starting
+/// there, ending there, or centred on it.
+pub fn text_box(at: Point, width: f64, size: f64, anchor: Anchor) -> Rect {
+    let left = match anchor {
+        Anchor::Start => at.x,
+        Anchor::Middle => at.x - width / 2.0,
+        Anchor::End => at.x - width,
+    };
+    Rect::new(left, at.y - size * 0.8, width, size)
+}
+
+impl ArrowLook {
+    /// Where the arrow's texts are drawn, each with the text it shows, so double-clicking one
+    /// can type it in place.
+    pub fn text_rects(&self, measure: &dyn MeasureText) -> Vec<(ArrowText, Rect)> {
+        let mut rects = Vec::new();
+        if let Some(label) = self.label.as_ref().filter(|l| !l.is_empty()) {
+            let (at, align) =
+                label_text_position(label_placement(self.from, self.to), ARROW_LABEL_SIZE);
+            let width = measure.width(label, ARROW_LABEL_SIZE, Weight::Regular);
+            let anchor = match align {
+                Align::Start => Anchor::Start,
+                Align::End => Anchor::End,
+            };
+            rects.push((
+                ArrowText::Label,
+                text_box(at, width, ARROW_LABEL_SIZE, anchor),
+            ));
+        }
+        if let Some((_, rect)) = &self.connector {
+            rects.push((ArrowText::Connector, *rect));
+        }
+        if let Some((_, rect)) = &self.transformation {
+            rects.push((ArrowText::Transformation, *rect));
+        }
+        if let Some(caption) = &self.caption {
+            let middle = Point::new(
+                f64::midpoint(self.from.x, self.to.x),
+                f64::midpoint(self.from.y, self.to.y),
+            );
+            rects.push((ArrowText::Description, caption.rect(middle, measure)));
+        }
+        rects
+    }
+}
+
 /// Text centred on the middle of an arrow: lines of a description, and a technology in square
 /// brackets under them in smaller text.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -1346,6 +1427,35 @@ mod tests {
     use super::*;
     use crate::export::svg::scene_to_svg;
     use crate::text::EstimateText;
+
+    #[test]
+    fn an_arrows_texts_are_found_where_they_are_drawn() {
+        let look = ArrowLook {
+            from: Point::new(0.0, 0.0),
+            to: Point::new(300.0, 0.0),
+            label: Some("Build".into()),
+            connector: Some(("API".into(), Rect::new(250.0, -10.0, 40.0, 20.0))),
+            caption: Some(Caption::new(Some("Reads"), None)),
+            ..ArrowLook::default()
+        };
+        let rects = look.text_rects(&EstimateText);
+        let kinds: Vec<ArrowText> = rects.iter().map(|(k, _)| *k).collect();
+        assert_eq!(
+            kinds,
+            [
+                ArrowText::Label,
+                ArrowText::Connector,
+                ArrowText::Description
+            ]
+        );
+        // The text is drawn above the line, starting near its start.
+        let label = rects[0].1;
+        let (at, _) = label_text_position(label_placement(look.from, look.to), ARROW_LABEL_SIZE);
+        assert!(label.contains_point(Point::new(at.x + 5.0, at.y - 4.0)));
+        assert!(label.bottom() <= 0.0);
+        // The caption is centred on the middle.
+        assert!(rects[2].1.contains_point(Point::new(150.0, 0.0)));
+    }
 
     #[test]
     fn a_caption_over_twenty_characters_is_split_evenly() {
