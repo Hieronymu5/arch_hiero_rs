@@ -104,6 +104,12 @@ pub trait DiagramView: DiagramType {
         arrow.clone()
     }
 
+    /// Whether an element is a section, a heading across a stage of the diagram, which a
+    /// scene shown scrolls into view.
+    fn is_section(_element: &Laid<Self>) -> bool {
+        false
+    }
+
     /// The type's fields for the selected element.
     fn element_properties(ui: &mut Ui, cx: &mut PropsCx<'_, Self>, element: &Laid<Self>);
 
@@ -1192,6 +1198,9 @@ impl<T: DiagramView> Editor<T> {
         // While viewing, a drawing smaller than the window sits in its top-left corner.
         self.view.centred = !self.viewing;
         self.view.clamp(rect);
+        if std::mem::take(&mut self.tag.reveal_section) {
+            self.reveal_scene_section(rect);
+        }
         let painter = ui.painter_at(rect);
         let dark = dark_canvas(ui.ctx());
         let (paper_color, around) = paper_colors(dark);

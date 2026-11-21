@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::geometry::Rect;
 use crate::stored::{StoredDiagram, StoredElement};
 
 /// The longest a tag's or a scene's name can be, in characters.
@@ -173,6 +174,45 @@ pub fn element_tags(element: &StoredElement) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// An element a scene shows, for finding the section it's about: where it is, whether it's a
+/// section, and whether it's in a tag.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShownElement {
+    pub rect: Rect,
+    pub section: bool,
+    pub tagged: bool,
+}
+
+/// Where in `shown`, the elements a scene shows, the leftmost section the scene is active in
+/// is: one in a tag itself, or over a tagged element the scene shows that reaches under no
+/// other section. Elements in no tag show in every scene, and one stretched across several
+/// sections, such as a bar along the diagram, is about none of them, so neither makes a section
+/// active.
+pub fn leftmost_active_section(shown: &[ShownElement]) -> Option<usize> {
+    let sections: Vec<usize> = (0..shown.len()).filter(|&i| shown[i].section).collect();
+    let mut active: BTreeSet<usize> = sections
+        .iter()
+        .copied()
+        .filter(|&i| shown[i].tagged)
+        .collect();
+    for element in shown.iter().filter(|e| !e.section && e.tagged) {
+        let under: Vec<usize> = sections
+            .iter()
+            .copied()
+            .filter(|&i| {
+                let s = shown[i].rect;
+                element.rect.x < s.right() && element.rect.right() > s.x
+            })
+            .collect();
+        if let [only] = under[..] {
+            active.insert(only);
+        }
+    }
+    active
+        .into_iter()
+        .min_by(|&a, &b| shown[a].rect.x.total_cmp(&shown[b].rect.x))
 }
 
 /// Sets the tags an element as stored is in, leaving the property out when there are none.
@@ -337,6 +377,47 @@ pub fn replace_scenes(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_leftmost_section_over_what_a_scene_shows_of_its_tags_is_found() {
+        let at = |x: f64, width: f64, section: bool, tagged: bool| ShownElement {
+            rect: Rect::new(x, 0.0, width, 40.0),
+            section,
+            tagged,
+        };
+        // Book, Explore, and Travel, out of order.
+        let sections = [
+            at(1000.0, 400.0, true, false),
+            at(0.0, 400.0, true, false),
+            at(2000.0, 400.0, true, false),
+        ];
+        let with = |more: &[ShownElement]| {
+            let mut all = sections.to_vec();
+            all.extend_from_slice(more);
+            leftmost_active_section(&all)
+        };
+        // Elements in no tag show in every scene, so they don't count.
+        assert_eq!(
+            with(&[
+                at(100.0, 100.0, false, false),
+                at(1950.0, 200.0, false, true)
+            ]),
+            Some(2)
+        );
+        // An element under one section makes it active; one across several, none of them.
+        assert_eq!(with(&[at(1300.0, 100.0, false, true)]), Some(0));
+        assert_eq!(
+            with(&[at(0.0, 2400.0, false, true), at(2100.0, 100.0, false, true)]),
+            Some(2)
+        );
+        assert_eq!(with(&[at(300.0, 900.0, false, true)]), None);
+        // A section in a tag is active itself.
+        assert_eq!(
+            leftmost_active_section(&[at(0.0, 400.0, true, true), at(1000.0, 400.0, true, false)]),
+            Some(0)
+        );
+        assert_eq!(leftmost_active_section(&sections), None);
+    }
 
     fn tag(id: &str, name: &str) -> DiagramTag {
         DiagramTag {

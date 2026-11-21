@@ -59,6 +59,9 @@ rules for tag names.
   starts at the first scene.
 - **What a scene doesn't show** stays very faint (8%) and can't be clicked. When a later scene
   shows it, it fades in over 0.8 s, with its arrows. The first scene shown is drawn at once.
+- **Each scene shown** scrolls the leftmost section it's about into view, if it isn't already: a
+  section in one of its tags, or one over an element it shows of its tags that reaches under no
+  other section. Its left end shows when it's too wide to fit.
 - **Play** steps on every 3 s and stops at the last scene. Play at the last scene starts again
   from the first. Choosing a scene, Previous, or Next stops play.
 

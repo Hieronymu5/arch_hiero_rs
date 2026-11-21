@@ -14,10 +14,14 @@ use std::collections::BTreeSet;
 
 use egui::{Color32, CursorIcon, Pos2, RichText, Sense, Stroke, Ui};
 use hiero_core::engine::Laid;
+use hiero_core::geometry::Rect;
 use hiero_core::legend::Stamp;
 use hiero_core::model::ElementId;
 use hiero_core::scene::Scene;
-use hiero_core::tags::{DiagramScene, DiagramTag, hidden_element_ids, hidden_in_scene};
+use hiero_core::tags::{
+    DiagramScene, DiagramTag, ShownElement, hidden_element_ids, hidden_in_scene,
+    leftmost_active_section,
+};
 
 use super::{DiagramRequest, DiagramView, Editor};
 use crate::paint::{Transform, paint_scene_hiding};
@@ -50,6 +54,8 @@ pub(super) struct TagState {
     playing: Option<f64>,
     /// While what a scene shows fades in: the tags hidden before, and when it started.
     fade: Option<(BTreeSet<String>, f64)>,
+    /// Set when a scene is shown, until the section it's about is scrolled into view.
+    pub reveal_section: bool,
     /// What's drawn for the content and the elements hidden: the elements shown, with the
     /// arrows between them, and those hidden. At most two, for a fade's two ends.
     pub cache: Vec<(u64, BTreeSet<ElementId>, Scene, Scene)>,
@@ -68,6 +74,8 @@ impl TagState {
         self.fade = None;
         self.applying = None;
         self.cache.clear();
+        // Viewing starts at the first scene, whose section is scrolled into view.
+        self.reveal_section = !self.scenes.is_empty();
     }
 }
 
@@ -396,6 +404,42 @@ impl<T: DiagramView> Editor<T> {
         if changed {
             self.tag.fade = Some((before, now));
         }
+        self.tag.reveal_section = true;
+    }
+
+    /// Scrolls the leftmost section the scene showing is active in into view, if it isn't
+    /// already, so the stage of the diagram it's about can be seen: its left end, if it's too
+    /// wide to fit.
+    pub(super) fn reveal_scene_section(&mut self, viewport: egui::Rect) {
+        if self.active_scene().is_none() {
+            return;
+        }
+        let hidden = self.tag_hidden();
+        let shown: Vec<(Rect, ShownElement)> = self
+            .eng
+            .layout()
+            .iter()
+            .filter(|e| !hidden.contains(e.id()))
+            .map(|e| {
+                let rect = T::drawn_rect(&self.eng, e);
+                let element = ShownElement {
+                    rect,
+                    section: T::is_section(e),
+                    tagged: !e.el.tags.is_empty(),
+                };
+                (rect, element)
+            })
+            .collect();
+        let elements: Vec<ShownElement> = shown.iter().map(|(_, e)| *e).collect();
+        let Some(index) = leftmost_active_section(&elements) else {
+            return;
+        };
+        let r = shown[index].0;
+        #[expect(clippy::cast_possible_truncation, reason = "canvas pixels")]
+        let (left, right, top, bottom) =
+            (r.x as f32, r.right() as f32, r.y as f32, r.bottom() as f32);
+        self.view.reveal_x(left, right, viewport, 20.0);
+        self.view.reveal_y(top, bottom, viewport, 20.0);
     }
 
     /// Shows the scene at `index`, stopping play.

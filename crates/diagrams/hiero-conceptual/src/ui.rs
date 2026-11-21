@@ -16,7 +16,7 @@ use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 use crate::arrows::{self, offset_at, place_automatically, set_manual_offset, straighten};
 use crate::model::{
     ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
-    DESCRIPTION_MAX, NamePosition, TRANSFORMATION_MAX,
+    ConceptualKind, DESCRIPTION_MAX, NamePosition, TRANSFORMATION_MAX,
 };
 use crate::rules::{arrow_title, figure_of, normalized_arrow};
 use crate::scene::{drawn_arrows, drawn_rect, scene_of};
@@ -109,6 +109,10 @@ impl DiagramView for Conceptual {
 
     fn drawn_rect(eng: &Engine<Self>, element: &Laid<Self>) -> Rect {
         drawn_rect(eng, element)
+    }
+
+    fn is_section(element: &Laid<Self>) -> bool {
+        element.el.kind == ConceptualKind::Section
     }
 
     fn element_properties(ui: &mut Ui, cx: &mut PropsCx<'_, Self>, element: &Laid<Self>) {
@@ -942,6 +946,47 @@ mod tests {
             w.editor.tag_hidden().into_iter().collect::<Vec<_>>(),
             [ElementId::from("a1")]
         );
+    }
+
+    #[test]
+    fn showing_a_scene_scrolls_its_stages_header_into_view() {
+        use hiero_core::tags::{DiagramScene, DiagramTag};
+        let mut w = Window::with(serde_json::json!([
+            { "id": "s1", "kind": "section", "label": "Explore", "x": 40, "y": 40,
+              "width": 400, "tags": ["e"] },
+            { "id": "s2", "kind": "section", "label": "Travel", "x": 2600, "y": 40,
+              "width": 400 },
+            { "id": "a1", "kind": "application", "label": "CRM", "x": 40, "y": 300 },
+            { "id": "p1", "kind": "process", "label": "Pay", "x": 2700, "y": 300,
+              "tags": ["t"] },
+        ]));
+        let tag = |id: &str| DiagramTag {
+            id: id.into(),
+            name: id.to_uppercase(),
+        };
+        let scene = |id: &str, tag: &str| DiagramScene {
+            id: id.into(),
+            name: id.into(),
+            tags: vec![tag.into()],
+        };
+        w.editor.set_tags(
+            &[tag("e"), tag("t")],
+            &[scene("explore", "e"), scene("travel", "t")],
+        );
+        w.editor.set_viewing(true);
+        w.frame(vec![], Modifiers::NONE);
+        let canvas = w.ctx.read_response(w.salt.with("canvas")).unwrap().rect;
+        let shown = |w: &Window, x: f64| {
+            let at = w.screen(Point::new(x, 60.0), w.editor.view().scroll);
+            canvas.x_range().contains(at.x)
+        };
+        // The first scene's header is in view as it is.
+        assert!(shown(&w, 40.0));
+        // The second's, the section over what it shows of its tag, comes into view.
+        assert!(!shown(&w, 2600.0));
+        w.editor.go_to_scene(1, 0.0);
+        w.frame(vec![], Modifiers::NONE);
+        assert!(shown(&w, 2600.0) && shown(&w, 3000.0));
     }
 
     #[test]

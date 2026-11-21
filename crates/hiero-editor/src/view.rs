@@ -123,6 +123,24 @@ impl View {
         self.scroll.x - before
     }
 
+    /// Scrolls up or down as little as shows world rows `top` to `bottom` within `viewport`, with
+    /// `margin` to spare, showing the top when they don't fit. Returns how far it scrolled.
+    pub fn reveal_y(&mut self, top: f32, bottom: f32, viewport: Rect, margin: f32) -> f32 {
+        let start = self.transform(viewport).origin.y;
+        let (screen_top, screen_bottom) = (start + top * self.zoom, start + bottom * self.zoom);
+        let mut d = 0.0;
+        if screen_bottom > viewport.max.y - margin {
+            d = viewport.max.y - margin - screen_bottom;
+        }
+        if screen_top + d < viewport.min.y + margin {
+            d = viewport.min.y + margin - screen_top;
+        }
+        let before = self.scroll.y;
+        self.scroll.y += d;
+        self.clamp(viewport);
+        self.scroll.y - before
+    }
+
     /// Zooms to `zoom`, keeping the world point under `anchor` (a screen position) where it is.
     pub fn zoom_around(&mut self, zoom: f32, anchor: Pos2, viewport: Rect) {
         let zoom = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
