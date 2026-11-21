@@ -2065,6 +2065,7 @@ mod tests {
 
     #[test]
     fn the_travel_agent_sample_runs_through_a_trips_stages_and_scenes() {
+        use hiero_core::tags::{element_tags, hidden_element_ids, hidden_in_scene};
         let travel = seed_diagrams()
             .into_iter()
             .find(|d| d.meta.name == "Travel Agent")
@@ -2084,6 +2085,39 @@ mod tests {
         assert_eq!(scenes[..3], ["Travel Agent", "Trip Intake", "Itinerary"]);
         let at = |name| scenes.iter().position(|s| *s == name).unwrap();
         assert!(at("Weather") < at("Booking") && at("Booking") < at("Feedback"));
+        // Each scene shows the header of the stage it's about, and only that one.
+        let tags: Vec<Vec<String>> = travel.content.elements.iter().map(element_tags).collect();
+        let headers_in = |name: &str| {
+            let scene = travel.scenes.iter().find(|s| s.name == name).unwrap();
+            let hidden = hidden_element_ids(
+                travel.content.elements.iter().zip(&tags).map(|(e, t)| {
+                    (
+                        e.id.as_str(),
+                        e.parent_id.as_ref().map(ElementId::as_str),
+                        t.as_slice(),
+                    )
+                }),
+                &hidden_in_scene(&travel.tags, scene),
+            );
+            let mut shown: Vec<&str> = sections
+                .iter()
+                .filter(|e| !hidden.contains(e.id.as_str()))
+                .map(|e| e.label.as_str())
+                .collect();
+            shown.sort_unstable();
+            shown
+        };
+        for (scene, stage) in [
+            ("Trip Intake", "Explore"),
+            ("Itinerary", "Explore"),
+            ("Weather", "Explore"),
+            ("Booking", "Book"),
+            ("Preparation", "Prepare"),
+            ("Client Portal", "Travel"),
+            ("Feedback", "Feedback"),
+        ] {
+            assert_eq!(headers_in(scene), [stage], "{scene}");
+        }
     }
 
     #[test]

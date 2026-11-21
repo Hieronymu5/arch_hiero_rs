@@ -437,6 +437,22 @@
       {
         "id": "tag-feedback",
         "name": "Feedback"
+      },
+      {
+        "id": "50863234-b828-48c0-9d18-eccf003c52ef",
+        "name": "Explore"
+      },
+      {
+        "id": "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
+        "name": "Book"
+      },
+      {
+        "id": "3b71b149-d018-4e8d-b70d-ba895ef137b2",
+        "name": "Prepare"
+      },
+      {
+        "id": "6b90aeb6-f8f0-417c-81db-699022060840",
+        "name": "Travel"
       }
     ],
     "scenes": [
@@ -456,14 +472,19 @@
           "tag-booking",
           "tag-preparation",
           "tag-client-portal",
-          "tag-feedback"
+          "tag-feedback",
+          "50863234-b828-48c0-9d18-eccf003c52ef",
+          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
+          "3b71b149-d018-4e8d-b70d-ba895ef137b2",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
         ]
       },
       {
         "id": "scene-trip-intake",
         "name": "Trip Intake",
         "tags": [
-          "tag-trip-intake"
+          "tag-trip-intake",
+          "50863234-b828-48c0-9d18-eccf003c52ef"
         ]
       },
       {
@@ -471,7 +492,8 @@
         "name": "Itinerary",
         "tags": [
           "tag-trip-intake",
-          "tag-itinerary"
+          "tag-itinerary",
+          "50863234-b828-48c0-9d18-eccf003c52ef"
         ]
       },
       {
@@ -479,7 +501,8 @@
         "name": "Transportation",
         "tags": [
           "tag-trip-intake",
-          "tag-transportation"
+          "tag-transportation",
+          "50863234-b828-48c0-9d18-eccf003c52ef"
         ]
       },
       {
@@ -487,7 +510,8 @@
         "name": "Risk",
         "tags": [
           "tag-trip-intake",
-          "tag-risk"
+          "tag-risk",
+          "50863234-b828-48c0-9d18-eccf003c52ef"
         ]
       },
       {
@@ -495,28 +519,32 @@
         "name": "Weather",
         "tags": [
           "tag-trip-intake",
-          "tag-weather"
+          "tag-weather",
+          "50863234-b828-48c0-9d18-eccf003c52ef"
         ]
       },
       {
         "id": "scene-booking",
         "name": "Booking",
         "tags": [
-          "tag-booking"
+          "tag-booking",
+          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0"
         ]
       },
       {
         "id": "scene-preparation",
         "name": "Preparation",
         "tags": [
-          "tag-preparation"
+          "tag-preparation",
+          "3b71b149-d018-4e8d-b70d-ba895ef137b2"
         ]
       },
       {
         "id": "scene-client-portal",
         "name": "Client Portal",
         "tags": [
-          "tag-client-portal"
+          "tag-client-portal",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
         ]
       },
       {
@@ -553,7 +581,10 @@
         "width": 1440,
         "x": 40,
         "y": 20,
-        "height": 40
+        "height": 40,
+        "tags": [
+          "50863234-b828-48c0-9d18-eccf003c52ef"
+        ]
       },
       {
         "id": "0ab778ba-3c47-44dc-9590-02016f6a520a",
@@ -562,7 +593,10 @@
         "width": 720,
         "x": 1520,
         "y": 20,
-        "height": 40
+        "height": 40,
+        "tags": [
+          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0"
+        ]
       },
       {
         "id": "9dcdab8c-895d-4b78-916c-e8150170ed31",
@@ -571,7 +605,10 @@
         "width": 1000,
         "x": 2280,
         "y": 20,
-        "height": 40
+        "height": 40,
+        "tags": [
+          "3b71b149-d018-4e8d-b70d-ba895ef137b2"
+        ]
       },
       {
         "id": "bc307c11-3c83-497e-ad10-40823a17210c",
@@ -580,7 +617,10 @@
         "width": 420,
         "x": 3320,
         "y": 20,
-        "height": 40
+        "height": 40,
+        "tags": [
+          "6b90aeb6-f8f0-417c-81db-699022060840"
+        ]
       },
       {
         "id": "04fabd5b-7481-46a3-b30c-e7060d7ef248",
@@ -589,7 +629,10 @@
         "width": 180,
         "x": 3780,
         "y": 20,
-        "height": 40
+        "height": 40,
+        "tags": [
+          "tag-feedback"
+        ]
       },
       {
         "id": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
@@ -771,14 +814,16 @@
         "kind": "process",
         "label": "Trip Orchestrator",
         "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "width": 2940,
+        "width": 3600,
         "x": 60,
         "y": 540,
         "height": 40,
         "tags": [
           "tag-process",
           "tag-trip-intake",
-          "tag-preparation"
+          "tag-booking",
+          "tag-preparation",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
         ]
       },
       {
@@ -901,12 +946,14 @@
         "x": 1260,
         "y": 700,
         "height": 40,
+        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
         "tags": [
           "tag-process",
           "tag-weather",
-          "tag-risk"
-        ],
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
+          "tag-risk",
+          "tag-preparation",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
+        ]
       },
       {
         "id": "9bcb0e1c-7057-4682-bf07-87ab6fd0a8a2",
@@ -916,11 +963,13 @@
         "x": 1360,
         "y": 600,
         "height": 60,
+        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
         "tags": [
           "tag-data",
-          "tag-weather"
-        ],
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
+          "tag-weather",
+          "tag-preparation",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
+        ]
       },
       {
         "id": "ed33ef9e-cbbb-405c-81e4-855ff4d0fbe2",
@@ -1137,22 +1186,26 @@
         "y": 820,
         "tags": [
           "tag-services",
-          "tag-weather"
+          "tag-weather",
+          "tag-preparation",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
         ]
       },
       {
         "id": "fab6575e-3401-4f54-ae2a-7eeba7e20d07",
         "kind": "application",
         "label": "Weather Service",
-        "tags": [
-          "tag-services",
-          "tag-weather"
-        ],
         "description": "Forecasts and climate",
         "cloudHosted": true,
         "x": 1240,
         "y": 860,
-        "parentId": "bba07043-fec9-409d-9340-c1d7a7d02daa"
+        "parentId": "bba07043-fec9-409d-9340-c1d7a7d02daa",
+        "tags": [
+          "tag-services",
+          "tag-weather",
+          "tag-preparation",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
+        ]
       },
       {
         "id": "228f5148-0d75-489f-946c-46a2585f6a53",
@@ -1319,19 +1372,6 @@
         "parentId": "1a0c8421-6637-4494-82e0-b20efa207b71"
       },
       {
-        "id": "1b96d994-d25e-4d65-a2e7-bc861387a6e2",
-        "kind": "application",
-        "label": "Weather Updates",
-        "tags": [
-          "tag-services",
-          "tag-preparation"
-        ],
-        "cloudHosted": true,
-        "x": 2940,
-        "y": 860,
-        "parentId": "5007db03-85ec-4722-b519-ffd24ad0a702"
-      },
-      {
         "id": "210b27c2-adcf-4f95-86b9-99815ad737b9",
         "kind": "application",
         "label": "Shuttle Service",
@@ -1373,75 +1413,6 @@
         "y": 120
       },
       {
-        "id": "bc3ba106-ab5b-4be3-af08-a6b8012bebf5",
-        "kind": "process",
-        "label": "Trip Orchestrator",
-        "x": 3320,
-        "y": 540,
-        "width": 420,
-        "height": 40,
-        "tags": [
-          "tag-process",
-          "tag-client-portal"
-        ],
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "2c8a3663-e362-4999-b978-b7a7c61b28c3",
-        "kind": "application",
-        "label": "Anthropic",
-        "cloudHosted": true,
-        "x": 2660,
-        "y": 860,
-        "parentId": "985cc11b-f4b0-419a-b2bc-074efc10b2fe",
-        "tags": [
-          "tag-services",
-          "tag-trip-intake",
-          "tag-preparation"
-        ]
-      },
-      {
-        "id": "5007db03-85ec-4722-b519-ffd24ad0a702",
-        "kind": "domain",
-        "label": "Weather",
-        "width": 240,
-        "height": 160,
-        "x": 2920,
-        "y": 820,
-        "tags": [
-          "tag-services",
-          "tag-preparation"
-        ]
-      },
-      {
-        "id": "985cc11b-f4b0-419a-b2bc-074efc10b2fe",
-        "kind": "domain",
-        "label": "LLMs",
-        "x": 2640,
-        "y": 820,
-        "width": 240,
-        "height": 300,
-        "tags": [
-          "tag-services",
-          "tag-trip-intake",
-          "tag-preparation"
-        ]
-      },
-      {
-        "id": "7cd945ab-55ba-4796-9839-60dfe894695c",
-        "kind": "application",
-        "label": "Hugging Face",
-        "cloudHosted": true,
-        "x": 2660,
-        "y": 980,
-        "parentId": "985cc11b-f4b0-419a-b2bc-074efc10b2fe",
-        "tags": [
-          "tag-services",
-          "tag-trip-intake",
-          "tag-preparation"
-        ]
-      },
-      {
         "id": "b329ff40-3f4c-4358-9c13-c6ef7a7e5782",
         "kind": "application",
         "label": "Anthropic",
@@ -1452,7 +1423,11 @@
         "tags": [
           "tag-process",
           "tag-services",
-          "tag-client-portal"
+          "tag-booking",
+          "tag-preparation",
+          "tag-client-portal",
+          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
         ]
       },
       {
@@ -1466,7 +1441,11 @@
         "tags": [
           "tag-process",
           "tag-services",
-          "tag-client-portal"
+          "tag-booking",
+          "tag-preparation",
+          "tag-client-portal",
+          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
         ]
       },
       {
@@ -1480,7 +1459,11 @@
         "tags": [
           "tag-process",
           "tag-services",
-          "tag-client-portal"
+          "tag-booking",
+          "tag-preparation",
+          "tag-client-portal",
+          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
+          "6b90aeb6-f8f0-417c-81db-699022060840"
         ]
       }
     ],
@@ -1742,36 +1725,17 @@
         "payload": "email"
       },
       {
-        "id": "0400dfbf-32dd-4ab0-9de7-02e8f6e454fb",
-        "sourceId": "bc3ba106-ab5b-4be3-af08-a6b8012bebf5",
-        "targetId": "7dabd68a-e605-4cb0-ad42-930642287fd0",
-        "manualOffset": 220
-      },
-      {
-        "id": "59c0c9c6-10b2-4b1b-8a64-81c88e3b35b5",
-        "sourceId": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "targetId": "5007db03-85ec-4722-b519-ffd24ad0a702",
-        "label": "Forecast for\ndeparture",
-        "connector": "API",
-        "bidirectional": true
-      },
-      {
-        "id": "ce932c0e-656a-41b9-a5be-253d6b0ff7ee",
+        "id": "369348e7-5a82-4cad-b092-0fcd4cb646fd",
         "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "985cc11b-f4b0-419a-b2bc-074efc10b2fe",
-        "label": "LLM Call",
+        "targetId": "ad8a4944-ca51-472c-ae82-9467dea1fd8f",
         "connector": "API",
-        "transformation": "Router",
-        "bidirectional": true
+        "transformation": "Router"
       },
       {
-        "id": "d995322b-bcf0-4676-8c18-f2f5842cf4c8",
-        "sourceId": "bc3ba106-ab5b-4be3-af08-a6b8012bebf5",
-        "targetId": "ad8a4944-ca51-472c-ae82-9467dea1fd8f",
-        "label": "LLM Call",
-        "connector": "API",
-        "transformation": "Router",
-        "bidirectional": true
+        "id": "0c9e2ab0-9c6f-4811-a6d9-af9652803aaf",
+        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
+        "targetId": "7dabd68a-e605-4cb0-ad42-930642287fd0",
+        "manualOffset": 3480
       }
     ],
     "createdAt": "2026-11-20T09:00:00.000Z",
