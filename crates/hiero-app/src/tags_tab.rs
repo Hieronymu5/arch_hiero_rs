@@ -6,13 +6,15 @@
 //! moved, or deleted, with a form to add or edit one. Each change applies at once, as one undo
 //! step. Elements are put in tags, and tags shown and hidden, on the diagram itself.
 
-use egui::{RichText, Ui};
+use egui::{Color32, RichText, Ui};
 use hiero_core::tags::{
     DiagramScene, moved, new_id, scene_of, scene_problem, scenes_only_of, scenes_without_tag,
     tag_counts, tag_name_problem, untag_elements, with_scene,
 };
 use hiero_editor::fonts;
-use hiero_editor::theme::{danger_button, field_label, form_style, page_button, row_button};
+use hiero_editor::theme::{
+    danger_button, field_label, form_style, page_button, palette, row_button,
+};
 
 use crate::app::App;
 use crate::pages::{error_text, ruled_grid};
@@ -293,59 +295,133 @@ impl App {
         );
         form_style(ui);
         let mut action = None;
+        // The scene being edited is edited in its place in the list, and the form for adding
+        // one is hidden meanwhile, so the list needs no scrolling.
+        let editing = self
+            .form
+            .tags
+            .editing_scene
+            .as_ref()
+            .and_then(|id| scenes.iter().position(|s| s.id == *id));
         if scenes.is_empty() {
             ui.label("This diagram has no scenes yet.");
         } else {
-            ruled_grid(ui, "scenes", 3, |ui, end_row| {
-                ui.label(RichText::new("Name").strong());
-                ui.label(RichText::new("Tags").strong());
-                ui.label("");
-                end_row(ui);
-                for (i, scene) in scenes.iter().enumerate() {
-                    ui.label(RichText::new(&scene.name).strong());
-                    let names: Vec<&str> = scene
-                        .tags
-                        .iter()
-                        .map(|id| {
-                            tags.iter()
-                                .find(|t| t.id == *id)
-                                .map_or(id.as_str(), |t| t.name.as_str())
-                        })
-                        .collect();
-                    ui.label(names.join(", "));
-                    ui.horizontal(|ui| {
-                        let up = ui.add_enabled_ui(i > 0, |ui| row_button(ui, "↑"));
-                        if up
-                            .inner
-                            .on_hover_text(format!("Move {} up", scene.name))
-                            .clicked()
-                        {
-                            action = Some(SceneAction::Up(i));
-                        }
-                        let down =
-                            ui.add_enabled_ui(i + 1 < scenes.len(), |ui| row_button(ui, "↓"));
-                        if down
-                            .inner
-                            .on_hover_text(format!("Move {} down", scene.name))
-                            .clicked()
-                        {
-                            action = Some(SceneAction::Down(i));
-                        }
-                        if row_button(ui, "Edit").clicked() {
-                            action = Some(SceneAction::Edit(scene.id.clone()));
-                        }
-                        if row_button(ui, "Delete").clicked() {
-                            action = Some(SceneAction::Delete(scene.id.clone()));
-                        }
-                    });
-                    end_row(ui);
+            let tag_names = |scene: &DiagramScene| {
+                let names: Vec<&str> = scene
+                    .tags
+                    .iter()
+                    .map(|id| {
+                        tags.iter()
+                            .find(|t| t.id == *id)
+                            .map_or(id.as_str(), |t| t.name.as_str())
+                    })
+                    .collect();
+                names.join(", ")
+            };
+            // The list may be split round the form, so its columns are as wide as the widest
+            // name and tags of any scene, to line up either side of it.
+            let width = |ui: &Ui, text: &str, strong: bool| {
+                let font = if strong {
+                    fonts::bold(egui::TextStyle::Body.resolve(ui.style()).size)
+                } else {
+                    egui::TextStyle::Body.resolve(ui.style())
+                };
+                ui.painter()
+                    .layout_no_wrap(text.to_owned(), font, Color32::PLACEHOLDER)
+                    .size()
+                    .x
+            };
+            let name_width = scenes
+                .iter()
+                .map(|s| width(ui, &s.name, true))
+                .fold(width(ui, "Name", true), f32::max);
+            // The tags wrap, leaving the buttons the room they need on one line.
+            let buttons = ["↑", "↓", "Edit", "Delete"]
+                .iter()
+                .map(|t| width(ui, t, false) + 34.0)
+                .sum::<f32>()
+                + 3.0 * ui.spacing().item_spacing.x;
+            let room = ui.available_width() - name_width - buttons - 2.0 * 24.0;
+            let tags_width = scenes
+                .iter()
+                .map(|s| width(ui, &tag_names(s), false))
+                .fold(width(ui, "Tags", true), f32::max)
+                .min(room.max(160.0));
+            let cell = |ui: &mut Ui, size: f32, text: RichText| {
+                ui.scope(|ui| {
+                    ui.set_min_width(size);
+                    ui.set_max_width(size);
+                    ui.add(egui::Label::new(text).wrap());
+                });
+            };
+            let count = scenes.len();
+            let rows = |ui: &mut Ui,
+                        id: &str,
+                        range: std::ops::Range<usize>,
+                        header: bool,
+                        action: &mut Option<SceneAction>| {
+                ruled_grid(ui, id, 3, |ui, end_row| {
+                    if header {
+                        cell(ui, name_width, RichText::new("Name").strong());
+                        cell(ui, tags_width, RichText::new("Tags").strong());
+                        ui.label("");
+                        end_row(ui);
+                    }
+                    for i in range {
+                        let scene = &scenes[i];
+                        cell(ui, name_width, RichText::new(&scene.name).strong());
+                        cell(ui, tags_width, RichText::new(tag_names(scene)));
+                        // The buttons keep to one line.
+                        ui.horizontal(|ui| {
+                            let up = ui.add_enabled_ui(i > 0, |ui| row_button(ui, "↑"));
+                            if up
+                                .inner
+                                .on_hover_text(format!("Move {} up", scene.name))
+                                .clicked()
+                            {
+                                *action = Some(SceneAction::Up(i));
+                            }
+                            let down = ui.add_enabled_ui(i + 1 < count, |ui| row_button(ui, "↓"));
+                            if down
+                                .inner
+                                .on_hover_text(format!("Move {} down", scene.name))
+                                .clicked()
+                            {
+                                *action = Some(SceneAction::Down(i));
+                            }
+                            if row_button(ui, "Edit").clicked() {
+                                *action = Some(SceneAction::Edit(scene.id.clone()));
+                            }
+                            if row_button(ui, "Delete").clicked() {
+                                *action = Some(SceneAction::Delete(scene.id.clone()));
+                            }
+                        });
+                        end_row(ui);
+                    }
+                });
+            };
+            match editing {
+                Some(at) => {
+                    rows(ui, "scenes", 0..at, true, &mut action);
+                    // In the scene's place, where its Edit button was, set off from the rows
+                    // round it.
+                    ui.add_space(8.0);
+                    egui::Frame::new()
+                        .fill(palette(ui).surface)
+                        .stroke(egui::Stroke::new(1.0, palette(ui).border))
+                        .corner_radius(6)
+                        .inner_margin(12)
+                        .show(ui, |ui| self.scene_form(ui, &tags, &scenes));
+                    ui.add_space(8.0);
+                    rows(ui, "scenes-after", at + 1..count, false, &mut action);
                 }
-            });
+                None => rows(ui, "scenes", 0..count, true, &mut action),
+            }
         }
         ui.add_space(14.0);
         if tags.is_empty() {
             ui.label("Add tags on the Tags tab first: each scene shows one or more of them.");
-        } else {
+        } else if editing.is_none() {
             self.scene_form(ui, &tags, &scenes);
         }
         if let Some(action) = action {

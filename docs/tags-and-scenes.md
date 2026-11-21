@@ -51,9 +51,10 @@ A scene is a named view that shows the elements of one or more of the diagram's 
 the rest of the tags' elements. Elements in no tag show in every scene. Scene names follow the
 rules for tag names.
 
-- **Edit Details, Scenes tab:** lists each scene with the tags it shows. A scene can be edited,
-  moved, or deleted, and a form adds one or edits one (a name, and checkboxes for the tags it
-  shows).
+- **Edit Details, Scenes tab:** lists each scene with the tags it shows, its buttons on one line
+  and its tags wrapping. A scene can be edited, moved, or deleted, and a form after the list adds
+  one (a name, and checkboxes for the tags it shows). A scene is edited in its place in the list,
+  the form taking its row, and the form for adding one is hidden meanwhile.
 - **Viewing a diagram with scenes:** a Scenes panel takes the Tags panel's place. It has
   Previous, Play or Pause, and Next, then the scenes, with the one showing highlighted. Viewing
   starts at the first scene.
