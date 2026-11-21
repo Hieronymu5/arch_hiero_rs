@@ -688,11 +688,16 @@ impl<T: DiagramView> Editor<T> {
                         color,
                         !hidden,
                     );
-                    let galley = ui.painter().layout_no_wrap(
+                    // A long name is cut short at the row's end, ending in "…".
+                    let mut job = egui::text::LayoutJob::simple_singleline(
                         tag.name.clone(),
                         egui::TextStyle::Body.resolve(ui.style()),
                         Color32::PLACEHOLDER,
                     );
+                    job.wrap = egui::text::TextWrapping::truncate_at_width(
+                        rect.width() - ICON_BUTTON - 8.0,
+                    );
+                    let galley = ui.painter().layout_job(job);
                     let text_color = if hidden {
                         colors.text_muted
                     } else if response.hovered() {
@@ -767,6 +772,9 @@ impl<T: DiagramView> Editor<T> {
                     egui::FontSelection::Default,
                     egui::Align::Center,
                 );
+                // A long name is cut short before the icon, ending in "…"; its hint and its
+                // label for screen readers keep it whole.
+                job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 6.0 - 26.0);
                 let galley = ui.painter().layout_job(job);
                 let icon_color = if applying || response.hovered() {
                     colors.accent

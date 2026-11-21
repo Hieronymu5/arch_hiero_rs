@@ -32,6 +32,7 @@ The Tags panel sits under the palette, and shows only once the diagram has tags.
   for each tag, ticked for those it's in. Ticking one puts it in the tag, and unticking takes it
   out, as one undo step. It shows only once the diagram has tags.
 - **Which tags are hidden isn't saved:** each visit starts with all of them shown.
+- **A long name** is cut short with "…", whole in its hint.
 - **Pasting** keeps only the tags the diagram has.
 
 ### Edit Details
