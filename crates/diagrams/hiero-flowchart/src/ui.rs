@@ -39,6 +39,8 @@ impl DiagramView for Flowchart {
             .collect()
     }
 
+    const ARROW_TEXT_WRAPS: bool = true;
+
     const LINE_TEXT: Option<ArrowText> = Some(ArrowText::Label);
 
     fn arrow_text(arrow: &Self::Arrow, field: ArrowText) -> String {
@@ -137,7 +139,8 @@ impl DiagramView for Flowchart {
             cx.arrow_field_id(&id, "label"),
             "Label",
             current.label.as_deref().unwrap_or_default(),
-            false,
+            // Over several lines, as it's drawn.
+            true,
             |t| validate_length("Label", t, LABEL_MAX),
         ) {
             let mut arrow = current.clone();

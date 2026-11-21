@@ -69,6 +69,8 @@ pub struct OpenDiagram {
     pub save_failed: Option<String>,
     /// Such as "This diagram was changed outside the editor".
     pub notice: Option<String>,
+    /// Set once the editor is drawn at the zoom the diagram was last drawn at.
+    pub zoom_restored: bool,
 }
 
 /// A dialog over the page.
@@ -503,6 +505,7 @@ impl App {
             saving: false,
             save_failed: None,
             notice: None,
+            zoom_restored: false,
         })
     }
 

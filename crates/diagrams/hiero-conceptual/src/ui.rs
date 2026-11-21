@@ -51,6 +51,8 @@ impl DiagramView for Conceptual {
             .collect()
     }
 
+    const ARROW_TEXT_WRAPS: bool = true;
+
     const LINE_TEXT: Option<ArrowText> = Some(ArrowText::Label);
 
     fn arrow_text(arrow: &Self::Arrow, field: ArrowText) -> String {
@@ -220,7 +222,8 @@ impl DiagramView for Conceptual {
                     cx.arrow_field_id(&id, name),
                     label,
                     value.as_deref().unwrap_or_default(),
-                    false,
+                    // The text over several lines, as it's drawn.
+                    name == "label",
                     |t| validate_length(label, t, max),
                 )
             };
@@ -1000,10 +1003,20 @@ mod tests {
         );
         // The line gives an arrow with no text some.
         w.double_click(w.screen(middle, Vec2::ZERO));
-        w.type_text("Logs calls");
+        w.type_text("Logs");
+        // Its text wraps, so Shift+Enter starts a new line, and Enter saves.
+        let shift_enter = Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::SHIFT,
+        };
+        w.frame(vec![shift_enter], Modifiers::SHIFT);
+        w.type_text("calls");
         w.key(egui::Key::Enter);
         let label = |w: &Window| w.editor.eng.connection(&id).unwrap().props.label.clone();
-        assert_eq!(label(&w).as_deref(), Some("Logs calls"));
+        assert_eq!(label(&w).as_deref(), Some("Logs\ncalls"));
         // The text itself, where it's drawn, opens it too; cleared, it's taken away.
         let (_, _, rect) = Conceptual::arrow_texts(&w.editor.eng, w.editor.eng.layout())
             .into_iter()

@@ -10,6 +10,7 @@ mod pages;
 mod tags_tab;
 mod trail;
 mod worker;
+mod zoom_memory;
 
 use std::path::{Path, PathBuf};
 

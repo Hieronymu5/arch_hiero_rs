@@ -386,6 +386,12 @@ pub fn to_drawio(
                 id: a.id,
                 source_id: a.source_id,
                 target_id: a.target_id,
+                label_lines: a
+                    .look
+                    .label
+                    .as_deref()
+                    .map(|l| hiero_core::look::arrow_label_lines(l, eng.measure()))
+                    .unwrap_or_default(),
                 look: a.look,
             })
             .collect();

@@ -148,6 +148,7 @@ pub fn to_drawio(eng: &Engine<C4>, title: &str, heading: Option<&Heading>) -> St
             id: a.id,
             source_id: a.source_id,
             target_id: a.target_id,
+            label_lines: Vec::new(),
             look: a.look,
         })
         .collect();

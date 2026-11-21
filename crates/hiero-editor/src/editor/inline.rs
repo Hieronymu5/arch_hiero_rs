@@ -134,6 +134,8 @@ pub(super) struct InlineEdit {
     look: Option<TextLook>,
     /// The text typed over, hidden meanwhile.
     pub hidden: Vec<PlacedText>,
+    /// Whether it takes several lines, as a description, or an arrow's text that wraps.
+    multiline: bool,
     error: Option<String>,
     /// Set until the field has been focused, with its text selected.
     opening: bool,
@@ -166,13 +168,14 @@ impl InlineEdit {
             rect,
             look,
             hidden: parts.into_iter().map(|(t, _)| t).collect(),
+            multiline: place.multiline,
             error: None,
             opening: true,
         }
     }
 
     fn multiline(&self) -> bool {
-        matches!(self.target, InlineTarget::Description(_))
+        self.multiline
     }
 }
 
@@ -306,15 +309,18 @@ impl<T: DiagramView> Editor<T> {
                 })
                 .collect()
         };
-        // Or, for an arrow with none yet, on the middle of the line.
+        // Or, for an arrow with none yet, on the middle of the line. Text that wraps takes
+        // several lines.
+        let multiline = field == ArrowText::Label && T::ARROW_TEXT_WRAPS;
+        let height = if multiline { 56.0 } else { 32.0 };
         let centre = over.center();
         let place = Place {
-            fallback: Rect::new(centre.x - 80.0, centre.y - 16.0, 160.0, 32.0),
-            min_width: 120.0,
-            min_height: 0.0,
+            fallback: Rect::new(centre.x - 80.0, centre.y - height / 2.0, 160.0, height),
+            min_width: if multiline { 160.0 } else { 120.0 },
+            min_height: if multiline { 44.0 } else { 0.0 },
             within: None,
-            multiline: false,
-            fit: Some(before.clone()),
+            multiline,
+            fit: (!multiline).then(|| before.clone()),
         };
         self.eng.select_connection(id);
         self.inline = Some(InlineEdit::new(

@@ -243,6 +243,9 @@ pub struct DrawioArrow {
     pub source_id: ElementId,
     pub target_id: ElementId,
     pub look: ArrowLook,
+    /// Its text as wrapped on the canvas, a line each, which draw.io can't work out itself.
+    /// Empty leaves the text on one line.
+    pub label_lines: Vec<String>,
 }
 
 /// A draw.io style: key-value pairs in order. Setting a key again keeps its place, as a
@@ -1139,7 +1142,12 @@ pub fn diagram_to_drawio(
                         "bottom"
                     },
                 );
-            value = format!(r#" value="{}""#, escape_xml(&escape_xml(label)));
+            let lines: Vec<String> = if arrow.label_lines.is_empty() {
+                vec![escape_xml(label)]
+            } else {
+                arrow.label_lines.iter().map(|l| escape_xml(l)).collect()
+            };
+            value = format!(r#" value="{}""#, escape_xml(&lines.join("<br>")));
             geometry = format!(
                 r#"<mxGeometry x="-1" relative="1" as="geometry"><mxPoint x="{}" y="{}" as="offset" /></mxGeometry>"#,
                 fmt_num(round2(p.anchor.x - a.from.x)),
@@ -1338,6 +1346,40 @@ mod tests {
     use crate::look::Look;
 
     #[test]
+    fn arrow_text_keeps_the_lines_it_was_wrapped_onto() {
+        let elements = [
+            element("a", None, Shape::Box, Rect::new(0.0, 0.0, 200.0, 100.0)),
+            element("b", None, Shape::Box, Rect::new(600.0, 0.0, 200.0, 100.0)),
+        ];
+        let arrows = vec![DrawioArrow {
+            id: "c".into(),
+            source_id: "a".into(),
+            target_id: "b".into(),
+            label_lines: vec!["Sends the orders".into(), "to <billing>".into()],
+            look: ArrowLook {
+                from: Point::new(200.0, 50.0),
+                to: Point::new(600.0, 50.0),
+                label: Some("Sends the orders to <billing>".into()),
+                ..ArrowLook::default()
+            },
+        }];
+        let xml = diagram_to_drawio(
+            "T",
+            &elements,
+            &arrows,
+            None,
+            None,
+            &DiagramColors::default(),
+            LineWeight::Thin,
+        );
+        // A line break between the lines, and each line's own text escaped within it.
+        assert!(
+            xml.contains(r#"value="Sends the orders&lt;br&gt;to &amp;lt;billing&amp;gt;""#),
+            "{xml}"
+        );
+    }
+
+    #[test]
     fn figures_details_take_their_border_colour() {
         use std::io::Read as _;
         let stencil = physical_figure_stencil(
@@ -1397,6 +1439,7 @@ mod tests {
             id: "c".into(),
             source_id: "a".into(),
             target_id: "b".into(),
+            label_lines: Vec::new(),
             look: ArrowLook {
                 from: Point::new(260.0, 130.0),
                 to: Point::new(568.0, 130.0),
@@ -1473,6 +1516,7 @@ mod tests {
                 id: "c1".into(),
                 source_id: "a".into(),
                 target_id: "b".into(),
+                label_lines: Vec::new(),
                 look: ArrowLook {
                     from: Point::new(240.0, 90.0),
                     to: Point::new(400.0, 90.0),

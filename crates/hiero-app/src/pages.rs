@@ -21,6 +21,7 @@ use crate::app::{App, DetailsForm, DetailsTab, Dialog, ExportFormat, Outcome, Pa
 use crate::format::date;
 use crate::list_sort::{Column, ListSort, tree_rows};
 use crate::trail::{NAME_MAX, abbreviate, trail};
+use crate::zoom_memory;
 
 /// A database's file name.
 fn database_name(path: &Path) -> String {
@@ -1523,6 +1524,12 @@ impl App {
         let (can_undo, can_redo) = (self.can_undo(), self.can_redo());
         let mut action: Option<&'static str> = None;
         if let Some(open) = &mut self.open {
+            // The diagram opens at the zoom it was last drawn at.
+            if !std::mem::replace(&mut open.zoom_restored, true)
+                && let Some(percent) = zoom_memory::remembered(ui.ctx(), id)
+            {
+                open.editor.set_zoom_percent(percent);
+            }
             // The top bar shows the name, description, and status.
             under_logo(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -1608,6 +1615,8 @@ impl App {
                 ui.set_clip_rect(rect);
                 open.editor.ui(ui);
             });
+            // Remembered for the next time it's opened.
+            zoom_memory::remember(ui.ctx(), id, open.editor.zoom_percent());
         }
         match action {
             Some("back") => self.go_back(),

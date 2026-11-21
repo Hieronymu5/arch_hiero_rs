@@ -90,6 +90,10 @@ pub trait DiagramView: DiagramType {
     /// text.
     const LINE_TEXT: Option<ArrowText> = None;
 
+    /// Whether the type's arrows draw their text over several lines, so it can be typed in
+    /// place with line breaks, Shift+Enter starting a new line.
+    const ARROW_TEXT_WRAPS: bool = false;
+
     /// An arrow's text `field`, empty when it has none.
     fn arrow_text(_arrow: &Self::Arrow, _field: ArrowText) -> String {
         String::new()
@@ -2119,6 +2123,13 @@ impl<T: DiagramView> Editor<T> {
         }
     }
 
+    /// Draws the canvas `percent` large, within the zoom's limits, such as the zoom it was last
+    /// drawn at.
+    pub fn set_zoom_percent(&mut self, percent: u32) {
+        #[expect(clippy::cast_precision_loss, reason = "a percentage")]
+        self.zoom_toward(percent as f32 / 100.0);
+    }
+
     /// How large the canvas is drawn, as a whole percentage.
     pub fn zoom_percent(&self) -> u32 {
         #[expect(
@@ -2267,6 +2278,8 @@ pub trait DiagramEditor {
     fn zoom_by(&mut self, steps: i32);
     /// Zooms back to the canvas's own size.
     fn reset_zoom(&mut self);
+    /// Draws the canvas `percent` large, within the zoom's limits.
+    fn set_zoom_percent(&mut self, percent: u32);
     /// How large the canvas is drawn, as a whole percentage.
     fn zoom_percent(&self) -> u32;
     /// Whether there's further to zoom in, and further to zoom out.
@@ -2349,6 +2362,10 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn reset_zoom(&mut self) {
         Editor::reset_zoom(self);
+    }
+
+    fn set_zoom_percent(&mut self, percent: u32) {
+        Editor::set_zoom_percent(self, percent);
     }
 
     fn zoom_percent(&self) -> u32 {

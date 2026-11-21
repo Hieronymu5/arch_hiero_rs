@@ -15,8 +15,9 @@ use crate::geometry::{Point, Rect, fmt_num, round2};
 use crate::model::{ArrowPayload, ColorScheme, ElementId, LineWeight};
 use crate::name_size::{FittedText, fit_description};
 use crate::routing::{
-    Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT, connector_text_position, label_placement,
-    label_text_position, payload_icon_paths, payload_icon_placement, return_arrow_placement,
+    Align, CONNECTOR_BOX_FONT_SIZE, CONNECTOR_BOX_HEIGHT, LabelPlacement, Vertical,
+    connector_text_position, label_placement, label_text_position, payload_icon_paths,
+    payload_icon_placement, return_arrow_placement,
 };
 use crate::scene::{Anchor, Marker, Node, Paint, Scene, Tone};
 use crate::text::{MeasureText, TextStyle, Weight, wrap_text};
@@ -299,17 +300,31 @@ impl ArrowLook {
     pub fn text_rects(&self, measure: &dyn MeasureText) -> Vec<(ArrowText, Rect)> {
         let mut rects = Vec::new();
         if let Some(label) = self.label.as_ref().filter(|l| !l.is_empty()) {
-            let (at, align) =
-                label_text_position(label_placement(self.from, self.to), ARROW_LABEL_SIZE);
-            let width = measure.width(label, ARROW_LABEL_SIZE, Weight::Regular);
+            let (x, align, lines) = label_text_lines(
+                label_placement(self.from, self.to),
+                ARROW_LABEL_SIZE,
+                arrow_label_lines(label, measure),
+            );
             let anchor = match align {
                 Align::Start => Anchor::Start,
                 Align::End => Anchor::End,
             };
-            rects.push((
-                ArrowText::Label,
-                text_box(at, width, ARROW_LABEL_SIZE, anchor),
-            ));
+            let boxes: Vec<Rect> = lines
+                .iter()
+                .map(|(line, y)| {
+                    let width = measure.width(line, ARROW_LABEL_SIZE, Weight::Regular);
+                    text_box(Point::new(x, *y), width, ARROW_LABEL_SIZE, anchor)
+                })
+                .collect();
+            if let Some(first) = boxes.first() {
+                let union = boxes.iter().fold(*first, |u, b| {
+                    let (left, top) = (u.x.min(b.x), u.y.min(b.y));
+                    let right = u.right().max(b.right());
+                    let bottom = u.bottom().max(b.bottom());
+                    Rect::new(left, top, right - left, bottom - top)
+                });
+                rects.push((ArrowText::Label, union));
+            }
         }
         if let Some((_, rect)) = &self.connector {
             rects.push((ArrowText::Connector, *rect));
@@ -1405,21 +1420,66 @@ pub fn draw_arrows(
         let Some(label) = a.label.as_ref().filter(|l| !l.is_empty()) else {
             continue;
         };
-        let (at, align) = label_text_position(label_placement(a.from, a.to), ARROW_LABEL_SIZE);
-        nodes.push(Node::Text {
-            at: Point::new(round2(at.x), round2(at.y)),
-            anchor: match align {
-                Align::Start => Anchor::Start,
-                Align::End => Anchor::End,
-            },
-            size: ARROW_LABEL_SIZE,
-            weight: Weight::Regular,
-            text: label.clone(),
-            fill: None,
-            halo: Some((BACKGROUND.into(), 3.0)),
-        });
+        let (x, align, lines) = label_text_lines(
+            label_placement(a.from, a.to),
+            ARROW_LABEL_SIZE,
+            arrow_label_lines(label, measure),
+        );
+        for (text, y) in lines {
+            nodes.push(Node::Text {
+                at: Point::new(round2(x), round2(y)),
+                anchor: match align {
+                    Align::Start => Anchor::Start,
+                    Align::End => Anchor::End,
+                },
+                size: ARROW_LABEL_SIZE,
+                weight: Weight::Regular,
+                text,
+                fill: None,
+                halo: Some((BACKGROUND.into(), 3.0)),
+            });
+        }
     }
     nodes
+}
+
+/// How wide an arrow's text runs before it wraps onto another line, and its lines' spacing.
+pub const ARROW_LABEL_WRAP_WIDTH: f64 = 160.0;
+pub const ARROW_LABEL_LINE_HEIGHT: f64 = 16.0;
+
+/// An arrow's text, wrapped onto lines no wider than [`ARROW_LABEL_WRAP_WIDTH`], and at each
+/// line break in it.
+pub fn arrow_label_lines(label: &str, measure: &dyn MeasureText) -> Vec<String> {
+    let style = TextStyle::new(
+        ARROW_LABEL_SIZE,
+        Weight::Regular,
+        ARROW_LABEL_LINE_HEIGHT,
+        usize::MAX,
+    );
+    wrap_text(label, ARROW_LABEL_WRAP_WIDTH, style, measure)
+}
+
+/// Where an arrow's text, wrapped into `lines`, is drawn at `placement`: its x, its alignment,
+/// and each line with its baseline. The line nearest the arrow is where text of one line would
+/// be, and the rest run away from the arrow: down from text hanging below its anchor, up from
+/// text sitting above it.
+pub fn label_text_lines(
+    placement: LabelPlacement,
+    font_size: f64,
+    lines: Vec<String>,
+) -> (f64, Align, Vec<(String, f64)>) {
+    let (at, align) = label_text_position(placement, font_size);
+    let count = lines.len().saturating_sub(1) as f64;
+    let first = match placement.vertical {
+        Vertical::Top => at.y,
+        Vertical::Bottom => at.y - count * ARROW_LABEL_LINE_HEIGHT,
+    };
+    let lines = lines
+        .into_iter()
+        .enumerate()
+        .map(|(i, text)| (text, first + i as f64 * ARROW_LABEL_LINE_HEIGHT))
+        .collect();
+    (at.x, align, lines)
 }
 
 #[cfg(test)]
@@ -1427,6 +1487,47 @@ mod tests {
     use super::*;
     use crate::export::svg::scene_to_svg;
     use crate::text::EstimateText;
+
+    #[test]
+    fn long_arrow_text_wraps_onto_lines_running_away_from_the_arrow() {
+        let text = "Checklist, itinerary, and clothing advice for the trip";
+        let drawn = |to: Point| {
+            let look = ArrowLook {
+                from: Point::new(0.0, 0.0),
+                to,
+                label: Some(text.into()),
+                ..ArrowLook::default()
+            };
+            let nodes = draw_arrows(
+                &[],
+                std::slice::from_ref(&look),
+                &EstimateText,
+                &DiagramColors::default(),
+                LineWeight::Medium,
+            );
+            let lines: Vec<(String, f64)> = nodes
+                .into_iter()
+                .filter_map(|n| match n {
+                    Node::Text { text, at, .. } => Some((text, at.y)),
+                    _ => None,
+                })
+                .collect();
+            (lines, look.text_rects(&EstimateText)[0].1)
+        };
+        // Down from text hanging below the start of a line going down.
+        let (down, _) = drawn(Point::new(0.0, 300.0));
+        assert!(down.len() > 1);
+        let joined: Vec<&str> = down.iter().map(|(t, _)| t.as_str()).collect();
+        assert_eq!(joined.join(" "), text);
+        assert!((down[1].1 - down[0].1 - ARROW_LABEL_LINE_HEIGHT).abs() < 1e-9);
+        // Up from text above a line going right: the last line is nearest it, where one line
+        // would be, and the box found for it covers every line.
+        let (right, rect) = drawn(Point::new(300.0, 0.0));
+        let last = right.last().unwrap().1;
+        assert!(last < 0.0 && last > -10.0);
+        assert!(right.windows(2).all(|w| w[1].1 > w[0].1));
+        assert!(rect.y < right[0].1 - 8.0 && rect.bottom() > last);
+    }
 
     #[test]
     fn an_arrows_texts_are_found_where_they_are_drawn() {
