@@ -1955,13 +1955,13 @@ mod tests {
                 sample.meta.name
             );
         }
-        assert_eq!(seed_diagrams().len(), 17);
+        assert_eq!(seed_diagrams().len(), 18);
     }
 
     #[test]
     fn samples_load_once() {
         let mut store = Store::open_in_memory().unwrap();
-        assert_eq!(store.load_samples().unwrap(), 17);
+        assert_eq!(store.load_samples().unwrap(), 18);
         assert_eq!(store.load_samples().unwrap(), 0);
         let names: Vec<String> = store
             .list()
@@ -1988,6 +1988,7 @@ mod tests {
                 "Online Order",
                 "Samples",
                 "Standard 3 -Tier Application",
+                "Travel Agent",
                 "Website Example - Active - Active"
             ]
         );
@@ -2060,6 +2061,29 @@ mod tests {
             assert_eq!(diagram.meta.name, format!("AWS - {pillar}"));
             assert_eq!(diagram.parent.as_ref(), Some(&framework.meta.id));
         }
+    }
+
+    #[test]
+    fn the_travel_agent_sample_runs_through_a_trips_stages_and_scenes() {
+        let travel = seed_diagrams()
+            .into_iter()
+            .find(|d| d.meta.name == "Travel Agent")
+            .unwrap();
+        // The trip's stages head the diagram, left to right.
+        let mut sections: Vec<_> = travel
+            .content
+            .elements
+            .iter()
+            .filter(|e| e.kind == "section")
+            .collect();
+        sections.sort_by(|a, b| a.x.total_cmp(&b.x));
+        let labels: Vec<&str> = sections.iter().map(|e| e.label.as_str()).collect();
+        assert_eq!(labels, ["Explore", "Book", "Prepare", "Travel", "Feedback"]);
+        // The whole diagram first, then the request on its own, then the flows.
+        let scenes: Vec<&str> = travel.scenes.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(scenes[..3], ["Travel Agent", "Trip Intake", "Itinerary"]);
+        let at = |name| scenes.iter().position(|s| *s == name).unwrap();
+        assert!(at("Weather") < at("Booking") && at("Booking") < at("Feedback"));
     }
 
     #[test]
