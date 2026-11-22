@@ -990,10 +990,10 @@ impl<T: DiagramView> Editor<T> {
             if let Some(key) = palette_shortcut(index) {
                 let rect = response.rect;
                 ui.painter().text(
-                    egui::pos2(rect.right() - 10.0, rect.center().y + 2.0),
+                    egui::pos2(rect.right() - 6.0, rect.center().y + 2.0),
                     Align2::RIGHT_CENTER,
                     key,
-                    egui::FontId::proportional(11.0),
+                    egui::FontId::proportional(9.0),
                     palette(ui).text_muted,
                 );
             }
