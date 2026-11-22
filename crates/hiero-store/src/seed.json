@@ -382,1360 +382,722 @@
     "id": "a33ab46b-a5bc-4c27-905b-6146928bdf1c",
     "name": "Travel Agent",
     "type": "conceptual",
+    "description": "Agentic Travel Agent",
     "lineWeight": "medium",
-    "description": "An AI travel agent that researches, plans, books, and follows trips",
-    "canvasWidth": 4100,
     "tags": [
       {
-        "id": "tag-data",
-        "name": "Data"
-      },
-      {
-        "id": "tag-process",
-        "name": "Process"
-      },
-      {
-        "id": "tag-services",
-        "name": "Services"
-      },
-      {
-        "id": "tag-people",
-        "name": "People"
-      },
-      {
-        "id": "tag-trip-intake",
-        "name": "Trip Intake"
-      },
-      {
-        "id": "tag-weather",
-        "name": "Weather"
-      },
-      {
-        "id": "tag-risk",
-        "name": "Risk"
-      },
-      {
-        "id": "tag-itinerary",
-        "name": "Itinerary"
-      },
-      {
-        "id": "tag-transportation",
-        "name": "Transportation"
-      },
-      {
-        "id": "tag-booking",
-        "name": "Booking"
-      },
-      {
-        "id": "tag-preparation",
-        "name": "Preparation"
-      },
-      {
-        "id": "tag-client-portal",
-        "name": "Client Portal"
-      },
-      {
-        "id": "tag-feedback",
-        "name": "Feedback"
-      },
-      {
-        "id": "50863234-b828-48c0-9d18-eccf003c52ef",
+        "id": "b0da1e6e-96e4-4194-9cf5-331316706b09",
         "name": "Explore"
       },
       {
-        "id": "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
+        "id": "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe",
         "name": "Book"
       },
       {
-        "id": "3b71b149-d018-4e8d-b70d-ba895ef137b2",
+        "id": "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
         "name": "Prepare"
       },
       {
-        "id": "6b90aeb6-f8f0-417c-81db-699022060840",
+        "id": "78722bbf-b1ff-4950-be21-aa2f12c88538",
         "name": "Travel"
+      },
+      {
+        "id": "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438",
+        "name": "Feedback"
       }
     ],
     "scenes": [
       {
-        "id": "scene-travel-agent",
+        "id": "99b60ce0-7e21-4d2d-8647-03a408be8b30",
         "name": "Travel Agent",
         "tags": [
-          "tag-data",
-          "tag-process",
-          "tag-services",
-          "tag-people",
-          "tag-trip-intake",
-          "tag-weather",
-          "tag-risk",
-          "tag-itinerary",
-          "tag-transportation",
-          "tag-booking",
-          "tag-preparation",
-          "tag-client-portal",
-          "tag-feedback",
-          "50863234-b828-48c0-9d18-eccf003c52ef",
-          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
-          "3b71b149-d018-4e8d-b70d-ba895ef137b2",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
+          "78722bbf-b1ff-4950-be21-aa2f12c88538",
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
         ]
       },
       {
-        "id": "scene-trip-intake",
-        "name": "Trip Intake",
+        "id": "34c2d87e-c8ca-4dba-b172-d4500333423b",
+        "name": "Explore",
         "tags": [
-          "tag-trip-intake",
-          "50863234-b828-48c0-9d18-eccf003c52ef"
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
         ]
       },
       {
-        "id": "scene-itinerary",
-        "name": "Itinerary",
+        "id": "2cd761ec-d01d-4bf6-b42d-86cdf6dda7f4",
+        "name": "Book",
         "tags": [
-          "tag-trip-intake",
-          "tag-itinerary",
-          "50863234-b828-48c0-9d18-eccf003c52ef"
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe"
         ]
       },
       {
-        "id": "scene-transportation",
-        "name": "Transportation",
+        "id": "17313aec-6df2-4b72-9d12-8061309bf270",
+        "name": "Prepare",
         "tags": [
-          "tag-trip-intake",
-          "tag-transportation",
-          "50863234-b828-48c0-9d18-eccf003c52ef"
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
         ]
       },
       {
-        "id": "scene-risk",
-        "name": "Risk",
+        "id": "a3ebe839-9684-4217-b765-ec7aa02a0d49",
+        "name": "Travel",
         "tags": [
-          "tag-trip-intake",
-          "tag-risk",
-          "50863234-b828-48c0-9d18-eccf003c52ef"
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
         ]
       },
       {
-        "id": "scene-weather",
-        "name": "Weather",
-        "tags": [
-          "tag-trip-intake",
-          "tag-weather",
-          "50863234-b828-48c0-9d18-eccf003c52ef"
-        ]
-      },
-      {
-        "id": "scene-booking",
-        "name": "Booking",
-        "tags": [
-          "tag-booking",
-          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0"
-        ]
-      },
-      {
-        "id": "scene-preparation",
-        "name": "Preparation",
-        "tags": [
-          "tag-preparation",
-          "3b71b149-d018-4e8d-b70d-ba895ef137b2"
-        ]
-      },
-      {
-        "id": "scene-client-portal",
-        "name": "Client Portal",
-        "tags": [
-          "tag-client-portal",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
-        ]
-      },
-      {
-        "id": "scene-feedback",
+        "id": "16e1877e-4fe6-446c-9506-65a7dde6c52b",
         "name": "Feedback",
         "tags": [
-          "tag-feedback"
-        ]
-      },
-      {
-        "id": "scene-processes",
-        "name": "Processes",
-        "tags": [
-          "tag-process",
-          "tag-services",
-          "tag-people"
-        ]
-      },
-      {
-        "id": "scene-data",
-        "name": "Data",
-        "tags": [
-          "tag-data",
-          "tag-services",
-          "tag-people"
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
         ]
       }
     ],
     "elements": [
       {
-        "id": "12762477-c8b4-4a4a-842e-c2f47cb63caa",
+        "id": "8c566074-69db-45c7-bcc2-da125b231678",
+        "kind": "actor",
+        "label": "Traveller",
+        "x": 360,
+        "y": 60,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "d1ac1b9a-2474-46f1-929f-2d2351f1bde3",
         "kind": "section",
         "label": "Explore",
-        "width": 1440,
-        "x": 40,
+        "x": 20,
         "y": 20,
-        "height": 40,
         "tags": [
-          "50863234-b828-48c0-9d18-eccf003c52ef"
-        ]
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ],
+        "width": 800,
+        "height": 40
       },
       {
-        "id": "0ab778ba-3c47-44dc-9590-02016f6a520a",
-        "kind": "section",
-        "label": "Book",
-        "width": 720,
-        "x": 1520,
-        "y": 20,
-        "height": 40,
-        "tags": [
-          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0"
-        ]
-      },
-      {
-        "id": "9dcdab8c-895d-4b78-916c-e8150170ed31",
-        "kind": "section",
-        "label": "Prepare",
-        "width": 1000,
-        "x": 2280,
-        "y": 20,
-        "height": 40,
-        "tags": [
-          "3b71b149-d018-4e8d-b70d-ba895ef137b2"
-        ]
-      },
-      {
-        "id": "bc307c11-3c83-497e-ad10-40823a17210c",
-        "kind": "section",
-        "label": "Travel",
-        "width": 420,
-        "x": 3320,
-        "y": 20,
-        "height": 40,
-        "tags": [
-          "6b90aeb6-f8f0-417c-81db-699022060840"
-        ]
-      },
-      {
-        "id": "04fabd5b-7481-46a3-b30c-e7060d7ef248",
-        "kind": "section",
-        "label": "Feedback",
-        "width": 180,
-        "x": 3780,
-        "y": 20,
-        "height": 40,
-        "tags": [
-          "tag-feedback"
-        ]
-      },
-      {
-        "id": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
+        "id": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "kind": "application",
         "label": "Travel Agent",
-        "width": 3940,
-        "height": 480,
-        "description": "Researches, plans, books, and follows trips",
-        "x": 40,
-        "y": 280
-      },
-      {
-        "id": "5f10dfb8-16ba-401f-8a03-2344b9fde18e",
-        "kind": "process",
-        "label": "Trip Intake",
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
+        "x": 20,
+        "y": 220,
+        "width": 2240,
+        "height": 280,
+        "fontSize": 20,
         "tags": [
-          "tag-process",
-          "tag-trip-intake"
-        ],
-        "width": 280,
-        "x": 60,
-        "y": 380,
-        "height": 40
-      },
-      {
-        "id": "92e681ed-e78b-46a9-91c6-4c02a0144f4d",
-        "kind": "process",
-        "label": "Trip Overview & Booking",
-        "tags": [
-          "tag-process",
-          "tag-booking"
-        ],
-        "width": 680,
-        "x": 1540,
-        "y": 380,
-        "height": 40,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "kind": "process",
-        "label": "Trip Preparation",
-        "tags": [
-          "tag-process",
-          "tag-preparation"
-        ],
-        "width": 980,
-        "x": 2300,
-        "y": 380,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "height": 40
-      },
-      {
-        "id": "7dabd68a-e605-4cb0-ad42-930642287fd0",
-        "kind": "process",
-        "label": "Client Portal",
-        "tags": [
-          "tag-process",
-          "tag-client-portal"
-        ],
-        "width": 420,
-        "x": 3320,
-        "y": 380,
-        "height": 40,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "73149d3f-cdf9-4db0-8d40-3770dbf7cadd",
-        "kind": "process",
-        "label": "Trip Feedback",
-        "tags": [
-          "tag-process",
-          "tag-feedback"
-        ],
-        "width": 160,
-        "x": 3780,
-        "y": 380,
-        "height": 40,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "17d3b535-eecb-413d-9548-5b458cc412a8",
-        "kind": "entity",
-        "label": "Trip Request",
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "tags": [
-          "tag-data",
-          "tag-trip-intake"
-        ],
-        "width": 280,
-        "x": 60,
-        "y": 460,
-        "height": 40
-      },
-      {
-        "id": "92b5ae1b-adca-4965-a17c-20c5314a1f30",
-        "kind": "entity",
-        "label": "Booking Confirmation",
-        "tags": [
-          "tag-data",
-          "tag-booking"
-        ],
-        "width": 140,
-        "x": 1540,
-        "y": 460,
-        "height": 60,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "0de721f1-f9af-400a-92b9-471a98d7be31",
-        "kind": "entity",
-        "label": "Trip Overview",
-        "tags": [
-          "tag-data",
-          "tag-booking"
-        ],
-        "width": 120,
-        "x": 2040,
-        "y": 460,
-        "height": 60,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "54337da5-49d2-4595-b2a6-bd7da1eb0050",
-        "kind": "entity",
-        "label": "Checklist: Passport, Visa, Insurance",
-        "tags": [
-          "tag-data",
-          "tag-preparation"
-        ],
-        "width": 340,
-        "x": 2300,
-        "y": 460,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "009067f0-8859-4563-be50-6ac0138de4bd",
-        "kind": "entity",
-        "label": "Boarding Passes",
-        "tags": [
-          "tag-data",
-          "tag-preparation"
-        ],
-        "width": 160,
-        "x": 3080,
-        "y": 460,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "ee31c0dd-4aba-4823-b755-c4dd62bd324a",
-        "kind": "entity",
-        "label": "Orders",
-        "tags": [
-          "tag-data",
-          "tag-client-portal"
-        ],
-        "width": 120,
-        "x": 3320,
-        "y": 460,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "05a296ff-5e12-463b-9aa6-ea7c56b530c4",
-        "kind": "entity",
-        "label": "Reviews",
-        "tags": [
-          "tag-data",
-          "tag-feedback"
-        ],
-        "width": 120,
-        "x": 3800,
-        "y": 460,
-        "height": 40,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "02920964-6662-40ab-8669-3ee96fc08274",
-        "kind": "process",
-        "label": "Trip Orchestrator",
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "width": 3600,
-        "x": 60,
-        "y": 540,
-        "height": 40,
-        "tags": [
-          "tag-process",
-          "tag-trip-intake",
-          "tag-booking",
-          "tag-preparation",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
+          "78722bbf-b1ff-4950-be21-aa2f12c88538",
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
         ]
       },
       {
-        "id": "055ead1d-eb75-44bb-9f10-dc913e202918",
-        "kind": "process",
-        "label": "Itinerary Planning",
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "tags": [
-          "tag-process",
-          "tag-itinerary"
-        ],
-        "width": 200,
-        "x": 100,
-        "y": 700,
-        "height": 40
-      },
-      {
-        "id": "0b517cf0-78d4-4096-9aa6-f52e5ae34897",
-        "kind": "entity",
-        "label": "Itinerary",
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "tags": [
-          "tag-data",
-          "tag-itinerary"
-        ],
+        "id": "c2e44330-7d34-4113-aa9a-d817c1e931cb",
+        "kind": "component",
+        "label": "Model Router",
+        "x": 860,
+        "y": 400,
         "width": 120,
-        "x": 60,
-        "y": 620
-      },
-      {
-        "id": "fca5b4a4-1607-40fa-b01a-3840d3c5727e",
-        "kind": "entity",
-        "label": "Indoor Alternatives",
-        "tags": [
-          "tag-data",
-          "tag-itinerary"
-        ],
-        "width": 120,
-        "x": 220,
-        "y": 600,
         "height": 60,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "b0ac9499-aa27-4fa4-bbaa-b1ab5b43b725",
-        "kind": "process",
-        "label": "Transportation Planning",
         "tags": [
-          "tag-process",
-          "tag-risk",
-          "tag-transportation"
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
         ],
-        "width": 280,
-        "x": 480,
-        "y": 700,
-        "height": 40,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859"
       },
       {
-        "id": "428c6e21-a891-4969-b62e-bd5643b05bd1",
-        "kind": "entity",
-        "label": "Transport Options",
-        "tags": [
-          "tag-data",
-          "tag-transportation"
-        ],
-        "width": 120,
-        "x": 480,
-        "y": 600,
-        "height": 60,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "373f8a92-de96-464a-b44e-eabfd744c8bf",
-        "kind": "entity",
-        "label": "Reliability Scores",
-        "tags": [
-          "tag-data",
-          "tag-transportation"
-        ],
-        "width": 120,
-        "x": 640,
-        "y": 600,
-        "height": 60,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "9f052b18-06c7-49cc-875a-1d1d96a0e323",
-        "kind": "process",
-        "label": "Risk Assessment",
-        "tags": [
-          "tag-process",
-          "tag-risk"
-        ],
-        "width": 160,
-        "x": 940,
-        "y": 700,
-        "height": 40,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "80a99652-d50b-4a42-accb-d5c582807e13",
-        "kind": "entity",
-        "label": "Risk Profile",
-        "tags": [
-          "tag-data",
-          "tag-risk"
-        ],
-        "width": 120,
-        "x": 1040,
-        "y": 600,
-        "height": 60,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "c67d8ef1-e8ee-4ab7-8977-a0f4632bbf1f",
-        "kind": "process",
-        "label": "Weather Advice",
-        "width": 180,
-        "x": 1260,
-        "y": 700,
-        "height": 40,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "tags": [
-          "tag-process",
-          "tag-weather",
-          "tag-risk",
-          "tag-preparation",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
-        ]
-      },
-      {
-        "id": "9bcb0e1c-7057-4682-bf07-87ab6fd0a8a2",
-        "kind": "entity",
-        "label": "Weather Forecast",
-        "width": 120,
-        "x": 1360,
-        "y": 600,
-        "height": 60,
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e",
-        "tags": [
-          "tag-data",
-          "tag-weather",
-          "tag-preparation",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
-        ]
-      },
-      {
-        "id": "ed33ef9e-cbbb-405c-81e4-855ff4d0fbe2",
-        "kind": "process",
-        "label": "Clothing Recommendations",
-        "width": 320,
-        "x": 2320,
-        "y": 700,
-        "tags": [
-          "tag-process",
-          "tag-preparation"
-        ],
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
-      },
-      {
-        "id": "462cf5f8-24fa-48f3-9667-1a8d17279d6d",
-        "kind": "entity",
-        "label": "Packing List",
-        "width": 140,
-        "x": 2320,
+        "id": "c27f8af0-ee29-43a7-9be6-682edc1d68cd",
+        "kind": "application",
+        "label": "LLMs",
+        "x": 820,
         "y": 620,
+        "cloudHosted": true,
         "tags": [
-          "tag-data",
-          "tag-preparation"
-        ],
-        "parentId": "96a103a0-e82a-4304-9d1a-8b7f14fcae0e"
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ]
       },
       {
-        "id": "06fe3aae-1624-4fd6-b8b6-ecb895df29ed",
+        "id": "22595637-f7dc-44c5-b65d-c49d72a0ea36",
         "kind": "domain",
-        "label": "Attractions",
+        "label": "Leisure Industry",
+        "x": 20,
+        "y": 580,
+        "width": 220,
+        "height": 260,
         "tags": [
-          "tag-services",
-          "tag-itinerary"
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "832a3a2c-722e-4b6e-a6e0-e6f43a96ee25",
+        "kind": "entity",
+        "label": "Travel Destinations",
+        "x": 40,
+        "y": 400,
+        "width": 140,
+        "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "632b01ad-c269-43f8-ab8e-39ea720930f4",
+        "kind": "process",
+        "label": "Build Profile",
+        "x": 200,
+        "y": 280,
+        "width": 140,
+        "height": 60,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "8c27f97b-e9c4-4164-ade2-97527b773e6e",
+        "kind": "process",
+        "label": "Browse Destinations",
+        "x": 40,
+        "y": 280,
+        "width": 140,
+        "height": 60,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "aaf911ef-b26c-4302-ac95-5d26c3565eaf",
+        "kind": "entity",
+        "label": "Preferences",
+        "x": 200,
+        "y": 400,
+        "width": 140,
+        "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "99b89295-8d5a-483a-a794-e78f34e7081e",
+        "kind": "application",
+        "label": "Cruise Companies",
+        "x": 20,
+        "y": 620,
+        "cloudHosted": true,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
         ],
+        "parentId": "22595637-f7dc-44c5-b65d-c49d72a0ea36"
+      },
+      {
+        "id": "ec41f1cf-cd4d-45cc-aec3-93e81d45d04c",
+        "kind": "application",
+        "label": "Hotels",
+        "x": 20,
+        "y": 720,
+        "cloudHosted": true,
+        "parentId": "22595637-f7dc-44c5-b65d-c49d72a0ea36",
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "8a67eb40-60bb-485d-bab9-d90c46790ce8",
+        "kind": "section",
+        "label": "Book",
+        "x": 840,
+        "y": 20,
+        "tags": [
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe"
+        ],
+        "width": 400,
+        "height": 40
+      },
+      {
+        "id": "b7e8463a-39f1-4543-a820-e724e6b85aa1",
+        "kind": "actor",
+        "label": "Traveller",
+        "x": 980,
+        "y": 60,
+        "tags": [
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe"
+        ]
+      },
+      {
+        "id": "32a13a53-adef-45ec-8bbb-37bc751b100e",
+        "kind": "entity",
+        "label": "Trips",
+        "x": 1040,
+        "y": 400,
+        "width": 160,
+        "height": 60,
+        "tags": [
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe"
+        ],
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859"
+      },
+      {
+        "id": "51081d15-6c30-4234-a643-a6a94c2c67d2",
+        "kind": "process",
+        "label": "Book",
+        "x": 1040,
+        "y": 280,
+        "width": 160,
+        "height": 60,
+        "tags": [
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe"
+        ]
+      },
+      {
+        "id": "11c7b3a3-799e-446d-9a95-d4fabb79ec9d",
+        "kind": "application",
+        "label": "Payment Processor",
+        "x": 1020,
+        "y": 620,
+        "cloudHosted": true,
+        "tags": [
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe"
+        ]
+      },
+      {
+        "id": "031b9c37-3490-4370-a3bc-4d86b0aa28bc",
+        "kind": "section",
+        "label": "Prepare",
+        "x": 1260,
+        "y": 20,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ]
+      },
+      {
+        "id": "5c3a35fb-9006-4126-bd11-fb61a5b8974c",
+        "kind": "actor",
+        "label": "Traveller",
+        "x": 1440,
+        "y": 60,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ]
+      },
+      {
+        "id": "fc24f05c-516d-4e38-b654-1eb47f5831ad",
+        "kind": "domain",
+        "label": "Weather Services",
+        "x": 320,
+        "y": 580,
+        "width": 220,
+        "height": 260,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
+      },
+      {
+        "id": "31a52c74-e0ed-48d3-91eb-e76b3196a1e9",
+        "kind": "application",
+        "label": "Accu Weather",
+        "x": 320,
+        "y": 620,
+        "cloudHosted": true,
+        "parentId": "fc24f05c-516d-4e38-b654-1eb47f5831ad",
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
+      },
+      {
+        "id": "a6d248c8-098a-4387-9cd1-aae2c6d87f15",
+        "kind": "application",
+        "label": "Weather Underground",
+        "x": 320,
+        "y": 720,
+        "cloudHosted": true,
+        "parentId": "fc24f05c-516d-4e38-b654-1eb47f5831ad",
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
+      },
+      {
+        "id": "b6282a1b-9330-44fd-863f-18e1fb1a212e",
+        "kind": "application",
+        "label": "Academy",
+        "x": 1460,
+        "y": 620,
+        "cloudHosted": true,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ],
+        "parentId": "22fe4e0b-1430-4139-8b3c-9173d8457396"
+      },
+      {
+        "id": "aba5ee8d-5b15-46fa-9af1-533b7475f08e",
+        "kind": "application",
+        "label": "A.S. Adventure",
+        "x": 1460,
+        "y": 720,
+        "cloudHosted": true,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ],
+        "parentId": "22fe4e0b-1430-4139-8b3c-9173d8457396"
+      },
+      {
+        "id": "45eed397-dc46-4873-b5fc-76802c43f5af",
+        "kind": "application",
+        "label": "REI",
+        "x": 1460,
+        "y": 820,
+        "cloudHosted": true,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ],
+        "parentId": "22fe4e0b-1430-4139-8b3c-9173d8457396"
+      },
+      {
+        "id": "22fe4e0b-1430-4139-8b3c-9173d8457396",
+        "kind": "domain",
+        "label": "Outdoor Shops",
+        "x": 1440,
+        "y": 580,
+        "width": 240,
+        "height": 360,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ]
+      },
+      {
+        "id": "b8f72c20-ecc9-472e-a900-266bebc62917",
+        "kind": "application",
+        "label": "News",
+        "x": 580,
+        "y": 720,
+        "cloudHosted": true,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ],
+        "parentId": "bb3f245a-6bfc-4430-9ddb-b6213dd40b69"
+      },
+      {
+        "id": "fb9935b6-94f0-4156-bcaa-2374046718d5",
+        "kind": "application",
+        "label": "Reviews",
+        "x": 580,
+        "y": 620,
+        "cloudHosted": true,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ],
+        "parentId": "bb3f245a-6bfc-4430-9ddb-b6213dd40b69"
+      },
+      {
+        "id": "10f9515c-6ee8-46c0-9174-ad6b92e714d0",
+        "kind": "process",
+        "label": "Risk",
+        "x": 600,
+        "y": 280,
+        "width": 180,
+        "height": 60,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "bb3f245a-6bfc-4430-9ddb-b6213dd40b69",
+        "kind": "domain",
+        "label": "Online",
+        "x": 580,
+        "y": 580,
+        "width": 200,
+        "height": 260,
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09"
+        ]
+      },
+      {
+        "id": "bba7e349-3dd4-47fc-b975-3231350b811f",
+        "kind": "process",
+        "label": "Prepare",
+        "x": 1260,
+        "y": 280,
+        "width": 160,
+        "height": 60,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ]
+      },
+      {
+        "id": "848a0892-90c7-42cb-84be-a9f838570b4a",
+        "kind": "entity",
+        "label": "Check List",
+        "x": 1260,
+        "y": 400,
+        "width": 160,
+        "height": 60,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ],
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859"
+      },
+      {
+        "id": "f40c36fd-f656-45d7-8093-cc0e46ba6d53",
+        "kind": "process",
+        "label": "Shop",
+        "x": 1480,
+        "y": 280,
+        "tags": [
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
+        ],
+        "width": 160,
+        "height": 60
+      },
+      {
+        "id": "1d43a61e-3d94-446d-bebd-cec3dbd8279b",
+        "kind": "section",
+        "label": "Travel",
+        "x": 1760,
+        "y": 20,
+        "tags": [
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ],
+        "width": 240,
+        "height": 40
+      },
+      {
+        "id": "2a5a75df-4738-45c2-bbaa-00661e86ffa1",
+        "kind": "process",
+        "label": "Itinerary Checks",
+        "x": 1800,
+        "y": 280,
+        "width": 160,
+        "height": 60,
+        "tags": [
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
+      },
+      {
+        "id": "b244460f-e7d8-481f-a4ae-99089f3b314e",
+        "kind": "actor",
+        "label": "Traveller",
+        "x": 1820,
+        "y": 60,
+        "tags": [
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
+      },
+      {
+        "id": "10f2d5de-a23b-42d3-b34d-160e2296adb5",
+        "kind": "domain",
+        "label": "Trains, Planes and Automobiles",
+        "x": 1760,
+        "y": 580,
         "width": 240,
         "height": 280,
-        "x": 80,
-        "y": 820
-      },
-      {
-        "id": "5a8b65eb-c2e5-446a-b4d1-b57b20c908b3",
-        "kind": "application",
-        "label": "Attractions & Events",
         "tags": [
-          "tag-services",
-          "tag-itinerary"
-        ],
-        "description": "Things to do",
-        "cloudHosted": true,
-        "x": 100,
-        "y": 860,
-        "parentId": "06fe3aae-1624-4fd6-b8b6-ecb895df29ed"
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
       },
       {
-        "id": "67bf11a1-9bd9-446b-aa32-ee6a567723b3",
-        "kind": "application",
-        "label": "Indoor Venues",
-        "tags": [
-          "tag-services",
-          "tag-itinerary"
-        ],
-        "description": "Museums, shows, and more",
-        "cloudHosted": true,
-        "x": 100,
-        "y": 980,
-        "parentId": "06fe3aae-1624-4fd6-b8b6-ecb895df29ed"
-      },
-      {
-        "id": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "kind": "domain",
-        "label": "Transportation",
-        "tags": [
-          "tag-services",
-          "tag-transportation"
-        ],
-        "width": 460,
-        "height": 420,
-        "x": 380,
-        "y": 820
-      },
-      {
-        "id": "db1d7ba9-804b-40c5-bf48-7bec6bdc427d",
+        "id": "f82c580a-6aff-414e-9b45-fadf39da644d",
         "kind": "application",
         "label": "Airlines",
-        "parentId": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "tags": [
-          "tag-services",
-          "tag-transportation"
-        ],
-        "description": "Flights and fares",
-        "cloudHosted": true,
-        "x": 400,
-        "y": 860
-      },
-      {
-        "id": "f5771a12-a7ba-404c-af1d-02482a71c99c",
-        "kind": "application",
-        "label": "Airports",
-        "parentId": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "tags": [
-          "tag-services",
-          "tag-transportation"
-        ],
-        "description": "On-time performance",
-        "cloudHosted": true,
-        "x": 620,
-        "y": 860
-      },
-      {
-        "id": "8f1293e7-18ba-4dbe-9e1a-5a60f2d1e1a6",
-        "kind": "application",
-        "label": "Rail",
-        "parentId": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "tags": [
-          "tag-services",
-          "tag-transportation"
-        ],
-        "description": "Trains",
-        "cloudHosted": true,
-        "x": 400,
-        "y": 980
-      },
-      {
-        "id": "c1c43b4d-2bca-47a6-8ed1-c9d0395bb3c3",
-        "kind": "application",
-        "label": "Ferries",
-        "parentId": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "tags": [
-          "tag-services",
-          "tag-transportation"
-        ],
-        "description": "Boats",
-        "cloudHosted": true,
-        "x": 620,
-        "y": 980
-      },
-      {
-        "id": "088f4334-49f8-45e8-95e4-f485749d39ec",
-        "kind": "application",
-        "label": "Ride Hailing",
-        "parentId": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "tags": [
-          "tag-services",
-          "tag-transportation"
-        ],
-        "description": "Uber, Lyft, taxis",
-        "cloudHosted": true,
-        "x": 400,
-        "y": 1100
-      },
-      {
-        "id": "e84f3569-283b-439d-9b20-8d5c5b302d4f",
-        "kind": "application",
-        "label": "Expedia",
-        "parentId": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "tags": [
-          "tag-services",
-          "tag-transportation"
-        ],
-        "description": "Packages and prices",
-        "cloudHosted": true,
-        "x": 620,
-        "y": 1100
-      },
-      {
-        "id": "cc65ff70-1636-46c0-85d9-f93982435165",
-        "kind": "domain",
-        "label": "Risk & Safety",
-        "width": 240,
-        "height": 300,
-        "x": 900,
-        "y": 820,
-        "tags": [
-          "tag-services",
-          "tag-risk"
-        ]
-      },
-      {
-        "id": "30e2f559-42a8-4f02-94ae-64d8b7bf7850",
-        "kind": "application",
-        "label": "Travel Advisories",
-        "parentId": "cc65ff70-1636-46c0-85d9-f93982435165",
-        "tags": [
-          "tag-services",
-          "tag-risk"
-        ],
-        "description": "Political risk",
-        "cloudHosted": true,
-        "x": 920,
-        "y": 860
-      },
-      {
-        "id": "68805859-0490-405b-a241-021eb7f57f9a",
-        "kind": "application",
-        "label": "Local News",
-        "parentId": "cc65ff70-1636-46c0-85d9-f93982435165",
-        "tags": [
-          "tag-services",
-          "tag-risk"
-        ],
-        "description": "Protests and mass events",
-        "cloudHosted": true,
-        "x": 920,
-        "y": 980
-      },
-      {
-        "id": "bba07043-fec9-409d-9340-c1d7a7d02daa",
-        "kind": "domain",
-        "label": "Weather",
-        "width": 240,
-        "height": 180,
-        "x": 1220,
-        "y": 820,
-        "tags": [
-          "tag-services",
-          "tag-weather",
-          "tag-preparation",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
-        ]
-      },
-      {
-        "id": "fab6575e-3401-4f54-ae2a-7eeba7e20d07",
-        "kind": "application",
-        "label": "Weather Service",
-        "description": "Forecasts and climate",
-        "cloudHosted": true,
-        "x": 1240,
-        "y": 860,
-        "parentId": "bba07043-fec9-409d-9340-c1d7a7d02daa",
-        "tags": [
-          "tag-services",
-          "tag-weather",
-          "tag-preparation",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
-        ]
-      },
-      {
-        "id": "228f5148-0d75-489f-946c-46a2585f6a53",
-        "kind": "domain",
-        "label": "Retail",
-        "width": 240,
-        "height": 160,
-        "x": 2360,
-        "y": 820,
-        "tags": [
-          "tag-services",
-          "tag-preparation"
-        ]
-      },
-      {
-        "id": "81b5132f-a31d-4bc6-9d95-205029e4abbf",
-        "kind": "application",
-        "label": "Clothing Stores",
-        "parentId": "228f5148-0d75-489f-946c-46a2585f6a53",
-        "description": "Products and availability",
-        "cloudHosted": true,
-        "x": 2380,
-        "y": 860,
-        "tags": [
-          "tag-services",
-          "tag-preparation"
-        ]
-      },
-      {
-        "id": "8a43de57-2d91-439b-9af3-4622528c2c46",
-        "kind": "actor",
-        "label": "Traveller",
-        "x": 140,
-        "y": 160,
-        "tags": [
-          "tag-services",
-          "tag-trip-intake"
-        ]
-      },
-      {
-        "id": "982523f2-ff58-455c-beb2-e1dbd297fc3d",
-        "kind": "actor",
-        "label": "Traveller",
-        "tags": [
-          "tag-people",
-          "tag-booking"
-        ],
-        "x": 1540,
-        "y": 140
-      },
-      {
-        "id": "97d5b9ab-7f4c-4c48-bbca-547c35632e2d",
-        "kind": "actor",
-        "label": "Traveller",
-        "tags": [
-          "tag-people",
-          "tag-preparation"
-        ],
-        "x": 2420,
-        "y": 140
-      },
-      {
-        "id": "197dc245-c7f3-4afd-9ca1-30b1516b9fc9",
-        "kind": "actor",
-        "label": "Traveller",
-        "tags": [
-          "tag-people",
-          "tag-client-portal"
-        ],
-        "x": 3320,
-        "y": 140
-      },
-      {
-        "id": "d0ccb9a5-2cd1-4529-8f7f-e127d6ce9279",
-        "kind": "actor",
-        "label": "Traveller",
-        "tags": [
-          "tag-people",
-          "tag-feedback"
-        ],
-        "x": 3800,
-        "y": 140
-      },
-      {
-        "id": "10448361-8c8e-4129-aa04-8bf7221b69a9",
-        "kind": "domain",
-        "label": "Client Services",
-        "tags": [
-          "tag-services",
-          "tag-booking"
-        ],
-        "width": 460,
-        "height": 160,
-        "x": 1760,
-        "y": 80
-      },
-      {
-        "id": "f35bac25-eb70-4821-bc39-b4896857bdcd",
-        "kind": "application",
-        "label": "Client Calendar",
-        "parentId": "10448361-8c8e-4129-aa04-8bf7221b69a9",
-        "tags": [
-          "tag-services",
-          "tag-booking"
-        ],
-        "description": "The traveller's calendar",
-        "cloudHosted": true,
         "x": 1780,
-        "y": 120
-      },
-      {
-        "id": "60e581c7-5821-43e8-b5b9-a83560244c68",
-        "kind": "application",
-        "label": "Payment Provider",
-        "tags": [
-          "tag-services",
-          "tag-booking"
-        ],
-        "description": "Approvals and payments",
+        "y": 640,
         "cloudHosted": true,
-        "x": 2000,
-        "y": 120,
-        "parentId": "10448361-8c8e-4129-aa04-8bf7221b69a9"
-      },
-      {
-        "id": "1a0c8421-6637-4494-82e0-b20efa207b71",
-        "kind": "domain",
-        "label": "Preparation Services",
         "tags": [
-          "tag-services",
-          "tag-preparation"
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
         ],
-        "width": 660,
-        "height": 160,
-        "x": 2620,
-        "y": 80
+        "parentId": "10f2d5de-a23b-42d3-b34d-160e2296adb5"
       },
       {
-        "id": "5e42b19f-eb9a-4109-b273-1cbd14ec4248",
+        "id": "5b92e79c-ff1e-458c-aa16-afbcaa871321",
         "kind": "application",
-        "label": "Clothing Shops",
-        "tags": [
-          "tag-services",
-          "tag-preparation"
-        ],
-        "description": "What to pack",
+        "label": "Rentals",
+        "x": 1780,
+        "y": 740,
         "cloudHosted": true,
-        "x": 2660,
-        "y": 120,
-        "parentId": "1a0c8421-6637-4494-82e0-b20efa207b71"
+        "parentId": "10f2d5de-a23b-42d3-b34d-160e2296adb5",
+        "tags": [
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
       },
       {
-        "id": "bd330b2d-b093-47f6-a5bc-c27f82cb15e5",
-        "kind": "application",
-        "label": "Airline Check-in",
+        "id": "a09434cd-90cb-44c3-8dee-039df9a4062a",
+        "kind": "process",
+        "label": "Forecast",
+        "x": 360,
+        "y": 280,
+        "width": 140,
+        "height": 60,
         "tags": [
-          "tag-services",
-          "tag-preparation"
-        ],
-        "description": "Boarding passes",
-        "cloudHosted": true,
-        "x": 2860,
-        "y": 120,
-        "parentId": "1a0c8421-6637-4494-82e0-b20efa207b71"
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
+          "78722bbf-b1ff-4950-be21-aa2f12c88538"
+        ]
       },
       {
-        "id": "210b27c2-adcf-4f95-86b9-99815ad737b9",
-        "kind": "application",
-        "label": "Shuttle Service",
-        "tags": [
-          "tag-services",
-          "tag-preparation"
-        ],
-        "description": "Rides to the airport",
-        "cloudHosted": true,
-        "x": 3060,
-        "y": 120,
-        "parentId": "1a0c8421-6637-4494-82e0-b20efa207b71"
-      },
-      {
-        "id": "0ba3eaca-8908-4090-897f-cb1e6f62c709",
-        "kind": "domain",
-        "label": "Client Engagement",
-        "tags": [
-          "tag-services",
-          "tag-client-portal"
-        ],
+        "id": "b7aa3cb7-233d-4f6d-add1-94a2b145cc41",
+        "kind": "section",
+        "label": "Feedback",
+        "x": 2020,
+        "y": 20,
         "width": 240,
-        "height": 160,
-        "x": 3500,
-        "y": 80
-      },
-      {
-        "id": "ce7b0bfa-f849-4d6d-9a40-52a5fe89da78",
-        "kind": "application",
-        "label": "Notifications",
-        "parentId": "0ba3eaca-8908-4090-897f-cb1e6f62c709",
+        "height": 40,
         "tags": [
-          "tag-services",
-          "tag-client-portal"
-        ],
-        "description": "Ongoing updates by e-mail",
-        "cloudHosted": true,
-        "x": 3520,
-        "y": 120
-      },
-      {
-        "id": "b329ff40-3f4c-4358-9c13-c6ef7a7e5782",
-        "kind": "application",
-        "label": "Anthropic",
-        "cloudHosted": true,
-        "x": 3440,
-        "y": 860,
-        "parentId": "ad8a4944-ca51-472c-ae82-9467dea1fd8f",
-        "tags": [
-          "tag-process",
-          "tag-services",
-          "tag-booking",
-          "tag-preparation",
-          "tag-client-portal",
-          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
         ]
       },
       {
-        "id": "ad8a4944-ca51-472c-ae82-9467dea1fd8f",
-        "kind": "domain",
-        "label": "LLMs",
-        "x": 3420,
-        "y": 820,
-        "width": 240,
-        "height": 300,
+        "id": "429cec02-4176-4441-9722-326a03e96677",
+        "kind": "actor",
+        "label": "Traveller",
+        "x": 2080,
+        "y": 60,
         "tags": [
-          "tag-process",
-          "tag-services",
-          "tag-booking",
-          "tag-preparation",
-          "tag-client-portal",
-          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
         ]
       },
       {
-        "id": "c33d656b-1792-4f16-8f8b-fb732af01663",
-        "kind": "application",
-        "label": "Hugging Face",
-        "cloudHosted": true,
-        "x": 3440,
-        "y": 980,
-        "parentId": "ad8a4944-ca51-472c-ae82-9467dea1fd8f",
-        "tags": [
-          "tag-process",
-          "tag-services",
-          "tag-booking",
-          "tag-preparation",
-          "tag-client-portal",
-          "0ea72e88-a136-4981-b7a1-07ff3d94e8d0",
-          "6b90aeb6-f8f0-417c-81db-699022060840"
-        ]
+        "id": "be666cdb-c690-4a23-ad70-c14c79e72164",
+        "kind": "process",
+        "label": "Feedback",
+        "x": 2080,
+        "y": 280,
+        "width": 120,
+        "height": 60
+      },
+      {
+        "id": "fe20a3b3-9f6e-44fd-8f48-ded5eacdfba3",
+        "kind": "entity",
+        "label": "Reviews",
+        "x": 2080,
+        "y": 400,
+        "width": 120,
+        "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859"
       }
     ],
     "connections": [
       {
-        "id": "373d326b-a8e8-4c79-96c3-04a66bc3b619",
-        "sourceId": "8a43de57-2d91-439b-9af3-4622528c2c46",
-        "targetId": "5f10dfb8-16ba-401f-8a03-2344b9fde18e",
+        "id": "57bb7cef-1341-45ea-9807-55b4252f3a14",
+        "sourceId": "8c566074-69db-45c7-bcc2-da125b231678",
+        "targetId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "mode": "manual",
-        "label": "Requests\ntravel advice",
-        "connector": "Chat"
+        "label": "Exploring\nDestinations",
+        "connector": "WEB"
       },
       {
-        "id": "7cabcf96-fd1d-4157-a1e0-f234a9fa6cae",
-        "sourceId": "197dc245-c7f3-4afd-9ca1-30b1516b9fc9",
-        "targetId": "7dabd68a-e605-4cb0-ad42-930642287fd0",
-        "mode": "manual",
-        "label": "Follows the trip",
-        "connector": "Web"
-      },
-      {
-        "id": "63f339fc-08c1-456b-b8f4-161eac3b00eb",
-        "sourceId": "982523f2-ff58-455c-beb2-e1dbd297fc3d",
-        "targetId": "92e681ed-e78b-46a9-91c6-4c02a0144f4d",
-        "mode": "manual",
-        "label": "Approves and pays",
-        "connector": "Web"
-      },
-      {
-        "id": "a4f24cb5-5b30-4dec-b7d0-d619d7eb4595",
-        "sourceId": "5f10dfb8-16ba-401f-8a03-2344b9fde18e",
-        "targetId": "17d3b535-eecb-413d-9548-5b458cc412a8"
-      },
-      {
-        "id": "b86b7d5a-7e6a-434e-8c98-1bd890b6785b",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "17d3b535-eecb-413d-9548-5b458cc412a8",
-        "label": "Reads"
-      },
-      {
-        "id": "d7b31d28-54a1-450a-91af-7042698ec120",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "055ead1d-eb75-44bb-9f10-dc913e202918"
-      },
-      {
-        "id": "fe488c1a-d0cd-429f-a662-553eded81cf0",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "b0ac9499-aa27-4fa4-bbaa-b1ab5b43b725",
-        "manualOffset": 560
-      },
-      {
-        "id": "2798c7f2-6715-4494-a3a1-fd5fa9b38831",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "9f052b18-06c7-49cc-875a-1d1d96a0e323"
-      },
-      {
-        "id": "529b4db8-e7ea-432e-9f67-8fbae56f390c",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "c67d8ef1-e8ee-4ab7-8977-a0f4632bbf1f",
-        "manualOffset": 1280
-      },
-      {
-        "id": "6ba1f75f-afc4-48b8-904e-0eb7d816cc7b",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "ed33ef9e-cbbb-405c-81e4-855ff4d0fbe2"
-      },
-      {
-        "id": "ba706419-a785-43fd-804d-c0d794d0a668",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "92e681ed-e78b-46a9-91c6-4c02a0144f4d",
-        "manualOffset": 1820
-      },
-      {
-        "id": "86b650f3-c1d7-4e58-bd51-b6afd1c730fb",
-        "sourceId": "055ead1d-eb75-44bb-9f10-dc913e202918",
-        "targetId": "0b517cf0-78d4-4096-9aa6-f52e5ae34897",
-        "manualOffset": 20
-      },
-      {
-        "id": "068123ea-4bbc-4f06-9107-d55c43d02b87",
-        "sourceId": "055ead1d-eb75-44bb-9f10-dc913e202918",
-        "targetId": "fca5b4a4-1607-40fa-b01a-3840d3c5727e",
-        "manualOffset": 170
-      },
-      {
-        "id": "9972e873-9ac6-4a77-9fd2-0f25e0365cb6",
-        "sourceId": "055ead1d-eb75-44bb-9f10-dc913e202918",
-        "targetId": "06fe3aae-1624-4fd6-b8b6-ecb895df29ed",
-        "connector": "MCP",
-        "bidirectional": true
-      },
-      {
-        "id": "2a8a0179-21e8-467b-a8c4-3e1e443dcdca",
-        "sourceId": "b0ac9499-aa27-4fa4-bbaa-b1ab5b43b725",
-        "targetId": "428c6e21-a891-4969-b62e-bd5643b05bd1"
-      },
-      {
-        "id": "cc096725-127c-42be-98a6-f6bd2cef2802",
-        "sourceId": "b0ac9499-aa27-4fa4-bbaa-b1ab5b43b725",
-        "targetId": "373f8a92-de96-464a-b44e-eabfd744c8bf"
-      },
-      {
-        "id": "c6f34f36-9a19-457f-98f2-123d84355771",
-        "sourceId": "b0ac9499-aa27-4fa4-bbaa-b1ab5b43b725",
-        "targetId": "046597c4-ded2-4db2-a674-56f532d3797f",
-        "connector": "MCP",
-        "bidirectional": true
-      },
-      {
-        "id": "6f4ca0c7-f81b-4d85-b57c-57d1ada3bc8a",
-        "sourceId": "9f052b18-06c7-49cc-875a-1d1d96a0e323",
-        "targetId": "80a99652-d50b-4a42-accb-d5c582807e13",
-        "manualOffset": 150
-      },
-      {
-        "id": "7930098a-1d84-4390-b12c-70b55181ad11",
-        "sourceId": "9f052b18-06c7-49cc-875a-1d1d96a0e323",
-        "targetId": "cc65ff70-1636-46c0-85d9-f93982435165",
-        "connector": "MCP",
-        "bidirectional": true
-      },
-      {
-        "id": "01b765e8-aa6f-4dd6-a4fc-622812f5fbe6",
-        "sourceId": "c67d8ef1-e8ee-4ab7-8977-a0f4632bbf1f",
-        "targetId": "9bcb0e1c-7057-4682-bf07-87ab6fd0a8a2",
-        "manualOffset": 160
-      },
-      {
-        "id": "abe32284-ea3e-4285-bded-305948bc1317",
-        "sourceId": "c67d8ef1-e8ee-4ab7-8977-a0f4632bbf1f",
-        "targetId": "bba07043-fec9-409d-9340-c1d7a7d02daa",
-        "connector": "MCP",
-        "bidirectional": true,
-        "manualOffset": 80
-      },
-      {
-        "id": "bb6c8605-b78c-433b-98b6-6f341d970286",
-        "sourceId": "ed33ef9e-cbbb-405c-81e4-855ff4d0fbe2",
-        "targetId": "462cf5f8-24fa-48f3-9667-1a8d17279d6d"
-      },
-      {
-        "id": "65fdae91-7a62-4a71-b536-d2be81fe921c",
-        "sourceId": "ed33ef9e-cbbb-405c-81e4-855ff4d0fbe2",
-        "targetId": "228f5148-0d75-489f-946c-46a2585f6a53",
-        "connector": "MCP",
-        "bidirectional": true
-      },
-      {
-        "id": "50a97afc-52e2-410d-8635-40601ad5493a",
-        "sourceId": "c67d8ef1-e8ee-4ab7-8977-a0f4632bbf1f",
-        "targetId": "ed33ef9e-cbbb-405c-81e4-855ff4d0fbe2"
-      },
-      {
-        "id": "853b9b2a-c4b5-4799-9af6-9847dce7ba02",
-        "sourceId": "c67d8ef1-e8ee-4ab7-8977-a0f4632bbf1f",
-        "targetId": "9f052b18-06c7-49cc-875a-1d1d96a0e323"
-      },
-      {
-        "id": "b0d73307-fc52-4dc6-b4d7-eea8adb08ef4",
-        "sourceId": "b0ac9499-aa27-4fa4-bbaa-b1ab5b43b725",
-        "targetId": "9f052b18-06c7-49cc-875a-1d1d96a0e323"
-      },
-      {
-        "id": "d02a2ef6-614c-4f03-a1c9-02b63ed17909",
-        "sourceId": "92e681ed-e78b-46a9-91c6-4c02a0144f4d",
-        "targetId": "0de721f1-f9af-400a-92b9-471a98d7be31"
-      },
-      {
-        "id": "8945efbb-f146-428a-9977-e0d9fea026ac",
-        "sourceId": "92e681ed-e78b-46a9-91c6-4c02a0144f4d",
-        "targetId": "92b5ae1b-adca-4965-a17c-20c5314a1f30"
-      },
-      {
-        "id": "6baa48d5-8357-4551-b48e-84c25f7c73a2",
-        "sourceId": "92e681ed-e78b-46a9-91c6-4c02a0144f4d",
-        "targetId": "f35bac25-eb70-4821-bc39-b4896857bdcd",
-        "connector": "API",
-        "manualOffset": 340
-      },
-      {
-        "id": "c5ce2e79-d0b3-4c89-a10a-9be8af7d7d8e",
-        "sourceId": "92e681ed-e78b-46a9-91c6-4c02a0144f4d",
-        "targetId": "60e581c7-5821-43e8-b5b9-a83560244c68",
+        "id": "1449ef33-efc0-417f-8514-f1e9ee93a8c2",
+        "sourceId": "c2e44330-7d34-4113-aa9a-d817c1e931cb",
+        "targetId": "c27f8af0-ee29-43a7-9be6-682edc1d68cd",
         "connector": "API"
       },
       {
-        "id": "13e7e82b-6e6a-4f08-9a9b-c5c899098b74",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "manualOffset": 2900
+        "id": "6abd4462-79fa-43f1-8013-be49ba47802b",
+        "sourceId": "632b01ad-c269-43f8-ab8e-39ea720930f4",
+        "targetId": "aaf911ef-b26c-4302-ac95-5d26c3565eaf"
       },
       {
-        "id": "04369d5c-b2ac-47e3-aa99-7ad6ee4112f4",
-        "sourceId": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "targetId": "97d5b9ab-7f4c-4c48-bbca-547c35632e2d",
-        "label": "Checklist, itinerary,\nand clothing advice",
-        "payload": "email"
+        "id": "f1861c28-91f0-4cf2-8095-d8bbc92134e6",
+        "sourceId": "8c27f97b-e9c4-4164-ade2-97527b773e6e",
+        "targetId": "832a3a2c-722e-4b6e-a6e0-e6f43a96ee25"
       },
       {
-        "id": "e4e666e9-1ef1-4973-9781-75ba2fe305bf",
-        "sourceId": "97d5b9ab-7f4c-4c48-bbca-547c35632e2d",
-        "targetId": "5e42b19f-eb9a-4109-b273-1cbd14ec4248",
-        "label": "Shops for clothes",
-        "connector": "Web",
+        "id": "b414bdab-09b6-4ca6-a0d7-9f57adad4c69",
+        "sourceId": "bcbdccfe-be2b-498e-ab47-a36486937859",
+        "targetId": "22595637-f7dc-44c5-b65d-c49d72a0ea36",
+        "label": "Availability\nCheck",
+        "connector": "API",
+        "bidirectional": true
+      },
+      {
+        "id": "e4698863-2698-4efb-964d-dbf685be077c",
+        "sourceId": "b7e8463a-39f1-4543-a820-e724e6b85aa1",
+        "targetId": "bcbdccfe-be2b-498e-ab47-a36486937859",
+        "mode": "manual",
+        "label": "Book Trip",
+        "connector": "WEB"
+      },
+      {
+        "id": "41d45674-d13d-4a9c-8d47-c1bfdd43efe2",
+        "sourceId": "51081d15-6c30-4234-a643-a6a94c2c67d2",
+        "targetId": "32a13a53-adef-45ec-8bbb-37bc751b100e"
+      },
+      {
+        "id": "1a99cd81-ff1b-4ae7-b407-b7a954f933d2",
+        "sourceId": "bcbdccfe-be2b-498e-ab47-a36486937859",
+        "targetId": "11c7b3a3-799e-446d-9a95-d4fabb79ec9d",
+        "label": "Process Payment",
+        "connector": "API"
+      },
+      {
+        "id": "f68e43dd-f720-45bb-8b68-093b8b84ee48",
+        "sourceId": "5c3a35fb-9006-4126-bd11-fb61a5b8974c",
+        "targetId": "bcbdccfe-be2b-498e-ab47-a36486937859",
+        "mode": "manual",
+        "label": "Prepare",
+        "connector": "WEB"
+      },
+      {
+        "id": "fb6b2144-df83-448f-a861-525c3529899a",
+        "sourceId": "10f9515c-6ee8-46c0-9174-ad6b92e714d0",
+        "targetId": "bb3f245a-6bfc-4430-9ddb-b6213dd40b69",
+        "connector": "WEB",
+        "bidirectional": true
+      },
+      {
+        "id": "24b10b53-e143-4be9-bd15-1fd7308d188e",
+        "sourceId": "bba7e349-3dd4-47fc-b975-3231350b811f",
+        "targetId": "848a0892-90c7-42cb-84be-a9f838570b4a"
+      },
+      {
+        "id": "b566590e-e677-48f1-a48f-d7e5634ee089",
+        "sourceId": "f40c36fd-f656-45d7-8093-cc0e46ba6d53",
+        "targetId": "22fe4e0b-1430-4139-8b3c-9173d8457396",
+        "connector": "WEB"
+      },
+      {
+        "id": "bdc969df-7b0c-4cf7-a1f8-45893d700cef",
+        "sourceId": "2a5a75df-4738-45c2-bbaa-00661e86ffa1",
+        "targetId": "b244460f-e7d8-481f-a4ae-99089f3b314e",
+        "label": "Updates",
+        "connector": "APP"
+      },
+      {
+        "id": "fb19201a-5d0c-40f1-a018-25e40e3bae95",
+        "sourceId": "2a5a75df-4738-45c2-bbaa-00661e86ffa1",
+        "targetId": "10f2d5de-a23b-42d3-b34d-160e2296adb5",
+        "manualOffset": 80,
+        "connector": "API"
+      },
+      {
+        "id": "66652ff3-5ef9-447b-8a56-1bd7ffcf3789",
+        "sourceId": "a09434cd-90cb-44c3-8dee-039df9a4062a",
+        "targetId": "fc24f05c-516d-4e38-b654-1eb47f5831ad",
+        "label": "Check\nWeather",
+        "connector": "API",
+        "bidirectional": true
+      },
+      {
+        "id": "32bb6982-1811-468e-a799-f73ebee577d9",
+        "sourceId": "429cec02-4176-4441-9722-326a03e96677",
+        "targetId": "be666cdb-c690-4a23-ad70-c14c79e72164",
         "mode": "manual"
       },
       {
-        "id": "c25976c0-86c9-4f72-96f4-1576ce30fc2d",
-        "sourceId": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "targetId": "54337da5-49d2-4595-b2a6-bd7da1eb0050",
-        "manualOffset": 180
-      },
-      {
-        "id": "d3cfe3ab-55db-4389-acca-7dd54684bff9",
-        "sourceId": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "targetId": "009067f0-8859-4563-be50-6ac0138de4bd"
-      },
-      {
-        "id": "c5bc069a-abd7-40db-8943-e0148f30a737",
-        "sourceId": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "targetId": "bd330b2d-b093-47f6-a5bc-c27f82cb15e5",
-        "connector": "API"
-      },
-      {
-        "id": "20806e1a-d571-48f2-9602-8b4c7654bfea",
-        "sourceId": "af5a3947-53d3-463b-a41e-3ee8aa1d6ef2",
-        "targetId": "210b27c2-adcf-4f95-86b9-99815ad737b9",
-        "connector": "API"
-      },
-      {
-        "id": "6a475ffd-ea6f-47b9-8028-85c2345e70a2",
-        "sourceId": "d0ccb9a5-2cd1-4529-8f7f-e127d6ce9279",
-        "targetId": "73149d3f-cdf9-4db0-8d40-3770dbf7cadd",
-        "label": "Rates the trip",
-        "connector": "Web",
-        "mode": "manual"
-      },
-      {
-        "id": "781597e3-b9e3-4701-925a-6b821796bc68",
-        "sourceId": "73149d3f-cdf9-4db0-8d40-3770dbf7cadd",
-        "targetId": "05a296ff-5e12-463b-9aa6-ea7c56b530c4"
-      },
-      {
-        "id": "b6ec57ca-45bf-4c6c-ac31-90508817a7be",
-        "sourceId": "7dabd68a-e605-4cb0-ad42-930642287fd0",
-        "targetId": "ee31c0dd-4aba-4823-b755-c4dd62bd324a"
-      },
-      {
-        "id": "af8d7a40-96d8-4bb1-bfe7-d98bb3fc662b",
-        "sourceId": "7dabd68a-e605-4cb0-ad42-930642287fd0",
-        "targetId": "ce7b0bfa-f849-4d6d-9a40-52a5fe89da78",
-        "connector": "API",
-        "manualOffset": 310
-      },
-      {
-        "id": "96b3b8c6-413a-474b-9114-e4163b66e3a6",
-        "sourceId": "ce7b0bfa-f849-4d6d-9a40-52a5fe89da78",
-        "targetId": "197dc245-c7f3-4afd-9ca1-30b1516b9fc9",
-        "payload": "email"
-      },
-      {
-        "id": "369348e7-5a82-4cad-b092-0fcd4cb646fd",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "ad8a4944-ca51-472c-ae82-9467dea1fd8f",
-        "connector": "API",
-        "transformation": "Router"
-      },
-      {
-        "id": "0c9e2ab0-9c6f-4811-a6d9-af9652803aaf",
-        "sourceId": "02920964-6662-40ab-8669-3ee96fc08274",
-        "targetId": "7dabd68a-e605-4cb0-ad42-930642287fd0",
-        "manualOffset": 3480
+        "id": "22b8519b-4b19-45bb-9f8b-97c64f4a16b8",
+        "sourceId": "be666cdb-c690-4a23-ad70-c14c79e72164",
+        "targetId": "fe20a3b3-9f6e-44fd-8f48-ded5eacdfba3"
       }
     ],
     "createdAt": "2026-11-20T09:00:00.000Z",

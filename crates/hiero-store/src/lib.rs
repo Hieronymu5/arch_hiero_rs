@@ -2064,33 +2064,44 @@ mod tests {
     }
 
     #[test]
-    fn the_travel_agent_sample_runs_through_a_trips_stages_and_scenes() {
+    fn the_travel_agent_sample_has_a_tag_scene_and_section_for_each_trip_stage() {
         use hiero_core::tags::{element_tags, hidden_element_ids, hidden_in_scene};
         let travel = seed_diagrams()
             .into_iter()
             .find(|d| d.meta.name == "Travel Agent")
             .unwrap();
-        // The trip's stages head the diagram, left to right.
-        let mut sections: Vec<_> = travel
-            .content
-            .elements
+        let stages = ["Explore", "Book", "Prepare", "Travel", "Feedback"];
+        let tag_names: Vec<&str> = travel.tags.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(tag_names, stages);
+        let tag_id = |name: &str| {
+            travel
+                .tags
+                .iter()
+                .find(|t| t.name == name)
+                .unwrap()
+                .id
+                .clone()
+        };
+        // The whole diagram comes first, then each stage in the order a trip goes through them.
+        let scenes: Vec<(&str, Vec<String>)> = travel
+            .scenes
             .iter()
-            .filter(|e| e.kind == "section")
+            .map(|s| (s.name.as_str(), s.tags.clone()))
             .collect();
+        let mut expected = vec![("Travel Agent", stages.map(tag_id).to_vec())];
+        expected.extend(stages.map(|stage| (stage, vec![tag_id(stage)])));
+        assert_eq!(scenes, expected);
+        // The stages head the diagram, left to right.
+        let elements = &travel.content.elements;
+        let mut sections: Vec<_> = elements.iter().filter(|e| e.kind == "section").collect();
         sections.sort_by(|a, b| a.x.total_cmp(&b.x));
         let labels: Vec<&str> = sections.iter().map(|e| e.label.as_str()).collect();
-        assert_eq!(labels, ["Explore", "Book", "Prepare", "Travel", "Feedback"]);
-        // The whole diagram first, then the request on its own, then the flows.
-        let scenes: Vec<&str> = travel.scenes.iter().map(|s| s.name.as_str()).collect();
-        assert_eq!(scenes[..3], ["Travel Agent", "Trip Intake", "Itinerary"]);
-        let at = |name| scenes.iter().position(|s| *s == name).unwrap();
-        assert!(at("Weather") < at("Booking") && at("Booking") < at("Feedback"));
-        // Each scene shows the header of the stage it's about, and only that one.
-        let tags: Vec<Vec<String>> = travel.content.elements.iter().map(element_tags).collect();
-        let headers_in = |name: &str| {
+        assert_eq!(labels, stages);
+        let tags: Vec<Vec<String>> = elements.iter().map(element_tags).collect();
+        let shown_in = |name: &str| {
             let scene = travel.scenes.iter().find(|s| s.name == name).unwrap();
             let hidden = hidden_element_ids(
-                travel.content.elements.iter().zip(&tags).map(|(e, t)| {
+                elements.iter().zip(&tags).map(|(e, t)| {
                     (
                         e.id.as_str(),
                         e.parent_id.as_ref().map(ElementId::as_str),
@@ -2099,24 +2110,22 @@ mod tests {
                 }),
                 &hidden_in_scene(&travel.tags, scene),
             );
-            let mut shown: Vec<&str> = sections
+            elements
                 .iter()
                 .filter(|e| !hidden.contains(e.id.as_str()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(shown_in("Travel Agent").len(), elements.len());
+        // Each stage's scene shows its own header, and a traveller.
+        for stage in stages {
+            let shown = shown_in(stage);
+            let headers: Vec<&str> = shown
+                .iter()
+                .filter(|e| e.kind == "section")
                 .map(|e| e.label.as_str())
                 .collect();
-            shown.sort_unstable();
-            shown
-        };
-        for (scene, stage) in [
-            ("Trip Intake", "Explore"),
-            ("Itinerary", "Explore"),
-            ("Weather", "Explore"),
-            ("Booking", "Book"),
-            ("Preparation", "Prepare"),
-            ("Client Portal", "Travel"),
-            ("Feedback", "Feedback"),
-        ] {
-            assert_eq!(headers_in(scene), [stage], "{scene}");
+            assert_eq!(headers, [stage]);
+            assert!(shown.iter().any(|e| e.kind == "actor"), "{stage}");
         }
     }
 
