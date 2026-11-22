@@ -20,13 +20,17 @@ Names are required, at most 40 characters, and unique within the diagram, ignori
 
 The Tags panel sits under the palette, and shows only once the diagram has tags.
 
-- **Each tag's eye** shows or hides its elements. While editing, hidden elements are drawn faint
+- **Each tag's row**, its eye and name, shows or hides its elements. While editing, hidden elements are drawn faint
   (30%) and can still be picked. While viewing, they aren't drawn and can't be clicked.
 - **The eye beside the heading** shows every tag, or hides every one when all are showing. It's
   faint while only some show.
-- **While editing, clicking a tag's name applies it.** Clicking an element, or pressing Enter or
-  Space on one, then puts it in the tag or takes it out, and selects or moves nothing. The tag's
-  elements are ringed in the accent. Clicking the name again, or pressing Escape, stops applying.
+- **While editing, the toolbar's tag buttons apply a tag**, once the diagram has tags: the tag
+  icon turns tagging on and off with the current tag, and the current tag's name beside it lists
+  the tags to choose another, which turns tagging on. The current tag is the top one until
+  another is chosen. While tagging, clicking an element, or pressing Enter or Space on one, puts
+  it in the tag or takes it out, and selects or moves nothing; the tag's elements are ringed in
+  the accent, and its name in the list is in the accent and bold. Pressing Escape, or empty
+  canvas, stops tagging. Each tag's row in the list only shows or hides it.
 - **While editing, the heading "Tags"** opens Edit Details on its Tags tab.
 - **The selected element's properties** have a Tags section, above its arrows, with a checkbox
   for each tag, ticked for those it's in. Ticking one puts it in the tag, and unticking takes it

@@ -590,3 +590,30 @@ pub fn choice_button(ui: &mut Ui, text: &str, height: f32, chosen: bool) -> egui
     }
     response
 }
+
+/// The prototype's tag icon, `size` points across, filled while its tag is applied.
+pub fn tag_icon(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    size: f32,
+    color: Color32,
+    filled: bool,
+) {
+    let scale = size / 20.0;
+    let at = |x: f32, y: f32| center + egui::vec2(x - 10.0, y - 10.0) * scale;
+    let points = vec![
+        at(2.5, 10.5),
+        at(9.5, 3.5),
+        at(16.5, 3.5),
+        at(16.5, 10.5),
+        at(9.5, 17.5),
+    ];
+    let stroke = egui::Stroke::new(1.7 * scale, color);
+    let fill = if filled {
+        color.gamma_multiply(0.3)
+    } else {
+        Color32::TRANSPARENT
+    };
+    painter.add(egui::Shape::convex_polygon(points, fill, stroke));
+    painter.circle_filled(at(13.0, 7.0), 1.25 * scale, color);
+}

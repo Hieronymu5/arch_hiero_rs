@@ -915,6 +915,14 @@ mod tests {
         );
         w.drag(click, click, PointerButton::Primary, Modifiers::NONE);
         assert_eq!(w.selection(), ["a1"]);
+        // Applying a tag again keeps applying it; pressing empty canvas stops.
+        w.editor.apply_tag(Some("two"));
+        w.editor.apply_tag(Some("two"));
+        assert_eq!(w.editor.applying_tag(), Some("two"));
+        let empty = w.screen(Point::new(700.0, 600.0), Vec2::ZERO);
+        w.drag(empty, empty, PointerButton::Primary, Modifiers::NONE);
+        assert_eq!(w.editor.applying_tag(), None);
+        assert!(w.selection().is_empty());
         // Hiding the tag hides its element; while editing it's still drawn, faint.
         w.editor.toggle_tag("two");
         w.frame(vec![], Modifiers::NONE);

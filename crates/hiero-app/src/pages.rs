@@ -420,8 +420,53 @@ fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) -> Option<&'static
     let exports_width: f32 = exports.iter().map(|e| e.3).sum::<f32>() + GAP;
     let zoom_width = 2.0 * BUTTON.x + LEVEL.x + 2.0 * GAP;
     let grid_width = if viewing { 0.0 } else { BUTTON.x + GAP };
-    let width =
-        exports_width + GAP + GROUP_GAP + grid_width + BUTTON.x + GAP + GROUP_GAP + zoom_width;
+    // While editing a diagram with tags, the tag button and the current tag's name.
+    let tags = if viewing {
+        Vec::new()
+    } else {
+        editor.tag_names()
+    };
+    let applying = editor.applying_tag();
+    let choice_id = tag_choice_id();
+    let chosen: Option<String> = ui.data(|d| d.get_temp(choice_id));
+    // The tag being applied, otherwise the one last chosen, otherwise the top one.
+    let current = applying
+        .as_ref()
+        .or(chosen.as_ref())
+        .and_then(|id| tags.iter().find(|(t, _)| t == id))
+        .or(tags.first())
+        .cloned();
+    // Bolder while tagging.
+    let tag_font = fonts::font_id(
+        13.0,
+        if applying.is_some() {
+            hiero_core::text::Weight::SemiBold
+        } else {
+            hiero_core::text::Weight::Regular
+        },
+    );
+    let name_width = current.as_ref().map_or(0.0, |(_, name)| {
+        let text = ui
+            .painter()
+            .layout_no_wrap(name.clone(), tag_font.clone(), Color32::PLACEHOLDER)
+            .size()
+            .x;
+        TAG_NAME_PADDING + text.min(TAG_NAME_MAX) + 4.0 + CHEVRON + 4.0
+    });
+    let tag_width = if current.is_some() {
+        BUTTON.x + GAP + name_width + GAP
+    } else {
+        0.0
+    };
+    let width = exports_width
+        + GAP
+        + GROUP_GAP
+        + grid_width
+        + tag_width
+        + BUTTON.x
+        + GAP
+        + GROUP_GAP
+        + zoom_width;
     let mut action = None;
     ui.allocate_ui_with_layout(
         egui::vec2(width, BUTTON.y),
@@ -460,6 +505,16 @@ fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) -> Option<&'static
                 if grid.on_hover_text(hint).clicked() {
                     set_show_grid(ui.ctx(), !shown);
                 }
+            }
+            if let Some((id, name)) = &current {
+                tag_buttons(
+                    ui,
+                    editor,
+                    (id, name),
+                    applying.as_deref(),
+                    name_width,
+                    &tag_font,
+                );
             }
             // Shaded while the help shows.
             let help = editor.show_help();
@@ -526,6 +581,105 @@ fn diagram_type_label(ui: &mut Ui, text: String) {
     );
     let rect = egui::Rect::from_center_size(egui::pos2(x, room.center().y), size);
     ui.put(rect, label);
+}
+
+/// Where the tag last chosen from the toolbar is kept, while the app runs. One that the
+/// diagram open doesn't have gives way to its top tag.
+fn tag_choice_id() -> egui::Id {
+    egui::Id::unique("hiero-app.tag-choice")
+}
+
+/// The room left and right of a tag's name in the toolbar, the most its name takes before it's
+/// cut short, and its chevron's size.
+const TAG_NAME_PADDING: f32 = 6.0;
+const TAG_NAME_MAX: f32 = 160.0;
+const CHEVRON: f32 = 10.0;
+
+/// The toolbar's tag buttons, while editing a diagram with tags: the tag icon, which turns
+/// tagging with the current tag on and off, so clicking elements puts them in it or takes them
+/// out, and the current tag's name beside it, which lists the tags to choose another. The
+/// current tag is the top one until another is chosen, and choosing one turns tagging on.
+/// While tagging, both are shaded; Escape or pressing empty canvas turns it off too.
+fn tag_buttons(
+    ui: &mut Ui,
+    editor: &mut dyn DiagramEditor,
+    (id, name): (&String, &String),
+    applying: Option<&str>,
+    name_width: f32,
+    font: &egui::FontId,
+) {
+    const BUTTON: egui::Vec2 = egui::vec2(28.0, 24.0);
+    let tagging = applying.is_some();
+    let label = format!("Tag elements with {name}");
+    let icon = quiet_button(ui, BUTTON, &label, true, Some(tagging), |p, c, col| {
+        hiero_editor::theme::tag_icon(p, c, 18.0, col, tagging);
+    });
+    let hint = if tagging {
+        format!("Stop tagging elements with {name}")
+    } else {
+        format!("Tag elements with {name} by selecting them")
+    };
+    if icon.on_hover_text(hint).clicked() {
+        editor.apply_tag(if tagging { None } else { Some(id) });
+    }
+    let menu_id = egui::Id::unique("hiero-app.tag-menu");
+    let open = egui::Popup::is_id_open(ui.ctx(), menu_id);
+    let size = egui::vec2(name_width, BUTTON.y);
+    let picker = quiet_button(
+        ui,
+        size,
+        &format!("Tag: {name}. Choose another"),
+        true,
+        Some(tagging || open),
+        |p, c, col| {
+            let left = c.x - name_width / 2.0 + TAG_NAME_PADDING;
+            let mut job = egui::text::LayoutJob::simple_singleline(name.clone(), font.clone(), col);
+            job.wrap = egui::text::TextWrapping::truncate_at_width(TAG_NAME_MAX);
+            let galley = p.layout_job(job);
+            let text = egui::Rect::from_min_size(
+                egui::pos2(left, c.y - galley.size().y / 2.0),
+                galley.size(),
+            );
+            p.galley(text.min, galley, col);
+            // A chevron down, after the name.
+            let at = egui::pos2(text.right() + 4.0 + CHEVRON / 2.0, c.y);
+            let stroke = egui::Stroke::new(1.5, col);
+            p.line(
+                vec![
+                    at + egui::vec2(-3.0, -1.5),
+                    at + egui::vec2(0.0, 1.5),
+                    at + egui::vec2(3.0, -1.5),
+                ],
+                stroke,
+            );
+        },
+    )
+    .on_hover_text("Choose the tag");
+    let tags = editor.tag_names();
+    let mut chosen = None;
+    egui::Popup::menu(&picker)
+        .id(menu_id)
+        .align(egui::RectAlign::BOTTOM_END)
+        .show(|ui| {
+            ui.label(RichText::new("Tag elements with").small().weak());
+            for (tag_id, tag_name) in &tags {
+                let current = tag_id == id;
+                let text = format!("{}  {tag_name}", if current { "✓" } else { "   " });
+                let text = if current {
+                    RichText::new(text).color(palette(ui).accent).strong()
+                } else {
+                    RichText::new(text)
+                };
+                if ui.button(text).clicked() {
+                    chosen = Some(tag_id.clone());
+                }
+            }
+        });
+    // Choosing a tag makes it current, and tags with it.
+    if let Some(tag) = chosen {
+        ui.data_mut(|d| d.insert_temp(tag_choice_id(), tag.clone()));
+        editor.apply_tag(Some(&tag));
+    }
 }
 
 /// A quiet toolbar button, set apart from the buttons that change the diagram: no face, its

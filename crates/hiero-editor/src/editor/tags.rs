@@ -106,27 +106,6 @@ fn eye_icon(painter: &egui::Painter, center: Pos2, color: Color32, open: bool) {
     }
 }
 
-/// The tag icon at the end of a tag's name while editing: filled while it's applied.
-fn tag_icon(painter: &egui::Painter, center: Pos2, color: Color32, filled: bool) {
-    let scale = 16.0 / 20.0;
-    let at = |x: f32, y: f32| center + egui::vec2(x - 10.0, y - 10.0) * scale;
-    let points = vec![
-        at(2.5, 10.5),
-        at(9.5, 3.5),
-        at(16.5, 3.5),
-        at(16.5, 10.5),
-        at(9.5, 17.5),
-    ];
-    let stroke = Stroke::new(1.7 * scale, color);
-    let fill = if filled {
-        color.gamma_multiply(0.3)
-    } else {
-        Color32::TRANSPARENT
-    };
-    painter.add(egui::Shape::convex_polygon(points, fill, stroke));
-    painter.circle_filled(at(13.0, 7.0), 1.25 * scale, color);
-}
-
 fn scale_at(center: Pos2) -> impl Fn(f32, f32) -> Pos2 {
     move |x, y| center + egui::vec2(x - 10.0, y - 10.0) * (16.0 / 20.0)
 }
@@ -311,19 +290,25 @@ impl<T: DiagramView> Editor<T> {
         };
     }
 
-    /// Starts applying a tag to elements by clicking them, or stops when it's the one applied,
-    /// or when `id` is `None`.
+    /// Starts applying the tag `id` to elements by clicking them, or stops with `None`.
     pub fn apply_tag(&mut self, id: Option<&str>) {
-        let next = id.filter(|id| self.tag.applying.as_deref() != Some(*id));
-        self.tag.applying = next.map(str::to_owned);
-        let tag = next.and_then(|id| self.tag.tags.iter().find(|t| t.id == id));
+        let tag = id.and_then(|id| self.tag.tags.iter().find(|t| t.id == id));
+        if tag.map(|t| t.id.as_str()) == self.tag.applying.as_deref() {
+            return;
+        }
+        self.tag.applying = tag.map(|t| t.id.clone());
         self.eng.announcement = match tag {
             Some(tag) => format!(
-                "Applying {}: select elements to put them in it or take them out. Press Escape to stop.",
+                "Applying {}: select elements to put them in it or take them out. Press Escape or select empty canvas to stop.",
                 tag.name
             ),
             None => "Stopped applying the tag.".into(),
         };
+    }
+
+    /// The tag being applied, if any.
+    pub fn applying_tag(&self) -> Option<&str> {
+        self.tag.applying.as_deref()
     }
 
     /// Puts an element in the tag being applied, or takes it out when it's in it.
@@ -686,156 +671,76 @@ impl<T: DiagramView> Editor<T> {
         });
         ui.add_space(4.0);
         let mut toggle = None;
-        let mut apply = None;
         for tag in &self.tag.tags {
             let hidden = self.tag.hidden.contains(&tag.id);
             let applying = self.tag.applying.as_deref() == Some(tag.id.as_str());
-            let name = |strong: bool| {
-                let text = RichText::new(&tag.name);
-                if hidden {
-                    text.color(colors.text_muted).strikethrough()
-                } else if strong {
-                    text.color(colors.accent).strong()
-                } else {
-                    text.color(colors.text)
-                }
-            };
-            let row = ui.horizontal(|ui| {
+            ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 let verb = if hidden { "Show" } else { "Hide" };
-                if self.viewing {
-                    // While viewing, the whole row shows or hides the tag.
-                    let width = ui.available_width();
-                    let (rect, response) =
-                        ui.allocate_exact_size(egui::vec2(width, ICON_BUTTON), Sense::click());
-                    let response = response
-                        .on_hover_text(format!("{verb} {}", tag.name))
-                        .on_hover_cursor(CursorIcon::PointingHand);
-                    response.widget_info(|| {
-                        egui::WidgetInfo::selected(
-                            egui::Role::Button,
-                            true,
-                            !hidden,
-                            format!("Show {}", tag.name),
-                        )
-                    });
-                    let color = if response.hovered() {
-                        ui.painter()
-                            .rect_filled(rect, 6, colors.accent.gamma_multiply(0.12));
-                        colors.accent
-                    } else {
-                        colors.text_muted
-                    };
-                    eye_icon(
-                        ui.painter(),
-                        egui::pos2(rect.left() + ICON_BUTTON / 2.0, rect.center().y),
-                        color,
-                        !hidden,
-                    );
-                    // A long name is cut short at the row's end, ending in "…".
-                    let mut job = egui::text::LayoutJob::simple_singleline(
-                        tag.name.clone(),
-                        egui::TextStyle::Body.resolve(ui.style()),
-                        Color32::PLACEHOLDER,
-                    );
-                    job.wrap = egui::text::TextWrapping::truncate_at_width(
-                        rect.width() - ICON_BUTTON - 8.0,
-                    );
-                    let galley = ui.painter().layout_job(job);
-                    let text_color = if hidden {
-                        colors.text_muted
-                    } else if response.hovered() {
-                        colors.accent
-                    } else {
-                        colors.text
-                    };
-                    let at = egui::pos2(
-                        rect.left() + ICON_BUTTON + 4.0,
-                        rect.center().y - galley.size().y / 2.0,
-                    );
-                    if hidden {
-                        let y = rect.center().y;
-                        ui.painter().hline(
-                            at.x..=at.x + galley.size().x,
-                            y,
-                            Stroke::new(1.0, colors.text_muted),
-                        );
-                    }
-                    ui.painter().galley(at, galley, text_color);
-                    if response.has_focus() {
-                        ui.painter().rect_stroke(
-                            rect,
-                            6,
-                            Stroke::new(2.0, colors.accent),
-                            egui::StrokeKind::Inside,
-                        );
-                    }
-                    if response.clicked() {
-                        toggle = Some(tag.id.clone());
-                    }
-                    return;
-                }
-                let eye = quiet_icon(
-                    ui,
-                    &format!("Show {}", tag.name),
-                    &format!("{verb} {}", tag.name),
-                    Some(!hidden),
-                    |p, c, col| eye_icon(p, c, col, !hidden),
-                );
-                if eye.clicked() {
-                    toggle = Some(tag.id.clone());
-                }
-                // The tag's name, with its icon, applies the tag.
+                // The whole row shows or hides the tag. The tag being applied, from the
+                // toolbar's tag button, has its name in the accent, and bold.
                 let width = ui.available_width();
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(width, ICON_BUTTON), Sense::click());
-                let hint = if applying {
-                    format!("Stop applying {}", tag.name)
-                } else {
-                    format!("Apply {} by selecting elements", tag.name)
-                };
                 let response = response
-                    .on_hover_text(hint)
+                    .on_hover_text(format!("{verb} {}", tag.name))
                     .on_hover_cursor(CursorIcon::PointingHand);
                 response.widget_info(|| {
                     egui::WidgetInfo::selected(
                         egui::Role::Button,
                         true,
-                        applying,
-                        format!("Apply {}", tag.name),
+                        !hidden,
+                        format!("Show {}", tag.name),
                     )
                 });
-                if response.hovered() && !applying {
+                let color = if response.hovered() {
                     ui.painter()
                         .rect_filled(rect, 6, colors.accent.gamma_multiply(0.12));
-                }
-                let mut job = egui::text::LayoutJob::default();
-                name(applying || response.hovered()).append_to(
-                    &mut job,
-                    ui.style(),
-                    egui::FontSelection::Default,
-                    egui::Align::Center,
-                );
-                // A long name is cut short before the icon, ending in "…"; its hint and its
-                // label for screen readers keep it whole.
-                job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 6.0 - 26.0);
-                let galley = ui.painter().layout_job(job);
-                let icon_color = if applying || response.hovered() {
                     colors.accent
                 } else {
                     colors.text_muted
                 };
-                ui.painter().galley(
-                    egui::pos2(rect.left() + 6.0, rect.center().y - galley.size().y / 2.0),
-                    galley,
-                    colors.text,
-                );
-                tag_icon(
+                eye_icon(
                     ui.painter(),
-                    egui::pos2(rect.right() - 12.0, rect.center().y),
-                    icon_color,
-                    applying,
+                    egui::pos2(rect.left() + ICON_BUTTON / 2.0, rect.center().y),
+                    color,
+                    !hidden,
                 );
+                // A long name is cut short at the row's end, ending in "…".
+                let body = egui::TextStyle::Body.resolve(ui.style());
+                let font = if applying {
+                    crate::fonts::font_id(body.size, hiero_core::text::Weight::SemiBold)
+                } else {
+                    body
+                };
+                let mut job = egui::text::LayoutJob::simple_singleline(
+                    tag.name.clone(),
+                    font,
+                    Color32::PLACEHOLDER,
+                );
+                job.wrap =
+                    egui::text::TextWrapping::truncate_at_width(rect.width() - ICON_BUTTON - 8.0);
+                let galley = ui.painter().layout_job(job);
+                let text_color = if hidden {
+                    colors.text_muted
+                } else if response.hovered() || applying {
+                    colors.accent
+                } else {
+                    colors.text
+                };
+                let at = egui::pos2(
+                    rect.left() + ICON_BUTTON + 4.0,
+                    rect.center().y - galley.size().y / 2.0,
+                );
+                if hidden {
+                    let y = rect.center().y;
+                    ui.painter().hline(
+                        at.x..=at.x + galley.size().x,
+                        y,
+                        Stroke::new(1.0, colors.text_muted),
+                    );
+                }
+                ui.painter().galley(at, galley, text_color);
                 if response.has_focus() {
                     ui.painter().rect_stroke(
                         rect,
@@ -845,30 +750,12 @@ impl<T: DiagramView> Editor<T> {
                     );
                 }
                 if response.clicked() {
-                    apply = Some(tag.id.clone());
+                    toggle = Some(tag.id.clone());
                 }
             });
-            // The tag being applied: shaded, with a bar down its start edge.
-            if applying {
-                let rect = row.response.rect;
-                ui.painter()
-                    .rect_filled(rect, 6, colors.accent.gamma_multiply(0.12));
-                ui.painter().rect_filled(
-                    egui::Rect::from_min_size(rect.min, egui::vec2(3.0, rect.height())),
-                    egui::CornerRadius {
-                        nw: 6,
-                        sw: 6,
-                        ..Default::default()
-                    },
-                    colors.accent,
-                );
-            }
         }
         if let Some(id) = toggle {
             self.toggle_tag(&id);
-        }
-        if let Some(id) = apply {
-            self.apply_tag(Some(&id));
         }
     }
 

@@ -1773,8 +1773,11 @@ impl<T: DiagramView> Editor<T> {
             };
             return;
         }
-        // Empty canvas: clear the selection, unless Shift, Ctrl, or Cmd is held, and draw a
-        // selection box.
+        // Empty canvas: stop applying a tag, if one is, clear the selection, unless Shift,
+        // Ctrl, or Cmd is held, and draw a selection box.
+        if self.tag.applying.is_some() {
+            self.apply_tag(None);
+        }
         let base = if modifiers.shift || modifiers.command || modifiers.ctrl {
             self.eng.selection.clone()
         } else {
@@ -2289,6 +2292,12 @@ pub trait DiagramEditor {
     fn reset_zoom(&mut self);
     /// Draws the canvas `percent` large, within the zoom's limits.
     fn set_zoom_percent(&mut self, percent: u32);
+    /// The diagram's tags, as ids and names, in their order.
+    fn tag_names(&self) -> Vec<(String, String)>;
+    /// The tag being applied by clicking elements, if any.
+    fn applying_tag(&self) -> Option<String>;
+    /// Starts applying the tag `id` by clicking elements, or stops with `None`.
+    fn apply_tag(&mut self, id: Option<&str>);
     /// How large the canvas is drawn, as a whole percentage.
     fn zoom_percent(&self) -> u32;
     /// Whether there's further to zoom in, and further to zoom out.
@@ -2375,6 +2384,22 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn set_zoom_percent(&mut self, percent: u32) {
         Editor::set_zoom_percent(self, percent);
+    }
+
+    fn tag_names(&self) -> Vec<(String, String)> {
+        self.tag
+            .tags
+            .iter()
+            .map(|t| (t.id.clone(), t.name.clone()))
+            .collect()
+    }
+
+    fn applying_tag(&self) -> Option<String> {
+        Editor::applying_tag(self).map(str::to_owned)
+    }
+
+    fn apply_tag(&mut self, id: Option<&str>) {
+        Editor::apply_tag(self, id);
     }
 
     fn zoom_percent(&self) -> u32 {
