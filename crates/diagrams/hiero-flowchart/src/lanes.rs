@@ -322,7 +322,10 @@ pub fn step_out_of_lane(eng: &mut FEngine, element: &FLaid, dir: Dir) -> bool {
     );
     let middle = Rect::from_parts(out, r.size()).center();
     let next = eng
-        .containers_for(element.el.kind, eng.layout())
+        .containers_for(
+            hiero_core::engine::Child::Element(&element.el),
+            eng.layout(),
+        )
         .into_iter()
         .rev()
         .find(|c| c.id() != element.id() && c.rect.contains_point(middle))

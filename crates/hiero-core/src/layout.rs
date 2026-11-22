@@ -2,7 +2,7 @@
 //! `utils/diagram-layout.ts`.
 
 use crate::geometry::{
-    DEFAULT_CANVAS, GRID, MAX_CANVAS, Point, Rect, Size, fmt_num, max_of, min_of, snap,
+    DEFAULT_CANVAS, GRID, MAX_CANVAS, Point, Rect, Size, fmt_num, max_of, min_of, snap, snap_by,
 };
 
 /// The whole of a canvas of size `canvas`.
@@ -126,9 +126,14 @@ impl ContainerRect {
 /// Rounds a position to the nearest grid point and keeps an element of `size` fully on a
 /// canvas of size `canvas`.
 pub fn snap_to_canvas(p: Point, size: Size, canvas: Size) -> Point {
+    snap_to_canvas_by(p, size, canvas, GRID)
+}
+
+/// `p` snapped to a grid of `step`, such as half a grid square, and kept on the canvas.
+pub fn snap_to_canvas_by(p: Point, size: Size, canvas: Size, step: f64) -> Point {
     Point::new(
-        snap(p.x).max(0.0).min(canvas.width - size.width),
-        snap(p.y).max(0.0).min(canvas.height - size.height),
+        snap_by(p.x, step).max(0.0).min(canvas.width - size.width),
+        snap_by(p.y, step).max(0.0).min(canvas.height - size.height),
     )
 }
 

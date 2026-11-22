@@ -15,8 +15,8 @@ use hiero_editor::{ArrowLine, DiagramView, PropsCx};
 
 use crate::arrows::{self, offset_at, place_automatically, set_manual_offset, straighten};
 use crate::model::{
-    ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
-    ConceptualKind, DESCRIPTION_MAX, NamePosition, TRANSFORMATION_MAX,
+    ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, Conceptual, ConceptualArrow, ConceptualKind,
+    DESCRIPTION_MAX, NamePosition, TRANSFORMATION_MAX,
 };
 use crate::rules::{arrow_title, figure_of, normalized_arrow};
 use crate::scene::{drawn_arrows, drawn_rect, scene_of};
@@ -175,23 +175,8 @@ impl DiagramView for Conceptual {
         {
             field = Some("cloud");
         }
-        if kind.has_component_type() {
-            widgets::label(ui, "Type", false);
-            ui.horizontal_wrapped(|ui| {
-                for (value, label) in [
-                    (None, "Default"),
-                    (Some(ComponentType::Database), "Database"),
-                    (Some(ComponentType::Storage), "Storage"),
-                ] {
-                    if ui
-                        .radio_value(&mut with.props.component_type, value, label)
-                        .changed()
-                    {
-                        field = Some("component-type");
-                    }
-                }
-            });
-        }
+        // A component's type, such as a database, is chosen in the palette, so isn't offered
+        // here.
         if kind.has_name_position() {
             widgets::label(ui, "Name position", false);
             ui.horizontal_wrapped(|ui| {

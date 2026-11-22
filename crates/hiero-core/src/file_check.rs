@@ -681,7 +681,7 @@ pub fn check_content<T: DiagramType>(
     // 25. Containers.
     let by_id: BTreeMap<&str, &Checked<T::Kind>> = checked.iter().map(|e| (e.id, e)).collect();
     for element in &checked {
-        check_parent(element, &by_id)?;
+        check_parent::<T>(element, &by_id)?;
     }
 
     // 26 to 32. Each arrow.
@@ -813,9 +813,9 @@ fn check_element<'a, T: DiagramType>(
     })
 }
 
-fn check_parent<K: Copy + PartialEq>(
-    element: &Checked<K>,
-    by_id: &BTreeMap<&str, &Checked<K>>,
+fn check_parent<T: DiagramType>(
+    element: &Checked<T::Kind>,
+    by_id: &BTreeMap<&str, &Checked<T::Kind>>,
 ) -> Result<(), String> {
     let Some(parent_id) = element.object.get("parentId").and_then(Value::as_str) else {
         return Ok(());
@@ -842,6 +842,14 @@ fn check_parent<K: Copy + PartialEq>(
             capital_a(parent.info.label),
             a(element.info.label)
         )));
+    }
+    // What the type has against it, such as a component holding a component that isn't a
+    // database or storage.
+    if let Ok(child) =
+        serde_json::from_value::<crate::engine::El<T>>(Value::Object(element.object.clone()))
+        && let Some(problem) = T::hold_problem(parent.info, crate::engine::Child::Element(&child))
+    {
+        return Err(at(problem));
     }
     Ok(())
 }

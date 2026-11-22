@@ -489,7 +489,7 @@ fn elements_on_their_own() {
     assert_eq!(
         refused(c(), set(bot, "kind", json!("spaceship"))),
         "“Bot”: “kind” must be one of: actor, domain, application, component, process, job, \
-         entity, file, section."
+         entity, section, file."
     );
     assert_eq!(
         refused(c(), set(bot, "label", json!(""))),
@@ -688,6 +688,36 @@ fn elements_together() {
     assert_eq!(
         refused(c(), set("/diagram/elements/5", "parentId", json!("d1"))),
         "“Order”: A Domain can’t hold an Entity."
+    );
+}
+
+#[test]
+fn a_component_holds_a_database_or_storage_but_not_another_component() {
+    let with_inside = |inner: Value| {
+        let mut f = conceptual();
+        let elements = f
+            .pointer_mut("/diagram/elements")
+            .and_then(Value::as_array_mut)
+            .unwrap();
+        elements
+            .push(json!({ "id": "k", "kind": "component", "label": "Billing", "x": 600, "y": 40 }));
+        let mut inside = json!({
+            "id": "i", "kind": "component", "label": "Inner", "x": 620, "y": 100, "parentId": "k"
+        });
+        inside
+            .as_object_mut()
+            .unwrap()
+            .extend(inner.as_object().unwrap().clone());
+        elements.push(inside);
+        f
+    };
+    for kind in ["database", "storage"] {
+        let file = with_inside(json!({ "componentType": kind }));
+        diagram_from_file(&file).unwrap_or_else(|e| panic!("{e}"));
+    }
+    assert_eq!(
+        refused(with_inside(json!({})), |_| {}),
+        "“Inner”: A component can hold another component only as a database or storage."
     );
 }
 

@@ -144,7 +144,12 @@ pub fn round2(value: f64) -> f64 {
 
 /// Rounds a value to the nearest grid line.
 pub fn snap(value: f64) -> f64 {
-    js_round(value / GRID) * GRID
+    snap_by(value, GRID)
+}
+
+/// `value` rounded to the nearest multiple of `step`, as the grid, or half of it, is.
+pub fn snap_by(value: f64, step: f64) -> f64 {
+    js_round(value / step) * step
 }
 
 /// The smallest of `first` and every value in `rest`, as `Math.min(first, ...rest)`.

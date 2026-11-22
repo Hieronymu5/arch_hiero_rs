@@ -13,11 +13,11 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::file_check::{DescriptionRule, Field};
-use crate::geometry::{DEFAULT_CANVAS, GRID, MAX_CANVAS, Point, Rect, Size, fmt_num, snap};
+use crate::geometry::{DEFAULT_CANVAS, GRID, MAX_CANVAS, Point, Rect, Size, fmt_num, snap_by};
 use crate::layout::{
     ContainerRect, MIN_CONTAINER_SIZE, MIN_ELEMENT_SIZE, canvas_area, canvas_rect,
     child_placement_area, clamp_into, content_area, find_free_position, fit_container, min_canvas,
-    resize_element, resize_from_top_left, snap_to_canvas,
+    resize_element, resize_from_top_left, snap_to_canvas, snap_to_canvas_by,
 };
 use crate::model::{
     ColorScheme, Connection, ConnectionId, ContainerLook, DiagramTypeId, Element, ElementId,
@@ -70,7 +70,13 @@ pub enum Dir {
 impl Dir {
     /// The step it moves an element by: a grid square, or five with Shift.
     pub fn offset(self, shift: bool) -> Point {
-        let step = if shift { GRID * 5.0 } else { GRID };
+        self.offset_by(GRID, shift)
+    }
+
+    /// The step it moves an element whose grid is `step` by: one step, or five grid squares
+    /// with Shift.
+    pub fn offset_by(self, step: f64, shift: bool) -> Point {
+        let step = if shift { GRID * 5.0 } else { step };
         match self {
             Self::Left => Point::new(-step, 0.0),
             Self::Right => Point::new(step, 0.0),
@@ -90,6 +96,39 @@ impl Dir {
             Self::Right | Self::Down => 1,
         }
     }
+}
+
+/// What's to go in a container: an element, or one about to be added from a palette entry.
+pub enum Child<'a, T: DiagramType> {
+    Element(&'a El<T>),
+    Entry(&'static KindInfo<T::Kind>),
+}
+
+impl<T: DiagramType> Clone for Child<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: DiagramType> Copy for Child<'_, T> {}
+
+impl<T: DiagramType> Child<'_, T> {
+    /// Its kind.
+    pub fn kind(&self) -> T::Kind {
+        match self {
+            Self::Element(e) => e.kind,
+            Self::Entry(k) => k.kind,
+        }
+    }
+}
+
+/// Whether a container of kind `container` can hold `child`: as its kind says, unless the type
+/// has a problem with it.
+pub fn can_hold<T: DiagramType>(
+    container: &'static KindInfo<T::Kind>,
+    child: Child<'_, T>,
+) -> bool {
+    container.can_contain.contains(&child.kind()) && T::hold_problem(container, child).is_none()
 }
 
 /// A placed element laid out, with what every diagram type needs to draw it.
@@ -315,6 +354,22 @@ pub trait DiagramType: Sized + 'static {
         _measure: &dyn MeasureText,
     ) -> f64 {
         info.footer()
+    }
+
+    /// Why a container of `container`'s kind can't hold `child`, though the kind can hold its
+    /// kind, such as a component holding another component that isn't a database or storage.
+    /// `None` when it can.
+    fn hold_problem(
+        _container: &'static KindInfo<Self::Kind>,
+        _child: Child<'_, Self>,
+    ) -> Option<String> {
+        None
+    }
+
+    /// The grid `child` snaps to when it's placed or moved: a grid square, unless the type gives
+    /// it a finer one, such as for an element that can't be resized to line up.
+    fn move_step(_child: Child<'_, Self>) -> f64 {
+        GRID
     }
 
     /// Whether an element holds others.
@@ -852,12 +907,12 @@ impl<T: DiagramType> Engine<T> {
 
     /// Kinds of element the selected element could sit in, such as domains.
     pub fn parent_kinds(&self) -> Vec<&'static KindInfo<T::Kind>> {
-        let Some(kind) = self.selected().map(|s| s.el.kind) else {
+        let Some(selected) = self.selected() else {
             return Vec::new();
         };
         T::kinds()
             .into_iter()
-            .filter(|k| k.can_contain.contains(&kind))
+            .filter(|k| can_hold::<T>(k, Child::Element(&selected.el)))
             .collect()
     }
 
@@ -870,7 +925,7 @@ impl<T: DiagramType> Engine<T> {
         };
         let mixed = self.parent_kinds().len() > 1;
         let inside = descendant_ids(&self.elements, selected.id());
-        self.containers_for(selected.el.kind, &self.layout)
+        self.containers_for(Child::Element(&selected.el), &self.layout)
             .into_iter()
             .filter(|c| c.el.id != selected.el.id && !inside.contains(&c.el.id))
             .map(|c| {
@@ -884,16 +939,10 @@ impl<T: DiagramType> Engine<T> {
             .collect()
     }
 
-    /// Such as "Domain" or "Application or component".
+    /// Such as "Domain" or "Application or Component".
     pub fn parent_field_label(&self) -> Option<String> {
         let labels: Vec<&str> = self.parent_kinds().iter().map(|k| k.label).collect();
-        let (first, rest) = labels.split_first()?;
-        Some(
-            std::iter::once((*first).to_owned())
-                .chain(rest.iter().map(|l| l.to_lowercase()))
-                .collect::<Vec<_>>()
-                .join(" or "),
-        )
+        (!labels.is_empty()).then(|| labels.join(" or "))
     }
 
     /// Applies changes from the properties panel. A new container moves the element to a
@@ -958,7 +1007,7 @@ impl<T: DiagramType> Engine<T> {
     pub fn base_add_at_free_position(&mut self, kind: &'static KindInfo<T::Kind>) {
         let size = T::new_size_of(self, kind);
         let container = self
-            .containers_for(kind.kind, &self.layout)
+            .containers_for(Child::Entry(kind), &self.layout)
             .into_iter()
             .find(|c| Some(&c.el.id) == self.selected_id())
             .cloned();
@@ -1055,7 +1104,8 @@ impl<T: DiagramType> Engine<T> {
         kind: &'static KindInfo<T::Kind>,
         placement: Placement,
     ) -> Created<T> {
-        let position = snap_to_canvas(placement.position, kind.size(), self.canvas);
+        let step = T::move_step(Child::Entry(kind));
+        let position = snap_to_canvas_by(placement.position, kind.size(), self.canvas, step);
         let element = Element {
             id: ElementId(self.new_id()),
             kind: kind.kind,
@@ -1081,11 +1131,12 @@ impl<T: DiagramType> Engine<T> {
     /// Where a moved element lands; anything it holds moves with it. An element sits in a
     /// container while it's fully inside the container's content area.
     pub fn move_placement(&self, element: &Laid<T>, desired: Point) -> Placement {
-        let position = snap_to_canvas(desired, element.rect.size(), self.canvas);
+        let step = T::move_step(Child::Element(&element.el));
+        let position = snap_to_canvas_by(desired, element.rect.size(), self.canvas, step);
         let rect = Rect::from_parts(position, element.rect.size());
         let inside = descendant_ids(&self.elements, element.id());
         let parent = self
-            .containers_for(element.el.kind, &self.layout)
+            .containers_for(Child::Element(&element.el), &self.layout)
             .into_iter()
             .filter(|c| c.el.id != *element.id() && !inside.contains(&c.el.id))
             .rev()
@@ -1143,8 +1194,13 @@ impl<T: DiagramType> Engine<T> {
             .iter()
             .map(|e| e.rect.bottom())
             .fold(f64::NEG_INFINITY, f64::max);
-        let dx = snap(delta.x).max(-left).min(self.canvas.width - right);
-        let dy = snap(delta.y).max(-top).min(self.canvas.height - bottom);
+        let step = self.group_step();
+        let dx = snap_by(delta.x, step)
+            .max(-left)
+            .min(self.canvas.width - right);
+        let dy = snap_by(delta.y, step)
+            .max(-top)
+            .min(self.canvas.height - bottom);
         let moving: HashSet<ElementId> = roots
             .iter()
             .flat_map(|root| {
@@ -1161,7 +1217,7 @@ impl<T: DiagramType> Engine<T> {
                     root.rect.height,
                 );
                 let parent = self
-                    .containers_for(root.el.kind, &self.layout)
+                    .containers_for(Child::Element(&root.el), &self.layout)
                     .into_iter()
                     .filter(|c| !moving.contains(&c.el.id))
                     .rev()
@@ -1202,10 +1258,11 @@ impl<T: DiagramType> Engine<T> {
     /// Where a dropped element lands: inside a container when its centre falls on one.
     pub fn drop_placement(&self, kind: &'static KindInfo<T::Kind>, desired: Point) -> Placement {
         let size = T::new_size_of(self, kind);
-        let position = snap_to_canvas(desired, size, self.canvas);
+        let step = T::move_step(Child::Entry(kind));
+        let position = snap_to_canvas_by(desired, size, self.canvas, step);
         let center = Rect::from_parts(position, size).center();
         let parent = self
-            .containers_for(kind.kind, &self.layout)
+            .containers_for(Child::Entry(kind), &self.layout)
             .into_iter()
             .rev()
             .find(|c| c.rect.contains_point(center));
@@ -1237,11 +1294,25 @@ impl<T: DiagramType> Engine<T> {
 
     /// Containers in `layout` that can hold elements of `kind`. Later ones draw on top, so
     /// callers search from the end.
-    pub fn containers_for<'a>(&self, kind: T::Kind, layout: &'a [Laid<T>]) -> Vec<&'a Laid<T>> {
+    pub fn containers_for<'a>(
+        &self,
+        child: Child<'_, T>,
+        layout: &'a [Laid<T>],
+    ) -> Vec<&'a Laid<T>> {
         layout
             .iter()
-            .filter(|e| e.is_container && e.info.can_contain.contains(&kind))
+            .filter(|e| e.is_container && can_hold::<T>(e.info, child))
             .collect()
+    }
+
+    /// The grid the group of selected elements snaps to: the coarsest of their grids, so none
+    /// leaves its own.
+    pub fn group_step(&self) -> f64 {
+        self.group_roots()
+            .iter()
+            .map(|e| T::move_step(Child::Element(&e.el)))
+            .reduce(f64::max)
+            .unwrap_or(GRID)
     }
 
     /// Moves an element (and anything it holds) to `placement`.
@@ -1341,7 +1412,13 @@ impl<T: DiagramType> Engine<T> {
     }
 
     pub fn base_arrow_key(&mut self, id: &ElementId, dir: Dir, shift: bool) {
-        let offset = dir.offset(shift);
+        let step = if self.in_group(id) {
+            self.group_step()
+        } else {
+            self.element(id)
+                .map_or(GRID, |e| T::move_step(Child::Element(e)))
+        };
+        let offset = dir.offset_by(step, shift);
         if self.in_group(id) {
             let placements = self.group_placements(offset);
             self.commit_group_move(&placements);

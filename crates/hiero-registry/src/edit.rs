@@ -246,7 +246,7 @@ impl<T: DiagramType> Batch<'_, T> {
                 }
                 let before: Vec<ElementId> =
                     self.eng.elements().iter().map(|e| e.id.clone()).collect();
-                match (parent, x.zip(*y)) {
+                match (parent.clone(), x.zip(*y)) {
                     (Some(parent), None) => {
                         self.eng.select(&parent);
                         self.eng.add_at_free_position(kind);
@@ -279,12 +279,21 @@ impl<T: DiagramType> Batch<'_, T> {
                         e
                     });
                 }
-                if label.is_some() || description.is_some() || props.is_some() {
+                // A parent it couldn't be added into as its kind, such as a component that's a
+                // database by its props, is set with them.
+                let outside = parent
+                    .as_ref()
+                    .filter(|p| {
+                        self.eng.element(&id).and_then(|e| e.parent_id.as_ref()) != Some(*p)
+                    })
+                    .map(|p| Some(p.clone()));
+                if label.is_some() || description.is_some() || props.is_some() || outside.is_some()
+                {
                     self.update(
                         &id,
                         label.clone(),
                         description.clone(),
-                        None,
+                        outside,
                         props.as_ref(),
                     )?;
                 }
@@ -506,11 +515,22 @@ impl<T: DiagramType> Batch<'_, T> {
                     current.label
                 ));
             }
-            let holder = self.eng.element(parent).map(|e| e.kind);
-            if !holder.is_some_and(|h| T::info(h).can_contain.contains(&current.kind)) {
+            let holder = self.eng.element(parent).map(|e| T::info(e.kind));
+            if !holder.is_some_and(|h| h.can_contain.contains(&current.kind)) {
                 return Err(format!(
                     "a {} can't go inside “{}”",
                     T::info(current.kind).label.to_lowercase(),
+                    self.eng.label_of(parent).unwrap_or_default()
+                ));
+            }
+            // What the type has against it, such as a component in a component that isn't a
+            // database or storage.
+            if let Some(problem) =
+                holder.and_then(|h| T::hold_problem(h, hiero_core::engine::Child::Element(&with)))
+            {
+                return Err(format!(
+                    "“{}” can't go inside “{}”: {problem}",
+                    with.label,
                     self.eng.label_of(parent).unwrap_or_default()
                 ));
             }
@@ -635,6 +655,43 @@ mod tests {
                 "Updated “Orders”, and with it Arrow from Web to Orders ({}).",
                 arrow.id
             )]
+        );
+    }
+
+    #[test]
+    fn agents_put_a_database_in_a_component_but_not_a_plain_component() {
+        let diagram = new_diagram(DiagramTypeId::Conceptual, "Shop", None);
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "billing", "kind": "component", "label": "Billing"},
+            {"op": "add_element", "ref": "db", "kind": "component", "label": "Ledger",
+             "parent_id": "billing", "props": {"componentType": "database"}}
+        ]));
+        let outcome = ops(DiagramTypeId::Conceptual)
+            .apply(&diagram, &edits)
+            .unwrap();
+        let named = |name: &str| {
+            outcome
+                .content
+                .elements
+                .iter()
+                .find(|e| e.label == name)
+                .unwrap()
+                .clone()
+        };
+        assert_eq!(named("Ledger").parent_id, Some(named("Billing").id));
+        let mut diagram = diagram.clone();
+        diagram.content = outcome.content.clone();
+        let edits = parse(json!([
+            {"op": "add_element", "kind": "component", "label": "Inner",
+             "parent_id": named("Billing").id.0}
+        ]));
+        let error = ops(DiagramTypeId::Conceptual)
+            .apply(&diagram, &edits)
+            .unwrap_err();
+        assert_eq!(
+            error.message,
+            "“Inner” can't go inside “Billing”: A component can hold another component only as \
+             a database or storage."
         );
     }
 

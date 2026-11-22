@@ -18,7 +18,7 @@ ones). Elements inside a container are always drawn on top of it.
 | `actor` | Actor | 120×80 | applications (person) / connectors (bot) | – | actor, application, component, domain, job, process, entity, file | 3 | A person figure with the name underneath. The **Bot** option draws it as a bot. The **Group** option, beside it, draws it as a group, such as a team or a swarm of agents: three people, or bots, one in front of two (as a high level diagram's actors are), scaled by 46/56 to stand as tall as one, so its area, name, and arrows stay where they were. Its lines keep their width. |
 | `domain` | Domain | 480×180 | domains | application | – | 0 | A filled `region` with its name as a header, or along its bottom, and any description under the name. Resizable. |
 | `application` | Application | 200×100 | applications | component, process, entity, file | actor, application, component, domain, job, process, entity, file | 1 | Has a description. The container look is `box`: it looks like a plain box until it holds elements, then its name and description move to the top. Header is 60. Resizable. Has a **Cloud hosted** option. |
-| `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file | actor, application, component, domain, job, process, entity, file | 2 | Container look is `box`. The **Type** option is Default, Database (cylinder) or Storage (a stack of drives). A database or storage component is a figure with its name underneath, and can't contain anything. |
+| `component` | Component | 160×60 (120×80 as a figure) | components (data for database/storage) | process, entity, file, and a component only as a database or storage | actor, application, component, domain, job, process, entity, file | 2 | Container look is `box`. Its type, stored as `componentType`, is a box, a database (cylinder), or storage (a stack of drives); the palette's **Database** and **Storage** entries add a component of that type, at 120×80. A database or storage component is a figure with its name underneath, and can't contain anything. |
 | `process` | Process | 140×40 | processes (dark blue, light text) | – | actor, application, component, domain, job, process, entity, file | 3 | Resizable, down to 120×40. |
 | `job` | Job | 160×40 | connectors | – | actor, application, component, domain, process, entity, file | 3 | Something that runs on a schedule. Resizable, down to 120×40. |
 | `entity` | Entity | 140×40 | data | – | – | 3 | Resizable, down to 120×40. |
@@ -39,8 +39,7 @@ padding around their children.
 | Bot | actor | Checkbox, stored as `agent: true` |
 | Group | actor | Checkbox beside Bot, stored as `group: true`. Read as "Actor (group of people)" or "(group of bots)". |
 | Cloud hosted | application | Checkbox. The application is drawn as a cloud with its text inside. |
-| Type | component | Radio: Default / Database / Storage, stored as `componentType` (unset means Default) |
-| Parent (Domain, or "Application or component") | anything that can be held | A select of the containers that can hold this kind, named "Name (Kind)" when more than one kind of container can hold it. Choosing a parent moves the element to a free spot inside it. Choosing none moves it out onto the canvas. |
+| Parent (Domain, or "Application or Component") | anything that can be held | A select of the containers that can hold this kind, named "Name (Kind)" when more than one kind of container can hold it. Choosing a parent moves the element to a free spot inside it. Choosing none moves it out onto the canvas. |
 | Arrows list | kinds with `connectsTo`, and their targets | Lists each arrow to or from the element. Selecting one opens the arrow's own properties. |
 | Add arrow to | kinds with `connectsTo` | A select of the valid targets this element doesn't already point to. It's the keyboard alternative to dragging from the connect handle. |
 
@@ -146,6 +145,11 @@ typing names and arrow text in place) is the shared editor engine (`hiero-editor
   application puts it inside the application. Dropping a process, entity, or file on an
   application or component puts it inside that.
 - An application or component that holds elements shows its name and description at the top.
+- A database or storage dropped on a component goes inside it, such as the database a service
+  keeps its data in; a plain component doesn't.
+- Actors, files, databases, and storage move and snap in half-grid (10 px) steps, as they can't
+  be resized to line up with what's under them. Moved together with other elements, the
+  coarser step applies.
 
 ## Export
 
@@ -184,7 +188,7 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 
 ## Parity checklist
 
-- [x] Palette with all 8 kinds. Click adds the element at a free spot. Drag drops it where released.
+- [x] Palette with the kinds, sections, and Database and Storage entries (components of that type). Click adds the element at a free spot. Drag drops it where released.
 - [x] Containment rules and the container `box` look for application and component
 - [x] Resize domain, application, process, job, and entity from two corners, and section across only
 - [x] Font size on domains and boxes, and a domain's name at the top or bottom, in the editor, SVG, and draw.io

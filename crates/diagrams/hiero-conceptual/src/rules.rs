@@ -2,7 +2,8 @@
 //! readers hear about arrows.
 
 use hiero_core::engine::{
-    Conn, DiagramType, El, Engine, Laid, descendant_ids, validate_label, validate_length,
+    Child, Conn, Created, DiagramType, El, Engine, Laid, Placement, descendant_ids, validate_label,
+    validate_length,
 };
 use hiero_core::figures::component::FIGURE_SIZE;
 use hiero_core::file_check::{DescriptionRule, Field, FieldRule};
@@ -15,8 +16,27 @@ use hiero_core::text::MeasureText;
 
 use crate::model::{
     ARROW_LABEL_MAX, ArrowMode, CONNECTOR_MAX, ComponentType, Conceptual, ConceptualArrow,
-    ConceptualKind, ConceptualProps, DESCRIPTION_MAX, NAME_FONT_SIZE, PALETTE, TRANSFORMATION_MAX,
+    ConceptualKind, ConceptualProps, DATABASE_ENTRY, DESCRIPTION_MAX, NAME_FONT_SIZE, PALETTE,
+    STORAGE_ENTRY, TRANSFORMATION_MAX,
 };
+
+/// The component type an element added from the palette entry `entry` starts as: a database
+/// from the Database entry, and storage from the Storage one.
+pub fn entry_component_type(entry: &KindInfo<ConceptualKind>) -> Option<ComponentType> {
+    match entry.palette_label {
+        Some(DATABASE_ENTRY) if entry.kind.has_component_type() => Some(ComponentType::Database),
+        Some(STORAGE_ENTRY) if entry.kind.has_component_type() => Some(ComponentType::Storage),
+        _ => None,
+    }
+}
+
+/// Whether `child` is a component that is, or starts as, a database or storage.
+fn typed_component(child: Child<'_, Conceptual>) -> bool {
+    match child {
+        Child::Element(e) => e.kind.has_component_type() && e.props.component_type.is_some(),
+        Child::Entry(k) => entry_component_type(k).is_some(),
+    }
+}
 
 /// A figure drawn above an element's name instead of a box.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -311,6 +331,44 @@ impl DiagramType for Conceptual {
         }
     }
 
+    /// A component holds another component only as a database or storage, such as the database
+    /// a service keeps its data in.
+    fn hold_problem(
+        container: &'static KindInfo<ConceptualKind>,
+        child: Child<'_, Self>,
+    ) -> Option<String> {
+        (container.kind == ConceptualKind::Component
+            && child.kind() == ConceptualKind::Component
+            && !typed_component(child))
+        .then(|| "A component can hold another component only as a database or storage.".into())
+    }
+
+    /// A person, a file, a database, or storage can't be resized to line up with what's under
+    /// it, so each moves in half grid steps, to sit in the middle of what it's over.
+    fn move_step(child: Child<'_, Self>) -> f64 {
+        let kind = child.kind();
+        if matches!(kind, ConceptualKind::Actor | ConceptualKind::File) || typed_component(child) {
+            GRID / 2.0
+        } else {
+            GRID
+        }
+    }
+
+    /// A component from the Database or Storage entry starts as that type.
+    fn created(
+        eng: &mut Engine<Self>,
+        kind: &'static KindInfo<ConceptualKind>,
+        placement: Placement,
+    ) -> Created<Self> {
+        let mut created = eng.base_created(kind, placement);
+        if let (Some(component_type), Some(first)) =
+            (entry_component_type(kind), created.added.first_mut())
+        {
+            first.props.component_type = Some(component_type);
+        }
+        created
+    }
+
     /// A figure, such as a database, can't hold elements.
     fn holds_elements(element: &El<Self>, info: &'static KindInfo<ConceptualKind>) -> bool {
         !info.can_contain.is_empty() && figure_of(element).is_none()
@@ -480,6 +538,18 @@ impl DiagramType for Conceptual {
                 with.props.font_size_of(kind)
             ));
         }
+        // A component inside another holds its place only as a database or storage, so one
+        // that's neither now is put on the canvas.
+        let mut parent_id = parent_id;
+        if kind.has_component_type()
+            && with.props.component_type.is_none()
+            && parent_id
+                .as_ref()
+                .and_then(|p| eng.element(p))
+                .is_some_and(|p| p.kind == ConceptualKind::Component)
+        {
+            parent_id = None;
+        }
         if kind.has_component_type() {
             if with.props.component_type.is_some() && selected.child_count > 0 {
                 let elements = eng
@@ -572,6 +642,69 @@ mod tests {
 
     fn id(s: &str) -> ElementId {
         s.into()
+    }
+
+    #[test]
+    fn a_database_or_storage_goes_into_a_component_but_a_plain_component_does_not() {
+        let entry = |label: &str| {
+            PALETTE
+                .iter()
+                .find(|k| k.palette_label == Some(label))
+                .unwrap()
+        };
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Component, Point::new(300.0, 300.0));
+        let centre = e.laid(&id("id1")).unwrap().rect.center();
+        // A database goes in, as a database, at its figure's size, named after its entry.
+        e.palette_drop_entry(entry("Database"), centre);
+        let database = e.laid(&id("id2")).unwrap().clone();
+        assert_eq!(database.el.parent_id, Some(id("id1")));
+        assert_eq!(
+            database.el.props.component_type,
+            Some(ComponentType::Database)
+        );
+        assert_eq!(database.el.label, "Database");
+        assert_eq!(database.rect.size(), FIGURE_SIZE);
+        // Another plain component dropped on it stays on the canvas.
+        e.palette_drop(ConceptualKind::Component, centre);
+        assert_eq!(e.element(&id("id3")).unwrap().parent_id, None);
+        e.add_entry_at_free_position(entry("Storage"));
+        let storage = e.element(&id("id4")).unwrap();
+        assert_eq!(storage.props.component_type, Some(ComponentType::Storage));
+        // The component offered as its container is the one holding it; a plain component is
+        // offered none.
+        e.select(&id("id2"));
+        assert_eq!(
+            e.parent_field_label().as_deref(),
+            Some("Application or Component")
+        );
+        e.select(&id("id3"));
+        assert_eq!(e.parent_field_label().as_deref(), Some("Application"));
+        // Made plain again, as an agent could, it leaves the component it was in.
+        let mut with = database.el.clone();
+        with.props.component_type = None;
+        <Conceptual as DiagramType>::apply_element(&mut e, &id("id2"), with, Some(id("id1")));
+        assert_eq!(e.element(&id("id2")).unwrap().parent_id, None);
+    }
+
+    #[test]
+    fn figures_move_in_half_grid_steps_and_boxes_in_whole_ones() {
+        use hiero_core::engine::Dir;
+        let mut e = engine();
+        e.palette_drop(ConceptualKind::Actor, Point::new(400.0, 400.0));
+        e.palette_drop(ConceptualKind::Process, Point::new(800.0, 400.0));
+        let x = |e: &Engine<Conceptual>, at: &str| e.element(&id(at)).unwrap().x;
+        let (actor, process) = (x(&e, "id1"), x(&e, "id2"));
+        e.arrow_key(&id("id1"), Dir::Right, false);
+        e.arrow_key(&id("id2"), Dir::Right, false);
+        assert_eq!(x(&e, "id1") - actor, GRID / 2.0);
+        assert_eq!(x(&e, "id2") - process, GRID);
+        // Moved together, they keep to the coarser grid.
+        e.select(&id("id1"));
+        e.toggle_selected(&id("id2"), None);
+        let placements = e.group_placements(Point::new(GRID * 0.75, 0.0));
+        let moved: Vec<f64> = placements.iter().map(|(_, p)| p.position.x).collect();
+        assert_eq!(moved, [actor + GRID / 2.0 + GRID, process + GRID + GRID]);
     }
 
     #[test]

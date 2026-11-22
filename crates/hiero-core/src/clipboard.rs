@@ -236,7 +236,7 @@ impl<T: DiagramType> Engine<T> {
             .map(|root| {
                 let size = root.rect.size();
                 let parent = self
-                    .containers_for(root.el.kind, self.layout())
+                    .containers_for(crate::engine::Child::Element(&root.el), self.layout())
                     .into_iter()
                     .filter(|c| !pasted_ids.contains(c.id()))
                     .rev()

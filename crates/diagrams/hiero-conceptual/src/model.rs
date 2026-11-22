@@ -180,8 +180,36 @@ use ConceptualKind as K;
 /// making one wider doesn't also make it taller.
 const SMALL_BOX_MIN_SIZE: Size = Size::new(120.0, 40.0);
 
-/// The elements offered in a conceptual diagram's palette.
-pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
+/// A component, which a palette entry can start as a database or storage.
+const COMPONENT: KindInfo<ConceptualKind> = KindInfo {
+    // Other components only as databases or storage (see `Conceptual::hold_problem`), such as
+    // the database a service keeps its data in.
+    can_contain: &[K::Process, K::Entity, K::File, K::Component],
+    container_look: ContainerLook::Boxed,
+    // Actors too, such as a person a system sends a report to, and domains, for a system that
+    // acts on a whole domain.
+    connects_to: &[
+        K::Actor,
+        K::Application,
+        K::Component,
+        K::Domain,
+        K::Job,
+        K::Process,
+        K::Entity,
+        K::File,
+    ],
+    layer: COMPONENTS,
+    ..KindInfo::new(K::Component, "Component")
+};
+
+/// The palette entries for a database and storage: components that start as that type, at
+/// the size of their figure. Their type can be changed afterwards.
+pub const DATABASE_ENTRY: &str = "Database";
+pub const STORAGE_ENTRY: &str = "Storage";
+
+/// The elements offered in a conceptual diagram's palette: the kinds, then sections, files,
+/// databases, and storage, the last two being components that start as that type.
+pub static PALETTE: [KindInfo<ConceptualKind>; 11] = [
     KindInfo {
         // Other actors too, such as a person who hands work to an assistant.
         connects_to: &[
@@ -227,24 +255,7 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
         size: Some(Size::new(200.0, 100.0)),
         ..KindInfo::new(K::Application, "Application")
     },
-    KindInfo {
-        can_contain: &[K::Process, K::Entity, K::File],
-        container_look: ContainerLook::Boxed,
-        // Actors too, such as a person a system sends a report to, and domains, for a system
-        // that acts on a whole domain.
-        connects_to: &[
-            K::Actor,
-            K::Application,
-            K::Component,
-            K::Domain,
-            K::Job,
-            K::Process,
-            K::Entity,
-            K::File,
-        ],
-        layer: COMPONENTS,
-        ..KindInfo::new(K::Component, "Component")
-    },
+    COMPONENT,
     KindInfo {
         layer: FIGURES,
         // Actors too, such as a person a system sends a report to, and domains, for a system
@@ -287,6 +298,13 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
         size: Some(Size::new(140.0, 40.0)),
         ..KindInfo::new(K::Entity, "Entity")
     },
+    // Placed above a part of the diagram, and stretched across it, to name that part.
+    KindInfo {
+        layer: FIGURES,
+        resizable: Resizable::Width,
+        size: Some(Size::new(480.0, 40.0)),
+        ..KindInfo::new(K::Section, "Section")
+    },
     // Data kept as a file, such as an export: placed as an entity is, but drawn as a page with
     // its name underneath, sized as a component drawn as a figure.
     KindInfo {
@@ -294,11 +312,16 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 9] = [
         size: Some(FIGURE_SIZE),
         ..KindInfo::new(K::File, "File")
     },
+    // Components drawn as a figure, which, as a file, can't be resized.
     KindInfo {
-        layer: FIGURES,
-        resizable: Resizable::Width,
-        size: Some(Size::new(480.0, 40.0)),
-        ..KindInfo::new(K::Section, "Section")
+        palette_label: Some(DATABASE_ENTRY),
+        size: Some(FIGURE_SIZE),
+        ..COMPONENT
+    },
+    KindInfo {
+        palette_label: Some(STORAGE_ENTRY),
+        size: Some(FIGURE_SIZE),
+        ..COMPONENT
     },
 ];
 
