@@ -14,6 +14,7 @@ pub use model::{Flowchart, FlowchartArrow, FlowchartKind, FlowchartProps, Orient
 /// connect, select, and scroll, one per line.
 pub const HELP: &str = concat!(
     "• Drag a step onto the canvas, or select it to add it. A new flowchart starts with a Start and an End: put the steps between them. Add diagram on a subprocess maps it out in a flowchart of its own.\n",
+    "• Or press an element's number or letter, shown beside it in the palette, to add it where the pointer is.\n",
     "• For swimlanes, add a Pool: it starts with two lanes, and Lane adds another. Name each lane after who does its steps, and drop the steps in their lanes. Drag a lane, or use the arrow keys, to reorder it; choose which way the lanes run in the pool's properties.\n",
     "• Drag an element, or use the arrow keys, to move it. Resize it with its handles.\n",
     "• Double-click an element's name or description, or press F2, to type it in place. Double-click an arrow's text to change it too, pressing Shift+Enter to start a new line. Press Enter to edit an element's name, and Delete to remove it. Hold Shift, Ctrl, or Cmd as you click, or press Shift+Space on each, to select several and move or remove them together.\n",

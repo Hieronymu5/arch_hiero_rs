@@ -983,6 +983,60 @@ mod tests {
     }
 
     #[test]
+    fn a_palette_entrys_key_adds_it_where_the_pointer_is() {
+        use crate::model::ConceptualKind;
+        let mut w = Window::new();
+        let press = |w: &mut Window, key: egui::Key, modifiers: Modifiers| {
+            let event = |pressed| Event::Key {
+                key,
+                physical_key: None,
+                pressed,
+                repeat: false,
+                modifiers,
+            };
+            w.frame(vec![event(true)], modifiers);
+            w.frame(vec![event(false)], Modifiers::NONE);
+        };
+        let count = |w: &Window| w.editor.eng.elements().len();
+        // 1 adds an actor centred under the pointer.
+        let at = Point::new(700.0, 600.0);
+        w.frame(
+            vec![Event::PointerMoved(w.screen(at, Vec2::ZERO))],
+            Modifiers::NONE,
+        );
+        press(&mut w, egui::Key::Num1, Modifiers::NONE);
+        let added = w.editor.eng.selected().unwrap().clone();
+        assert_eq!(added.el.kind, ConceptualKind::Actor);
+        assert!((added.rect.center().x - at.x).abs() <= 10.0);
+        assert!((added.rect.center().y - at.y).abs() <= 10.0);
+        // A, the eleventh, adds storage; with Cmd held, nothing.
+        press(&mut w, egui::Key::A, Modifiers::NONE);
+        assert_eq!(
+            w.editor.eng.selected().unwrap().el.props.component_type,
+            Some(crate::model::ComponentType::Storage)
+        );
+        let before = count(&w);
+        press(&mut w, egui::Key::Num2, Modifiers::COMMAND);
+        assert_eq!(count(&w), before);
+        // Off the canvas, at a free spot.
+        w.frame(
+            vec![Event::PointerMoved(Pos2::new(20.0, 400.0))],
+            Modifiers::NONE,
+        );
+        press(&mut w, egui::Key::Num2, Modifiers::NONE);
+        assert_eq!(count(&w), before + 1);
+        assert_eq!(
+            w.editor.eng.selected().unwrap().el.kind,
+            ConceptualKind::Domain
+        );
+        // Not while typing.
+        let crm = w.editor.eng.laid(&"a1".into()).unwrap().rect;
+        w.double_click(w.screen(crm.center(), Vec2::ZERO));
+        press(&mut w, egui::Key::Num3, Modifiers::NONE);
+        assert_eq!(count(&w), before + 1);
+    }
+
+    #[test]
     fn double_clicking_an_element_types_its_name_in_place() {
         let mut w = Window::new();
         let crm = w.editor.eng.laid(&"a1".into()).unwrap().rect;

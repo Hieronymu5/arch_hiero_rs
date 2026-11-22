@@ -18,6 +18,7 @@ pub use model::{
 /// connect, one per line.
 pub const HELP: &str = concat!(
     "• Drag an actor, application, or component onto the canvas, or select it to add it at the end of the row. Participants stand in a row along the top, each with a lifeline under it.\n",
+    "• Or press an element's number or letter, shown beside it in the palette, to add it where the pointer is.\n",
     "• Drag a participant left or right, or use the arrow keys or Move left and Move right, to change its place in the row.\n",
     "• Drag from the round handle on the selected participant to another's lifeline, or to its own, to send a message. A message straight back answers a call as a return; select a call and use Add return to add its answer.\n",
     "• Drag a message up or down, or select it and use the up and down arrow keys, to change its place in time. Select a message to change its text and whether it's a call, asynchronous, or a return.\n",

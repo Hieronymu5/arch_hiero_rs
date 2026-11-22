@@ -15,6 +15,7 @@ pub use model::{BlockArrow, Color, HighLevel, HighLevelKind, HighLevelProps};
 /// connect, select, and scroll, one per line.
 pub const HELP: &str = concat!(
     "• Drag a block, a group, or actors (people, such as stakeholders) onto the canvas, or select one to add it. Drop them into a group to put them in it; a group grows to hold what's in it.\n",
+    "• Or press an element's number or letter, shown beside it in the palette, to add it where the pointer is.\n",
     "• Drag an element, or use the arrow keys, to move it. Resize them with their handles.\n",
     "• Double-click an element's name or description, or press F2, to type it in place. Press Enter to edit an element's properties: its name, description, colour (blue, green, red, yellow, or grey), font size, and a block's or group's solid or dashed border. A group's name sits at its top, or in its middle while it's empty.\n",
     "• Drag from the round handle on the selected element, or use Add arrow in its properties, to draw a wide arrow to another. Select an arrow to make it point both ways.\n",

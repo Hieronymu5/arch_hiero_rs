@@ -18,6 +18,7 @@ pub use model::{Dependency, DeployedComponent, DeployedKind, DeployedProps};
 /// connect, select, and scroll, one per line.
 pub const HELP: &str = concat!(
     "• Drag a layer or component onto the canvas, or select it to add it after the selected component.\n",
+    "• Or press an element's number or letter, shown beside it in the palette, to add it where the pointer is.\n",
     "• Drag a layer, or use the up and down arrow keys, to move it up or down.\n",
     "• Drag a component to move it, or use the arrow keys: left and right swap it with its neighbour, up and down move it to another layer.\n",
     "• Double-click an element's name or description, or press F2, to type it in place. Press Enter to edit an element's properties and Delete to remove it. Hold Shift, Ctrl, or Cmd as you click, or press Shift+Space on each, to select several and move or remove them together.\n",

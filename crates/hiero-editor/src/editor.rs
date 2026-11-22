@@ -303,6 +303,57 @@ enum Focus {
 #[derive(Debug, Clone, Copy)]
 struct PaletteDrag(usize);
 
+/// The keys that add palette entries, in palette order: 1 to 9, 0, then A to Z.
+const PALETTE_KEYS: [Key; 36] = [
+    Key::Num1,
+    Key::Num2,
+    Key::Num3,
+    Key::Num4,
+    Key::Num5,
+    Key::Num6,
+    Key::Num7,
+    Key::Num8,
+    Key::Num9,
+    Key::Num0,
+    Key::A,
+    Key::B,
+    Key::C,
+    Key::D,
+    Key::E,
+    Key::F,
+    Key::G,
+    Key::H,
+    Key::I,
+    Key::J,
+    Key::K,
+    Key::L,
+    Key::M,
+    Key::N,
+    Key::O,
+    Key::P,
+    Key::Q,
+    Key::R,
+    Key::S,
+    Key::T,
+    Key::U,
+    Key::V,
+    Key::W,
+    Key::X,
+    Key::Y,
+    Key::Z,
+];
+
+/// The key that adds the palette entry at `index` where the pointer is: 1 to 9 for the first
+/// nine, 0 for the tenth, then the letters A to Z. Entries past Z have none.
+pub fn palette_shortcut(index: usize) -> Option<&'static str> {
+    PALETTE_KEYS.get(index).map(|k| k.symbol_or_name())
+}
+
+/// The position of the palette entry that `key` adds.
+fn palette_entry_for_key(key: Key) -> Option<usize> {
+    PALETTE_KEYS.iter().position(|k| *k == key)
+}
+
 /// The instructions while viewing, when nothing can be changed.
 const VIEW_HELP: &str = concat!(
     "• You're viewing this diagram: nothing can be changed. Press Edit to change it.\n",
@@ -727,6 +778,9 @@ impl<T: DiagramView> Editor<T> {
     /// The palette on the left, the canvas filling the rest, and the selected element's or
     /// arrow's properties on the right while there's one to edit.
     pub fn ui(&mut self, ui: &mut Ui) {
+        if !self.viewing {
+            self.palette_keys(ui);
+        }
         // The editor reaches the window's edges, past the page's 8pt margin. Content lines up
         // with the logo, that margin and CONTENT_INSET in from the edge.
         let inset = crate::theme::CONTENT_INSET + 8;
@@ -875,6 +929,45 @@ impl<T: DiagramView> Editor<T> {
         Some((left as f32, right as f32))
     }
 
+    /// A palette entry's key, a number or a letter, adds it where the pointer is on the canvas,
+    /// as dropping it there would, or at a free spot when the pointer isn't on the canvas. Not
+    /// while typing, nor with Ctrl, Cmd, or Alt held.
+    fn palette_keys(&mut self, ui: &Ui) {
+        if ui.ctx().egui_wants_keyboard_input() {
+            return;
+        }
+        let pressed = ui.input(|i| {
+            i.events.iter().find_map(|event| match event {
+                egui::Event::Key {
+                    key,
+                    pressed: true,
+                    repeat: false,
+                    modifiers,
+                    ..
+                } if !(modifiers.command || modifiers.ctrl || modifiers.alt) => {
+                    palette_entry_for_key(*key)
+                }
+                _ => None,
+            })
+        });
+        let Some(kind) = pressed.and_then(|index| T::palette().get(index)) else {
+            return;
+        };
+        let pointer = ui.input(|i| i.pointer.latest_pos());
+        let at = self
+            .viewport
+            .zip(pointer)
+            .filter(|(viewport, p)| viewport.contains(*p))
+            .map(|(viewport, p)| self.view.transform(viewport).world(p));
+        match at {
+            Some(point) => self.act(None, |eng| eng.palette_drop_entry(kind, point)),
+            None => self.act(None, |eng| eng.add_entry_at_free_position(kind)),
+        }
+        if let Some(id) = self.eng.selected_id().cloned() {
+            self.focus = Focus::Element(id);
+        }
+    }
+
     fn palette_ui(&mut self, ui: &mut Ui) {
         heading(ui, "Elements");
         ui.label(
@@ -893,6 +986,17 @@ impl<T: DiagramView> Editor<T> {
                     element_button(ui, kind.entry_label(), 28.0)
                 })
                 .inner;
+            // The key that adds it where the pointer is, small, at the button's right end.
+            if let Some(key) = palette_shortcut(index) {
+                let rect = response.rect;
+                ui.painter().text(
+                    egui::pos2(rect.right() - 10.0, rect.center().y + 2.0),
+                    Align2::RIGHT_CENTER,
+                    key,
+                    egui::FontId::proportional(11.0),
+                    palette(ui).text_muted,
+                );
+            }
             if response.clicked() {
                 self.act(None, |eng| eng.add_entry_at_free_position(kind));
                 self.focus = Focus::Element(

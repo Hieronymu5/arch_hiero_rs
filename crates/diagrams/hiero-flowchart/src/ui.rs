@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn the_help_says_how_to_draw_the_flow() {
-        assert_eq!(Flowchart::HELP.lines().count(), 8);
+        assert_eq!(Flowchart::HELP.lines().count(), 9);
         assert!(Flowchart::HELP.contains("Pool"));
         assert!(Flowchart::HELP.contains("Yes"));
     }

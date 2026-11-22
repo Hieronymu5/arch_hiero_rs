@@ -14,6 +14,7 @@ pub use model::{Physical, PhysicalArrow, PhysicalColors, PhysicalKind, PhysicalP
 /// connect, select, and scroll, one per line.
 pub const HELP: &str = concat!(
     "• Drag an element onto the canvas, or select it to add it. Zones divide the network they're dropped on, devices go inside zones, and firewalls can sit across a zone's edge.\n",
+    "• Or press an element's number or letter, shown beside it in the palette, to add it where the pointer is.\n",
     "• Drag an element, or use the arrow keys, to move it. Resize networks and zones with their corner handles.\n",
     "• Double-click an element's name or description, or press F2, to type it in place. Press Enter to edit an element's properties, such as a server's type or instances, and Delete to remove it. Hold Shift, Ctrl, or Cmd as you click, or press Shift+Space on each, to select several and move or remove them together.\n",
     "• Drag from the round handle on the selected element, or use Add arrow in its properties, to draw an arrow. Select an arrow to set its protocol and port.\n",

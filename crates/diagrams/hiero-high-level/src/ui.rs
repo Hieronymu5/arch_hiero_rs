@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn the_help_names_the_looks() {
-        assert_eq!(HighLevel::HELP.lines().count(), 6);
+        assert_eq!(HighLevel::HELP.lines().count(), 7);
         assert!(HighLevel::HELP.contains("font size"));
         assert!(HighLevel::HELP.contains("dashed"));
     }
