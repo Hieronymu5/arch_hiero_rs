@@ -196,19 +196,228 @@ impl Accent {
     }
 }
 
+/// How many steps the accent's brightness goes either way of the colour as designed, which is
+/// in the middle. The last step either way is as far as the colour can go, and the others share
+/// it.
+pub const BRIGHTNESS_STEPS: i8 = 5;
+
+/// The most white, or black, a shade takes, however readable it would stay.
+const MAX_MIX: f32 = 0.35;
+
+/// The least contrast WCAG AA asks of text.
+const AA: f32 = 4.5;
+
+/// How much lighter than designed the accent is in each theme, in steps from
+/// `-BRIGHTNESS_STEPS` to `BRIGHTNESS_STEPS`, or darker below 0. Each theme keeps its own, as a
+/// colour that reads well on light may want to differ on dark.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Brightness {
+    pub light: i8,
+    pub dark: i8,
+}
+
+impl Brightness {
+    /// The steps in the theme `dark` or light.
+    pub const fn of(self, dark: bool) -> i8 {
+        if dark { self.dark } else { self.light }
+    }
+
+    /// With `steps` in the theme `dark` or light, kept within the slider's ends.
+    #[must_use]
+    pub fn with(self, dark: bool, steps: i8) -> Self {
+        let steps = steps.clamp(-BRIGHTNESS_STEPS, BRIGHTNESS_STEPS);
+        if dark {
+            Self {
+                dark: steps,
+                ..self
+            }
+        } else {
+            Self {
+                light: steps,
+                ..self
+            }
+        }
+    }
+}
+
+/// How much white a shade can take, to make it lighter, and how much black, to make it darker,
+/// and stay readable, each from 0 to `MAX_MIX`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MixLimits {
+    pub lighter: f32,
+    pub darker: f32,
+}
+
+/// What the accent is drawn against in each theme: the page, the text on a button filled with
+/// it, and the panels and raised buttons it's text on.
+fn accent_grounds(dark: bool) -> &'static [Color32] {
+    const LIGHT_GROUNDS: [Color32; 2] = [Color32::from_gray(248), Color32::WHITE];
+    const DARK_GROUNDS: [Color32; 4] = [
+        Color32::from_gray(27),
+        Color32::from_rgb(0x0f, 0x12, 0x15),
+        Color32::from_rgb(0x17, 0x1b, 0x20),
+        Color32::from_rgb(0x2b, 0x30, 0x37),
+    ];
+    if dark { &DARK_GROUNDS } else { &LIGHT_GROUNDS }
+}
+
+/// `color` mixed with white by `amount`, from 0 to 1, or with black when it's below 0.
+pub fn mixed_shade(color: Color32, amount: f32) -> Color32 {
+    let toward = if amount > 0.0 { 255.0 } else { 0.0 };
+    let share = amount.abs().min(1.0);
+    let mix = |c: u8| {
+        let c = f32::from(c);
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "rounded within 0 to 255"
+        )]
+        let mixed = (c + (toward - c) * share).round().clamp(0.0, 255.0) as u8;
+        mixed
+    };
+    Color32::from_rgb(mix(color.r()), mix(color.g()), mix(color.b()))
+}
+
+/// A colour's relative luminance, as WCAG defines it.
+fn luminance(color: Color32) -> f32 {
+    let channel = |c: u8| {
+        let c = f32::from(c) / 255.0;
+        if c <= 0.039_28 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b())
+}
+
+/// The contrast ratio between two colours, from 1 to 21.
+pub fn contrast(a: Color32, b: Color32) -> f32 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// How much white and black `shade` can take and stay readable against each of `grounds`: at
+/// least 4.5:1, or as readable as it is as designed, if that's less.
+pub fn mix_limits_of(shade: Color32, grounds: &[Color32]) -> MixLimits {
+    let needed: Vec<f32> = grounds
+        .iter()
+        .map(|g| contrast(shade, *g).min(AA))
+        .collect();
+    let readable = |amount: f32| {
+        let mixed = mixed_shade(shade, amount);
+        grounds
+            .iter()
+            .zip(&needed)
+            .all(|(g, need)| contrast(mixed, *g) >= need - 1e-6)
+    };
+    // Readability only falls the further it goes, so the furthest is found by halving.
+    let furthest = |direction: f32| {
+        if readable(direction * MAX_MIX) {
+            return MAX_MIX;
+        }
+        let (mut low, mut high) = (0.0, MAX_MIX);
+        for _ in 0..20 {
+            let middle = f32::midpoint(low, high);
+            if readable(direction * middle) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        low
+    };
+    MixLimits {
+        lighter: furthest(1.0),
+        darker: furthest(-1.0),
+    }
+}
+
+/// How much white and black `accent`'s shade can take in the theme `dark` or light.
+pub fn mix_limits(accent: Accent, dark: bool) -> MixLimits {
+    let (light_shade, dark_shade) = accent.shades();
+    let shade = if dark { dark_shade } else { light_shade };
+    mix_limits_of(shade, accent_grounds(dark))
+}
+
+/// `accent`'s light and dark shades at `brightness`: in each theme, that share of the way to as
+/// light, or as dark, as it can go there.
+pub fn shades_at(accent: Accent, brightness: Brightness) -> (Color32, Color32) {
+    let (light, dark) = accent.shades();
+    let at = |shade: Color32, steps: i8, dark: bool| {
+        if steps == 0 {
+            return shade;
+        }
+        let limits = mix_limits(accent, dark);
+        let share = (f32::from(steps) / f32::from(BRIGHTNESS_STEPS)).clamp(-1.0, 1.0);
+        let amount = if share > 0.0 {
+            share * limits.lighter
+        } else {
+            share * limits.darker
+        };
+        mixed_shade(shade, amount)
+    };
+    (
+        at(light, brightness.light, false),
+        at(dark, brightness.dark, true),
+    )
+}
+
+/// The accent in use, its brightness, and its shades at that brightness, worked out once.
+#[derive(Clone, Copy, Debug, Default)]
+struct AccentInUse {
+    accent: Accent,
+    brightness: Brightness,
+    shades: Option<(Color32, Color32)>,
+}
+
 fn accent_id() -> egui::Id {
     egui::Id::unique("hiero-editor.accent")
 }
 
+fn accent_in_use(ctx: &egui::Context) -> AccentInUse {
+    ctx.data(|d| d.get_temp(accent_id())).unwrap_or_default()
+}
+
 /// The accent colour in use.
 pub fn accent(ctx: &egui::Context) -> Accent {
-    ctx.data(|d| d.get_temp(accent_id())).unwrap_or_default()
+    accent_in_use(ctx).accent
+}
+
+/// How much lighter or darker than designed the accent is, in each theme.
+pub fn accent_brightness(ctx: &egui::Context) -> Brightness {
+    accent_in_use(ctx).brightness
+}
+
+/// The accent's light theme shade and its dark theme shade, at its brightness.
+pub fn accent_shades(ctx: &egui::Context) -> (Color32, Color32) {
+    let in_use = accent_in_use(ctx);
+    in_use.shades.unwrap_or_else(|| in_use.accent.shades())
 }
 
 /// Uses `accent` from now on, for the palette and for egui's links in each theme.
 pub fn set_accent(ctx: &egui::Context, accent: Accent) {
-    ctx.data_mut(|d| d.insert_temp(accent_id(), accent));
-    let (light, dark) = accent.shades();
+    set_accent_with(ctx, accent, accent_brightness(ctx));
+}
+
+/// Makes the accent `brightness` lighter or darker than designed from now on.
+pub fn set_accent_brightness(ctx: &egui::Context, brightness: Brightness) {
+    set_accent_with(ctx, accent(ctx), brightness);
+}
+
+fn set_accent_with(ctx: &egui::Context, accent: Accent, brightness: Brightness) {
+    let shades = shades_at(accent, brightness);
+    ctx.data_mut(|d| {
+        d.insert_temp(
+            accent_id(),
+            AccentInUse {
+                accent,
+                brightness,
+                shades: Some(shades),
+            },
+        );
+    });
+    let (light, dark) = shades;
     for (theme, color) in [(egui::Theme::Light, light), (egui::Theme::Dark, dark)] {
         ctx.style_mut_of(theme, |style| style.visuals.hyperlink_color = color);
     }
@@ -217,12 +426,12 @@ pub fn set_accent(ctx: &egui::Context, accent: Accent) {
 /// The colour of the editor's selection, in the accent's light shade, as the paper is always
 /// white.
 pub fn selection_color(ctx: &egui::Context) -> Color32 {
-    accent(ctx).shades().0
+    accent_shades(ctx).0
 }
 
 /// The palette of the theme `ui` is drawn in, with the accent in use.
 pub fn palette(ui: &Ui) -> Palette {
-    let (light, dark) = accent(ui.ctx()).shades();
+    let (light, dark) = accent_shades(ui.ctx());
     if ui.visuals().dark_mode {
         Palette {
             accent: dark,
@@ -627,4 +836,71 @@ pub fn tag_icon(
     };
     painter.add(egui::Shape::convex_polygon(points, fill, stroke));
     painter.circle_filled(at(13.0, 7.0), 1.25 * scale, color);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_accent_as_designed_keeps_its_shades() {
+        for accent in Accent::ALL {
+            assert_eq!(shades_at(accent, Brightness::default()), accent.shades());
+        }
+    }
+
+    #[test]
+    fn each_end_of_the_brightness_stays_readable_in_its_theme() {
+        for accent in Accent::ALL {
+            let designed = accent.shades();
+            for steps in [-BRIGHTNESS_STEPS, BRIGHTNESS_STEPS] {
+                let (light, dark) = shades_at(
+                    accent,
+                    Brightness {
+                        light: steps,
+                        dark: steps,
+                    },
+                );
+                for (shade, was, dark_theme) in
+                    [(light, designed.0, false), (dark, designed.1, true)]
+                {
+                    for ground in accent_grounds(dark_theme) {
+                        let needed = contrast(was, *ground).min(AA);
+                        // A rounding of the channels away.
+                        assert!(
+                            contrast(shade, *ground) >= needed - 0.05,
+                            "{} at {steps} on {ground:?}",
+                            accent.label()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn lighter_steps_lighten_and_darker_ones_darken() {
+        let accent = Accent::Blue;
+        let limits = mix_limits(accent, false);
+        assert!(limits.lighter > 0.0 || limits.darker > 0.0);
+        let (designed, _) = accent.shades();
+        let (lighter, _) = shades_at(accent, Brightness { light: 5, dark: 0 });
+        let (darker, _) = shades_at(accent, Brightness { light: -5, dark: 0 });
+        assert!(luminance(darker) <= luminance(designed));
+        assert!(luminance(lighter) >= luminance(designed));
+        assert_ne!(lighter, darker);
+    }
+
+    #[test]
+    fn each_theme_keeps_its_own_brightness() {
+        let b = Brightness::default().with(true, 3).with(false, -9);
+        assert_eq!(
+            b,
+            Brightness {
+                light: -BRIGHTNESS_STEPS,
+                dark: 3
+            }
+        );
+        assert_eq!(b.of(true), 3);
+    }
 }

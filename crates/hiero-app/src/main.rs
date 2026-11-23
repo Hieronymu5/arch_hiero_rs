@@ -22,6 +22,8 @@ use hiero_store::locations::Locations;
 
 const THEME_KEY: &str = "theme";
 const ACCENT_KEY: &str = "accent";
+/// Where the accent's brightness in each theme is kept: steps lighter, or darker below 0.
+const BRIGHTNESS_KEYS: [&str; 2] = ["accent-brightness-light", "accent-brightness-dark"];
 /// Where the type of the last diagram added is kept.
 const NEW_TYPE_KEY: &str = "new-diagram-type";
 
@@ -65,6 +67,18 @@ impl Shell {
             .and_then(|s| s.get_string(ACCENT_KEY))
             .and_then(|key| Accent::from_key(&key))
             .unwrap_or_default();
+        let steps = |key: &str| {
+            cc.storage
+                .and_then(|s| s.get_string(key))
+                .and_then(|v| v.parse::<i8>().ok())
+                .filter(|v| v.abs() <= hiero_editor::theme::BRIGHTNESS_STEPS)
+                .unwrap_or(0)
+        };
+        let brightness = hiero_editor::theme::Brightness {
+            light: steps(BRIGHTNESS_KEYS[0]),
+            dark: steps(BRIGHTNESS_KEYS[1]),
+        };
+        hiero_editor::theme::set_accent_brightness(&cc.egui_ctx, brightness);
         hiero_editor::theme::set_accent(&cc.egui_ctx, accent);
         // A type that's no longer offered, or anything else, falls back to the first.
         let new_type = cc
@@ -123,6 +137,7 @@ impl Shell {
                 locations.use_path(&path);
                 let databases = Databases::new(path, locations, remember);
                 let mut app = App::new(store, worker, theme, accent, new_type, databases);
+                app.accent_brightness = brightness;
                 app.remember_locations();
                 if let Some(notice) = notice {
                     app.outcome = Some(Outcome::error(notice));
@@ -142,6 +157,13 @@ impl eframe::App for Shell {
         if let Self::Running(app, _) = self {
             storage.set_string(THEME_KEY, theme_name(app.theme).to_owned());
             storage.set_string(ACCENT_KEY, app.accent.key());
+            let brightness = app.accent_brightness;
+            for (key, steps) in BRIGHTNESS_KEYS
+                .into_iter()
+                .zip([brightness.light, brightness.dark])
+            {
+                storage.set_string(key, steps.to_string());
+            }
             storage.set_string(NEW_TYPE_KEY, app.new_type.as_str().to_owned());
         }
     }

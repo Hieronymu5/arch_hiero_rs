@@ -11,8 +11,9 @@ use hiero_core::model::{
 };
 use hiero_editor::editor::{set_show_grid, show_grid};
 use hiero_editor::theme::{
-    Accent, CONTENT_INSET, DOWNLOAD_ICON, choice_button, danger_button, download_icon, field_label,
-    form_style, page_button, palette, row_button, set_accent,
+    Accent, BRIGHTNESS_STEPS, Brightness, CONTENT_INSET, DOWNLOAD_ICON, choice_button,
+    danger_button, download_icon, field_label, form_style, page_button, palette, row_button,
+    set_accent, set_accent_brightness,
 };
 use hiero_editor::{DiagramEditor, fonts};
 use hiero_store::Status;
@@ -113,8 +114,10 @@ fn theme_picker(ui: &mut Ui, current: egui::ThemePreference) -> Option<egui::The
 /// The accent colour picker beside the theme picker: a button showing the colour in use that
 /// drops down a 4 × 4 grid of colour squares, as radio buttons. Clicking a square picks it and
 /// closes the grid; the arrow keys pick as they move, and Escape, Enter, a click elsewhere, or
-/// moving focus away closes it. Returns the colour picked, if any.
-fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
+/// moving focus away closes it. A slider to the grid's right makes the colour lighter or darker
+/// in the theme showing: as designed in its middle, and at its ends as light, or as dark, as it
+/// can go and stay readable. Returns what was changed, if anything.
+fn accent_picker(ui: &mut Ui, current: Accent, brightness: Brightness) -> Option<AccentChange> {
     const CELL: f32 = 32.0;
     const GAP: f32 = 6.0;
     const COLUMNS: usize = 4;
@@ -169,7 +172,10 @@ fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
     }
 
     let swatch_id = |i: usize| popup_id.with(("accent", i));
+    let slider_id = popup_id.with("brightness");
+    let mut slider = None;
     let mut chosen = None;
+    let mut brighter = None;
     let mut close = false;
     let shown = egui::Popup::from_toggle_button_response(&toggle)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
@@ -188,6 +194,9 @@ fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
             #[expect(clippy::cast_precision_loss, reason = "four cells")]
             let side = COLUMNS as f32 * CELL + (COLUMNS - 1) as f32 * GAP;
             let (grid, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
+            let (moved, id) = brightness_slider(ui, slider_id, current, brightness, grid);
+            brighter = moved;
+            slider = Some(id);
             let mut moved = None;
             for (i, accent) in Accent::ALL.into_iter().enumerate() {
                 #[expect(clippy::cast_precision_loss, reason = "four rows and columns")]
@@ -255,7 +264,9 @@ fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
         // Escape closes the grid on its own, and Tab moving focus out of it closes it too.
         let escaped = ui.input(|i| i.key_pressed(Key::Escape));
         let focus = ui.memory(egui::Memory::focused);
-        let left = focus.is_some_and(|f| f != toggle.id && !(0..16).any(|i| swatch_id(i) == f));
+        let left = focus.is_some_and(|f| {
+            f != toggle.id && Some(f) != slider && !(0..16).any(|i| swatch_id(i) == f)
+        });
         if close || escaped {
             toggle.request_focus();
         }
@@ -264,6 +275,104 @@ fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
         }
     }
     chosen
+        .map(AccentChange::Color)
+        .or(brighter.map(AccentChange::Brightness))
+}
+
+/// What the accent picker changed: the colour, or its brightness.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AccentChange {
+    Color(Accent),
+    Brightness(Brightness),
+}
+
+/// A brightness in words: "As designed", or such as "2 steps lighter".
+fn steps_text(steps: i8) -> String {
+    let count = steps.unsigned_abs();
+    match steps {
+        0 => "As designed".to_owned(),
+        _ => format!(
+            "{count} {} {}",
+            if count == 1 { "step" } else { "steps" },
+            if steps > 0 { "lighter" } else { "darker" }
+        ),
+    }
+}
+
+/// The accent picker's brightness slider, to the right of the colours and as tall as they are:
+/// lighter at the top, with a sun, and darker at the bottom, with a filled dot. It changes the
+/// theme showing, and can't be used where the colour can't go lighter or darker. Returns the
+/// brightness it was moved to, and the slider's id.
+fn brightness_slider(
+    ui: &mut Ui,
+    id: egui::Id,
+    accent: Accent,
+    brightness: Brightness,
+    colours: egui::Rect,
+) -> (Option<Brightness>, egui::Id) {
+    const WIDTH: f32 = 20.0;
+    const ICON: f32 = 14.0;
+    let dark = ui.visuals().dark_mode;
+    let colors = palette(ui);
+    let column = egui::Rect::from_min_size(
+        egui::pos2(colours.right() + 10.0, colours.top()),
+        egui::vec2(WIDTH, colours.height()),
+    );
+    // Room for it to the right of the colours.
+    ui.allocate_rect(
+        egui::Rect::from_min_max(colours.right_top(), column.right_bottom()),
+        egui::Sense::hover(),
+    );
+    let muted = colors.text_muted;
+    let painter = ui.painter();
+    let sun = egui::pos2(column.center().x, column.top() + ICON / 2.0);
+    painter.circle_stroke(sun, 3.0, egui::Stroke::new(1.3, muted));
+    for i in 0..8 {
+        let angle = std::f32::consts::FRAC_PI_4 * f32::from(u8::try_from(i).unwrap_or(0));
+        let along = egui::vec2(angle.cos(), angle.sin());
+        painter.line_segment(
+            [sun + along * 5.0, sun + along * 6.8],
+            egui::Stroke::new(1.3, muted),
+        );
+    }
+    painter.circle_filled(
+        egui::pos2(column.center().x, column.bottom() - ICON / 2.0),
+        3.5,
+        muted,
+    );
+    let limits = hiero_editor::theme::mix_limits(accent, dark);
+    let usable = limits.lighter > 0.0 || limits.darker > 0.0;
+    let mut steps = brightness.of(dark);
+    let track = egui::Rect::from_min_max(
+        egui::pos2(column.left(), column.top() + ICON + 4.0),
+        egui::pos2(column.right(), column.bottom() - ICON - 4.0),
+    );
+    let text = steps_text(steps);
+    let response = ui
+        .scope_builder(egui::UiBuilder::new().max_rect(track).id_salt(id), |ui| {
+            ui.spacing_mut().slider_width = track.height();
+            ui.add_enabled(
+                usable,
+                egui::Slider::new(&mut steps, -BRIGHTNESS_STEPS..=BRIGHTNESS_STEPS)
+                    .vertical()
+                    .show_value(false)
+                    .step_by(1.0),
+            )
+        })
+        .inner;
+    let response = response.on_hover_text(format!("Accent brightness: {text}"));
+    response.widget_info(|| {
+        egui::WidgetInfo::slider(
+            usable,
+            f64::from(steps),
+            format!("Accent brightness: {text}"),
+        )
+    });
+    let moved = response
+        .changed()
+        .then(|| brightness.with(dark, steps))
+        .filter(|b| *b != brightness);
+    (moved, response.id)
 }
 
 /// A square of the accent picker: the colour's light theme shade in its top-left half and its
@@ -1133,9 +1242,16 @@ impl App {
                 }
                 // The theme picker, then the accent colour picker, at the end of the bar.
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if let Some(accent) = accent_picker(ui, self.accent) {
-                        self.accent = accent;
-                        set_accent(ui.ctx(), accent);
+                    match accent_picker(ui, self.accent, self.accent_brightness) {
+                        Some(AccentChange::Color(accent)) => {
+                            self.accent = accent;
+                            set_accent(ui.ctx(), accent);
+                        }
+                        Some(AccentChange::Brightness(brightness)) => {
+                            self.accent_brightness = brightness;
+                            set_accent_brightness(ui.ctx(), brightness);
+                        }
+                        None => {}
                     }
                     if let Some(theme) = theme_picker(ui, self.theme) {
                         self.theme = theme;
@@ -2136,7 +2252,8 @@ mod tests {
     use egui::{Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput};
     use hiero_editor::theme::Accent;
 
-    use super::accent_picker;
+    use super::{AccentChange, accent_picker, steps_text};
+    use hiero_editor::theme::Brightness;
 
     /// The accent picker in a window, driven by input a frame at a time.
     struct Window {
@@ -2166,10 +2283,12 @@ mod tests {
             };
             let (current, mut picked) = (self.accent, None);
             self.ctx
-                .run_ui(input, |ui| picked = accent_picker(ui, current))
+                .run_ui(input, |ui| {
+                    picked = accent_picker(ui, current, Brightness::default());
+                })
                 .textures_delta
                 .clear();
-            if let Some(accent) = picked {
+            if let Some(AccentChange::Color(accent)) = picked {
                 self.accent = accent;
             }
         }
@@ -2284,5 +2403,12 @@ mod tests {
             assert_eq!(Accent::from_key(&accent.key()), Some(accent));
         }
         assert_eq!(Accent::from_key("red"), None);
+    }
+
+    #[test]
+    fn says_a_brightness_in_words() {
+        assert_eq!(steps_text(0), "As designed");
+        assert_eq!(steps_text(1), "1 step lighter");
+        assert_eq!(steps_text(-3), "3 steps darker");
     }
 }

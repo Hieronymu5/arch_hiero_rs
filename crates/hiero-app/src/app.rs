@@ -16,7 +16,7 @@ use hiero_core::stored::{StoredContent, StoredDiagram};
 use hiero_core::tags::{
     DiagramScene, DiagramTag, scene_of, scene_problem, tag_name_problem, untag_elements,
 };
-use hiero_editor::theme::Accent;
+use hiero_editor::theme::{Accent, Brightness};
 use hiero_editor::{DiagramEditor, DiagramRequest};
 use hiero_store::locations::Locations;
 use hiero_store::{Imported, Record, Status, Store, StoreError, Summary};
@@ -268,6 +268,8 @@ pub struct App {
     pub save_due: Option<Instant>,
     pub theme: egui::ThemePreference,
     pub accent: Accent,
+    /// How much lighter or darker than designed the accent is, in each theme. Kept with it.
+    pub accent_brightness: Brightness,
     /// The type a new diagram starts as: the type of the last diagram added, or else the first
     /// offered. Kept with the theme.
     pub new_type: DiagramTypeId,
@@ -303,6 +305,7 @@ impl App {
             save_due: None,
             theme,
             accent,
+            accent_brightness: Brightness::default(),
             new_type,
             databases,
             viewed: HashMap::new(),
