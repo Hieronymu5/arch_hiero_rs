@@ -1828,7 +1828,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hiero-app"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "directories",
  "eframe",
@@ -1856,7 +1856,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-c4"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "egui",
  "hiero-core",
@@ -1867,7 +1867,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-conceptual"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "egui",
  "hiero-core",
@@ -1878,7 +1878,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-core"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -1894,7 +1894,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-deployed"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "egui",
@@ -1906,7 +1906,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-editor"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "egui",
  "hiero-core",
@@ -1917,7 +1917,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-flowchart"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "egui",
  "hiero-core",
@@ -1928,7 +1928,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-high-level"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "egui",
  "hiero-core",
@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-mcp"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "hiero-core",
  "hiero-registry",
@@ -1954,7 +1954,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-physical"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "egui",
  "hiero-core",
@@ -1965,7 +1965,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-registry"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "hiero-c4",
  "hiero-conceptual",
@@ -1981,7 +1981,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-sequence"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "egui",
  "hiero-core",
@@ -1992,7 +1992,7 @@ dependencies = [
 
 [[package]]
 name = "hiero-store"
-version = "0.2.1"
+version = "1.0.0"
 dependencies = [
  "directories",
  "hiero-core",
