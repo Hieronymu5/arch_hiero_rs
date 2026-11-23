@@ -106,7 +106,7 @@ Text on a fill is black or white, whichever has more contrast (WCAG). This uses
 
 ## Line weight
 
-Edit Details offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
+Settings, on its Appearance tab, offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
 stored as the diagram's `lineWeight`. New diagrams, the samples, and imported files that don't
 set it start at *Medium*; a diagram from before the setting existed keeps its old look (*Thick*)
 until it's changed, and exports always write it. Every line of its elements (containers,
@@ -116,7 +116,7 @@ and heads keep their widths.
 
 ## Canvas size
 
-Edit Details offers **Canvas size**: the width and height of the area elements can be placed on,
+Settings, on its Appearance tab, offers **Canvas size**: the width and height of the area elements can be placed on,
 in 20 px grid steps. It starts at 2400 × 1600 px, and can be made as big as 12000 × 8000 px, but no
 smaller than 2400 × 1600 px or than what's on it needs. Moving, resizing, adding, and pasting keep
 elements on it, the editor's paper shows it, and changing it is one undo step. It's stored as the
@@ -201,7 +201,7 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] View mode, the default when opening from the list: no palette, properties, or grid; the paper fills the window to its edges but scrolls only as far as the drawing goes (with a one-grid margin), which starts in the top-left corner; drag with any button, scroll, zoom, and export (beyond the prototype)
 - [x] A description on domains, under the name in its band, which grows to fit it (beyond the prototype)
 - [x] Path in the top bar: the diagrams the open one was reached through, from "Diagrams" on, each a link back to it; names longer than 24 characters are cut short, with the full name on hover (beyond the prototype)
-- [x] Sub diagrams and links: an element can link to any other diagram, picked in its properties, or add a new one as a sub diagram of its diagram, and opens it by clicking it in view mode; many elements can link to one diagram, and removing a link keeps the diagram. Edit Details lists a diagram's sub diagrams and deletes them; the list shows them under their diagram, and deleting a diagram deletes them. A link to a deleted diagram is dead: it counts as no link, exports leave it out, and saving a version drops it. draw.io exports add linked diagrams, then any other sub diagrams, as linked pages, and .zip exports hold the sub diagrams, which import back under their parents (beyond the prototype)
+- [x] Sub diagrams and links: an element can link to any other diagram, picked in its properties, or add a new one as a sub diagram of its diagram, and opens it by clicking it in view mode; many elements can link to one diagram, and removing a link keeps the diagram. Settings lists a diagram's sub diagrams and removes them when its changes are saved; the list shows them under their diagram, and deleting a diagram deletes them. A link to a deleted diagram is dead: it counts as no link, exports leave it out, and saving a version drops it. draw.io exports add linked diagrams, then any other sub diagrams, as linked pages, and .zip exports hold the sub diagrams, which import back under their parents (beyond the prototype)
 - [x] Typing in place on the canvas: double-clicking an element's name, or F2 on it, opens a field over its name, and double-clicking its description opens one over that, over several lines (Shift+Enter for a new line); double-clicking an arrow's text, connector, or transformation opens a field over it, and double-clicking its line opens its text. The field sits over the text it replaces, in its size, weight, and alignment, kept within the element, and that text is hidden meanwhile. Enter or moving away saves, Escape cancels, and the properties' rules apply, with a problem shown under the field. Flowchart arrows and sequence messages take their text the same way, and C4 relationships their description
 - [x] Long arrow text wraps at 160 px, and at each line break in it, on the canvas and in both exports; the lines run away from the arrow. It's typed over several lines, in place and in its properties, with Shift+Enter starting a new line in place. Flowchart arrows do the same
 - [x] Each diagram opens at the zoom it was last drawn at, kept between runs for the 200 most recently zoomed

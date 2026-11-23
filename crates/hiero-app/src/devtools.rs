@@ -11,7 +11,7 @@
 //! - `ARCH_HIERO_VIEW`: set to view the open diagram rather than edit it.
 //! - `ARCH_HIERO_THEME`: `light` or `dark`, to show this run in that theme without saving it
 //!   (read in `main.rs`).
-//! - `ARCH_HIERO_DETAILS`: set to show the open diagram's Edit Details page, on the tab it
+//! - `ARCH_HIERO_DETAILS`: set to show the open diagram's Settings page, on the tab it
 //!   names, such as `tags`, if any.
 //! - `ARCH_HIERO_SCREENSHOT`: a PNG path; the window is saved there after it has settled, and
 //!   the app quits.
@@ -29,7 +29,7 @@ pub struct DevTools {
     new: Option<String>,
     select: Option<String>,
     view: bool,
-    /// The Edit Details tab to show, by its label, such as "Tags"; empty for the first.
+    /// The Settings tab to show, by its label, such as "Tags"; empty for the first.
     details: Option<String>,
     screenshot: Option<std::path::PathBuf>,
     frame: u32,

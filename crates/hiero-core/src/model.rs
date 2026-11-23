@@ -81,7 +81,7 @@ pub enum DiagramTypeId {
 }
 
 /// A kind of diagram within a type, such as a C4 diagram's level: it names the diagram, and
-/// is chosen in Edit Details.
+/// is chosen in Settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Subtype {
     /// As stored and in files.

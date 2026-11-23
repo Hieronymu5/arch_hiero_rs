@@ -1,4 +1,4 @@
-//! The app's pages: the list of diagrams, the Add diagram and Edit Details forms, the editor
+//! The app's pages: the list of diagrams, the Add diagram form and a diagram's Settings, the editor
 //! with its toolbar, and a diagram's history; and the dialogs over them.
 
 use std::path::{Path, PathBuf};
@@ -561,7 +561,7 @@ fn view_controls(ui: &mut Ui, editor: &mut dyn DiagramEditor) -> Option<&'static
 
 /// The diagram's type, in the room left on a toolbar row, centred on the window rather than
 /// on that room, so it stays put whatever buttons are beside it: between editing and viewing,
-/// and on Edit Details. Where it would run into them, it moves aside to fit.
+/// and on Settings. Where it would run into them, it moves aside to fit.
 fn diagram_type_label(ui: &mut Ui, text: String) {
     let color = palette(ui).text_muted;
     let font = fonts::bold(14.0);
@@ -1000,7 +1000,7 @@ impl App {
                     ),
             ),
             Page::History(id) => Some((format!("History of {}", self.diagram_name(id)), None)),
-            Page::Details(id) => Some((format!("Edit Details of {}", self.diagram_name(id)), None)),
+            Page::Details(id) => Some((format!("Settings of {}", self.diagram_name(id)), None)),
             Page::New => None,
         }
     }
@@ -1358,7 +1358,7 @@ impl App {
         }
     }
 
-    // Add diagram and Edit details
+    // Add diagram and Settings
 
     fn details_fields(&mut self, ui: &mut Ui, adding: bool) -> bool {
         const FIELD_GAP: f32 = 14.0;
@@ -1496,19 +1496,34 @@ impl App {
         };
         let meta = open.record.meta.clone();
         let min_canvas = open.editor.min_canvas();
-        // Back to the diagram, above every tab, where the diagram's page has its Back, and the
-        // diagram's type where it is on the diagram's page.
+        // Back, which leaves without saving anything changed here, and Save Changes, above
+        // every tab, where the diagram's page has its Back; and the diagram's type where it is
+        // on the diagram's page.
         let type_label = format!("{} diagram", open.record.type_label());
-        let back = ui
+        let changed = self.settings_changed();
+        let (back, save) = ui
             .horizontal(|ui| {
-                let back = page_button(ui, "Back", true).clicked();
+                let back = page_button(ui, "Back", false).clicked();
+                let save = ui
+                    .add_enabled_ui(changed, |ui| page_button(ui, "Save Changes", true))
+                    .inner
+                    .clicked();
                 diagram_type_label(ui, type_label);
-                back
+                (back, save)
             })
             .inner;
         if back {
             self.go_back();
             return;
+        }
+        if save {
+            self.save_settings();
+            if !matches!(self.page, Page::Details(_)) {
+                return;
+            }
+        }
+        if let Some(error) = &self.form.error {
+            ui.label(error_text(ui, error));
         }
         ui.add_space(12.0);
         // The page's sections, one at a time, chosen from the list on the left, drawn as the
@@ -1524,107 +1539,105 @@ impl App {
                     });
                     if response.clicked() {
                         self.form.tab = tab;
-                        self.form.tags.focus = false;
                     }
                 }
             });
             ui.add_space(20.0);
             ui.vertical(|ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| match self.form.tab {
-                    DetailsTab::Details => self.details_tab(ui, id, &meta, min_canvas),
+                    DetailsTab::Details => {
+                        ui.heading(RichText::new("Details").font(fonts::bold(18.0)));
+                        ui.add_space(4.0);
+                        self.details_fields(ui, false);
+                    }
+                    DetailsTab::Appearance => self.appearance_tab(ui, &meta, min_canvas),
                     DetailsTab::SubDiagrams => {
                         ui.heading(RichText::new("Sub Diagrams").font(fonts::bold(18.0)));
                         self.sub_diagrams_section(ui, id);
                     }
                     DetailsTab::Tags => self.tags_tab(ui),
                     DetailsTab::Scenes => self.scenes_tab(ui),
+                    DetailsTab::About => {
+                        ui.heading(RichText::new("About").font(fonts::bold(18.0)));
+                        ui.add_space(4.0);
+                        ruled_grid(ui, "about", 2, |ui, end_row| {
+                            ui.label(RichText::new("Created").strong());
+                            ui.label(date(&meta.created_at));
+                            end_row(ui);
+                            ui.label(RichText::new("Last updated").strong());
+                            ui.label(date(&meta.updated_at));
+                            end_row(ui);
+                        });
+                    }
                 });
             });
         });
     }
 
-    /// The diagram's details, saved by Save Changes, which returns to the diagram.
-    fn details_tab(
+    /// The diagram's appearance: its line thickness, canvas size, and colours.
+    fn appearance_tab(
         &mut self,
         ui: &mut Ui,
-        id: &DiagramId,
         meta: &hiero_core::model::DiagramMeta,
         min_canvas: Size,
     ) {
-        let _ = id;
-        ui.heading(RichText::new("Details").font(fonts::bold(18.0)));
+        ui.heading(RichText::new("Appearance").font(fonts::bold(18.0)));
         ui.add_space(4.0);
-        {
-            let valid = self.details_fields(ui, false);
-            let ops = hiero_registry::ops(meta.diagram_type);
-            if let Some(weight) = &mut self.form.line_weight {
-                ui.add_space(14.0);
-                field_label(ui, "Line thickness", false);
-                ui.horizontal(|ui| {
-                    for option in LineWeight::ALL {
-                        ui.radio_value(weight, option, option.label());
-                    }
-                });
-                let arrows = meta.diagram_type.arrow_noun().many_capitalized();
-                ui.label(
-                    RichText::new(format!(
-                        "The lines of elements. {arrows} keep their own thickness."
-                    ))
-                    .weak(),
-                );
-            }
-            if let Some(canvas) = &mut self.form.canvas {
-                ui.add_space(14.0);
-                field_label(ui, "Canvas size", false);
-                canvas_fields(ui, canvas, min_canvas);
-            }
-            if !ops.color_fields().is_empty() {
-                ui.add_space(14.0);
-                field_label(ui, "Colors", false);
-                let defaults = ops.default_colors();
-                for (key, label) in ops.color_fields() {
-                    let current = self
-                        .form
-                        .colors
-                        .get(*key)
-                        .or_else(|| defaults.get(*key))
-                        .cloned()
-                        .unwrap_or_default();
-                    let [r, g, b] = hiero_core::color::channels(&current);
-                    let mut rgb = [r, g, b];
-                    ui.horizontal(|ui| {
-                        if ui.color_edit_button_srgb(&mut rgb).changed() {
-                            self.form.colors.insert(
-                                (*key).to_owned(),
-                                format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]),
-                            );
-                        }
-                        ui.label(*label);
-                    });
-                }
-                if ui.link("Use the default colors").clicked() {
-                    self.form.colors.clear();
-                }
-            }
+        form_style(ui);
+        let ops = hiero_registry::ops(meta.diagram_type);
+        if let Some(weight) = &mut self.form.line_weight {
             ui.add_space(10.0);
+            field_label(ui, "Line thickness", false);
             ui.horizontal(|ui| {
-                if page_button(ui, "Save Changes", true).clicked() {
-                    self.form.tried = true;
-                    if valid {
-                        self.save_details();
-                    }
-                }
-                if page_button(ui, "Cancel", false).clicked() {
-                    self.go_back();
+                for option in LineWeight::ALL {
+                    ui.radio_value(weight, option, option.label());
                 }
             });
-            ui.add_space(10.0);
-            ui.label(RichText::new(format!("Created {}", date(&meta.created_at))).weak());
-            ui.label(RichText::new(format!("Last updated {}", date(&meta.updated_at))).weak());
+            let arrows = meta.diagram_type.arrow_noun().many_capitalized();
+            ui.label(
+                RichText::new(format!(
+                    "The lines of elements. {arrows} keep their own thickness."
+                ))
+                .weak(),
+            );
+        }
+        if let Some(canvas) = &mut self.form.canvas {
+            ui.add_space(14.0);
+            field_label(ui, "Canvas size", false);
+            canvas_fields(ui, canvas, min_canvas);
+        }
+        if !ops.color_fields().is_empty() {
+            ui.add_space(14.0);
+            field_label(ui, "Colors", false);
+            let defaults = ops.default_colors();
+            for (key, label) in ops.color_fields() {
+                let current = self
+                    .form
+                    .colors
+                    .get(*key)
+                    .or_else(|| defaults.get(*key))
+                    .cloned()
+                    .unwrap_or_default();
+                let [r, g, b] = hiero_core::color::channels(&current);
+                let mut rgb = [r, g, b];
+                ui.horizontal(|ui| {
+                    if ui.color_edit_button_srgb(&mut rgb).changed() {
+                        self.form.colors.insert(
+                            (*key).to_owned(),
+                            format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]),
+                        );
+                    }
+                    ui.label(*label);
+                });
+            }
+            if ui.link("Use the default colors").clicked() {
+                self.form.colors.clear();
+            }
         }
     }
 
-    /// The diagram's own sub diagrams, each of which can be deleted, with its own.
+    /// The diagram's own sub diagrams, each of which can be removed, with its own: deleted when
+    /// the changes are saved, and until then marked so, with Undo to keep it.
     fn sub_diagrams_section(&mut self, ui: &mut Ui, id: &DiagramId) {
         let children = match self.store.children(id) {
             Ok(children) => children,
@@ -1643,23 +1656,58 @@ impl App {
         }
         ui.label(
             RichText::new(
-                "Removing one deletes it now, with its own sub diagrams. Elements that open it are left with no link.",
+                "Removing one deletes it, with its own sub diagrams, when the changes are saved. Elements that open it are then left with no link.",
             )
             .weak(),
         );
         ui.add_space(4.0);
         let mut remove = None;
+        let mut keep = None;
         ruled_grid(ui, "sub-diagrams", 2, |ui, end_row| {
             for (child, name) in &children {
-                ui.label(name);
-                if row_button(ui, "Remove").clicked() {
-                    remove = Some(child.clone());
+                let removal = self.form.removed.iter().find(|r| r.id == *child);
+                match removal {
+                    Some(removal) => {
+                        ui.vertical(|ui| {
+                            ui.label(RichText::new(name).weak().strikethrough());
+                            let own = match removal.sub_diagrams {
+                                0 => String::new(),
+                                1 => ", with its sub diagram".to_owned(),
+                                n => format!(", with its {n} sub diagrams"),
+                            };
+                            ui.label(
+                                RichText::new(format!("Deleted when you save{own}"))
+                                    .weak()
+                                    .small(),
+                            );
+                        });
+                        if row_button(ui, "Undo")
+                            .on_hover_text(format!("Keep {name}"))
+                            .clicked()
+                        {
+                            keep = Some(child.clone());
+                        }
+                    }
+                    None => {
+                        ui.label(name);
+                        if row_button(ui, "Remove").clicked() {
+                            remove = Some((child.clone(), name.clone()));
+                        }
+                    }
                 }
                 end_row(ui);
             }
         });
-        if let Some(child) = remove {
-            self.ask_delete(&child);
+        if let Some((child, name)) = remove {
+            let sub_diagrams = self.store.sub_diagrams(&child).map_or(0, |s| s.len());
+            self.form.removed.push(crate::app::RemovedSubDiagram {
+                id: child,
+                name,
+                sub_diagrams,
+            });
+        }
+        if let Some(child) = keep {
+            self.form.removed.retain(|r| r.id != child);
         }
     }
 
@@ -1701,7 +1749,7 @@ impl App {
                         open.editor.set_viewing(!viewing);
                     }
                     if !viewing {
-                        if page_button(ui, "Edit Details", false).clicked() {
+                        if page_button(ui, "Settings", false).clicked() {
                             action = Some("details");
                         }
                         let save = ui.add_enabled_ui(!open.status.saved, |ui| {
@@ -1804,7 +1852,12 @@ impl App {
             opened_from: None,
             focus_name: false,
             tab: DetailsTab::Details,
-            tags: TagsForm::default(),
+            tags: TagsForm {
+                tags: open.record.tags.clone(),
+                scenes: open.record.scenes.clone(),
+                ..TagsForm::default()
+            },
+            removed: Vec::new(),
         };
         let id = meta.id.clone();
         self.go(Page::Details(id));

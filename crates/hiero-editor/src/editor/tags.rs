@@ -3,7 +3,7 @@
 //! The Tags panel, under the palette, shows or hides each tag's elements: faint while editing,
 //! so they can still be picked, and gone while viewing. While editing, clicking a tag's name
 //! applies it, so clicking elements puts them in it or takes them out, and the heading opens
-//! Edit Details, where tags are added, renamed, and deleted. Which tags are hidden isn't saved:
+//! Settings, where tags are added, renamed, and deleted. Which tags are hidden isn't saved:
 //! each visit starts with all of them shown.
 //!
 //! While viewing a diagram with scenes, a Scenes panel takes the tags' place: Previous, Play or

@@ -154,7 +154,7 @@ These are the type-specific `rules` hooks. They're all UI-free and unit-testable
 
 ## Line weight
 
-Edit Details offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
+Settings, on its Appearance tab, offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
 stored as the diagram's `lineWeight`. New diagrams, the samples, and imported files that don't
 set it start at *Medium*; a diagram from before the setting existed keeps its old look (*Thick*)
 until it's changed, and exports always write it. Every line of its elements (networks, zones,
@@ -164,7 +164,7 @@ widths.
 
 ## Canvas size
 
-Edit Details offers **Canvas size**: the width and height of the area elements can be placed on,
+Settings, on its Appearance tab, offers **Canvas size**: the width and height of the area elements can be placed on,
 in 20 px grid steps. It starts at 2400 × 1600 px, and can be made as big as 12000 × 8000 px, but no
 smaller than 2400 × 1600 px or than what's on it needs. Moving, resizing, adding, and pasting keep
 elements on it, the editor's paper shows it, and changing it is one undo step. It's stored as the
@@ -207,5 +207,5 @@ Rust shape: `Element<PhysicalKind, PhysicalProps>`, a fieldless kind enum with `
 - [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [x] View mode, the default when opening from the list: no palette, properties, or grid; the paper fills the window to its edges but scrolls only as far as the drawing goes (with a one-grid margin), which starts in the top-left corner; drag with any button, scroll, zoom, and export (beyond the prototype)
 - [x] Path in the top bar: the diagrams the open one was reached through, from "Diagrams" on, each a link back to it; names longer than 24 characters are cut short, with the full name on hover (beyond the prototype)
-- [x] Sub diagrams and links: an element can link to any other diagram, picked in its properties, or add a new one as a sub diagram of its diagram, and opens it by clicking it in view mode; many elements can link to one diagram, and removing a link keeps the diagram. Edit Details lists a diagram's sub diagrams and deletes them; the list shows them under their diagram, and deleting a diagram deletes them. A link to a deleted diagram is dead: it counts as no link, exports leave it out, and saving a version drops it. draw.io exports add linked diagrams, then any other sub diagrams, as linked pages, and .zip exports hold the sub diagrams, which import back under their parents (beyond the prototype)
+- [x] Sub diagrams and links: an element can link to any other diagram, picked in its properties, or add a new one as a sub diagram of its diagram, and opens it by clicking it in view mode; many elements can link to one diagram, and removing a link keeps the diagram. Settings lists a diagram's sub diagrams and removes them when its changes are saved; the list shows them under their diagram, and deleting a diagram deletes them. A link to a deleted diagram is dead: it counts as no link, exports leave it out, and saving a version drops it. draw.io exports add linked diagrams, then any other sub diagrams, as linked pages, and .zip exports hold the sub diagrams, which import back under their parents (beyond the prototype)
 - [ ] SVG and draw.io export that match the prototype — *the writers are line-by-line ports of the prototype's and are unit-tested, but haven't yet been compared with files the prototype exported*

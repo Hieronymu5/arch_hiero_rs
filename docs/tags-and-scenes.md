@@ -31,7 +31,7 @@ The Tags panel sits under the palette, and shows only once the diagram has tags.
   it in the tag or takes it out, and selects or moves nothing; the tag's elements are ringed in
   the accent, and its name in the list is in the accent and bold. Pressing Escape, or empty
   canvas, stops tagging. Each tag's row in the list only shows or hides it.
-- **While editing, the heading "Tags"** opens Edit Details on its Tags tab.
+- **While editing, the heading "Tags"** opens Settings on its Tags tab.
 - **The selected element's properties** have a Tags section, above its arrows, with a checkbox
   for each tag, ticked for those it's in. Ticking one puts it in the tag, and unticking takes it
   out, as one undo step. It shows only once the diagram has tags.
@@ -39,15 +39,20 @@ The Tags panel sits under the palette, and shows only once the diagram has tags.
 - **A long name** is cut short with "…", whole in its hint.
 - **Pasting** keeps only the tags the diagram has.
 
-### Edit Details
+### Settings
 
-Edit Details has four tabs down its left: Details, Sub Diagrams, Tags, and Scenes, with Back
-above them.
+A diagram's Settings page has six tabs down its left: Details,
+Appearance, Sub Diagrams, Tags, Scenes, and About, with Back and Save Changes above them. The
+tabs edit one draft: Save Changes, enabled once something has changed, saves every tab's changes
+as one undo step and goes back to the diagram, and Back leaves without saving any. If a tab has
+something that isn't valid, Save Changes shows that tab instead. Sub diagrams removed there are
+deleted only when the changes are saved, and until then are marked, with Undo to keep them.
+About shows when the diagram was created and last updated.
 
-The Tags tab lists each tag, with how many elements are in it, and can rename it, move it earlier
-or later, or delete it. A field adds one. Deleting a tag asks first when it has elements, or when
-a scene shows only it; then its elements are taken out of it, and those scenes are deleted. Each
-change applies at once, as one undo step.
+The Tags tab lists each tag with its name in a field, typed over to rename it, how many elements
+are in it, and buttons to move it earlier or later, or delete it. A field adds one. Deleting a
+tag asks first when it has elements, or when a scene shows only it; then its elements are taken
+out of it, and those scenes are deleted, once the changes are saved.
 
 ## Scenes
 
@@ -55,10 +60,9 @@ A scene is a named view that shows the elements of one or more of the diagram's 
 the rest of the tags' elements. Elements in no tag show in every scene. Scene names follow the
 rules for tag names.
 
-- **Edit Details, Scenes tab:** lists each scene with the tags it shows, its buttons on one line
-  and its tags wrapping. A scene can be edited, moved, or deleted, and a form after the list adds
-  one (a name, and checkboxes for the tags it shows). A scene is edited in its place in the list,
-  the form taking its row, and the form for adding one is hidden meanwhile.
+- **Settings, Scenes tab:** lists each scene with its name in a field and the tags it shows as
+  checkboxes, changed in place, its buttons (move up, move down, delete) on one line and its tags
+  wrapping. A form after the list adds one (a name, and checkboxes for the tags it shows).
 - **Viewing a diagram with scenes:** a Scenes panel takes the Tags panel's place. It has
   Previous, Play or Pause, and Next, then the scenes, with the one showing highlighted. Viewing
   starts at the first scene.

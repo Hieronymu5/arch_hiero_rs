@@ -9,8 +9,13 @@ use hiero_core::export::drawio::Stamp;
 use hiero_core::file::{SubDiagram, diagram_with_sub_diagrams_to_zip, file_name};
 use hiero_core::geometry::Size;
 use hiero_core::history::{DiagramSnapshot, UndoStack};
-use hiero_core::model::{DiagramId, DiagramTypeId, ElementId, LineWeight};
+use hiero_core::model::{
+    DiagramId, DiagramTypeId, ElementId, LineWeight, validate_description, validate_name,
+};
 use hiero_core::stored::{StoredContent, StoredDiagram};
+use hiero_core::tags::{
+    DiagramScene, DiagramTag, scene_of, scene_problem, tag_name_problem, untag_elements,
+};
 use hiero_editor::theme::Accent;
 use hiero_editor::{DiagramEditor, DiagramRequest};
 use hiero_store::locations::Locations;
@@ -108,50 +113,92 @@ enum OpenError {
     Load(String),
 }
 
-/// The sections of a diagram's Edit Details page, each a tab in the list on its left.
+/// The sections of a diagram's Settings page, each a tab in the list on its left.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum DetailsTab {
     #[default]
     Details,
+    Appearance,
     SubDiagrams,
     Tags,
     Scenes,
+    About,
 }
 
 impl DetailsTab {
-    pub const ALL: [Self; 4] = [Self::Details, Self::SubDiagrams, Self::Tags, Self::Scenes];
+    pub const ALL: [Self; 6] = [
+        Self::Details,
+        Self::Appearance,
+        Self::SubDiagrams,
+        Self::Tags,
+        Self::Scenes,
+        Self::About,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Details => "Details",
+            Self::Appearance => "Appearance",
             Self::SubDiagrams => "Sub Diagrams",
             Self::Tags => "Tags",
             Self::Scenes => "Scenes",
+            Self::About => "About",
         }
     }
 }
 
-/// What's being typed on the Tags and Scenes tabs.
+/// The Tags and Scenes tabs' draft: the tags and scenes as changed on the Settings page, with
+/// their names as typed, saved with the rest by Save Changes; and what's being typed to add one.
 #[derive(Debug, Clone, Default)]
 pub struct TagsForm {
+    pub tags: Vec<DiagramTag>,
+    pub scenes: Vec<DiagramScene>,
     /// The name of a tag to add, and what's wrong with it.
     pub new_tag: String,
     pub new_tag_error: Option<String>,
-    /// The tag being renamed, its new name, and what's wrong with it.
-    pub renaming: Option<(String, String, Option<String>)>,
     /// The tag whose deletion is being confirmed.
     pub confirming: Option<String>,
-    /// The scene being edited in the scene form, unless it's adding one.
-    pub editing_scene: Option<String>,
+    /// The scene to add: its name and the tags it shows, and what's wrong with them.
     pub scene_name: String,
     pub scene_tags: BTreeSet<String>,
     pub scene_name_error: Option<String>,
     pub scene_tags_error: Option<String>,
-    /// Whether a field takes focus when it's next shown.
-    pub focus: bool,
 }
 
-/// The fields of the Add diagram and Edit details forms.
+impl TagsForm {
+    /// What's wrong with each tag's name as typed, by tag.
+    pub fn tag_problems(&self) -> BTreeMap<String, String> {
+        self.tags
+            .iter()
+            .filter_map(|t| {
+                tag_name_problem(&t.name, &self.tags, Some(&t.id)).map(|p| (t.id.clone(), p))
+            })
+            .collect()
+    }
+
+    /// What's wrong with each scene as changed in its row, its name's problem and its tags', by
+    /// scene.
+    pub fn scene_problems(&self) -> BTreeMap<String, (Option<String>, Option<String>)> {
+        self.scenes
+            .iter()
+            .filter_map(|s| {
+                scene_problem(&s.name, &s.tags, &self.scenes, Some(&s.id))
+                    .map(|p| (s.id.clone(), p))
+            })
+            .collect()
+    }
+}
+
+/// A sub diagram removed on the Settings page, deleted when the changes are saved.
+#[derive(Debug, Clone)]
+pub struct RemovedSubDiagram {
+    pub id: DiagramId,
+    pub name: String,
+    /// How many sub diagrams of its own go with it.
+    pub sub_diagrams: usize,
+}
+
+/// The fields of the Add diagram and Settings forms.
 #[derive(Debug, Clone, Default)]
 pub struct DetailsForm {
     pub name: String,
@@ -175,9 +222,11 @@ pub struct DetailsForm {
     /// Whether the Name field takes focus when it's next shown, as when the Add diagram page
     /// opens.
     pub focus_name: bool,
-    /// The Edit Details section showing.
+    /// The Settings section showing.
     pub tab: DetailsTab,
     pub tags: TagsForm,
+    /// The sub diagrams removed, deleted when the changes are saved.
+    pub removed: Vec<RemovedSubDiagram>,
 }
 
 /// The database in use and the ones used before it.
@@ -788,62 +837,136 @@ impl App {
         }
     }
 
-    /// Changes the open diagram's tags or scenes with `change`, as one undo step, saved at
-    /// once. Returns whether anything changed.
-    pub fn change_tags(&mut self, change: impl FnOnce(&mut StoredDiagram)) -> bool {
-        let Some(open) = &mut self.open else {
-            return false;
-        };
-        let id = open.record.meta.id.clone();
-        let before = DiagramSnapshot::of(&open.record);
-        change(&mut open.record);
-        if DiagramSnapshot::of(&open.record) == before {
-            return false;
+    /// The open diagram with the Settings page's changes: its details, appearance, tags, and
+    /// scenes as they are there, and its elements taken out of the tags deleted there.
+    pub fn settings_applied(&self) -> Option<StoredDiagram> {
+        let form = &self.form;
+        let open = self.open.as_ref()?;
+        let mut record = open.record.clone();
+        let ops = hiero_registry::ops(record.meta.diagram_type);
+        record.meta.name = form.name.trim().to_owned();
+        record.meta.description =
+            Some(form.description.trim().to_owned()).filter(|d| !d.is_empty());
+        record.colors = ops.normalize_colors(&form.colors);
+        if let Some(weight) = form.line_weight {
+            record.set_line_weight(weight);
         }
-        if let Err(e) = open.editor.replace_content(&open.record.content) {
-            open.save_failed = Some(e.to_string());
+        if let Some(size) = form.canvas {
+            record.set_canvas(size);
         }
-        open.editor.set_tags(&open.record.tags, &open.record.scenes);
-        let stack = self.undo_stack(&id);
-        stack.break_group();
-        stack.push(before);
-        self.save_due = Some(Instant::now());
-        self.flush_save();
-        true
+        if let Some(subtype) = &form.subtype {
+            record.set_subtype(subtype);
+        }
+        for gone in open
+            .record
+            .tags
+            .iter()
+            .filter(|t| !form.tags.tags.iter().any(|kept| kept.id == t.id))
+        {
+            untag_elements(&mut record.content.elements, &gone.id);
+        }
+        record.tags = form
+            .tags
+            .tags
+            .iter()
+            .map(|t| DiagramTag {
+                id: t.id.clone(),
+                name: t.name.trim().to_owned(),
+            })
+            .collect();
+        record.scenes = form
+            .tags
+            .scenes
+            .iter()
+            .map(|s| scene_of(s.id.clone(), &s.name, &s.tags, &record.tags))
+            .collect();
+        Some(record)
     }
 
-    /// Applies the Edit details form to the open diagram, as one undo step.
-    pub fn save_details(&mut self) {
-        let form = self.form.clone();
+    /// Whether anything has been changed on the Settings page, which Save Changes saves.
+    pub fn settings_changed(&self) -> bool {
+        !self.form.removed.is_empty()
+            || self.open.as_ref().is_some_and(|open| {
+                self.settings_applied().is_some_and(|applied| {
+                    DiagramSnapshot::of(&applied) != DiagramSnapshot::of(&open.record)
+                })
+            })
+    }
+
+    /// The first section of the Settings page with something that isn't valid, if any.
+    pub fn settings_problem(&self) -> Option<DetailsTab> {
+        let form = &self.form;
+        if validate_name(&form.name).is_err() || validate_description(&form.description).is_err() {
+            Some(DetailsTab::Details)
+        } else if !form.tags.tag_problems().is_empty() {
+            Some(DetailsTab::Tags)
+        } else if !form.tags.scene_problems().is_empty() {
+            Some(DetailsTab::Scenes)
+        } else {
+            None
+        }
+    }
+
+    /// Saves every section of the Settings page, as one undo step, once they're all valid,
+    /// deletes the sub diagrams removed there, then goes back to the diagram. If a section isn't
+    /// valid, it shows, saying what to fix; if a sub diagram can't be deleted, the page stays,
+    /// saying so.
+    pub fn save_settings(&mut self) {
+        self.form.tried = true;
+        self.form.error = None;
+        if let Some(tab) = self.settings_problem() {
+            self.form.tab = tab;
+            return;
+        }
+        let Some(applied) = self.settings_applied() else {
+            return;
+        };
         let Some(open) = &mut self.open else {
             return;
         };
         let id = open.record.meta.id.clone();
         let before = DiagramSnapshot::of(&open.record);
-        let ops = hiero_registry::ops(open.record.meta.diagram_type);
-        open.record.meta.name = form.name.trim().to_owned();
-        open.record.meta.description =
-            Some(form.description.trim().to_owned()).filter(|d| !d.is_empty());
-        open.record.colors = ops.normalize_colors(&form.colors);
-        open.editor.set_colors(&open.record.colors);
-        if let Some(weight) = form.line_weight {
-            open.record.set_line_weight(weight);
-            open.editor.set_line_weight(weight);
-        }
-        if let Some(size) = form.canvas {
-            open.record.set_canvas(size);
-            open.editor.set_canvas(size);
-        }
-        if let Some(subtype) = &form.subtype {
-            open.record.set_subtype(subtype);
-        }
-        if DiagramSnapshot::of(&open.record) != before {
+        if DiagramSnapshot::of(&applied) != before {
+            let content_changed = applied.content != open.record.content;
+            open.record = applied;
+            open.editor.set_colors(&open.record.colors);
+            open.editor.set_line_weight(open.record.line_weight());
+            open.editor.set_canvas(open.record.canvas());
+            if content_changed && let Err(e) = open.editor.replace_content(&open.record.content) {
+                open.save_failed = Some(e.to_string());
+            }
+            open.editor.set_tags(&open.record.tags, &open.record.scenes);
             let stack = self.undo_stack(&id);
             stack.break_group();
             stack.push(before);
             self.save_due = Some(Instant::now());
         }
         self.flush_save();
+        // One at a time, each taken off the list once it's gone, so trying again skips it.
+        while let Some(child) = self.form.removed.first().cloned() {
+            match self.worker.call(|reply| Request::Delete {
+                id: child.id.clone(),
+                reply,
+            }) {
+                Ok(deleted) => {
+                    for gone in &deleted {
+                        self.undo.remove(gone);
+                        self.expanded.remove(gone);
+                        self.viewed.remove(gone);
+                    }
+                    self.form.removed.remove(0);
+                }
+                Err(e) => {
+                    self.form.error = Some(format!(
+                        "“{}” couldn't be deleted, so the changes weren't all saved. {e}",
+                        child.name
+                    ));
+                    self.refresh_list();
+                    return;
+                }
+            }
+        }
+        self.refresh_list();
         self.go_back();
     }
 
@@ -1338,5 +1461,40 @@ impl ExportFormat {
             Self::Svg => "SVG image (.svg)",
             Self::Drawio => "draw.io file (.drawio)",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tag(id: &str, name: &str) -> DiagramTag {
+        DiagramTag {
+            id: id.into(),
+            name: name.into(),
+        }
+    }
+
+    #[test]
+    fn the_settings_draft_finds_names_typed_over_that_are_not_valid() {
+        let mut form = TagsForm {
+            tags: vec![tag("a", "Explore"), tag("b", "Book")],
+            scenes: vec![DiagramScene {
+                id: "s".into(),
+                name: "All".into(),
+                tags: vec!["a".into()],
+            }],
+            ..TagsForm::default()
+        };
+        assert!(form.tag_problems().is_empty());
+        assert!(form.scene_problems().is_empty());
+        form.tags[1].name = " explore ".into();
+        assert_eq!(form.tag_problems().len(), 2);
+        form.tags[1].name = String::new();
+        assert_eq!(form.tag_problems().keys().collect::<Vec<_>>(), ["b"]);
+        form.scenes[0].tags.clear();
+        let problems = form.scene_problems();
+        assert!(problems["s"].0.is_none());
+        assert!(problems["s"].1.is_some());
     }
 }

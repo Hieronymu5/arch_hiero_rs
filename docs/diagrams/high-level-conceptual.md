@@ -44,7 +44,7 @@ Groups not in another group are drawn behind blocks not in one.
 | Border | block, group | Radio: *Solid* or *Dashed* (8 on, 4 off). Stored as `dashed: true`, left out for solid. |
 | Parent | all | The group it sits in, or none |
 
-The diagram's **line thickness** (thin, medium, or thick, in Edit Details, as for every type)
+The diagram's **line thickness** (thin, medium, or thick, on Settings' Appearance tab, as for every type)
 sets the width of every border and of the arrows' outlines.
 
 ## Colours

@@ -89,7 +89,7 @@ Crate boundaries:
   database enforces this with a trigger.
 - A type can have **sub types** (`DiagramTypeId::subtypes`), such as a C4 diagram's level:
   context, container, or component. Unlike the type, a diagram's sub type can be changed in
-  Edit Details; it only names the diagram ("C4 - Container"). It's stored like the canvas size:
+  Settings; it only names the diagram ("C4 - Container"). It's stored like the canvas size:
   left out at the type's first, and part of versions and the content hash.
 - **Sub diagrams and links:** an element links to (opens) at most one diagram through
   `subDiagramId` in its props; any number of elements, in any diagrams, can link to the same
@@ -132,7 +132,7 @@ The app reads these environment variables (see `crates/hiero-app/src/devtools.rs
 - `ARCH_HIERO_SELECT=<element name>`: select an element.
 - `ARCH_HIERO_VIEW=1`: view the open diagram rather than edit it.
 - `ARCH_HIERO_THEME=light|dark`: show this run in that theme, without saving it.
-- `ARCH_HIERO_DETAILS=1`: show the open diagram's Edit Details page; `tags`, `scenes`, or
+- `ARCH_HIERO_DETAILS=1`: show the open diagram's Settings page; `appearance`, `tags`, `scenes`, `about`, or
   `sub diagrams` in place of `1` opens it on that tab.
 - `ARCH_HIERO_SCREENSHOT=<file.png>` (with optional `ARCH_HIERO_SCREENSHOT_AFTER=<seconds>`): save a screenshot of the window and quit. Look at it.
 

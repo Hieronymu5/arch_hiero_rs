@@ -238,7 +238,7 @@ pub enum DiagramRequest {
     Add { element: ElementId, name: String },
     /// Open a diagram, to view or to edit.
     Open { diagram: DiagramId, viewing: bool },
-    /// Open the diagram's Edit Details on its Tags, where tags are added, renamed, and deleted.
+    /// Open the diagram's Settings on its Tags, where tags are added, renamed, and deleted.
     EditTags,
 }
 

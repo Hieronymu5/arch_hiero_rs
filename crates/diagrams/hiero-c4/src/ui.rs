@@ -242,6 +242,6 @@ mod tests {
     fn the_help_says_how_to_choose_types() {
         assert_eq!(C4::HELP.lines().count(), 8);
         assert!(C4::HELP.contains("Container type"));
-        assert!(C4::HELP.contains("Edit Details"));
+        assert!(C4::HELP.contains("in Settings"));
     }
 }
