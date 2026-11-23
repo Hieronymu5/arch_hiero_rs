@@ -805,12 +805,13 @@ impl<T: DiagramView> Editor<T> {
             bottom: 2,
         });
         // The bar is just wide enough for the longest name, "Load Balancer". Its id carries
-        // the default width, so a width saved before the default changed is dropped.
+        // the default width, so a width saved before the default changed is dropped, and a
+        // second part, so the widths the scene buttons once pushed it to are dropped too.
         const ELEMENTS_WIDTH: u16 = 149;
         // While viewing, the canvas has the whole width, but for the tags or scenes when the
         // diagram has some.
         if !self.viewing || self.tag.has_any() {
-            egui::Panel::left(self.salt.with(("elements", ELEMENTS_WIDTH)))
+            egui::Panel::left(self.salt.with(("elements", ELEMENTS_WIDTH, 2)))
                 .frame(palette_frame)
                 .resizable(true)
                 .default_size(f32::from(ELEMENTS_WIDTH))

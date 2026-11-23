@@ -543,7 +543,8 @@ pub fn accent_button(
 /// and in its tooltip.
 pub fn icon_button(ui: &mut Ui, icon: ButtonIcon, name: &str, width: f32) -> egui::Response {
     let accent = palette(ui).accent;
-    let padding = egui::vec2(((width - BUTTON_ICON) / 2.0).max(4.0), 5.0);
+    // The button's sides and edge come on top of its padding, so it's `width` wide in all.
+    let padding = egui::vec2(((width - BUTTON_ICON - BUTTON_FRAME) / 2.0).max(4.0), 5.0);
     outlined_button_with(
         ui,
         "",
@@ -582,6 +583,9 @@ pub fn download_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32
 /// pressed, and how thick its other sides are.
 const BUTTON_EDGE: f32 = 2.0;
 const BUTTON_SIDE: f32 = 1.5;
+
+/// How much a button's sides and edge add to its padding, each way.
+const BUTTON_FRAME: f32 = BUTTON_SIDE + BUTTON_EDGE - 2.0;
 
 /// How round a button's corners are.
 const BUTTON_RADIUS: u8 = 12;
@@ -634,7 +638,7 @@ fn outlined_button_with(
         0.0
     };
     let content = egui::vec2(galley.size().x + icon_width, galley.size().y);
-    let size = (content + 2.0 * padding + egui::Vec2::splat(BUTTON_SIDE + BUTTON_EDGE - 2.0))
+    let size = (content + 2.0 * padding + egui::Vec2::splat(BUTTON_FRAME))
         .max(egui::vec2(0.0, ui.spacing().interact_size.y));
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
     let enabled = ui.is_enabled();
@@ -889,6 +893,20 @@ mod tests {
         assert!(luminance(darker) <= luminance(designed));
         assert!(luminance(lighter) >= luminance(designed));
         assert_ne!(lighter, darker);
+    }
+
+    #[test]
+    fn an_icon_button_is_as_wide_as_asked() {
+        let ctx = egui::Context::default();
+        let mut width = 0.0;
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            width = icon_button(ui, download_icon, "Download", 60.0)
+                .rect
+                .width();
+        })
+        .textures_delta
+        .clear();
+        assert!((width - 60.0).abs() < 0.01, "{width}");
     }
 
     #[test]
