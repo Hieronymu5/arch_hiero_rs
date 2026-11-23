@@ -65,7 +65,7 @@ fn theme_picker(ui: &mut Ui, current: egui::ThemePreference) -> Option<egui::The
     let painter = ui.painter();
     painter.rect_stroke(
         group,
-        egui::CornerRadius::same(6),
+        egui::CornerRadius::same(12),
         egui::Stroke::new(1.0, colors.input_border),
         egui::StrokeKind::Inside,
     );
@@ -87,7 +87,7 @@ fn theme_picker(ui: &mut Ui, current: egui::ThemePreference) -> Option<egui::The
         });
         let painter = ui.painter();
         let color = if selected {
-            painter.rect_filled(cell, egui::CornerRadius::same(4), colors.accent);
+            painter.rect_filled(cell, egui::CornerRadius::same(9), colors.accent);
             colors.on_accent
         } else if response.hovered() {
             colors.text
@@ -97,7 +97,7 @@ fn theme_picker(ui: &mut Ui, current: egui::ThemePreference) -> Option<egui::The
         if response.has_focus() {
             painter.rect_stroke(
                 cell.expand(2.0),
-                egui::CornerRadius::same(6),
+                egui::CornerRadius::same(11),
                 egui::Stroke::new(2.0, colors.accent),
                 egui::StrokeKind::Outside,
             );
@@ -133,7 +133,7 @@ fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
     let painter = ui.painter();
     painter.rect_stroke(
         rect,
-        egui::CornerRadius::same(6),
+        egui::CornerRadius::same(12),
         egui::Stroke::new(1.0, colors.input_border),
         egui::StrokeKind::Inside,
     );
@@ -162,7 +162,7 @@ fn accent_picker(ui: &mut Ui, current: Accent) -> Option<Accent> {
     if toggle.has_focus() {
         painter.rect_stroke(
             rect.expand(2.0),
-            egui::CornerRadius::same(8),
+            egui::CornerRadius::same(14),
             egui::Stroke::new(2.0, colors.accent),
             egui::StrokeKind::Outside,
         );
@@ -712,7 +712,7 @@ fn quiet_button(
     } else if shaded {
         painter.rect_filled(
             rect,
-            egui::CornerRadius::same(6),
+            egui::CornerRadius::same(12),
             colors.accent.gamma_multiply(0.12),
         );
         colors.accent
@@ -722,7 +722,7 @@ fn quiet_button(
     if response.has_focus() {
         painter.rect_stroke(
             rect,
-            egui::CornerRadius::same(6),
+            egui::CornerRadius::same(12),
             egui::Stroke::new(2.0, colors.accent),
             egui::StrokeKind::Inside,
         );

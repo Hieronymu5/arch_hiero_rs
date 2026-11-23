@@ -369,11 +369,16 @@ pub fn download_icon(painter: &egui::Painter, center: egui::Pos2, color: Color32
     path(&[(3.5, 14.0), (3.5, 16.5), (16.5, 16.5), (16.5, 14.0)]);
 }
 
-/// How thick a button's bottom edge is, under its face, when it isn't pressed.
-const BUTTON_EDGE: f32 = 1.0;
+/// How thick a button's edge along its bottom and right is, under its face, when it isn't
+/// pressed, and how thick its other sides are.
+const BUTTON_EDGE: f32 = 2.0;
+const BUTTON_SIDE: f32 = 1.5;
 
-/// A button drawn like a key: its face sits on a bottom edge in a darker shade, which halves as
-/// the face moves down while it's pressed. The main action's face is filled with `accent`;
+/// How round a button's corners are.
+const BUTTON_RADIUS: u8 = 12;
+
+/// A button drawn like a key: its rounded face sits on an edge along its bottom and right in a
+/// darker shade, which thins as the face moves down and right while it's pressed. The main action's face is filled with `accent`;
 /// another's is raised off the page, with text in `accent`. It's painted here rather than by
 /// egui's button to draw the edge and the face's top highlight.
 fn outlined_button(
@@ -420,7 +425,7 @@ fn outlined_button_with(
         0.0
     };
     let content = egui::vec2(galley.size().x + icon_width, galley.size().y);
-    let size = (content + 2.0 * padding + egui::vec2(0.0, BUTTON_EDGE - 1.0))
+    let size = (content + 2.0 * padding + egui::Vec2::splat(BUTTON_SIDE + BUTTON_EDGE - 2.0))
         .max(egui::vec2(0.0, ui.spacing().interact_size.y));
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
     let enabled = ui.is_enabled();
@@ -444,47 +449,53 @@ fn outlined_button_with(
             accent
         };
         let highlight = Color32::from_white_alpha(if dark { 77 } else { 71 });
+        // Brighter in the dark theme, where the darker shades are lost against the page.
+        let (side, bottom) = if dark { (0.08, 0.22) } else { (0.28, 0.42) };
         (
             face,
-            shade(accent, 0.28),
-            shade(accent, 0.42),
+            shade(accent, side),
+            shade(accent, bottom),
             colors.on_accent,
             highlight,
         )
     } else {
-        let side = if hovered {
-            colors.input_border
+        let (side, bottom) = if dark {
+            let lighten = if hovered { 0.30 } else { 0.12 };
+            (
+                colors.input_border.lerp_to_gamma(Color32::WHITE, lighten),
+                colors.input_border,
+            )
         } else {
-            colors
-                .input_border
-                .lerp_to_gamma(ui.visuals().panel_fill, 0.35)
+            let side = if hovered {
+                colors.input_border
+            } else {
+                colors
+                    .input_border
+                    .lerp_to_gamma(ui.visuals().panel_fill, 0.35)
+            };
+            (side, shade(colors.input_border, 0.10))
         };
         let highlight = Color32::from_white_alpha(if dark { 23 } else { 255 });
-        (
-            colors.raised,
-            side,
-            shade(colors.input_border, 0.10),
-            accent,
-            highlight,
-        )
+        (colors.raised, side, bottom, accent, highlight)
     };
 
-    // Pressing moves the face down onto a thinner edge, keeping the button's bottom in place.
-    let edge = if pressed {
-        BUTTON_EDGE / 2.0
-    } else {
-        BUTTON_EDGE
-    };
-    let key = rect.with_min_y(rect.top() + BUTTON_EDGE - edge);
-    let radius = 6;
+    // Pressing moves the face down and right onto a thinner edge, keeping the button's bottom
+    // and right in place.
+    let edge = if pressed { BUTTON_SIDE } else { BUTTON_EDGE };
+    let key = egui::Rect::from_min_max(rect.min + egui::Vec2::splat(BUTTON_EDGE - edge), rect.max);
+    let radius = BUTTON_RADIUS;
     let painter = ui.painter();
     painter.rect_filled(key, radius, bottom);
-    painter.rect_filled(key.with_max_y(key.bottom() - edge), radius, side);
-    let face_rect = egui::Rect::from_min_max(
-        key.min + egui::vec2(1.0, 1.0),
-        egui::pos2(key.right() - 1.0, key.bottom() - edge),
+    painter.rect_filled(
+        egui::Rect::from_min_max(key.min, key.max - egui::Vec2::splat(edge)),
+        radius,
+        side,
     );
-    painter.rect_filled(face_rect, radius - 1, face);
+    let face_rect = egui::Rect::from_min_max(
+        key.min + egui::Vec2::splat(BUTTON_SIDE),
+        key.max - egui::Vec2::splat(edge),
+    );
+    painter.rect_filled(face_rect, radius - 2, face);
     // A light line along the face's top, or a shadow while it's pressed in.
     let inset = f32::from(radius);
     let top = face_rect.top() + 0.5;
