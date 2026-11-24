@@ -974,7 +974,10 @@
         "x": 2080,
         "y": 280,
         "width": 120,
-        "height": 60
+        "height": 60,
+        "tags": [
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
+        ]
       },
       {
         "id": "fe20a3b3-9f6e-44fd-8f48-ded5eacdfba3",
@@ -984,7 +987,10 @@
         "y": 400,
         "width": 120,
         "height": 60,
-        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859"
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
+        "tags": [
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
+        ]
       }
     ],
     "connections": [

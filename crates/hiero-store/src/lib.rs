@@ -2127,6 +2127,18 @@ mod tests {
             assert_eq!(headers, [stage]);
             assert!(shown.iter().any(|e| e.kind == "actor"), "{stage}");
         }
+        // The Feedback stage gathers the traveller's feedback into reviews, which show in
+        // that stage only.
+        let feedback = |e: &&StoredElement| {
+            matches!(
+                (e.kind.as_str(), e.label.as_str()),
+                ("process", "Feedback") | ("entity", "Reviews")
+            )
+        };
+        for stage in stages {
+            let count = shown_in(stage).into_iter().filter(feedback).count();
+            assert_eq!(count, if stage == "Feedback" { 2 } else { 0 }, "{stage}");
+        }
     }
 
     #[test]
