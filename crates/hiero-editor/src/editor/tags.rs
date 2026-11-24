@@ -78,8 +78,8 @@ pub(super) struct TagState {
     /// Set when a scene is shown, until the section it's about is scrolled into view.
     pub reveal_section: bool,
     /// What's drawn for the content and the elements hidden: the elements shown, with the
-    /// arrows between them, and those hidden. At most three, for a step's two ends and what
-    /// both show.
+    /// arrows between them, and those hidden. At most five, for a step's two ends, what both
+    /// show, and what's faint throughout it and what isn't.
     pub cache: Vec<(u64, BTreeSet<ElementId>, Scene, Scene)>,
 }
 
@@ -705,7 +705,7 @@ impl<T: DiagramView> Editor<T> {
             legend.add_to_canvas(&mut shown);
         }
         if !dragging {
-            if self.tag.cache.len() >= 3 {
+            if self.tag.cache.len() >= 5 {
                 self.tag.cache.remove(0);
             }
             self.tag
@@ -763,10 +763,30 @@ impl<T: DiagramView> Editor<T> {
             Some(step) => {
                 let elapsed = now - step.start;
                 let before = self.hidden_by(&step.before);
-                // What both show, with faint what either hides.
+                // What both show.
                 let either: BTreeSet<ElementId> = before.union(hidden).cloned().collect();
                 let both = self.picture(&either, displayed, dragging);
-                draw(self, &both, 1.0, true);
+                draw(self, &both, 1.0, false);
+                // Faint, what this step takes away or brings in, under it, so it fades to its
+                // faint self or comes up from it. What both hide is drawn faint last, over all
+                // that's drawn again, such as a container both show, so it never goes.
+                let always: BTreeSet<ElementId> = before.intersection(hidden).cloned().collect();
+                let changing: BTreeSet<ElementId> = either.difference(&always).cloned().collect();
+                let paint_faint = |editor: &mut Self, ids: &BTreeSet<ElementId>| {
+                    if let Some(faint) = faint.filter(|_| !ids.is_empty()) {
+                        let (_, hidden) = editor.picture(ids, displayed, dragging);
+                        paint_scene_hiding(
+                            painter,
+                            &hidden,
+                            xf,
+                            &mut editor.cache,
+                            faint,
+                            dark,
+                            &hide,
+                        );
+                    }
+                };
+                paint_faint(self, &changing);
                 // What the one before showed and this one doesn't fades.
                 if !hidden.is_subset(&before) {
                     #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
@@ -812,6 +832,7 @@ impl<T: DiagramView> Editor<T> {
                         );
                     }
                 }
+                paint_faint(self, &always);
             }
             None => draw(self, &now_picture, 1.0, true),
         }
