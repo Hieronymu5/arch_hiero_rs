@@ -221,6 +221,45 @@ pub struct Scene {
     pub background: String,
 }
 
+impl Scene {
+    /// The scene less what `common` draws too, shape for shape, such as what's left of a
+    /// scene when what another scene shows as well is taken out: what's drawn only here.
+    #[must_use]
+    pub fn without(&self, common: &Scene) -> Scene {
+        let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for node in &common.nodes {
+            *counts.entry(format!("{node:?}")).or_default() += 1;
+        }
+        let nodes = self
+            .nodes
+            .iter()
+            .filter(|node| match counts.get_mut(&format!("{node:?}")) {
+                Some(n) if *n > 0 => {
+                    *n -= 1;
+                    false
+                }
+                _ => true,
+            })
+            .cloned()
+            .collect();
+        Scene {
+            nodes,
+            ..self.clone_empty()
+        }
+    }
+
+    /// The scene with nothing drawn, in its colours and bounds.
+    fn clone_empty(&self) -> Scene {
+        Scene {
+            nodes: Vec::new(),
+            bounds: self.bounds,
+            text_color: self.text_color.clone(),
+            marker_color: self.marker_color.clone(),
+            background: self.background.clone(),
+        }
+    }
+}
+
 /// A piece of text in a scene, where it's drawn on the page, past any groups it's in.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlacedText {
@@ -518,6 +557,22 @@ enum Token {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_scene_without_another_keeps_only_what_the_other_doesnt_draw() {
+        let shape = |x: f64| Node::rect(Rect::new(x, 0.0, 10.0, 10.0), 0.0, Paint::default());
+        let scene = |nodes: Vec<Node>| Scene {
+            nodes,
+            bounds: Rect::new(0.0, 0.0, 100.0, 100.0),
+            text_color: "#000".into(),
+            marker_color: "#000".into(),
+            background: "#fff".into(),
+        };
+        // Shape for shape: one of the two shapes at 0 is drawn in both.
+        let whole = scene(vec![shape(0.0), shape(20.0), shape(0.0), shape(40.0)]);
+        let common = scene(vec![shape(0.0), shape(40.0), shape(60.0)]);
+        assert_eq!(whole.without(&common).nodes, [shape(20.0), shape(0.0)]);
+    }
 
     #[test]
     fn placed_texts_are_found_past_the_groups_they_are_in() {

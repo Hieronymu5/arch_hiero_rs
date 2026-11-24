@@ -84,7 +84,6 @@ pub(super) struct TagState {
 }
 
 /// The scenes stepping from one to another.
-#[derive(Clone)]
 struct Step {
     /// The tags hidden before.
     before: BTreeSet<String>,
@@ -92,6 +91,10 @@ struct Step {
     start: f64,
     /// The line building what the scene adds, if it adds anything.
     sweep: Option<Sweep>,
+    /// What only the scene before draws, which fades, and what only this one draws, which the
+    /// line builds, once worked out: the elements and arrows changing, without what both
+    /// draw, such as a container both show, which drawn again would hide what's faint in it.
+    changes: Option<(Scene, Scene)>,
 }
 
 /// What the camera frames: an area of the canvas, or all that's drawn, legend and all.
@@ -462,6 +465,7 @@ impl<T: DiagramView> Editor<T> {
                 before,
                 start: now,
                 sweep,
+                changes: None,
             });
             self.tag.frame = self.scene_frame();
         }
@@ -731,7 +735,7 @@ impl<T: DiagramView> Editor<T> {
         let step = self
             .tag
             .step
-            .clone()
+            .take()
             .filter(|_| self.active_scene().is_some());
         if hidden.is_empty() && step.is_none() {
             return None;
@@ -760,13 +764,23 @@ impl<T: DiagramView> Editor<T> {
             }
         };
         match step {
-            Some(step) => {
+            Some(mut step) => {
                 let elapsed = now - step.start;
                 let before = self.hidden_by(&step.before);
                 // What both show.
                 let either: BTreeSet<ElementId> = before.union(hidden).cloned().collect();
                 let both = self.picture(&either, displayed, dragging);
                 draw(self, &both, 1.0, false);
+                let (leaving, entering) = match step.changes.take() {
+                    Some(changes) if !dragging => changes,
+                    _ => {
+                        let before_picture = self.picture(&before, displayed, dragging);
+                        (
+                            before_picture.0.without(&both.0),
+                            now_picture.0.without(&both.0),
+                        )
+                    }
+                };
                 // Faint, what this step takes away or brings in, under it, so it fades to its
                 // faint self or comes up from it. What both hide is drawn faint last, over all
                 // that's drawn again, such as a container both show, so it never goes.
@@ -788,11 +802,18 @@ impl<T: DiagramView> Editor<T> {
                 };
                 paint_faint(self, &changing);
                 // What the one before showed and this one doesn't fades.
-                if !hidden.is_subset(&before) {
-                    #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
-                    let t = (elapsed / LEAVE_SECONDS).clamp(0.0, 1.0) as f32;
-                    let before_picture = self.picture(&before, displayed, dragging);
-                    draw(self, &before_picture, 1.0 - t, false);
+                #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
+                let t = (elapsed / LEAVE_SECONDS).clamp(0.0, 1.0) as f32;
+                if t < 1.0 {
+                    paint_scene_hiding(
+                        painter,
+                        &leaving,
+                        xf,
+                        &mut self.cache,
+                        1.0 - t,
+                        dark,
+                        &hide,
+                    );
                 }
                 // What this one brings in appears as the line moving down passes it.
                 if let Some(sweep) = step.sweep {
@@ -823,7 +844,7 @@ impl<T: DiagramView> Editor<T> {
                         let hide = &hide;
                         paint_scene_hiding(
                             &painter,
-                            &now_picture.0,
+                            &entering,
                             xf,
                             &mut self.cache,
                             if i < steps { opacity } else { 1.0 },
@@ -833,6 +854,8 @@ impl<T: DiagramView> Editor<T> {
                     }
                 }
                 paint_faint(self, &always);
+                step.changes = Some((leaving, entering));
+                self.tag.step = Some(step);
             }
             None => draw(self, &now_picture, 1.0, true),
         }
