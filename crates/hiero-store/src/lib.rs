@@ -2127,6 +2127,18 @@ mod tests {
             assert_eq!(headers, [stage]);
             assert!(shown.iter().any(|e| e.kind == "actor"), "{stage}");
         }
+        // Every process is in the Travel Agent application, where it's drawn.
+        let app = elements.iter().find(|e| e.label == "Travel Agent").unwrap();
+        let processes: Vec<_> = elements.iter().filter(|e| e.kind == "process").collect();
+        assert!(!processes.is_empty());
+        for process in processes {
+            assert_eq!(
+                process.parent_id.as_ref(),
+                Some(&app.id),
+                "{}",
+                process.label
+            );
+        }
         // The Feedback stage gathers the traveller's feedback into reviews, which show in
         // that stage only.
         let feedback = |e: &&StoredElement| {

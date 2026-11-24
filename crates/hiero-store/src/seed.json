@@ -555,6 +555,7 @@
         "y": 280,
         "width": 140,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "b0da1e6e-96e4-4194-9cf5-331316706b09"
         ]
@@ -567,6 +568,7 @@
         "y": 280,
         "width": 140,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "b0da1e6e-96e4-4194-9cf5-331316706b09"
         ]
@@ -651,6 +653,7 @@
         "y": 280,
         "width": 160,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe"
         ]
@@ -808,6 +811,7 @@
         "y": 280,
         "width": 180,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "b0da1e6e-96e4-4194-9cf5-331316706b09"
         ]
@@ -832,6 +836,7 @@
         "y": 280,
         "width": 160,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
         ]
@@ -855,6 +860,7 @@
         "label": "Shop",
         "x": 1480,
         "y": 280,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe"
         ],
@@ -881,6 +887,7 @@
         "y": 280,
         "width": 160,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "78722bbf-b1ff-4950-be21-aa2f12c88538"
         ]
@@ -939,6 +946,7 @@
         "y": 280,
         "width": 140,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "b0da1e6e-96e4-4194-9cf5-331316706b09",
           "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
@@ -975,6 +983,7 @@
         "y": 280,
         "width": 120,
         "height": 60,
+        "parentId": "bcbdccfe-be2b-498e-ab47-a36486937859",
         "tags": [
           "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
         ]
