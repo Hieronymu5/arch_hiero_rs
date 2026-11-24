@@ -237,6 +237,7 @@ pub static PALETTE: [KindInfo<ConceptualKind>; 11] = [
         has_description: true,
         can_contain: &[K::Component, K::Process, K::Entity, K::File],
         container_look: ContainerLook::Boxed,
+        // The name and a line of description: the usual 40 without a description.
         header: Some(60.0),
         // Actors too, such as a person a system sends a report to, and domains, for a system
         // that acts on a whole domain.

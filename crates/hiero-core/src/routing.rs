@@ -616,7 +616,39 @@ pub fn connector_text_position(rect: &Rect) -> Point {
     )
 }
 
-/// Where an arrow's transformation box goes, centred on the middle of the line.
+/// Where a line enters a box: the point on its border, the side, and how far along the line.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Entry {
+    pub point: Point,
+    pub side: Side,
+    /// How far along the line it enters, from 0 at its start to 1 at its end.
+    pub along: f64,
+}
+
+/// Where the line from `from` to `to` crosses into `rect`, or nothing when it starts inside it
+/// or doesn't reach it. A line that runs through a corner enters on the side it crosses last.
+pub fn entry_into(from: Point, to: Point, rect: Rect) -> Option<Entry> {
+    let (dx, dy) = (to.x - from.x, to.y - from.y);
+    let (right, bottom) = (rect.right(), rect.bottom());
+    // The sides the line starts outside of and heads towards, with how far along it crosses
+    // each.
+    let crossings = [
+        (from.x < rect.x && dx > 0.0).then(|| (Side::Left, (rect.x - from.x) / dx)),
+        (from.x > right && dx < 0.0).then(|| (Side::Right, (right - from.x) / dx)),
+        (from.y < rect.y && dy > 0.0).then(|| (Side::Top, (rect.y - from.y) / dy)),
+        (from.y > bottom && dy < 0.0).then(|| (Side::Bottom, (bottom - from.y) / dy)),
+    ];
+    // It's inside once it has crossed every side it was outside of.
+    let (side, along) = crossings
+        .into_iter()
+        .flatten()
+        .reduce(|last, next| if next.1 > last.1 { next } else { last })?;
+    let point = Point::new(from.x + dx * along, from.y + dy * along);
+    let within = |value: f64, start: f64, end: f64| value >= start - 0.5 && value <= end + 0.5;
+    (along <= 1.0 && within(point.x, rect.x, right) && within(point.y, rect.y, bottom))
+        .then_some(Entry { point, side, along })
+}
+
 pub fn transformation_placement(from: Point, to: Point, text_width: f64) -> (Rect, Point) {
     let height = CONNECTOR_BOX_HEIGHT;
     let width = CONNECTOR_BOX_MIN_WIDTH.max(text_width.ceil() + CONNECTOR_BOX_PADDING_X * 2.0);
@@ -836,6 +868,38 @@ mod tests {
         assert_eq!(p.rect, Rect::new(268.0, 40.0, 32.0, 20.0));
         assert_eq!(p.arrow_end, Point::new(268.0, 50.0));
         assert_eq!(p.text, Point::new(284.0, 54.2));
+    }
+
+    #[test]
+    fn finds_where_a_line_from_outside_crosses_into_a_box() {
+        let rect = Rect::new(100.0, 100.0, 200.0, 100.0);
+        let p = Point::new;
+        assert_eq!(
+            entry_into(p(0.0, 150.0), p(200.0, 150.0), rect),
+            Some(Entry {
+                point: p(100.0, 150.0),
+                side: Side::Left,
+                along: 0.5
+            })
+        );
+        assert_eq!(
+            entry_into(p(200.0, 0.0), p(200.0, 150.0), rect),
+            Some(Entry {
+                point: p(200.0, 100.0),
+                side: Side::Top,
+                along: 100.0 / 150.0
+            })
+        );
+        let right = entry_into(p(400.0, 160.0), p(200.0, 150.0), rect).unwrap();
+        assert_eq!(right.side, Side::Right);
+        // A slanted line from above and left crosses the top's line before the box starts,
+        // so it enters through the left.
+        let slanted = entry_into(p(0.0, 80.0), p(200.0, 160.0), rect).unwrap();
+        assert_eq!((slanted.side, slanted.point), (Side::Left, p(100.0, 120.0)));
+        // Nothing for a line from inside, or one that misses or stops short.
+        assert_eq!(entry_into(p(150.0, 150.0), p(400.0, 150.0), rect), None);
+        assert_eq!(entry_into(p(0.0, 0.0), p(400.0, 0.0), rect), None);
+        assert_eq!(entry_into(p(0.0, 150.0), p(50.0, 150.0), rect), None);
     }
 
     #[test]

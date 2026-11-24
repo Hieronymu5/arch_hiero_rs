@@ -25,8 +25,8 @@ ones). Elements inside a container are always drawn on top of it.
 | `file` | File | 120×80 | data | – | – | 3 | Data kept as a file, such as an export. Placed as an entity is, but drawn as a figure: an upright page with its upper-left corner folded down and five lines of text, with the name underneath. |
 | `section` | Section | 480×40 | – | – | – | 3 | A horizontal line with short end ticks and the name centred on it, in the *section names* colour. It names the part of the diagram below it. Resizes across only, from handles on its two ends. |
 
-Containers grow to fit what they hold: a 40 px header (60 for an application) and 20 px of
-padding around their children.
+Containers grow to fit what they hold: a 40 px header (60 for an application with a
+description) and 20 px of padding around their children.
 
 ## Element properties
 
@@ -39,7 +39,7 @@ padding around their children.
 | Bot | actor | Checkbox, stored as `agent: true` |
 | Group | actor | Checkbox beside Bot, stored as `group: true`. Read as "Actor (group of people)" or "(group of bots)". |
 | Cloud hosted | application | Checkbox. The application is drawn as a cloud with its text inside. |
-| Parent (Domain, or "Application or Component") | anything that can be held | A select of the containers that can hold this kind, named "Name (Kind)" when more than one kind of container can hold it. Choosing a parent moves the element to a free spot inside it. Choosing none moves it out onto the canvas. |
+| Parent (Domain, or "Application or Component") | anything that can be held | A select of the containers that can hold this kind, named "Name (Kind)" when more than one kind of container can hold it. Choosing a parent the element is already drawn inside keeps it where it is, only moving it down below the parent's header when it's over it; any other parent moves it to a free spot inside it. Choosing none moves it out onto the canvas. While it has no parent, the containers it's drawn inside are listed first, the innermost at the top. |
 | Arrows list | kinds with `connectsTo`, and their targets | Lists each arrow to or from the element. Selecting one opens the arrow's own properties. |
 | Add arrow to | kinds with `connectsTo` | A select of the valid targets this element doesn't already point to. It's the keyboard alternative to dragging from the connect handle. |
 
@@ -78,7 +78,7 @@ Arrow properties:
 | Type (`mode`) | Automated (solid) or Manual (dashed). Unset means automated. An arrow from a person (an actor that isn't a bot) starts out manual, as people act by hand; any other starts out automated. | Line style |
 | Bi-directional | Checkbox | A small return arrow next to the start |
 | Payload (`payload`) | None, E-mail (`email`), or File (`file`). Unset means none. | An icon beside the start, on the other side of the line from the text: an envelope (16×11) or a page with a folded corner (12×15), 3 px along the line and 5 px from it. It goes 4 px past a bi-directional arrow's return arrow, and stays upright on a diagonal line, clear of it by its nearest corner. Clicking it selects the arrow. draw.io exports attach it to the arrow: an envelope as draw.io's message shape, and a page as a stencil with the same folded corner and lines of text. |
-| Connector | At most 20 characters, e.g. API, REST, Web | A small box where the arrow meets the target |
+| Connector | At most 20 characters, e.g. API, REST, Web | A small box where the arrow meets the target. On an actor's arrow to a process in an application or component (the nearest, if they're nested, not one drawn as a figure), it's where the arrow crosses into that instead, and the arrow runs on through it to the process; draw.io makes it a child of the arrow, so it moves with it |
 | Transformation | At most 40 characters, e.g. "Map fields" | A box on the middle of the line |
 
 Removing an element removes its arrows. Removing a domain, application, or component keeps

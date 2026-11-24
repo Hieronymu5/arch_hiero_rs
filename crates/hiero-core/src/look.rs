@@ -239,6 +239,10 @@ pub struct ArrowLook {
     pub two_heads: bool,
     /// A box between the arrow and its target, such as "API". The arrow ends at it.
     pub connector: Option<(String, Rect)>,
+    /// With a connector, that it's on the line instead, this far along it from 0 at `from` to 1
+    /// at `to`, where the arrow crosses into what holds its target. The arrow runs on through
+    /// it to the target.
+    pub connector_along: Option<f64>,
     /// A box on the middle of the line, such as "Map fields".
     pub transformation: Option<(String, Rect)>,
     pub tag: Option<ArrowTag>,

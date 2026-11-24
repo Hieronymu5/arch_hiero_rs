@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 
 use crate::color::readable_text;
 use crate::figures::{CLOUD_DROP, CLOUD_TEXT_INSET, FIGURE_NAME_GAP, PhysicalFigure, database};
-use crate::geometry::{Point, Rect, Size, fmt_num, round2};
+use crate::geometry::{Point, Rect, Size, fmt_num, js_round, round2};
 use crate::legend::{
     LEGEND_BAND, LEGEND_BORDER, LEGEND_FOOTER, LEGEND_GAP, LEGEND_HEADER, LEGEND_ICON,
     LEGEND_MUTED, LEGEND_PADDING,
@@ -1100,9 +1100,12 @@ pub fn diagram_to_drawio(
             style = style.set("startArrow", "block").set("startFill", 1);
         }
         let exit = constraint(a.from, source.rect);
-        let entry = constraint(a.to, a.connector.as_ref().map_or(target.rect, |(_, r)| *r));
+        // An arrow with a connector at its target ends at its box; one with a connector on the
+        // line runs on through it to the target.
+        let at_target = a.connector.as_ref().filter(|_| a.connector_along.is_none());
+        let entry = constraint(a.to, at_target.map_or(target.rect, |(_, r)| *r));
         let connector_id = format!("{}-connector", arrow.id);
-        let target_id = if a.connector.is_some() {
+        let target_id = if at_target.is_some() {
             connector_id.clone()
         } else {
             target.id.0.clone()
@@ -1168,7 +1171,7 @@ pub fn diagram_to_drawio(
                 .set("labelBackgroundColor", BACKGROUND);
             value = format!(r#" value="{}""#, escape_xml(&html.join("<br>")));
         }
-        if let Some((label, r)) = &a.connector {
+        if let Some((label, r)) = at_target {
             cells.push(cell(
                 &connector_id,
                 &escape_xml(&escape_xml(label)),
@@ -1189,6 +1192,26 @@ pub fn diagram_to_drawio(
             escape_xml(source.id.as_str()),
             escape_xml(&target_id)
         ));
+        // A box on the line is the arrow's child, after it, so it's drawn over the line and
+        // moves with it: x runs from -1 at the arrow's start to 1 at its end, and the offset
+        // places its top-left corner.
+        if let (Some((label, r)), Some(along)) = (&a.connector, a.connector_along) {
+            let at = Point::new(
+                a.from.x + (a.to.x - a.from.x) * along,
+                a.from.y + (a.to.y - a.from.y) * along,
+            );
+            cells.push(format!(
+                "        <mxCell id=\"{}\" value=\"{}\" style=\"{box_style};connectable=0\" vertex=\"1\" parent=\"{}\">\n          <mxGeometry x=\"{}\" width=\"{}\" height=\"{}\" relative=\"1\" as=\"geometry\"><mxPoint x=\"{}\" y=\"{}\" as=\"offset\" /></mxGeometry>\n        </mxCell>",
+                escape_xml(&connector_id),
+                escape_xml(&escape_xml(label)),
+                escape_xml(arrow.id.as_str()),
+                fmt_num(js_round((along * 2.0 - 1.0) * 10_000.0) / 10_000.0),
+                fmt_num(round2(r.width)),
+                fmt_num(round2(r.height)),
+                fmt_num(round2(r.x - at.x)),
+                fmt_num(round2(r.y - at.y)),
+            ));
+        }
         if a.bidirectional
             && let Some((from, to)) = return_arrow_placement(a.from, a.to)
         {
@@ -1476,6 +1499,50 @@ mod tests {
                 || xml.contains(r#"id="d" value="d &amp; co""#)
         );
         assert!(xml.contains(r#"x="40" y="108" width="480" height="180""#));
+    }
+
+    #[test]
+    fn puts_a_connector_box_on_the_line_the_arrow_going_on_through_it() {
+        let elements = [
+            element("a", None, Shape::Box, Rect::new(100.0, 120.0, 200.0, 100.0)),
+            element("b", None, Shape::Box, Rect::new(600.0, 120.0, 200.0, 100.0)),
+        ];
+        // A third of the way along the arrow, from 300,170 to 600,170, at 400,170.
+        let arrows = vec![DrawioArrow {
+            id: "c1".into(),
+            source_id: "a".into(),
+            target_id: "b".into(),
+            label_lines: Vec::new(),
+            look: ArrowLook {
+                from: Point::new(300.0, 170.0),
+                to: Point::new(600.0, 170.0),
+                connector: Some(("API".into(), Rect::new(368.0, 160.0, 32.0, 20.0))),
+                connector_along: Some(1.0 / 3.0),
+                ..ArrowLook::default()
+            },
+        }];
+        let xml = diagram_to_drawio(
+            "T",
+            &elements,
+            &arrows,
+            None,
+            None,
+            &DiagramColors::default(),
+            LineWeight::Thin,
+        );
+        let edge = xml.find(r#"<mxCell id="c1""#).unwrap();
+        let start = xml.find(r#"<mxCell id="c1-connector""#).unwrap();
+        // A child of the arrow, after it, so it's drawn over the line and moves with it.
+        assert!(edge < start, "{xml}");
+        let box_cell = &xml[start..start + xml[start..].find("</mxCell>").unwrap()];
+        assert!(box_cell.contains(r#"parent="c1""#), "{box_cell}");
+        assert!(box_cell.contains("connectable=0"), "{box_cell}");
+        assert!(
+            box_cell.contains(r#"<mxGeometry x="-0.3333" width="32" height="20" relative="1" as="geometry"><mxPoint x="-32" y="-10" as="offset" />"#),
+            "{box_cell}"
+        );
+        // The arrow goes on to its target.
+        assert!(xml.contains(r#"source="a" target="b""#), "{xml}");
     }
 
     #[test]

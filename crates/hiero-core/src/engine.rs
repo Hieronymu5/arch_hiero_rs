@@ -918,16 +918,29 @@ impl<T: DiagramType> Engine<T> {
 
     /// Containers the selected element could sit in, naming their kind when it could sit in
     /// more than one, such as "CRM (Application)". Not itself, nor anything it holds, where a
-    /// kind can hold its own kind.
+    /// kind can hold its own kind. While it's in none, those it's drawn inside come first, the
+    /// innermost first, so the one it's in is at the top.
     pub fn parent_options(&self) -> Vec<(ElementId, String)> {
         let Some(selected) = self.selected() else {
             return Vec::new();
         };
         let mixed = self.parent_kinds().len() > 1;
         let inside = descendant_ids(&self.elements, selected.id());
-        self.containers_for(Child::Element(&selected.el), &self.layout)
+        let mut containers: Vec<_> = self
+            .containers_for(Child::Element(&selected.el), &self.layout)
             .into_iter()
             .filter(|c| c.el.id != selected.el.id && !inside.contains(&c.el.id))
+            .collect();
+        if selected.el.parent_id.is_none() {
+            let area = |c: &&Laid<T>| c.rect.width * c.rect.height;
+            let (mut around, rest): (Vec<_>, Vec<_>) = containers
+                .into_iter()
+                .partition(|c| c.rect.contains_rect(&selected.rect));
+            around.sort_by(|a, b| area(a).total_cmp(&area(b)));
+            containers = around.into_iter().chain(rest).collect();
+        }
+        containers
+            .into_iter()
             .map(|c| {
                 let label = if mixed {
                     format!("{} ({})", c.el.label, c.info.label)
@@ -945,8 +958,10 @@ impl<T: DiagramType> Engine<T> {
         (!labels.is_empty()).then(|| labels.join(" or "))
     }
 
-    /// Applies changes from the properties panel. A new container moves the element to a
-    /// free spot in that container, or out onto the canvas.
+    /// Applies changes from the properties panel. A new container it's already drawn inside
+    /// keeps it where it is, only moved down below the container's header if it's over it.
+    /// Otherwise a new container moves it to a free spot in that container, or out onto the
+    /// canvas.
     pub fn apply_changes(&mut self, id: &ElementId, with: El<T>, parent_id: Option<ElementId>) {
         let Some(selected) = self.laid(id).cloned() else {
             return;
@@ -964,6 +979,10 @@ impl<T: DiagramType> Engine<T> {
             .as_ref()
             .and_then(|p| others.iter().find(|e| e.el.id == *p));
         let position = match parent {
+            Some(parent) if parent.rect.contains_rect(&selected.rect) => {
+                let area = child_placement_area(&parent.container_rect(), self.canvas);
+                Point::new(selected.rect.x, selected.rect.y.max(area.y))
+            }
             Some(parent) => find_free_position(
                 &others
                     .iter()

@@ -14,8 +14,8 @@ use hiero_core::look::{
 };
 use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::routing::{
-    CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, Route, Side, connector_placement,
-    route_connections_centred, straight_range, transformation_placement,
+    CONNECTOR_BOX_FONT_SIZE, ConnectionEnds, ConnectorPlacement, Route, Side, connector_placement,
+    entry_into, route_connections_centred, straight_range, transformation_placement,
 };
 use hiero_core::scene::Scene;
 use hiero_core::text::{MeasureText, Weight};
@@ -148,6 +148,78 @@ fn inward(point: Point, side: Side, distance: f64) -> Point {
     }
 }
 
+/// The application or component `element` is in, the nearest if they're nested, or nothing.
+/// One drawn as a figure, such as a database, has no border to cross, so it doesn't count.
+fn holder_of<'a>(
+    element: &Laid<Conceptual>,
+    by_id: &HashMap<&ElementId, &'a Laid<Conceptual>>,
+) -> Option<&'a Laid<Conceptual>> {
+    let mut seen = HashSet::new();
+    let mut parent = by_id.get(element.el.parent_id.as_ref()?).copied();
+    while let Some(p) = parent {
+        if !seen.insert(&p.el.id) {
+            return None;
+        }
+        if matches!(
+            p.el.kind,
+            ConceptualKind::Application | ConceptualKind::Component
+        ) && figure_of(&p.el).is_none()
+        {
+            return Some(p);
+        }
+        parent =
+            p.el.parent_id
+                .as_ref()
+                .and_then(|id| by_id.get(id).copied());
+    }
+    None
+}
+
+/// Where an arrow's connector box, such as "API", goes: against the side of its target where
+/// the arrow meets it, between the two. An actor's arrow to a process in an application or a
+/// component has it where the arrow crosses into that instead, with how far along the arrow
+/// that is, and the arrow runs on through it. On a cloud it sits a little way in, so its
+/// corners don't stand off the cloud's curves.
+fn place_connector(
+    route: &Route,
+    source: Option<&Laid<Conceptual>>,
+    target: Option<&Laid<Conceptual>>,
+    by_id: &HashMap<&ElementId, &Laid<Conceptual>>,
+    width: f64,
+) -> (ConnectorPlacement, Option<f64>) {
+    let holder = match (source, target) {
+        (Some(s), Some(t))
+            if s.el.kind == ConceptualKind::Actor && t.el.kind == ConceptualKind::Process =>
+        {
+            holder_of(t, by_id)
+        }
+        _ => None,
+    };
+    if let Some((holder, entry)) =
+        holder.and_then(|h| Some((h, entry_into(route.from, route.to, h.rect)?)))
+    {
+        let at = if is_cloud(&holder.el) {
+            inward(
+                on_cloud(Some(holder), entry.side, entry.point),
+                entry.side,
+                CLOUD_CONNECTOR_INSET,
+            )
+        } else {
+            entry.point
+        };
+        return (
+            connector_placement(at, entry.side, width),
+            Some(entry.along),
+        );
+    }
+    let at = if target.is_some_and(|t| is_cloud(&t.el)) {
+        inward(route.to, route.to_side, CLOUD_CONNECTOR_INSET)
+    } else {
+        route.to
+    };
+    (connector_placement(at, route.to_side, width), None)
+}
+
 /// The area an element is drawn in: a figure's, such as an actor's, reaches down to the end of
 /// its name, which goes below its area on two lines.
 pub fn drawn_rect(eng: &Engine<Conceptual>, element: &Laid<Conceptual>) -> Rect {
@@ -251,21 +323,18 @@ pub fn drawn_arrows(
                 ..routed
             };
             let props = &c.props;
-            // On a cloud the connector box sits a little way in, so its corners don't stand
-            // off the cloud's curves.
-            let connector_at = if target.is_some_and(|t| is_cloud(&t.el)) {
-                inward(route.to, route.to_side, CLOUD_CONNECTOR_INSET)
-            } else {
-                route.to
-            };
             let connector = props.connector.as_ref().map(|text| {
                 let width = measure.width(text, CONNECTOR_BOX_FONT_SIZE, Weight::SemiBold);
-                (
-                    text.clone(),
-                    connector_placement(connector_at, route.to_side, width),
-                )
+                let (placement, along) = place_connector(&route, source, target, &by_id, width);
+                (text.clone(), placement, along)
             });
-            let to = connector.as_ref().map_or(route.to, |(_, p)| p.arrow_end);
+            let along = connector.as_ref().and_then(|(_, _, along)| *along);
+            // An arrow ends at a connector box at its target, and runs on through one on its
+            // way.
+            let to = match &connector {
+                Some((_, p, None)) => p.arrow_end,
+                _ => route.to,
+            };
             let transformation = props.transformation.as_ref().map(|text| {
                 let width = measure.width(text, CONNECTOR_BOX_FONT_SIZE, Weight::SemiBold);
                 (
@@ -289,7 +358,8 @@ pub fn drawn_arrows(
                     bidirectional: props.bidirectional,
                     payload: props.payload,
                     two_heads: false,
-                    connector: connector.map(|(text, p)| (text, p.rect)),
+                    connector: connector.map(|(text, p, _)| (text, p.rect)),
+                    connector_along: along,
                     transformation,
                     tag: None,
                     caption: None,
@@ -496,6 +566,101 @@ mod tests {
         let (_, rect) = into.look.connector.clone().unwrap();
         assert!((rect.x - (edge.x - 6.0)).abs() < 0.5, "{rect:?} {edge:?}");
         assert_eq!(into.route.to.y, 250.0);
+    }
+
+    /// An actor left of an application holding a process, and a component holding another,
+    /// and a process in nothing, with `connections`.
+    fn connectors_on_the_way_in(connections: serde_json::Value) -> Engine<Conceptual> {
+        let elements = serde_json::from_value(serde_json::json!([
+            { "id": "u1", "kind": "actor", "label": "Rep", "x": 0, "y": 200 },
+            { "id": "a1", "kind": "application", "label": "CRM", "x": 200, "y": 0, "width": 600, "height": 440 },
+            { "id": "p1", "kind": "process", "label": "Quote", "x": 400, "y": 200, "parentId": "a1" },
+            { "id": "k1", "kind": "component", "label": "Billing", "x": 560, "y": 100, "width": 220, "height": 240, "parentId": "a1" },
+            { "id": "p2", "kind": "process", "label": "Invoice", "x": 620, "y": 220, "parentId": "k1" },
+            { "id": "p3", "kind": "process", "label": "Refund", "x": 1000, "y": 200 },
+        ]))
+        .unwrap();
+        Engine::<Conceptual>::new(
+            elements,
+            serde_json::from_value(connections).unwrap(),
+            DiagramColors::default(),
+        )
+        .with_measure(&ESTIMATE)
+    }
+
+    /// Where `look` crosses the vertical line at `x`.
+    fn y_at(look: &ArrowLook, x: f64) -> f64 {
+        look.from.y + (look.to.y - look.from.y) * (x - look.from.x) / (look.to.x - look.from.x)
+    }
+
+    #[test]
+    fn puts_an_actors_connector_to_a_process_where_the_arrow_crosses_into_its_holder() {
+        let e = connectors_on_the_way_in(serde_json::json!([
+            { "id": "c1", "sourceId": "u1", "targetId": "p1", "connector": "API" },
+            { "id": "c2", "sourceId": "u1", "targetId": "p2", "connector": "API" },
+        ]));
+        let arrows = drawn_arrows(&e, e.layout(), None);
+        let rect = |id: &str| e.laid(&id.into()).unwrap().rect;
+        // Into the application for Quote, and into the nearest holder, the component, for
+        // Invoice: against its left side, outside it, centred on the arrow.
+        for (arrow, holder, process) in [("c1", "a1", "p1"), ("c2", "k1", "p2")] {
+            let look = &arrows.iter().find(|a| a.id == arrow.into()).unwrap().look;
+            let holder = rect(holder);
+            let (_, api) = look.connector.clone().unwrap();
+            assert!((api.right() - holder.x).abs() < 0.5, "{api:?} {holder:?}");
+            let middle = api.y + api.height / 2.0;
+            assert!(
+                (middle - y_at(look, holder.x)).abs() < 0.5,
+                "{api:?} {look:?}"
+            );
+            // The arrow runs on through it to the process.
+            assert_eq!(look.to.x, rect(process).x);
+            let along = look.connector_along.unwrap();
+            assert!((look.from.x + (look.to.x - look.from.x) * along - holder.x).abs() < 0.5);
+        }
+    }
+
+    #[test]
+    fn keeps_the_connector_at_the_target_for_a_process_in_nothing_or_another_source() {
+        let e = connectors_on_the_way_in(serde_json::json!([
+            { "id": "c1", "sourceId": "u1", "targetId": "p3", "connector": "API" },
+            { "id": "c2", "sourceId": "p3", "targetId": "p1", "connector": "REST" },
+        ]));
+        let arrows = drawn_arrows(&e, e.layout(), None);
+        let look = |id: &str| &arrows.iter().find(|a| a.id == id.into()).unwrap().look;
+        let rect = |id: &str| e.laid(&id.into()).unwrap().rect;
+        // Refund is in no application: the box is against it, and the arrow ends at the box.
+        let (_, api) = look("c1").connector.clone().unwrap();
+        assert_eq!(api.right(), rect("p3").x);
+        assert_eq!(look("c1").to.x, api.x);
+        assert_eq!(look("c1").connector_along, None);
+        // From a process, not an actor: against the process it goes to.
+        let (_, rest) = look("c2").connector.clone().unwrap();
+        assert_eq!(rest.x, rect("p1").right());
+        assert_eq!(look("c2").connector_along, None);
+    }
+
+    #[test]
+    fn exports_the_connector_on_the_line_the_arrow_going_on_to_the_process() {
+        let e = connectors_on_the_way_in(serde_json::json!([
+            { "id": "c1", "sourceId": "u1", "targetId": "p1", "connector": "API" },
+        ]));
+        let arrows = drawn_arrows(&e, e.layout(), None);
+        let (_, api) = arrows[0].look.connector.clone().unwrap();
+        let svg = scene_to_svg("t", &scene(&e));
+        assert!(
+            svg.contains(&format!(r#"<rect x="{}" y="{}""#, api.x, api.y)),
+            "{api:?}"
+        );
+        let xml = to_drawio(&e, "Test", None, None);
+        let start = xml.find(r#"<mxCell id="c1-connector""#).unwrap();
+        let cell = &xml[start..start + xml[start..].find("</mxCell>").unwrap()];
+        // A child of the arrow, so it's drawn over it and moves with it.
+        assert!(
+            cell.contains(r#"parent="c1""#) && cell.contains(r#"value="API""#),
+            "{cell}"
+        );
+        assert!(xml.contains(r#"source="u1" target="p1""#), "{xml}");
     }
 
     #[test]

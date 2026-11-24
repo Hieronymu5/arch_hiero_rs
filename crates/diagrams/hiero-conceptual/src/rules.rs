@@ -297,7 +297,9 @@ impl DiagramType for Conceptual {
 
     /// A domain's name takes a band along its top, as tall as its font size needs, or along its
     /// bottom, leaving the usual gap above what it holds. A box's header, such as an
-    /// application's, grows for a larger name.
+    /// application's, grows for a larger name. One with room for a line of description, as an
+    /// application's has, is the usual header, just tall enough for its name, while it has no
+    /// description.
     fn header_height(
         element: &El<Self>,
         info: &'static KindInfo<ConceptualKind>,
@@ -310,10 +312,21 @@ impl DiagramType for Conceptual {
             } else {
                 name_band(element, width, measure)
             }
-        } else if element.kind.has_font_size() {
-            info.header() + larger_name(element)
         } else {
-            info.header()
+            let blank = element
+                .description
+                .as_deref()
+                .is_none_or(|d| d.trim().is_empty());
+            let header = if info.has_description && blank {
+                CONTAINER_HEADER
+            } else {
+                info.header()
+            };
+            if element.kind.has_font_size() {
+                header + larger_name(element)
+            } else {
+                header
+            }
         }
     }
 
@@ -1016,11 +1029,87 @@ mod tests {
     fn an_applications_header_grows_for_a_larger_name() {
         let mut e = engine();
         e.add_at_free_position(ConceptualKind::Application);
+        change(&mut e, "id1", |w| w.description = Some("Sales".into()));
+        // The 60 px header, with room for the description under the name.
         assert_eq!(e.laid(&id("id1")).unwrap().header, 60.0);
         change(&mut e, "id1", |w| w.props.font_size = Some(24));
         // A 36 px line rather than 24: 20 more, on the grid.
         assert_eq!(e.laid(&id("id1")).unwrap().header, 80.0);
         change(&mut e, "id1", |w| w.props.font_size = Some(12));
+        assert_eq!(e.laid(&id("id1")).unwrap().header, 60.0);
+    }
+
+    fn engine_of(elements: serde_json::Value) -> Engine<Conceptual> {
+        Engine::new(
+            serde_json::from_value(elements).unwrap(),
+            Vec::new(),
+            DiagramColors::default(),
+        )
+        .with_measure(&ESTIMATE)
+    }
+
+    #[test]
+    fn putting_an_element_in_a_container_its_drawn_inside_keeps_it_there() {
+        // Sales's name band runs from 100 to 140.
+        for (y, kept) in [(300.0, 300.0), (120.0, 140.0)] {
+            let mut e = engine_of(serde_json::json!([
+                { "id": "d1", "kind": "domain", "label": "Sales", "x": 100, "y": 100, "width": 800, "height": 400 },
+                { "id": "a1", "kind": "application", "label": "CRM", "x": 400, "y": y },
+            ]));
+            let with = e.element(&id("a1")).unwrap().clone();
+            e.apply_changes(&id("a1"), with, Some(id("d1")));
+            let a1 = e.laid(&id("a1")).unwrap();
+            assert_eq!(a1.el.parent_id, Some(id("d1")));
+            // Only moved down, below the name, when it was over it.
+            assert_eq!((a1.rect.x, a1.rect.y), (400.0, kept), "{y}");
+        }
+    }
+
+    #[test]
+    fn lists_what_an_element_in_nothing_is_drawn_inside_first_the_innermost_at_the_top() {
+        // Beta holds Core, and a loose process is drawn inside both, and another inside
+        // neither.
+        let mut e = engine_of(serde_json::json!([
+            { "id": "a1", "kind": "application", "label": "Alpha", "x": 0, "y": 0, "width": 300, "height": 200 },
+            { "id": "a2", "kind": "application", "label": "Beta", "x": 400, "y": 0, "width": 600, "height": 400 },
+            { "id": "k1", "kind": "component", "label": "Core", "x": 600, "y": 80, "width": 300, "height": 200, "parentId": "a2" },
+            { "id": "p1", "kind": "process", "label": "Quote", "x": 640, "y": 160 },
+            { "id": "p2", "kind": "process", "label": "Refund", "x": 40, "y": 500 },
+            { "id": "p3", "kind": "process", "label": "Order", "x": 440, "y": 300, "parentId": "a2" },
+        ]));
+        let mut options = |of: &str| {
+            e.select(&id(of));
+            e.parent_options()
+                .into_iter()
+                .map(|(_, label)| label)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            options("p1"),
+            [
+                "Core (Component)",
+                "Beta (Application)",
+                "Alpha (Application)"
+            ]
+        );
+        // The usual order for one drawn inside nothing, or already in an application.
+        let usual = [
+            "Alpha (Application)",
+            "Beta (Application)",
+            "Core (Component)",
+        ];
+        assert_eq!(options("p2"), usual);
+        assert_eq!(options("p3"), usual);
+    }
+
+    #[test]
+    fn an_applications_header_is_just_tall_enough_for_its_name_without_a_description() {
+        let mut e = engine();
+        e.add_at_free_position(ConceptualKind::Application);
+        change(&mut e, "id1", |w| w.description = Some(" ".into()));
+        // The usual 40 px header, as a component's.
+        assert_eq!(e.laid(&id("id1")).unwrap().header, 40.0);
+        change(&mut e, "id1", |w| w.props.font_size = Some(24));
         assert_eq!(e.laid(&id("id1")).unwrap().header, 60.0);
     }
 
