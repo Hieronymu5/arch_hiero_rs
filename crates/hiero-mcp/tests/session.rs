@@ -233,6 +233,12 @@ async fn an_agent_builds_versions_and_exports_a_physical_diagram() {
     )
     .await;
     assert!(ok && zip.exists(), "{wrote}");
+    // It says what the zip holds: the diagram itself, which has no sub diagrams.
+    let (_, held) = wrote.split_once('\n').unwrap();
+    let held: Value = serde_json::from_str(held).unwrap();
+    assert_eq!(held["diagrams"].as_array().unwrap().len(), 1);
+    assert_eq!(held["diagrams"][0]["id"], id);
+    assert!(held["diagrams"][0]["parentId"].is_null());
     let (ok, again) = call(
         &client,
         "export_diagram",

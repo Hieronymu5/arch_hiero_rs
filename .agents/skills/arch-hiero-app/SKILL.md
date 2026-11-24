@@ -28,7 +28,7 @@ The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__
 | `edit_diagram` | A batch of `ops` (below), applied with the type's rules, all or nothing. |
 | `update_diagram_details` | The name, description, colours, line weight (`"thin"`, `"medium"`, or `"thick"`), or canvas size (`canvas_width` up to 12000, `canvas_height` up to 8000, in steps of 20; 2400 × 1600 by default). Make the canvas bigger before placing elements beyond it, since elements are kept on it. |
 | `save_version`, `list_versions` | Record the diagram as a numbered version, with a short description. |
-| `export_diagram` | `svg` or `drawio` (returned as text, and written to `path` if given), or `zip` (the diagram file, to `path`). Add `overwrite: true` to replace a file. |
+| `export_diagram` | `svg` or `drawio` (returned as text, and written to `path` if given), or `zip` (the diagram file, with its sub diagrams, to `path`: the file to give the user when they want to import it back into Arch Hiero, here or on another machine; the result lists the diagrams it holds). Add `overwrite: true` to replace a file. |
 
 `delete_diagram`, `revert_to_version`, and `delete_version` are destructive: use them only when the user asks. The user's diagrams live in that database, so don't touch diagrams you weren't asked about. Before changing an existing diagram, call `save_version` with a description such as "Before agent edits".
 

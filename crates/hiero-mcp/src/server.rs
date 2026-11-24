@@ -12,6 +12,7 @@ use hiero_core::layout::check_canvas;
 use hiero_core::model::{
     DiagramId, DiagramTypeId, LineWeight, validate_description, validate_name,
 };
+use hiero_core::stored::StoredDiagram;
 use hiero_registry::{EditOp, ops, types};
 use hiero_store::{Store, StoreError};
 use rmcp::handler::server::router::tool::ToolRouter;
@@ -700,7 +701,7 @@ impl HieroServer {
     }
 
     #[tool(
-        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A zip of the current diagram holds its sub diagrams too (the diagrams added from its elements, and theirs), which import_diagram brings back under it. A drawio file of the current diagram adds the diagrams its elements open (subDiagramId), then any of its sub diagrams none opens, as more pages, each such element linking to its page. A version's zip or drawio comes alone. A conceptual diagram's svg, and its drawio pages, have a legend to the right of the drawing, lined up with its bottom: what the solid (automated) and dashed (manual) lines and the colours of domains, applications, components, entities, and processes mean, the date of the export, and the version shown (\"Version 3\", or \"Draft after version 3\" when it has changed since). A deployed component diagram's have one too: what the colours of core components and internal and external dependencies mean, and the name of each tech stack logo the diagram shows. Links to deleted diagrams are left out. Won't replace a file unless overwrite is true.",
+        description = "Exports a diagram, or a saved version, as zip (the diagram file, to `path`), svg, or drawio (returned as text, and written to `path` if given). A zip of the current diagram holds its sub diagrams too (the diagrams added from its elements, and theirs), which import_diagram brings back under it; the result lists the diagrams the zip holds (id, name, type, and parentId), the diagram itself first. A drawio file of the current diagram adds the diagrams its elements open (subDiagramId), then any of its sub diagrams none opens, as more pages, each such element linking to its page. A version's zip or drawio comes alone. A conceptual diagram's svg, and its drawio pages, have a legend to the right of the drawing, lined up with its bottom: what the solid (automated) and dashed (manual) lines and the colours of domains, applications, components, entities, and processes mean, the date of the export, and the version shown (\"Version 3\", or \"Draft after version 3\" when it has changed since). A deployed component diagram's have one too: what the colours of core components and internal and external dependencies mean, and the name of each tech stack logo the diagram shows. Links to deleted diagrams are left out. Won't replace a file unless overwrite is true.",
         annotations(read_only_hint = true)
     )]
     pub async fn export_diagram(&self, Parameters(p): Parameters<ExportParams>) -> ToolResult {
@@ -784,7 +785,14 @@ impl HieroServer {
         };
         let mut blocks = Vec::new();
         if let Some(path) = written {
-            blocks.push(ContentBlock::text(format!("Wrote {}.", path.display())));
+            blocks.push(ContentBlock::text(format!(
+                "Wrote {} ({} bytes).",
+                path.display(),
+                bytes.len()
+            )));
+        }
+        if extension == "zip" {
+            blocks.push(ContentBlock::text(zip_contents(&diagram, &subs)));
         }
         if let Some(s) = as_text {
             blocks.push(ContentBlock::text(s));
@@ -941,6 +949,23 @@ fn export_stamp(store: &Store, id: &DiagramId) -> Stamp {
             .status(id)
             .map_or_else(|_| "Draft".into(), hiero_store::Status::version_text),
     )
+}
+
+/// The diagrams a zip holds, the diagram itself first, then each sub diagram with its parent's
+/// id, as JSON, so an agent can tell what importing it brings back.
+fn zip_contents(diagram: &StoredDiagram, subs: &[SubDiagram]) -> String {
+    let held = |d: &StoredDiagram, parent: Option<&DiagramId>| {
+        json!({
+            "id": d.meta.id.as_str(),
+            "name": d.meta.name,
+            "type": d.meta.diagram_type.as_str(),
+            "parentId": parent.map(DiagramId::as_str),
+        })
+    };
+    let diagrams: Vec<_> = std::iter::once(held(diagram, None))
+        .chain(subs.iter().map(|s| held(&s.diagram, Some(&s.parent))))
+        .collect();
+    serde_json::to_string_pretty(&json!({ "diagrams": diagrams })).unwrap_or_default()
 }
 
 /// A diagram's sub diagrams, and theirs, as they are now, each under its parent, with links
