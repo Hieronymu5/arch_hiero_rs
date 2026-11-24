@@ -1933,8 +1933,10 @@ impl App {
                 ui.set_clip_rect(rect);
                 open.editor.ui(ui);
             });
-            // Remembered for the next time it's opened.
-            zoom_memory::remember(ui.ctx(), id, open.editor.zoom_percent());
+            // Remembered for the next time it's opened, unless a scene's camera set it.
+            if let Some(percent) = open.editor.zoom_to_remember() {
+                zoom_memory::remember(ui.ctx(), id, percent);
+            }
         }
         match action {
             Some("back") => self.go_back(),

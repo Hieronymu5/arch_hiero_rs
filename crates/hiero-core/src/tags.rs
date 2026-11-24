@@ -374,9 +374,134 @@ pub fn replace_scenes(
     Ok(())
 }
 
+/// The smallest rect around all of `rects`, or nothing when there are none.
+pub fn bounds_of(rects: impl IntoIterator<Item = Rect>) -> Option<Rect> {
+    rects.into_iter().reduce(|a, b| {
+        let (left, top) = (a.x.min(b.x), a.y.min(b.y));
+        let (right, bottom) = (a.right().max(b.right()), a.bottom().max(b.bottom()));
+        Rect::new(left, top, right - left, bottom - top)
+    })
+}
+
+/// What the camera frames for a scene, given each element it shows: its area, and whether
+/// another scene hides it. What it shows that another scene hides, as what every scene shows,
+/// such as the application they're all in, would keep the camera from moving; all it shows,
+/// when it shows nothing of its own; nothing when it shows nothing.
+pub fn scene_frame(shown: &[(Rect, bool)]) -> Option<Rect> {
+    bounds_of(shown.iter().filter(|(_, own)| *own).map(|(r, _)| *r))
+        .or_else(|| bounds_of(shown.iter().map(|(r, _)| *r)))
+}
+
+/// How a scene is built from the top down, as a line moving down the canvas reaches what it
+/// adds.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SweepPace {
+    /// When the line starts moving down, in seconds.
+    pub start: f64,
+    /// How fast it moves, in canvas pixels a second, unless that would take longer than
+    /// `longest`.
+    pub speed: f64,
+    /// The longest it takes to pass from the topmost item's top to the lowest item's top, in
+    /// seconds.
+    pub longest: f64,
+}
+
+/// A line moving down the canvas, revealing what a scene adds as it passes.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Sweep {
+    /// Where it starts: the topmost item's top.
+    pub top: f64,
+    /// The lowest item's bottom, which it has passed once it's done.
+    pub bottom: f64,
+    /// When it starts moving, in seconds.
+    pub start: f64,
+    /// How fast it moves, in canvas pixels a second.
+    pub speed: f64,
+}
+
+impl Sweep {
+    /// The line over `spans`, each an item's top and bottom: it starts at the topmost top, and
+    /// goes faster on a tall scene, so it never takes longer than `pace.longest` to reach the
+    /// lowest top. Nothing without spans.
+    pub fn over(spans: &[(f64, f64)], pace: SweepPace) -> Option<Self> {
+        let top = spans.iter().map(|s| s.0).reduce(f64::min)?;
+        let last = spans.iter().map(|s| s.0).fold(top, f64::max);
+        let bottom = spans.iter().map(|s| s.1).fold(last, f64::max);
+        Some(Self {
+            top,
+            bottom,
+            start: pace.start,
+            speed: pace.speed.max((last - top) / pace.longest),
+        })
+    }
+
+    /// Where the line is `elapsed` seconds after the scene was shown.
+    pub fn line_at(&self, elapsed: f64) -> f64 {
+        self.top + (elapsed - self.start).max(0.0) * self.speed
+    }
+
+    /// When the line has passed everything, `trail` seconds behind it included, in seconds
+    /// after the scene was shown.
+    pub fn end(&self, trail: f64) -> f64 {
+        self.start + (self.bottom - self.top) / self.speed + trail
+    }
+}
+
+/// Eases in and out: slow to start, fast in the middle, slow to stop.
+pub fn ease_in_out(t: f64) -> f64 {
+    if t < 0.5 {
+        4.0 * t * t * t
+    } else {
+        1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_line_moving_down_reaches_each_item_and_goes_faster_on_a_tall_scene() {
+        let pace = SweepPace {
+            start: 0.5,
+            speed: 500.0,
+            longest: 2.0,
+        };
+        let sweep = Sweep::over(&[(100.0, 200.0), (200.0, 250.0), (400.0, 460.0)], pace).unwrap();
+        // At 500 px a second, from the topmost top at 100.
+        assert_eq!(
+            (sweep.top, sweep.bottom, sweep.speed),
+            (100.0, 460.0, 500.0)
+        );
+        assert_eq!(sweep.line_at(0.2), 100.0);
+        assert!((sweep.line_at(0.7) - 200.0).abs() < 1e-9);
+        assert!((sweep.end(0.0) - (0.5 + 0.72)).abs() < 1e-9);
+        // 4000 px in 2 s: 2000 px a second.
+        let tall = Sweep::over(&[(0.0, 100.0), (4000.0, 4100.0)], pace).unwrap();
+        assert_eq!(tall.speed, 2000.0);
+        assert!((tall.line_at(2.5) - 4000.0).abs() < 1e-9);
+        assert_eq!(Sweep::over(&[], pace), None);
+    }
+
+    #[test]
+    fn a_scene_frames_what_it_shows_of_its_own() {
+        let a = Rect::new(100.0, 50.0, 40.0, 40.0);
+        let b = Rect::new(20.0, 200.0, 60.0, 30.0);
+        assert_eq!(bounds_of([a, b]), Some(Rect::new(20.0, 50.0, 120.0, 180.0)));
+        assert_eq!(bounds_of([]), None);
+        // Only what another scene hides, when there is any; otherwise all it shows.
+        assert_eq!(scene_frame(&[(a, true), (b, false)]), Some(a));
+        assert_eq!(scene_frame(&[(a, false), (b, false)]), bounds_of([a, b]));
+        assert_eq!(scene_frame(&[]), None);
+    }
+
+    #[test]
+    fn easing_starts_and_stops_slowly() {
+        assert_eq!(ease_in_out(0.0), 0.0);
+        assert_eq!(ease_in_out(0.5), 0.5);
+        assert_eq!(ease_in_out(1.0), 1.0);
+        assert!(ease_in_out(0.1) < 0.1 && ease_in_out(0.9) > 0.9);
+    }
 
     #[test]
     fn the_leftmost_section_over_what_a_scene_shows_of_its_tags_is_found() {

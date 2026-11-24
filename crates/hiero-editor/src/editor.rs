@@ -1303,7 +1303,10 @@ impl<T: DiagramView> Editor<T> {
         // While viewing, a drawing smaller than the window sits in its top-left corner.
         self.view.centred = !self.viewing;
         self.view.clamp(rect);
-        if std::mem::take(&mut self.tag.reveal_section) {
+        // The camera framing a scene stands in for scrolling to its section.
+        let now = ui.input(|i| i.time);
+        let framing = self.move_camera(ui.ctx(), area, rect, now);
+        if std::mem::take(&mut self.tag.reveal_section) && !framing {
             self.reveal_scene_section(rect);
         }
         let painter = ui.painter_at(rect);
@@ -1385,7 +1388,6 @@ impl<T: DiagramView> Editor<T> {
             Drag::None | Drag::Pan { .. } | Drag::Select { .. }
         );
         let displayed = self.displayed().into_owned();
-        let now = ui.input(|i| i.time);
         self.tick_scenes(ui.ctx(), now);
         let hidden = self.tag_hidden();
         let scene = match self.paint_tagged(&painter, xf, &displayed, dragging, dark, &hidden, now)
@@ -2405,6 +2407,8 @@ pub trait DiagramEditor {
     fn apply_tag(&mut self, id: Option<&str>);
     /// How large the canvas is drawn, as a whole percentage.
     fn zoom_percent(&self) -> u32;
+    /// The zoom to remember as the user's own: none while it's the one a scene's camera set.
+    fn zoom_to_remember(&self) -> Option<u32>;
     /// Whether there's further to zoom in, and further to zoom out.
     fn can_zoom(&self) -> (bool, bool);
     fn announcement(&self) -> &str;
@@ -2509,6 +2513,10 @@ impl<T: DiagramView> DiagramEditor for Editor<T> {
 
     fn zoom_percent(&self) -> u32 {
         Editor::zoom_percent(self)
+    }
+
+    fn zoom_to_remember(&self) -> Option<u32> {
+        Editor::zoom_to_remember(self)
     }
 
     fn can_zoom(&self) -> (bool, bool) {

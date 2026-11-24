@@ -7,8 +7,10 @@
 //! each visit starts with all of them shown.
 //!
 //! While viewing a diagram with scenes, a Scenes panel takes the tags' place: Previous, Play or
-//! Pause, and Next, then the scenes. What a scene doesn't show stays very faint, and fades in
-//! when a later scene shows it; arrows show once both their ends do.
+//! Pause, and Next, then the scenes. What a scene doesn't show stays very faint; arrows show
+//! once both their ends do. As the scenes step on, the camera eases to frame what the scene
+//! adds, what it takes away fades, and what it brings in is built from the top down, appearing
+//! as a line moving down the canvas passes it. Scrolling or zooming stops the camera.
 
 use std::collections::BTreeSet;
 
@@ -19,13 +21,14 @@ use hiero_core::legend::Stamp;
 use hiero_core::model::ElementId;
 use hiero_core::scene::Scene;
 use hiero_core::tags::{
-    DiagramScene, DiagramTag, ShownElement, hidden_element_ids, hidden_in_scene,
-    leftmost_active_section,
+    DiagramScene, DiagramTag, ShownElement, Sweep, SweepPace, ease_in_out, hidden_element_ids,
+    hidden_in_scene, leftmost_active_section, scene_frame,
 };
 
 use super::{DiagramRequest, DiagramView, Editor};
 use crate::paint::{Transform, paint_scene_hiding};
 use crate::theme::{choice_button, icon_button, palette};
+use crate::view::View;
 use crate::widgets::heading;
 
 /// How faint an element its tags hide is drawn while editing, and while viewing a scene that
@@ -34,8 +37,20 @@ const EDIT_FAINT: f32 = 0.3;
 const SCENE_FAINT: f32 = 0.08;
 /// How long each scene shows while the scenes play, in seconds.
 const SCENE_SECONDS: f64 = 3.0;
-/// How long what a scene shows takes to fade in, in seconds.
-const FADE_SECONDS: f64 = 0.8;
+/// How long the camera takes to frame a scene, in seconds.
+const CAMERA_SECONDS: f64 = 0.9;
+/// How a scene is built from the top down: the line starts moving half a second in, at 350
+/// canvas pixels a second, or faster so it takes at most 1.6 seconds.
+const SWEEP: SweepPace = SweepPace {
+    start: 0.5,
+    speed: 350.0,
+    longest: 1.6,
+};
+/// How long what the line reaches takes to appear fully, in seconds, and in how many steps.
+const APPEAR_SECONDS: f64 = 0.35;
+const APPEAR_STEPS: u8 = 6;
+/// How long what a scene takes away takes to fade, in seconds.
+const LEAVE_SECONDS: f64 = 0.3;
 /// The size of the panel's quiet icon buttons.
 const ICON_BUTTON: f32 = 24.0;
 
@@ -52,13 +67,64 @@ pub(super) struct TagState {
     scene: usize,
     /// While the scenes play: when the scene showing started showing, in egui's time.
     playing: Option<f64>,
-    /// While what a scene shows fades in: the tags hidden before, and when it started.
-    fade: Option<(BTreeSet<String>, f64)>,
+    /// While the scenes step from one to another: what's shown changing.
+    step: Option<Step>,
+    /// What the camera is to frame, once the canvas is drawn.
+    frame: Option<Frame>,
+    /// The camera's move under way.
+    camera: Option<Camera>,
+    /// The view the camera last set, to tell when the user moves it, which stops the camera.
+    camera_view: Option<View>,
     /// Set when a scene is shown, until the section it's about is scrolled into view.
     pub reveal_section: bool,
     /// What's drawn for the content and the elements hidden: the elements shown, with the
-    /// arrows between them, and those hidden. At most two, for a fade's two ends.
+    /// arrows between them, and those hidden. At most three, for a step's two ends and what
+    /// both show.
     pub cache: Vec<(u64, BTreeSet<ElementId>, Scene, Scene)>,
+}
+
+/// The scenes stepping from one to another.
+#[derive(Clone)]
+struct Step {
+    /// The tags hidden before.
+    before: BTreeSet<String>,
+    /// When it started, in egui's time.
+    start: f64,
+    /// The line building what the scene adds, if it adds anything.
+    sweep: Option<Sweep>,
+}
+
+/// What the camera frames: an area of the canvas, or all that's drawn, legend and all.
+#[derive(Debug, Clone, Copy)]
+enum Frame {
+    Area(Rect),
+    All,
+}
+
+/// The camera easing the view from one part of the canvas to another.
+#[derive(Debug, Clone, Copy)]
+struct Camera {
+    from: Rect,
+    to: Rect,
+    start: f64,
+}
+
+/// Between `a` and `b`, `k` of the way.
+fn between(a: Rect, b: Rect, k: f64) -> Rect {
+    let at = |x: f64, y: f64| x + (y - x) * k;
+    Rect::new(
+        at(a.x, b.x),
+        at(a.y, b.y),
+        at(a.width, b.width),
+        at(a.height, b.height),
+    )
+}
+
+/// An arrow's top and bottom between elements at `a` and `b`: between their facing sides when
+/// one is above the other, else across where they overlap.
+fn arrow_span(a: Rect, b: Rect) -> (f64, f64) {
+    let (bottom, top) = (a.bottom().min(b.bottom()), a.y.max(b.y));
+    (bottom.min(top), bottom.max(top))
 }
 
 impl TagState {
@@ -71,7 +137,9 @@ impl TagState {
     pub fn viewing_changed(&mut self) {
         self.scene = 0;
         self.playing = None;
-        self.fade = None;
+        self.step = None;
+        self.frame = None;
+        self.camera = None;
         self.applying = None;
         self.cache.clear();
         // Viewing starts at the first scene, whose section is scrolled into view.
@@ -218,7 +286,7 @@ impl<T: DiagramView> Editor<T> {
             state.applying = None;
         }
         state.scene = state.scene.min(scenes.len().saturating_sub(1));
-        state.fade = None;
+        state.step = None;
         state.cache.clear();
     }
 
@@ -372,13 +440,14 @@ impl<T: DiagramView> Editor<T> {
 
     // Scenes
 
-    /// Shows the scene at `index`, fading in what it shows that the one before didn't.
+    /// Shows the scene at `index`. Stepping from another, the camera frames what it adds, and
+    /// what it brings in is built from the top down.
     fn show_scene(&mut self, index: usize, now: f64) {
         let Some(scene) = self.tag.scenes.get(index) else {
             return;
         };
+        let stepped = self.active_scene().is_some_and(|(at, _)| at != index);
         let before = self.hidden_tag_ids();
-        let changed = self.active_scene().is_none_or(|(at, _)| at != index);
         self.eng.announcement = format!(
             "Scene {} of {}: {}.",
             index + 1,
@@ -386,10 +455,123 @@ impl<T: DiagramView> Editor<T> {
             scene.name
         );
         self.tag.scene = index;
-        if changed {
-            self.tag.fade = Some((before, now));
-        }
         self.tag.reveal_section = true;
+        if stepped {
+            let sweep = self.sweep_from(&self.hidden_by(&before));
+            self.tag.step = Some(Step {
+                before,
+                start: now,
+                sweep,
+            });
+            self.tag.frame = self.scene_frame();
+        }
+    }
+
+    /// What the camera frames for the scene showing: all that's drawn when it hides nothing,
+    /// else what it shows that another scene hides, or all it shows when that's nothing.
+    fn scene_frame(&self) -> Option<Frame> {
+        let hidden = self.tag_hidden();
+        if hidden.is_empty() {
+            return Some(Frame::All);
+        }
+        let somewhere_hidden: BTreeSet<ElementId> = self
+            .tag
+            .scenes
+            .iter()
+            .flat_map(|scene| self.hidden_by(&hidden_in_scene(&self.tag.tags, scene)))
+            .collect();
+        let shown: Vec<(Rect, bool)> = self
+            .eng
+            .layout()
+            .iter()
+            .filter(|e| !hidden.contains(e.id()))
+            .map(|e| {
+                (
+                    T::drawn_rect(&self.eng, e),
+                    somewhere_hidden.contains(e.id()),
+                )
+            })
+            .collect();
+        scene_frame(&shown).map(Frame::Area)
+    }
+
+    /// The line that builds what the scene showing brings in, coming from one that hid
+    /// `before`: the elements it shows that were hidden, and the arrows it draws that weren't.
+    fn sweep_from(&self, before: &BTreeSet<ElementId>) -> Option<Sweep> {
+        let hidden = self.tag_hidden();
+        let layout = self.eng.layout();
+        let rect_of = |id: &ElementId| {
+            layout
+                .iter()
+                .find(|e| e.id() == id)
+                .map(|e| T::drawn_rect(&self.eng, e))
+        };
+        let mut spans: Vec<(f64, f64)> = layout
+            .iter()
+            .filter(|e| before.contains(e.id()) && !hidden.contains(e.id()))
+            .map(|e| {
+                let r = T::drawn_rect(&self.eng, e);
+                (r.y, r.bottom())
+            })
+            .collect();
+        for c in self.eng.connections() {
+            let ends = [&c.source_id, &c.target_id];
+            let drawn_now = ends.iter().all(|id| !hidden.contains(*id));
+            let drawn_before = ends.iter().all(|id| !before.contains(*id));
+            if drawn_now
+                && !drawn_before
+                && let (Some(a), Some(b)) = (rect_of(&c.source_id), rect_of(&c.target_id))
+            {
+                spans.push(arrow_span(a, b));
+            }
+        }
+        Sweep::over(&spans, SWEEP)
+    }
+
+    /// Moves the camera, called each frame once the canvas's `area` (all that's drawn) and
+    /// `viewport` are known: starts framing what a scene asked for, eases on, and stops when
+    /// the user has scrolled or zoomed since. Returns whether it's framing, so the section
+    /// needn't be scrolled into view.
+    pub(super) fn move_camera(
+        &mut self,
+        ctx: &egui::Context,
+        area: Rect,
+        viewport: egui::Rect,
+        now: f64,
+    ) -> bool {
+        if self.tag.camera_view.is_some_and(|v| v != self.view) {
+            self.tag.camera = None;
+            self.tag.camera_view = None;
+        }
+        if let Some(frame) = self.tag.frame.take() {
+            let target = match frame {
+                Frame::Area(r) => r,
+                Frame::All => area,
+            };
+            self.tag.camera = View::framing(target, viewport).map(|to| Camera {
+                from: self.view.shown(viewport),
+                to,
+                start: now,
+            });
+        }
+        let Some(camera) = self.tag.camera else {
+            return false;
+        };
+        let t = ((now - camera.start) / CAMERA_SECONDS).clamp(0.0, 1.0);
+        self.view
+            .show(between(camera.from, camera.to, ease_in_out(t)), viewport);
+        self.tag.camera_view = Some(self.view);
+        if t < 1.0 {
+            ctx.request_repaint();
+        } else {
+            self.tag.camera = None;
+        }
+        true
+    }
+
+    /// The zoom to remember as the user's own: none while it's the one the camera set.
+    pub fn zoom_to_remember(&self) -> Option<u32> {
+        (self.tag.camera_view.map(|v| v.zoom) != Some(self.view.zoom)).then(|| self.zoom_percent())
     }
 
     /// Scrolls the leftmost section the scene showing is active in into view, if it isn't
@@ -445,7 +627,7 @@ impl<T: DiagramView> Editor<T> {
         self.tag.playing = Some(now);
     }
 
-    /// Steps to the next scene while they play, stopping at the last; ends a fade that's
+    /// Steps to the next scene while they play, stopping at the last; ends a step that's
     /// over; and asks for the frames they need.
     pub(super) fn tick_scenes(&mut self, ctx: &egui::Context, now: f64) {
         if let Some(since) = self.tag.playing {
@@ -464,9 +646,13 @@ impl<T: DiagramView> Editor<T> {
                 ));
             }
         }
-        if let Some((_, start)) = &self.tag.fade {
-            if now - start >= FADE_SECONDS {
-                self.tag.fade = None;
+        if let Some(step) = &self.tag.step {
+            let end = step
+                .sweep
+                .map_or(0.0, |s| s.end(APPEAR_SECONDS))
+                .max(LEAVE_SECONDS);
+            if now - step.start >= end {
+                self.tag.step = None;
             } else {
                 ctx.request_repaint();
             }
@@ -519,7 +705,7 @@ impl<T: DiagramView> Editor<T> {
             legend.add_to_canvas(&mut shown);
         }
         if !dragging {
-            if self.tag.cache.len() >= 2 {
+            if self.tag.cache.len() >= 3 {
                 self.tag.cache.remove(0);
             }
             self.tag
@@ -542,12 +728,12 @@ impl<T: DiagramView> Editor<T> {
         hidden: &BTreeSet<ElementId>,
         now: f64,
     ) -> Option<Scene> {
-        let fade = self
+        let step = self
             .tag
-            .fade
+            .step
             .clone()
             .filter(|_| self.active_scene().is_some());
-        if hidden.is_empty() && fade.is_none() {
+        if hidden.is_empty() && step.is_none() {
             return None;
         }
         // Gone while viewing without scenes, and faint otherwise.
@@ -559,9 +745,8 @@ impl<T: DiagramView> Editor<T> {
             None
         };
         let now_picture = self.picture(hidden, displayed, dragging);
-        // Each picture's elements shown, at `opacity`, and with `faint`, those it hides. A fade
-        // draws the hidden ones of only one of its ends, so those hidden in both stay as faint
-        // as ever rather than being drawn twice.
+        // Each picture's elements shown, at `opacity`, and with `faint`, those it hides. A step
+        // draws faint only what's hidden at either end, once, so it stays as faint as ever.
         // Leaving out the text typed over in place.
         let hide = self.inline_hidden();
         let draw = |editor: &mut Self,
@@ -574,24 +759,58 @@ impl<T: DiagramView> Editor<T> {
                 paint_scene_hiding(painter, hidden, xf, cache, faint, dark, &hide);
             }
         };
-        match fade {
-            Some((before_tags, start)) => {
-                #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
-                let t = ((now - start) / FADE_SECONDS).clamp(0.0, 1.0) as f32;
-                let before = self.hidden_by(&before_tags);
-                let before_picture = self.picture(&before, displayed, dragging);
-                if hidden.is_subset(&before) {
-                    // What this scene adds fades in over the one before, which already draws
-                    // faint everything this one still hides.
-                    draw(self, &before_picture, 1.0, true);
-                    draw(self, &now_picture, t, false);
-                } else if before.is_subset(hidden) {
-                    // What the one before showed and this one doesn't fades out, over this
-                    // one, which draws faint everything either hides.
-                    draw(self, &now_picture, 1.0, true);
+        match step {
+            Some(step) => {
+                let elapsed = now - step.start;
+                let before = self.hidden_by(&step.before);
+                // What both show, with faint what either hides.
+                let either: BTreeSet<ElementId> = before.union(hidden).cloned().collect();
+                let both = self.picture(&either, displayed, dragging);
+                draw(self, &both, 1.0, true);
+                // What the one before showed and this one doesn't fades.
+                if !hidden.is_subset(&before) {
+                    #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
+                    let t = (elapsed / LEAVE_SECONDS).clamp(0.0, 1.0) as f32;
+                    let before_picture = self.picture(&before, displayed, dragging);
                     draw(self, &before_picture, 1.0 - t, false);
-                } else {
-                    draw(self, &now_picture, 1.0, true);
+                }
+                // What this one brings in appears as the line moving down passes it.
+                if let Some(sweep) = step.sweep {
+                    let line = sweep.line_at(elapsed);
+                    let trail = APPEAR_SECONDS * sweep.speed;
+                    let clip = painter.clip_rect();
+                    let steps = f64::from(APPEAR_STEPS);
+                    for i in 0..=APPEAR_STEPS {
+                        // The band `i` steps of the trail above the line; the last, all above.
+                        let i = f64::from(i);
+                        let (top, bottom) = if i < steps {
+                            (line - trail * (i + 1.0) / steps, line - trail * i / steps)
+                        } else {
+                            (f64::NEG_INFINITY, line - trail)
+                        };
+                        #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
+                        let opacity = ((i + 1.0) / (steps + 1.0)) as f32;
+                        let (top, bottom) = (
+                            xf.pos(hiero_core::geometry::Point::new(0.0, top.max(-1e6)))
+                                .y,
+                            xf.pos(hiero_core::geometry::Point::new(0.0, bottom)).y,
+                        );
+                        if bottom <= top {
+                            continue;
+                        }
+                        let band = egui::Rect::from_x_y_ranges(clip.x_range(), top..=bottom);
+                        let painter = painter.with_clip_rect(band);
+                        let hide = &hide;
+                        paint_scene_hiding(
+                            &painter,
+                            &now_picture.0,
+                            xf,
+                            &mut self.cache,
+                            if i < steps { opacity } else { 1.0 },
+                            dark,
+                            hide,
+                        );
+                    }
                 }
             }
             None => draw(self, &now_picture, 1.0, true),
@@ -799,5 +1018,30 @@ impl<T: DiagramView> Editor<T> {
         if let Some(i) = go {
             self.go_to_scene(i, now);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_arrow_spans_between_facing_sides_or_across_the_overlap() {
+        let above = Rect::new(0.0, 0.0, 100.0, 60.0);
+        let below = Rect::new(0.0, 200.0, 100.0, 60.0);
+        assert_eq!(arrow_span(above, below), (60.0, 200.0));
+        assert_eq!(arrow_span(below, above), (60.0, 200.0));
+        // Side by side, overlapping from 30 to 60: across the overlap.
+        let beside = Rect::new(300.0, 30.0, 100.0, 60.0);
+        assert_eq!(arrow_span(above, beside), (30.0, 60.0));
+    }
+
+    #[test]
+    fn the_camera_eases_between_two_areas() {
+        let a = Rect::new(0.0, 0.0, 100.0, 50.0);
+        let b = Rect::new(100.0, 100.0, 300.0, 150.0);
+        assert_eq!(between(a, b, 0.0), a);
+        assert_eq!(between(a, b, 1.0), b);
+        assert_eq!(between(a, b, 0.5), Rect::new(50.0, 50.0, 200.0, 100.0));
     }
 }

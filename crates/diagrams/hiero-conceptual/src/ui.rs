@@ -366,6 +366,8 @@ mod tests {
         copied: Option<String>,
         /// The pointer's look after the last frame.
         cursor: egui::CursorIcon,
+        /// The time the next frame is drawn at, in seconds, when it's set.
+        time: Option<f64>,
     }
 
     impl Window {
@@ -399,6 +401,7 @@ mod tests {
                 salt,
                 copied: None,
                 cursor: egui::CursorIcon::Default,
+                time: None,
             };
             window.frame(vec![], Modifiers::NONE);
             window
@@ -414,6 +417,7 @@ mod tests {
                     .into_iter()
                     .chain(events)
                     .collect(),
+                time: self.time,
                 ..RawInput::default()
             };
             let editor = &mut self.editor;
@@ -967,19 +971,105 @@ mod tests {
             &[scene("explore", "e"), scene("travel", "t")],
         );
         w.editor.set_viewing(true);
+        w.time = Some(0.0);
         w.frame(vec![], Modifiers::NONE);
         let canvas = w.ctx.read_response(w.salt.with("canvas")).unwrap().rect;
         let shown = |w: &Window, x: f64| {
-            let at = w.screen(Point::new(x, 60.0), w.editor.view().scroll);
+            let at = w.editor.view().transform(canvas).pos(Point::new(x, 60.0));
             canvas.x_range().contains(at.x)
         };
         // The first scene's header is in view as it is.
         assert!(shown(&w, 40.0));
-        // The second's, the section over what it shows of its tag, comes into view.
+        // The second's, the section over what it shows of its tag, comes into view, once the
+        // camera has framed what the scene adds.
         assert!(!shown(&w, 2600.0));
         w.editor.go_to_scene(1, 0.0);
         w.frame(vec![], Modifiers::NONE);
+        w.time = Some(1.0);
+        w.frame(vec![], Modifiers::NONE);
         assert!(shown(&w, 2600.0) && shown(&w, 3000.0));
+    }
+
+    /// Billing in the first scene and Paying in the second, with a server and an archive in no
+    /// tag, so in every scene, while viewing at time 0.
+    fn scene_window() -> Window {
+        use hiero_core::tags::{DiagramScene, DiagramTag};
+        let mut w = Window::with(serde_json::json!([
+            { "id": "b", "kind": "application", "label": "Billing", "x": 400, "y": 0,
+              "tags": ["bill"] },
+            { "id": "s", "kind": "application", "label": "Server", "x": 400, "y": 300 },
+            { "id": "p", "kind": "application", "label": "Paying", "x": 1400, "y": 900,
+              "tags": ["pay"] },
+            { "id": "x", "kind": "application", "label": "Archive", "x": 2600, "y": 1800 },
+        ]));
+        let tag = |id: &str| DiagramTag {
+            id: id.into(),
+            name: id.into(),
+        };
+        let scene = |id: &str, tags: &[&str]| DiagramScene {
+            id: id.into(),
+            name: id.into(),
+            tags: tags.iter().map(|t| (*t).to_owned()).collect(),
+        };
+        w.editor.set_tags(
+            &[tag("bill"), tag("pay")],
+            &[
+                scene("billing", &["bill"]),
+                scene("paying", &["pay"]),
+                scene("all", &["bill", "pay"]),
+            ],
+        );
+        w.editor.set_viewing(true);
+        w.editor.set_zoom_percent(100);
+        w.time = Some(0.0);
+        w.frame(vec![], Modifiers::NONE);
+        w
+    }
+
+    #[test]
+    fn stepping_on_frames_what_a_scene_adds_easing_there() {
+        let mut w = scene_window();
+        let canvas = w.ctx.read_response(w.salt.with("canvas")).unwrap().rect;
+        let view_of = |w: &Window| w.editor.view();
+        // The first scene is shown as it is.
+        let first = view_of(&w);
+        assert_eq!(first.zoom, 1.0);
+        assert_eq!(w.editor.zoom_to_remember(), Some(100));
+        // Paying shows the server too, which every scene shows: only Paying is framed, at
+        // the most, 150%, in the middle of the view.
+        w.editor.go_to_scene(1, 0.0);
+        w.frame(vec![], Modifiers::NONE);
+        w.time = Some(0.45);
+        w.frame(vec![], Modifiers::NONE);
+        let midway = view_of(&w).zoom;
+        assert!(midway > 1.0 && midway < 1.5, "{midway}");
+        w.time = Some(1.0);
+        w.frame(vec![], Modifiers::NONE);
+        let framed = view_of(&w);
+        assert!((framed.zoom - 1.5).abs() < 1e-6, "{framed:?}");
+        let paying = w.editor.eng.laid(&"p".into()).unwrap().rect.center();
+        let at = framed.transform(canvas).pos(paying);
+        assert!((at - canvas.center()).length() < 1.0, "{at:?} {canvas:?}");
+        // The camera's zoom isn't kept as the user's own.
+        assert_eq!(w.editor.zoom_to_remember(), None);
+    }
+
+    #[test]
+    fn scrolling_or_zooming_stops_the_camera() {
+        let mut w = scene_window();
+        w.editor.go_to_scene(2, 0.0);
+        w.frame(vec![], Modifiers::NONE);
+        w.time = Some(0.3);
+        w.frame(vec![], Modifiers::NONE);
+        // The toolbar zooms in a step, and the camera leaves it there.
+        w.editor.zoom_by(1);
+        let zoomed = w.editor.view().zoom;
+        w.time = Some(0.6);
+        w.frame(vec![], Modifiers::NONE);
+        w.time = Some(1.0);
+        w.frame(vec![], Modifiers::NONE);
+        assert_eq!(w.editor.view().zoom, zoomed);
+        assert!(w.editor.zoom_to_remember().is_some());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! The canvas's view: how far it's zoomed and scrolled.
 
 use egui::{Pos2, Rect, Vec2};
-use hiero_core::geometry::{DEFAULT_CANVAS, Size};
+use hiero_core::geometry::{DEFAULT_CANVAS, Rect as WorldRect, Size};
 use hiero_core::layout::canvas_rect;
 
 use crate::paint::Transform;
@@ -13,6 +13,11 @@ pub const ZOOM_MAX: f32 = 2.00;
 pub const ZOOM_DEFAULT: f32 = 1.00;
 /// The step of the zoom keys and the toolbar's zoom buttons.
 pub const ZOOM_STEP: f32 = 0.10;
+
+/// The most a scene's camera zooms in, so a small scene isn't blown up.
+pub const FRAME_MAX: f32 = 1.50;
+/// How far what the camera frames is kept from the view's edges, in screen points.
+const FRAME_MARGIN: f32 = 40.0;
 
 /// Space kept around the paper when scrolled to an edge: none, so the paper meets the panels.
 const MARGIN: f32 = 0.0;
@@ -141,6 +146,44 @@ impl View {
         self.scroll.y - before
     }
 
+    /// The part of the canvas `viewport` shows, in canvas pixels.
+    pub fn shown(&self, viewport: Rect) -> WorldRect {
+        let xf = self.transform(viewport);
+        let (min, max) = (xf.world(viewport.min), xf.world(viewport.max));
+        WorldRect::new(min.x, min.y, max.x - min.x, max.y - min.y)
+    }
+
+    /// The part of the canvas that shows `rect` whole and in the middle of `viewport`, as large
+    /// as fits, up to `FRAME_MAX`.
+    pub fn framing(rect: WorldRect, viewport: Rect) -> Option<WorldRect> {
+        let (width, height) = (viewport.width(), viewport.height());
+        if width <= 0.0 || height <= 0.0 || rect.width <= 0.0 || rect.height <= 0.0 {
+            return None;
+        }
+        #[expect(clippy::cast_possible_truncation, reason = "canvas pixels")]
+        let fit = ((width - FRAME_MARGIN * 2.0) / rect.width as f32)
+            .min((height - FRAME_MARGIN * 2.0) / rect.height as f32);
+        let zoom = f64::from(fit.clamp(ZOOM_MIN, FRAME_MAX));
+        let (shown_w, shown_h) = (f64::from(width) / zoom, f64::from(height) / zoom);
+        Some(WorldRect::new(
+            rect.x + rect.width / 2.0 - shown_w / 2.0,
+            rect.y + rect.height / 2.0 - shown_h / 2.0,
+            shown_w,
+            shown_h,
+        ))
+    }
+
+    /// Zooms and scrolls so `viewport` shows `area` of the canvas, as far as the paper allows.
+    pub fn show(&mut self, area: WorldRect, viewport: Rect) {
+        #[expect(clippy::cast_possible_truncation, reason = "a zoom")]
+        let zoom = (f64::from(viewport.width()) / area.width) as f32;
+        self.zoom = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
+        #[expect(clippy::cast_possible_truncation, reason = "canvas pixels")]
+        let corner = Vec2::new(area.x as f32, area.y as f32);
+        self.scroll = (self.corner - corner) * self.zoom;
+        self.clamp(viewport);
+    }
+
     /// Zooms to `zoom`, keeping the world point under `anchor` (a screen position) where it is.
     pub fn zoom_around(&mut self, zoom: f32, anchor: Pos2, viewport: Rect) {
         let zoom = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
@@ -184,6 +227,28 @@ mod tests {
         view.clamp(viewport);
         let corner = hiero_core::geometry::Point::new(600.0, 200.0);
         assert_eq!(view.transform(viewport).pos(corner), viewport.min);
+    }
+
+    #[test]
+    fn the_camera_frames_an_area_in_the_middle_zoomed_in_no_further_than_150_percent() {
+        let viewport = Rect::from_min_size(Pos2::new(160.0, 40.0), Vec2::new(800.0, 600.0));
+        let mut view = View::default();
+        view.clamp(viewport);
+        let area = View::framing(WorldRect::new(400.0, 200.0, 360.0, 260.0), viewport).unwrap();
+        view.show(area, viewport);
+        // It would fit at 200%, 40 points from the edges, but stops at 150%.
+        assert!((view.zoom - 1.5).abs() < 1e-6);
+        // Its middle, at 580, 330, in the view's middle.
+        let middle = view
+            .transform(viewport)
+            .pos(hiero_core::geometry::Point::new(580.0, 330.0));
+        assert!((middle - viewport.center()).length() < 0.01, "{middle:?}");
+        let shown = view.shown(viewport);
+        assert!((shown.width - 800.0 / 1.5).abs() < 0.01, "{shown:?}");
+        // A large area is zoomed out to fit whole: 720 points across for 2000.
+        let all = View::framing(WorldRect::new(0.0, 0.0, 2000.0, 1000.0), viewport).unwrap();
+        view.show(all, viewport);
+        assert!((view.zoom - 0.36).abs() < 1e-6);
     }
 
     #[test]
