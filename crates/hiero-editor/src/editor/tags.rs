@@ -9,8 +9,9 @@
 //! While viewing a diagram with scenes, a Scenes panel takes the tags' place: Previous, Play or
 //! Pause, and Next, then the scenes. What a scene doesn't show stays very faint; arrows show
 //! once both their ends do. As the scenes step on, the camera eases to frame what the scene
-//! adds, what it takes away fades, and what it brings in is built from the top down, appearing
-//! as a line moving down the canvas passes it. Scrolling or zooming stops the camera.
+//! adds, what it takes away fades, and what it brings in is built from the top down: each
+//! element fades in as a line moving down the canvas reaches it, and each arrow is drawn down
+//! as the line passes. Scrolling or zooming stops the camera.
 
 use std::collections::BTreeSet;
 
@@ -21,8 +22,8 @@ use hiero_core::legend::Stamp;
 use hiero_core::model::ElementId;
 use hiero_core::scene::Scene;
 use hiero_core::tags::{
-    DiagramScene, DiagramTag, ShownElement, Sweep, SweepPace, ease_in_out, hidden_element_ids,
-    hidden_in_scene, leftmost_active_section, scene_frame,
+    DiagramScene, DiagramTag, ShownElement, Sweep, SweepPace, ease, ease_in_out,
+    hidden_element_ids, hidden_in_scene, leftmost_active_section, scene_frame,
 };
 
 use super::{DiagramRequest, DiagramView, Editor};
@@ -46,9 +47,8 @@ const SWEEP: SweepPace = SweepPace {
     speed: 350.0,
     longest: 1.6,
 };
-/// How long what the line reaches takes to appear fully, in seconds, and in how many steps.
+/// How long an element the line reaches takes to fade in, in seconds.
 const APPEAR_SECONDS: f64 = 0.35;
-const APPEAR_STEPS: u8 = 6;
 /// How long what a scene takes away takes to fade, in seconds.
 const LEAVE_SECONDS: f64 = 0.3;
 /// The size of the panel's quiet icon buttons.
@@ -91,10 +91,21 @@ struct Step {
     start: f64,
     /// The line building what the scene adds, if it adds anything.
     sweep: Option<Sweep>,
-    /// What only the scene before draws, which fades, and what only this one draws, which the
-    /// line builds, once worked out: the elements and arrows changing, without what both
-    /// draw, such as a container both show, which drawn again would hide what's faint in it.
-    changes: Option<(Scene, Scene)>,
+    /// What changes, once worked out.
+    changes: Option<Changes>,
+}
+
+/// What a step changes, each drawn on its own, so what both scenes draw, such as a container
+/// both show, isn't drawn again over what's faint in it.
+struct Changes {
+    /// The elements the scene takes away, which fade together; their arrows go at once.
+    leaving: Scene,
+    /// Each element the scene brings in, with its top, which fades in whole as the line
+    /// reaches it.
+    entering: Vec<(f64, Scene)>,
+    /// The arrows the scene brings in, with their connectors and text, drawn down as the line
+    /// passes.
+    arrows: Scene,
 }
 
 /// What the camera frames: an area of the canvas, or all that's drawn, legend and all.
@@ -443,6 +454,51 @@ impl<T: DiagramView> Editor<T> {
 
     // Scenes
 
+    /// What a step from a scene hiding `before` to one hiding `hidden` changes: the elements it
+    /// takes away, those it brings in, each on its own, and the arrows it brings in, which are
+    /// what's left of the scene coming in, `now`, without what both draw, `both`, and those
+    /// elements.
+    fn changes(
+        &self,
+        before: &BTreeSet<ElementId>,
+        hidden: &BTreeSet<ElementId>,
+        displayed: &[Laid<T>],
+        both: &Scene,
+        now: &Scene,
+    ) -> Changes {
+        let leaving: Vec<Laid<T>> = displayed
+            .iter()
+            .filter(|e| hidden.contains(e.id()) && !before.contains(e.id()))
+            .cloned()
+            .collect();
+        let leaving_ids: BTreeSet<&ElementId> = leaving.iter().map(Laid::id).collect();
+        let entering: Vec<(f64, Scene)> = displayed
+            .iter()
+            .filter(|e| before.contains(e.id()) && !hidden.contains(e.id()))
+            .map(|e| {
+                let alone = self.eng.only(|id| id == e.id(), false);
+                (
+                    T::drawn_rect(&self.eng, e).y,
+                    T::scene(&alone, std::slice::from_ref(e), None),
+                )
+            })
+            .collect();
+        let arrows = entering
+            .iter()
+            .fold(now.without(both), |arrows, (_, element)| {
+                arrows.without(element)
+            });
+        Changes {
+            leaving: T::scene(
+                &self.eng.only(|id| leaving_ids.contains(id), false),
+                &leaving,
+                None,
+            ),
+            entering,
+            arrows,
+        }
+    }
+
     /// Shows the scene at `index`. Stepping from another, the camera frames what it adds, and
     /// what it brings in is built from the top down.
     fn show_scene(&mut self, index: usize, now: f64) {
@@ -771,15 +827,9 @@ impl<T: DiagramView> Editor<T> {
                 let either: BTreeSet<ElementId> = before.union(hidden).cloned().collect();
                 let both = self.picture(&either, displayed, dragging);
                 draw(self, &both, 1.0, false);
-                let (leaving, entering) = match step.changes.take() {
+                let changes = match step.changes.take() {
                     Some(changes) if !dragging => changes,
-                    _ => {
-                        let before_picture = self.picture(&before, displayed, dragging);
-                        (
-                            before_picture.0.without(&both.0),
-                            now_picture.0.without(&both.0),
-                        )
-                    }
+                    _ => self.changes(&before, hidden, displayed, &both.0, &now_picture.0),
                 };
                 // Faint, what this step takes away or brings in, under it, so it fades to its
                 // faint self or comes up from it. What both hide is drawn faint last, over all
@@ -801,60 +851,48 @@ impl<T: DiagramView> Editor<T> {
                     }
                 };
                 paint_faint(self, &changing);
-                // What the one before showed and this one doesn't fades.
-                #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
-                let t = (elapsed / LEAVE_SECONDS).clamp(0.0, 1.0) as f32;
-                if t < 1.0 {
-                    paint_scene_hiding(
-                        painter,
-                        &leaving,
-                        xf,
-                        &mut self.cache,
-                        1.0 - t,
-                        dark,
-                        &hide,
-                    );
-                }
-                // What this one brings in appears as the line moving down passes it.
-                if let Some(sweep) = step.sweep {
-                    let line = sweep.line_at(elapsed);
-                    let trail = APPEAR_SECONDS * sweep.speed;
-                    let clip = painter.clip_rect();
-                    let steps = f64::from(APPEAR_STEPS);
-                    for i in 0..=APPEAR_STEPS {
-                        // The band `i` steps of the trail above the line; the last, all above.
-                        let i = f64::from(i);
-                        let (top, bottom) = if i < steps {
-                            (line - trail * (i + 1.0) / steps, line - trail * i / steps)
-                        } else {
-                            (f64::NEG_INFINITY, line - trail)
-                        };
-                        #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
-                        let opacity = ((i + 1.0) / (steps + 1.0)) as f32;
-                        let (top, bottom) = (
-                            xf.pos(hiero_core::geometry::Point::new(0.0, top.max(-1e6)))
-                                .y,
-                            xf.pos(hiero_core::geometry::Point::new(0.0, bottom)).y,
-                        );
-                        if bottom <= top {
-                            continue;
-                        }
-                        let band = egui::Rect::from_x_y_ranges(clip.x_range(), top..=bottom);
-                        let painter = painter.with_clip_rect(band);
-                        let hide = &hide;
+                let mut paint = |scene: &Scene, painter: &egui::Painter, opacity: f64| {
+                    #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
+                    let opacity = opacity as f32;
+                    if opacity > 0.0 {
                         paint_scene_hiding(
-                            &painter,
-                            &entering,
+                            painter,
+                            scene,
                             xf,
                             &mut self.cache,
-                            if i < steps { opacity } else { 1.0 },
+                            opacity,
                             dark,
-                            hide,
+                            &hide,
                         );
+                    }
+                };
+                // What the one before showed and this one doesn't fades to its faint self.
+                paint(
+                    &changes.leaving,
+                    painter,
+                    1.0 - ease(elapsed / LEAVE_SECONDS),
+                );
+                // What this one brings in: each element fades in whole as the line moving down
+                // reaches its top, and the arrows are drawn down as it passes.
+                if let Some(sweep) = step.sweep {
+                    for (top, scene) in &changes.entering {
+                        let delay = sweep.start + (top - sweep.top) / sweep.speed;
+                        paint(scene, painter, ease((elapsed - delay) / APPEAR_SECONDS));
+                    }
+                    let clip = painter.clip_rect();
+                    let line = xf
+                        .pos(hiero_core::geometry::Point::new(
+                            0.0,
+                            sweep.line_at(elapsed),
+                        ))
+                        .y;
+                    if line > clip.top() {
+                        let above = egui::Rect::from_x_y_ranges(clip.x_range(), clip.top()..=line);
+                        paint(&changes.arrows, &painter.with_clip_rect(above), 1.0);
                     }
                 }
                 paint_faint(self, &always);
-                step.changes = Some((leaving, entering));
+                step.changes = Some(changes);
                 self.tag.step = Some(step);
             }
             None => draw(self, &now_picture, 1.0, true),

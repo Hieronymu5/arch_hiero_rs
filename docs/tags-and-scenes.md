@@ -73,11 +73,13 @@ rules for tag names.
   camera still, or all it shows when that's nothing, or all that's drawn, legend included, when
   it hides nothing. It's in the middle of the view, as large as fits 40 points from the edges,
   up to 150%. Scrolling or zooming stops the camera, and its zoom isn't remembered as the
-  user's own. What the scene takes away fades in 0.3 s, and what it brings in is built from the
-  top down: half a second in, a line moves down the canvas from the topmost new element or
-  arrow, at 350 px a second, or faster so it reaches the lowest in 1.6 s, and what it passes
-  appears over 0.35 s, arrows with their connectors and text drawn down with it. The prototype
-  fades each element in whole, and skips all this for reduced motion, which egui can't tell.
+  user's own. The elements the scene takes away fade to faint in 0.3 s, and their arrows go at
+  once. What it brings in is built from the top down: half a second in, a line moves down the
+  canvas from the topmost new element or arrow, at 350 px a second, or faster so it reaches the
+  lowest in 1.6 s. Each element fades in whole over 0.35 s as the line reaches its top, and
+  each arrow, with its connector and text, is drawn down as the line passes. The fades follow
+  CSS's `ease`. What both scenes show stays as it is. The prototype skips all this for reduced
+  motion, which egui can't tell.
 - **The first scene shown,** and each scene the camera doesn't frame, scrolls the leftmost
   section it's about into view, if it isn't already: a section in one of its tags, or one over
   an element it shows of its tags that reaches under no other section. Its left end shows when

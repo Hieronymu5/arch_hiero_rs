@@ -447,6 +447,27 @@ impl Sweep {
     }
 }
 
+/// CSS's `ease`, `cubic-bezier(0.25, 0.1, 0.25, 1)`: quick to start, slowing to a stop, as
+/// fades in a browser go.
+pub fn ease(t: f64) -> f64 {
+    let t = t.clamp(0.0, 1.0);
+    // The curve's x and y for a parameter `u`, from control points (0.25, 0.1) and (0.25, 1).
+    let bezier = |u: f64, p1: f64, p2: f64| {
+        3.0 * (1.0 - u) * (1.0 - u) * u * p1 + 3.0 * (1.0 - u) * u * u * p2 + u * u * u
+    };
+    // Find the parameter whose x is `t` by halving: x rises steadily with it.
+    let (mut low, mut high) = (0.0, 1.0);
+    for _ in 0..40 {
+        let mid = f64::midpoint(low, high);
+        if bezier(mid, 0.25, 0.25) < t {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    bezier(f64::midpoint(low, high), 0.1, 1.0)
+}
+
 /// Eases in and out: slow to start, fast in the middle, slow to stop.
 pub fn ease_in_out(t: f64) -> f64 {
     if t < 0.5 {
@@ -493,6 +514,14 @@ mod tests {
         assert_eq!(scene_frame(&[(a, true), (b, false)]), Some(a));
         assert_eq!(scene_frame(&[(a, false), (b, false)]), bounds_of([a, b]));
         assert_eq!(scene_frame(&[]), None);
+    }
+
+    #[test]
+    fn css_ease_starts_quickly_and_slows_to_a_stop() {
+        assert!(ease(0.0).abs() < 1e-9 && (ease(1.0) - 1.0).abs() < 1e-9);
+        // As browsers draw it: about 0.8 of the way at half the time.
+        assert!((ease(0.5) - 0.8024).abs() < 1e-3, "{}", ease(0.5));
+        assert!(ease(0.25) > 0.25 && ease(0.75) > 0.75);
     }
 
     #[test]
