@@ -1733,6 +1733,11 @@ impl App {
         if !ops.color_fields().is_empty() {
             ui.add_space(14.0);
             field_label(ui, "Colors", false);
+            // A conceptual diagram's colours can start from a scheme.
+            if meta.diagram_type == hiero_core::model::DiagramTypeId::Conceptual {
+                scheme_picker(ui, &mut self.form.colors);
+                ui.add_space(8.0);
+            }
             let defaults = ops.default_colors();
             for (key, label) in ops.color_fields() {
                 let current = self
@@ -2254,6 +2259,105 @@ impl App {
         } else if undo {
             self.undo();
         }
+    }
+}
+
+/// Four overlapping dots, a scheme's key colours, from `left` along the middle of `y`.
+fn scheme_dots(ui: &Ui, left: f32, y: f32, colors: &[String]) {
+    let painter = ui.painter();
+    let ring = ui.visuals().extreme_bg_color;
+    for (i, color) in colors.iter().enumerate() {
+        let [r, g, b] = hiero_core::color::channels(color);
+        #[expect(clippy::cast_precision_loss, reason = "four dots")]
+        let center = egui::pos2(left + 8.0 + i as f32 * 12.0, y);
+        painter.circle(
+            center,
+            8.0,
+            egui::Color32::from_rgb(r, g, b),
+            egui::Stroke::new(1.5, ring),
+        );
+    }
+}
+
+/// The Scheme dropdown above a conceptual diagram's colours: the scheme they are, or Custom
+/// once one has been changed by hand, with their four key colours, dropping down the schemes,
+/// each with its name and key colours. Picking one sets every colour to it.
+fn scheme_picker(ui: &mut Ui, colors: &mut std::collections::BTreeMap<String, String>) {
+    use hiero_core::color_schemes::{
+        DIAGRAM_COLOR_SCHEMES, SCHEME_KEY_COLORS, colors_with, scheme_of,
+    };
+    let all = colors_with(colors);
+    let current = scheme_of(&all);
+    let dots: Vec<String> = SCHEME_KEY_COLORS
+        .iter()
+        .map(|key| all.get(*key).cloned().unwrap_or_default())
+        .collect();
+    ui.label(RichText::new("Scheme").strong());
+    let mut picked = None;
+    let combo = ui.horizontal(|ui| {
+        let response = egui::ComboBox::from_id_salt("color-scheme")
+            .width(240.0)
+            .selected_text(current.map_or("Custom", |s| s.name))
+            .show_ui(ui, |ui| {
+                for scheme in &DIAGRAM_COLOR_SCHEMES {
+                    let chosen = current.is_some_and(|c| c.id == scheme.id);
+                    let (rect, row) =
+                        ui.allocate_exact_size(egui::vec2(240.0, 30.0), egui::Sense::click());
+                    row.widget_info(|| {
+                        egui::WidgetInfo::selected(
+                            egui::Role::RadioButton,
+                            true,
+                            chosen,
+                            scheme.name,
+                        )
+                    });
+                    let visuals = ui.visuals();
+                    if row.hovered() || row.has_focus() {
+                        ui.painter()
+                            .rect_filled(rect, 4, visuals.widgets.hovered.weak_bg_fill);
+                    }
+                    if chosen {
+                        ui.painter().rect_stroke(
+                            rect.shrink(1.0),
+                            4,
+                            egui::Stroke::new(2.0, visuals.text_color()),
+                            egui::StrokeKind::Inside,
+                        );
+                    }
+                    ui.painter().text(
+                        egui::pos2(rect.left() + 10.0, rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        scheme.name,
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        visuals.text_color(),
+                    );
+                    let keys: Vec<String> = scheme
+                        .key_colors()
+                        .iter()
+                        .map(|c| (*c).to_owned())
+                        .collect();
+                    scheme_dots(ui, rect.right() - 60.0, rect.center().y, &keys);
+                    if row.clicked() {
+                        picked = Some(scheme);
+                    }
+                }
+            });
+        // The colours in use, beside the name.
+        let rect = response.response.rect;
+        let (space, _) =
+            ui.allocate_exact_size(egui::vec2(56.0, rect.height()), egui::Sense::hover());
+        scheme_dots(ui, space.left(), rect.center().y, &dots);
+        response.response
+    });
+    combo.inner.widget_info(|| {
+        egui::WidgetInfo::labeled(
+            egui::Role::ComboBox,
+            true,
+            format!("Scheme: {}", current.map_or("Custom", |s| s.name)),
+        )
+    });
+    if let Some(scheme) = picked {
+        *colors = scheme.colors();
     }
 }
 

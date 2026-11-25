@@ -104,6 +104,14 @@ Each diagram can override any of these. Only colours that differ from the defaul
 Text on a fill is black or white, whichever has more contrast (WCAG). This uses
 `hiero_core::color::readable_text`.
 
+**Schemes.** Settings' Appearance tab has a Scheme dropdown above the colours, offering ten
+schemes to start from (`hiero_core::color_schemes`): Classic (the defaults), Harbour, Sage,
+Sandstone, Graphite, Clear Sight, Slate, Blueprint, Evergreen, and High Contrast. Each sets all
+nine colours, and shows its four key colours (applications, components, data, processes) as
+dots. Picking one sets every colour to it; the dropdown reads Custom once a colour differs from
+every scheme. Every scheme's fills keep their text to WCAG AA (4.5:1) in light and on the dark
+canvas, and its section names against its domains.
+
 ## Line weight
 
 Settings, on its Appearance tab, offers **Line thickness**: *Thin* (1 px), *Medium* (1.5 px), or *Thick* (2 px),
@@ -197,6 +205,7 @@ Rust shape: `Element<ConceptualKind, ConceptualProps>`, where `ConceptualKind` i
 - [x] Arrow draw, route, select, straighten, and place automatically. Arrow keys nudge the selected arrow.
 - [x] Arrow text, mode, bidirectional, payload (an e-mail or a file), connector, and transformation
 - [x] Per-diagram colours with "Use the default colors"
+- [x] Colour schemes to start from, in a Scheme dropdown
 - [x] Per-diagram line thickness for elements, thin or thick (beyond the prototype)
 - [x] View mode, the default when opening from the list: no palette, properties, or grid; the paper fills the window to its edges but scrolls only as far as the drawing goes (with a one-grid margin), which starts in the top-left corner; drag with any button, scroll, zoom, and export (beyond the prototype)
 - [x] A description on domains, under the name in its band, which grows to fit it (beyond the prototype)
