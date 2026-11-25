@@ -119,8 +119,11 @@ struct Changes {
     /// The elements the scene takes away, with their arrows, which fade together.
     leaving: Scene,
     /// The arrows faint at either end of the step, but not to or from what's hidden throughout
-    /// it, which are drawn with that.
+    /// it, which are drawn with that, nor those it brings in.
     faint_arrows: Scene,
+    /// Each arrow the scene brings in, faint, with its top: it stays until the line reaches
+    /// that, then goes, so below the line nothing of it shows until the line passes.
+    faint_entering: Vec<(f64, Scene)>,
     /// Each element the scene brings in, with its top, which fades in whole as the line
     /// reaches it.
     entering: Vec<(f64, Scene)>,
@@ -509,9 +512,43 @@ impl<T: DiagramView> Editor<T> {
             .fold(now.shown.without(&both.shown), |arrows, (_, element)| {
                 arrows.without(element)
             });
+        // Each arrow it brings in on its own, routed with all the others, as it's drawn faint.
+        let all = |draw: &dyn Fn(&Conn<T>) -> bool| {
+            T::scene(
+                &self.eng.only(|_| true, true).drawing_arrows(draw),
+                displayed,
+                None,
+            )
+        };
+        let no_arrows = all(&|_| false);
+        let rect_of = |id: &ElementId| {
+            displayed
+                .iter()
+                .find(|e| e.id() == id)
+                .map(|e| T::drawn_rect(&self.eng, e))
+        };
+        let faint_entering: Vec<(f64, Scene)> = self
+            .eng
+            .connections()
+            .iter()
+            .filter(|c| {
+                let ends = [&c.source_id, &c.target_id];
+                ends.iter().any(|id| before.contains(*id))
+                    && ends.iter().all(|id| !hidden.contains(*id))
+            })
+            .filter_map(|c| {
+                let (top, _) = arrow_span(rect_of(&c.source_id)?, rect_of(&c.target_id)?);
+                Some((top, all(&|d| d.id == c.id).without(&no_arrows)))
+            })
+            .collect();
+        let faint_arrows = faint_entering.iter().fold(
+            both.faint_arrows.without(&always.faint_arrows),
+            |faint, (_, arrow)| faint.without(arrow),
+        );
         Changes {
             leaving: then.shown.without(&both.shown),
-            faint_arrows: both.faint_arrows.without(&always.faint_arrows),
+            faint_arrows,
+            faint_entering,
             entering,
             arrows,
         }
@@ -919,6 +956,15 @@ impl<T: DiagramView> Editor<T> {
                 // that's drawn again, such as a container both show, so it never goes.
                 let changing_picture = self.picture(&changing, displayed, dragging);
                 paint_faint(self, &[&changing_picture.faint, &changes.faint_arrows]);
+                // An arrow it brings in stays faint until the line reaches its top.
+                let line_at = step.sweep.map(|sweep| sweep.line_at(elapsed));
+                let waiting: Vec<&Scene> = changes
+                    .faint_entering
+                    .iter()
+                    .filter(|(top, _)| line_at.is_none_or(|line| line < *top))
+                    .map(|(_, arrow)| arrow)
+                    .collect();
+                paint_faint(self, &waiting);
                 let mut paint = |scene: &Scene, painter: &egui::Painter, opacity: f64| {
                     #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
                     let opacity = opacity as f32;

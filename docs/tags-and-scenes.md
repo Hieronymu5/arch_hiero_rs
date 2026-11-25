@@ -81,8 +81,8 @@ rules for tag names.
   0.3 s, with their arrows, and what it brings in is built from the top down: a line moves down
   the canvas from the topmost new element or arrow, at 350 px a second, or faster so it
   reaches the lowest in 1.4 s. Each element fades in whole over 0.35 s as the line reaches its
-  top, and each arrow, with its connector and text, faint until then, is drawn down as the
-  line passes. The fades follow
+  top, and each arrow, with its connector and text, faint until the line reaches its top, is
+  then drawn down as the line passes, with nothing of it showing below the line. The fades follow
   CSS's `ease`. What both scenes show stays as it is. The prototype skips all this for reduced
   motion, which egui can't tell.
 - **The first scene shown,** before the scenes have stepped on, scrolls the leftmost
