@@ -1848,10 +1848,7 @@ dependencies = [
  "hiero-store",
  "image",
  "jiff",
- "log",
  "rfd",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1901,7 +1898,6 @@ dependencies = [
  "hiero-core",
  "hiero-editor",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1960,7 +1956,6 @@ dependencies = [
  "hiero-core",
  "hiero-editor",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1987,7 +1982,6 @@ dependencies = [
  "hiero-core",
  "hiero-editor",
  "serde",
- "serde_json",
 ]
 
 [[package]]
