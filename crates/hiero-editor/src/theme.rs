@@ -753,10 +753,26 @@ pub fn element_button(ui: &mut Ui, text: &str, height: f32) -> egui::Response {
 }
 
 /// An [`element_button`] that can be the one chosen, such as the scene showing: its border then
-/// thicker and in the accent, and its text bold in the accent.
+/// thicker and in the accent, and its text bold in the accent. A name too long for one line
+/// wraps, and the button grows to fit it, at least `height` tall.
 pub fn choice_button(ui: &mut Ui, text: &str, height: f32, chosen: bool) -> egui::Response {
+    /// The space round the text: as the prototype's 0.5rem by 0.625rem.
+    const PAD: egui::Vec2 = egui::vec2(10.0, 8.0);
     let colors = palette(ui);
-    let size = egui::vec2(ui.available_width(), height);
+    let width = ui.available_width();
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let font = if chosen {
+        crate::fonts::font_id(font.size, Weight::SemiBold)
+    } else {
+        font
+    };
+    let galley = ui.painter().layout(
+        text.to_owned(),
+        font,
+        Color32::PLACEHOLDER,
+        (width - PAD.x * 2.0).max(1.0),
+    );
+    let size = egui::vec2(width, height.max(galley.size().y + PAD.y * 2.0));
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, text));
     if ui.is_rect_visible(rect) {
@@ -798,19 +814,9 @@ pub fn choice_button(ui: &mut Ui, text: &str, height: f32, chosen: bool) -> egui
                 egui::StrokeKind::Outside,
             );
         }
-        let font = egui::TextStyle::Button.resolve(ui.style());
-        let font = if chosen {
-            crate::fonts::font_id(font.size, Weight::SemiBold)
-        } else {
-            font
-        };
-        painter.text(
-            egui::pos2(rect.left() + 10.0, rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            text,
-            font,
-            color,
-        );
+        // In the middle, top to bottom, on the left.
+        let at = egui::pos2(rect.left() + PAD.x, rect.center().y - galley.size().y / 2.0);
+        painter.galley(at, galley, color);
     }
     response
 }
