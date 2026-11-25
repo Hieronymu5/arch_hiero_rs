@@ -1135,7 +1135,15 @@ impl App {
     }
 
     pub fn top_bar(&mut self, ui: &mut Ui) {
-        egui::Panel::top("top-bar").show(ui, |ui| {
+        // 12 points above and below the logo, as in the prototype; the sides as egui has them,
+        // which the logo's inset allows for.
+        let frame = egui::Frame::side_top_panel(ui.style()).inner_margin(egui::Margin {
+            left: 8,
+            right: 8,
+            top: 12,
+            bottom: 12,
+        });
+        egui::Panel::top("top-bar").frame(frame).show(ui, |ui| {
             ui.horizontal(|ui| {
                 // White on transparent, tinted to the theme's text colour: black or white.
                 let tint = if ui.visuals().dark_mode {
