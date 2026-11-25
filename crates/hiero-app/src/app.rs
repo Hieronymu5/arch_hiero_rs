@@ -14,7 +14,8 @@ use hiero_core::model::{
 };
 use hiero_core::stored::{StoredContent, StoredDiagram};
 use hiero_core::tags::{
-    DiagramScene, DiagramTag, scene_of, scene_problem, tag_name_problem, untag_elements,
+    DiagramScene, DiagramTag, scene_of, scene_problem, tag_name_problem, untag_connections,
+    untag_elements,
 };
 use hiero_editor::theme::{Accent, Brightness};
 use hiero_editor::{DiagramEditor, DiagramRequest};
@@ -120,8 +121,8 @@ pub enum DetailsTab {
     Details,
     Appearance,
     SubDiagrams,
-    Tags,
     Scenes,
+    Tags,
     About,
 }
 
@@ -130,8 +131,8 @@ impl DetailsTab {
         Self::Details,
         Self::Appearance,
         Self::SubDiagrams,
-        Self::Tags,
         Self::Scenes,
+        Self::Tags,
         Self::About,
     ];
 
@@ -158,11 +159,11 @@ pub struct TagsForm {
     pub new_tag_error: Option<String>,
     /// The tag whose deletion is being confirmed.
     pub confirming: Option<String>,
-    /// The scene to add: its name and the tags it shows, and what's wrong with them.
+    /// The scene to add: its name and the tags it shows, none for a tag of its own, and
+    /// what's wrong with its name.
     pub scene_name: String,
     pub scene_tags: BTreeSet<String>,
     pub scene_name_error: Option<String>,
-    pub scene_tags_error: Option<String>,
 }
 
 impl TagsForm {
@@ -867,6 +868,7 @@ impl App {
             .filter(|t| !form.tags.tags.iter().any(|kept| kept.id == t.id))
         {
             untag_elements(&mut record.content.elements, &gone.id);
+            untag_connections(&mut record.content.connections, &gone.id);
         }
         record.tags = form
             .tags

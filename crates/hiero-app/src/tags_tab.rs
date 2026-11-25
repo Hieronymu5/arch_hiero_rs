@@ -1,17 +1,18 @@
-//! The Tags and Scenes tabs of a diagram's Settings page.
+//! The Scenes and Tags tabs of a diagram's Settings page.
 //!
-//! Tags are listed with their names in fields, typed over to rename them, how many elements are
-//! in each, and buttons to move one earlier or later, or delete it, with a field to add one.
-//! Deleting a tag that has elements, or that a scene shows alone, asks first. Scenes are listed
-//! with their names in fields and the tags they show as boxes to tick, changed in place, and
-//! buttons to move or delete one, with a form after them to add one. Each change goes to the
-//! page's draft, saved with the rest by Save Changes. Elements are put in tags, and tags shown
-//! and hidden, on the diagram itself.
+//! Scenes are listed with their names in fields and the tags they show as boxes to tick,
+//! changed in place, and buttons to move or delete one, with a form after them to add one: a
+//! scene added with no tags ticked gets a tag of its own, named after it. Tags are listed with
+//! their names in fields, typed over to rename them, how many elements (or on a sequence
+//! diagram, messages) are in each, and buttons to move one earlier or later, or delete it, with
+//! a field to add one. Deleting a tag that has elements, or that a scene shows alone, asks
+//! first. Each change goes to the page's draft, saved with the rest by Save Changes. Elements
+//! are put in tags, and tags shown and hidden, on the diagram itself.
 
 use egui::{RichText, Ui};
 use hiero_core::tags::{
     DiagramScene, DiagramTag, moved, new_id, scene_of, scene_problem, scenes_only_of,
-    scenes_without_tag, tag_counts, tag_name_problem,
+    scenes_without_tag, tag_counts, tag_for_scene, tag_name_problem,
 };
 use hiero_editor::fonts;
 use hiero_editor::theme::{danger_button, field_label, form_style, page_button, row_button};
@@ -49,11 +50,21 @@ impl App {
         let Some(open) = &self.open else {
             return;
         };
-        let counts = tag_counts(&open.record.content.elements);
+        let messages = open.record.meta.diagram_type.tags_hold_arrows();
+        let counts = tag_counts(&open.record.content, messages);
+        let (noun, nouns) = if messages {
+            ("message", "Messages")
+        } else {
+            ("element", "Elements")
+        };
         Self::heading(
             ui,
             "Tags",
-            "Tags are sets of elements that can be shown or hidden together. Put elements in them, and show or hide them, on the diagram. They play in this order.",
+            if messages {
+                "Tags are sets of messages that can be shown or hidden together, as scenes do. Put messages in them on the diagram; the participants are in none and always show."
+            } else {
+                "Tags are sets of elements that can be shown or hidden together. Put elements in them, and show or hide them, on the diagram. They play in this order."
+            },
         );
         form_style(ui);
         let problems = self.form.tags.tag_problems();
@@ -66,7 +77,7 @@ impl App {
             let scenes = form.scenes.clone();
             ruled_grid(ui, "tags", 3, |ui, end_row| {
                 ui.label(RichText::new("Name").strong());
-                ui.label(RichText::new("Elements").strong());
+                ui.label(RichText::new(nouns).strong());
                 ui.label("");
                 end_row(ui);
                 for (i, tag) in form.tags.iter_mut().enumerate() {
@@ -75,7 +86,7 @@ impl App {
                         let mut parts = Vec::new();
                         if count > 0 {
                             parts.push(format!(
-                                "{count} element{} will be taken out of it.",
+                                "{count} {noun}{} will be taken out of it.",
                                 if count == 1 { "" } else { "s" }
                             ));
                         }
@@ -215,7 +226,7 @@ impl App {
         Self::heading(
             ui,
             "Scenes",
-            "A scene shows the elements of the tags you choose and hides the other tags' elements. Elements in no tag show in every scene. While viewing the diagram, scenes are stepped through in this order.",
+            "A scene shows the elements of the tags you choose and hides the other tags' elements. Elements in no tag show in every scene. Viewing the diagram opens it on the last scene, and Play steps through them in this order, from the first.",
         );
         form_style(ui);
         let problems = self.form.tags.scene_problems();
@@ -301,14 +312,11 @@ impl App {
             _ => {}
         }
         ui.add_space(14.0);
-        if tags.is_empty() {
-            ui.label("Add tags on the Tags tab first: each scene shows one or more of them.");
-        } else {
-            self.scene_form(ui, &tags);
-        }
+        self.scene_form(ui, &tags);
     }
 
-    /// The form that adds a scene: its name and the tags it shows.
+    /// The form that adds a scene: its name and the tags it shows, or with none ticked, a tag of
+    /// its own, the tag of its name or a new one named after it.
     fn scene_form(&mut self, ui: &mut Ui, tags: &[DiagramTag]) {
         ui.label(RichText::new("New scene").font(fonts::bold(15.0)));
         ui.add_space(4.0);
@@ -320,6 +328,10 @@ impl App {
         }
         ui.add_space(8.0);
         field_label(ui, "Tags it shows", false);
+        ui.label(
+            RichText::new("Leave them all unticked to give it a tag of its own, named after it.")
+                .weak(),
+        );
         for tag in tags {
             let mut on = form.scene_tags.contains(&tag.id);
             if ui.checkbox(&mut on, &tag.name).changed() {
@@ -330,25 +342,27 @@ impl App {
                 }
             }
         }
-        if let Some(error) = &form.scene_tags_error {
-            ui.label(error_text(ui, error));
-        }
         ui.add_space(8.0);
         if page_button(ui, "Add Scene", true).clicked() {
-            let shown: Vec<String> = form.scene_tags.iter().cloned().collect();
-            if let Some((name, tags_error)) =
-                scene_problem(&form.scene_name, &shown, &form.scenes, None)
+            let ticked: Vec<String> = form.scene_tags.iter().cloned().collect();
+            // Its own tag, when none is ticked, made once its name is fine.
+            let own = ticked
+                .is_empty()
+                .then(|| tag_for_scene(&form.scene_name, tags));
+            let shown = own.as_ref().map_or(ticked, |(_, id)| vec![id.clone()]);
+            if let Some((name, _)) = scene_problem(&form.scene_name, &shown, &form.scenes, None)
+                .filter(|(name, _)| name.is_some())
             {
                 form.scene_name_error = name;
-                form.scene_tags_error = tags_error;
                 return;
             }
-            let scene: DiagramScene = scene_of(new_id(), &form.scene_name, &shown, tags);
+            let all = own.map_or_else(|| tags.to_vec(), |(all, _)| all);
+            let scene: DiagramScene = scene_of(new_id(), &form.scene_name, &shown, &all);
+            form.tags = all;
             form.scenes.push(scene);
             form.scene_name.clear();
             form.scene_tags.clear();
             form.scene_name_error = None;
-            form.scene_tags_error = None;
         }
     }
 }

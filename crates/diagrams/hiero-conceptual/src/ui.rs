@@ -978,16 +978,71 @@ mod tests {
             let at = w.editor.view().transform(canvas).pos(Point::new(x, 60.0));
             canvas.x_range().contains(at.x)
         };
-        // The first scene's header is in view as it is.
-        assert!(shown(&w, 40.0));
-        // The second's, the section over what it shows of its tag, comes into view, once the
-        // camera has framed what the scene adds.
-        assert!(!shown(&w, 2600.0));
-        w.editor.go_to_scene(1, 0.0);
+        // Viewing opens on the last scene, whose header, the section over what it shows of
+        // its tag, comes into view.
+        assert!(shown(&w, 2600.0) && shown(&w, 3000.0));
+        assert!(!shown(&w, 40.0));
+        // The first's comes into view once the camera has framed what the scene adds.
+        w.editor.go_to_scene(0, 0.0);
         w.frame(vec![], Modifiers::NONE);
         w.time = Some(1.0);
         w.frame(vec![], Modifiers::NONE);
-        assert!(shown(&w, 2600.0) && shown(&w, 3000.0));
+        assert!(shown(&w, 40.0));
+    }
+
+    #[test]
+    fn playing_from_the_last_scene_fades_everything_then_starts_from_the_first() {
+        let mut w = scene_window();
+        let hidden = |w: &Window| {
+            w.editor
+                .tag_hidden()
+                .into_iter()
+                .map(|id| id.0)
+                .collect::<Vec<_>>()
+        };
+        // Viewing opens on the last scene, which shows both tags.
+        assert!(hidden(&w).is_empty());
+        w.editor.toggle_play(0.0);
+        w.frame(vec![], Modifiers::NONE);
+        // Everything is faint, the elements in no tag too, as in no scene.
+        assert_eq!(hidden(&w), ["b", "p", "s", "x"]);
+        // Then the first scene comes in, and the others after it.
+        w.time = Some(1.3);
+        w.frame(vec![], Modifiers::NONE);
+        assert_eq!(hidden(&w), ["p"]);
+        w.time = Some(4.4);
+        w.frame(vec![], Modifiers::NONE);
+        assert_eq!(hidden(&w), ["b"]);
+    }
+
+    #[test]
+    fn the_camera_eases_back_to_the_users_zoom_once_the_last_scene_played_is_in() {
+        let mut w = scene_window();
+        let run = |w: &mut Window, from: f64, to: f64| {
+            let mut t = from;
+            while t < to {
+                t += 0.1;
+                w.time = Some(t);
+                w.frame(vec![], Modifiers::NONE);
+            }
+        };
+        let canvas = w.ctx.read_response(w.salt.with("canvas")).unwrap().rect;
+        let before = w.editor.view().shown(canvas);
+        // Paying, framed at 150%, then played on to the last, which shows all.
+        w.editor.go_to_scene(1, 0.0);
+        run(&mut w, 0.0, 4.0);
+        assert!((w.editor.view().zoom - 1.5).abs() < 1e-6);
+        w.editor.toggle_play(4.0);
+        run(&mut w, 4.0, 12.0);
+        // The camera framed all of it, then eased back to where the view was before it first
+        // moved, at 100%, the zoom the user had, however it moved between the scenes.
+        let view = w.editor.view();
+        assert!((view.zoom - 1.0).abs() < 1e-3, "{view:?}");
+        let after = view.shown(canvas);
+        assert!(
+            (after.x - before.x).abs() < 1.0 && (after.y - before.y).abs() < 1.0,
+            "{before:?} {after:?}"
+        );
     }
 
     /// Billing in the first scene and Paying in the second, with a server and an archive in no

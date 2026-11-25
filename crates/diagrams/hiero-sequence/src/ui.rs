@@ -365,4 +365,44 @@ mod tests {
         Sequence::commit_slide(&mut eng, &second, 10_000.0);
         assert_eq!(eng.connections()[2].id, second);
     }
+
+    #[test]
+    fn tags_hide_messages_and_leave_the_participants_showing() {
+        use hiero_core::tags::{DiagramScene, DiagramTag};
+        use hiero_editor::Editor;
+        let mut eng = crate::test_engine();
+        let (user, app) = (ElementId::from("id1"), ElementId::from("id2"));
+        let first = eng.add_connection(&user, &app).unwrap();
+        let second = eng.add_connection(&app, &user).unwrap();
+        eng.set_connection_tags(&first, vec!["one".into()]);
+        let mut editor = Editor::new(eng, egui::Id::unique("sequence"));
+        let tag = |id: &str| DiagramTag {
+            id: id.into(),
+            name: id.to_uppercase(),
+        };
+        let scene = |id: &str, tags: &[&str]| DiagramScene {
+            id: id.into(),
+            name: id.into(),
+            tags: tags.iter().map(|t| (*t).to_owned()).collect(),
+        };
+        editor.set_tags(
+            &[tag("one"), tag("two")],
+            &[scene("a", &["two"]), scene("b", &["one"])],
+        );
+        // Hiding a tag hides its messages; one in no tag, and the participants, always show.
+        editor.toggle_tag("one");
+        assert!(editor.arrows_tag_hidden().iter().eq([&first]));
+        assert!(editor.tag_hidden().is_empty());
+        editor.toggle_tag("one");
+        assert!(editor.arrows_tag_hidden().is_empty());
+        // Viewing opens on the last scene, which shows the first message's tag.
+        editor.set_viewing(true);
+        assert!(editor.arrows_tag_hidden().is_empty());
+        editor.go_to_scene(0, 0.0);
+        assert_eq!(
+            editor.arrows_tag_hidden().into_iter().collect::<Vec<_>>(),
+            [first]
+        );
+        assert!(!editor.arrows_tag_hidden().contains(&second));
+    }
 }

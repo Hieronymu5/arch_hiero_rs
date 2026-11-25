@@ -35,7 +35,8 @@ pub enum EditOp {
         y: Option<f64>,
         #[serde(default)]
         props: Option<Map<String, Value>>,
-        /// The diagram's tags to put it in, by id or name.
+        /// The diagram's tags to put it in, by id or name. A sequence diagram's participants are
+        /// in none: its tags hold its messages.
         #[serde(default)]
         tags: Option<Vec<String>>,
     },
@@ -75,7 +76,8 @@ pub enum EditOp {
     RemoveElement {
         id: String,
     },
-    /// Adds an arrow, with its type's usual properties, then any given.
+    /// Adds an arrow, with its type's usual properties, then any given, and on a sequence
+    /// diagram, whose tags hold its messages, the tags to put it in, by id or name.
     AddConnection {
         #[serde(default, rename = "ref")]
         reference: Option<String>,
@@ -83,11 +85,17 @@ pub enum EditOp {
         target_id: String,
         #[serde(default)]
         props: Option<Map<String, Value>>,
+        #[serde(default)]
+        tags: Option<Vec<String>>,
     },
-    /// Changes an arrow's properties (merged).
+    /// Changes an arrow's properties (merged), or on a sequence diagram, the tags its message is
+    /// in, replaced by those given by id or name (an empty list takes it out of them all).
     UpdateConnection {
         id: String,
+        #[serde(default)]
         props: Map<String, Value>,
+        #[serde(default)]
+        tags: Option<Vec<String>>,
     },
     RemoveConnection {
         id: String,
@@ -183,6 +191,28 @@ impl<T: DiagramType> Batch<'_, T> {
         Ok(hiero_core::tags::in_tag_order(&ids, &self.tags))
     }
 
+    /// The tags `given` to put an element in: none on a diagram whose tags hold its arrows.
+    fn element_tag_ids(&self, given: &[String]) -> Result<Vec<String>, String> {
+        if T::ID.tags_hold_arrows() && !given.is_empty() {
+            return Err(format!(
+                "a {} diagram's participants aren't in tags, and always show; put its {} in tags with add_connection's or update_connection's tags",
+                T::ID.label().to_lowercase(),
+                T::ID.arrow_noun().many
+            ));
+        }
+        self.tag_ids(given)
+    }
+
+    /// The tags `given` to put an arrow in: only where tags hold arrows.
+    fn arrow_tag_ids(&self, given: &[String]) -> Result<Vec<String>, String> {
+        if !T::ID.tags_hold_arrows() {
+            return Err(
+                "only a sequence diagram's messages are in tags; put elements in tags with add_element's or update_element's tags".into(),
+            );
+        }
+        self.tag_ids(given)
+    }
+
     fn connection_id(&self, text: &str) -> Result<ConnectionId, String> {
         let id = ConnectionId(
             self.refs
@@ -227,7 +257,10 @@ impl<T: DiagramType> Batch<'_, T> {
                 props,
                 tags,
             } => {
-                let tags = tags.as_deref().map(|t| self.tag_ids(t)).transpose()?;
+                let tags = tags
+                    .as_deref()
+                    .map(|t| self.element_tag_ids(t))
+                    .transpose()?;
                 let kind = Self::kind(kind)?;
                 let parent = parent_id
                     .as_deref()
@@ -314,7 +347,7 @@ impl<T: DiagramType> Batch<'_, T> {
             } => {
                 let id = self.element_id(id)?;
                 if let Some(tags) = tags {
-                    let tags = self.tag_ids(tags)?;
+                    let tags = self.element_tag_ids(tags)?;
                     self.eng.replace(&id, |mut e| {
                         e.tags = tags;
                         e
@@ -410,7 +443,9 @@ impl<T: DiagramType> Batch<'_, T> {
                 source_id,
                 target_id,
                 props,
+                tags,
             } => {
+                let tags = tags.as_deref().map(|t| self.arrow_tag_ids(t)).transpose()?;
                 if !T::ID.has_arrows() {
                     return Err(format!(
                         "{} diagrams have no {}",
@@ -440,6 +475,9 @@ impl<T: DiagramType> Batch<'_, T> {
                 if let Some(props) = props {
                     self.update_connection(&id, props)?;
                 }
+                if let Some(tags) = tags {
+                    self.eng.set_connection_tags(&id, tags);
+                }
                 // Described after the props are applied, so it names the arrow's own protocol.
                 let message = self
                     .eng
@@ -447,9 +485,13 @@ impl<T: DiagramType> Batch<'_, T> {
                     .map_or_else(String::new, |c| T::arrow_added(&self.eng, c));
                 Ok(format!("{message} ({id})"))
             }
-            EditOp::UpdateConnection { id, props } => {
+            EditOp::UpdateConnection { id, props, tags } => {
                 let id = self.connection_id(id)?;
+                let tags = tags.as_deref().map(|t| self.arrow_tag_ids(t)).transpose()?;
                 self.update_connection(&id, props)?;
+                if let Some(tags) = tags {
+                    self.eng.set_connection_tags(&id, tags);
+                }
                 Ok(format!("{} updated.", T::ID.arrow_noun().one_capitalized()))
             }
             EditOp::RemoveConnection { id } => {
@@ -598,6 +640,56 @@ mod tests {
 
     fn parse(value: Value) -> Vec<EditOp> {
         serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn a_sequence_diagrams_messages_are_put_in_tags_and_its_participants_are_not() {
+        let mut diagram = new_diagram(DiagramTypeId::Sequence, "Sign in", None);
+        diagram.tags = vec![hiero_core::tags::DiagramTag {
+            id: "one".into(),
+            name: "Step 1".into(),
+        }];
+        let edits = parse(json!([
+            {"op": "add_element", "ref": "user", "kind": "actor", "label": "User"},
+            {"op": "add_element", "ref": "app", "kind": "application", "label": "App"},
+            {"op": "add_connection", "ref": "m", "source_id": "user", "target_id": "app",
+             "tags": ["step 1"]}
+        ]));
+        let sequence = ops(DiagramTypeId::Sequence);
+        let outcome = sequence.apply(&diagram, &edits).unwrap();
+        let message = &outcome.content.connections[0];
+        assert_eq!(hiero_core::tags::connection_tags(message), ["one"]);
+        // An empty list takes it out of them all.
+        diagram.content = outcome.content.clone();
+        let id = message.id.0.clone();
+        let untag = parse(json!([{"op": "update_connection", "id": id, "tags": []}]));
+        let outcome = sequence.apply(&diagram, &untag).unwrap();
+        assert!(hiero_core::tags::connection_tags(&outcome.content.connections[0]).is_empty());
+        let user = diagram.content.elements[0].id.0.clone();
+        let refused = sequence
+            .apply(
+                &diagram,
+                &parse(json!([{"op": "update_element", "id": user, "tags": ["one"]}])),
+            )
+            .unwrap_err();
+        assert!(
+            refused.message.contains("participants aren't in tags"),
+            "{refused}"
+        );
+        // Elsewhere, elements are in tags, and arrows aren't.
+        let mut conceptual = new_diagram(DiagramTypeId::Conceptual, "C", None);
+        conceptual.tags.clone_from(&diagram.tags);
+        let refused = ops(DiagramTypeId::Conceptual)
+            .apply(
+                &conceptual,
+                &parse(json!([
+                    {"op": "add_element", "ref": "a", "kind": "actor"},
+                    {"op": "add_element", "ref": "b", "kind": "application"},
+                    {"op": "add_connection", "source_id": "a", "target_id": "b", "tags": ["one"]}
+                ])),
+            )
+            .unwrap_err();
+        assert_eq!(refused.index, 2);
     }
 
     #[test]

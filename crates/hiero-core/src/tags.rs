@@ -4,9 +4,15 @@
 //! always shows; one in tags shows while any of them does, and only while what holds it shows
 //! too. An arrow shows while both its ends do.
 //!
+//! A sequence diagram's tags hold its messages instead (see
+//! [`DiagramTypeId::tags_hold_arrows`](crate::model::DiagramTypeId::tags_hold_arrows)): its
+//! participants are in none, and always show, and a message shows while any of its tags does.
+//!
 //! A scene is a named view of a diagram that shows the elements of one or more of its tags and
 //! hides the rest of its tags' elements. Scenes are stepped through, by hand or played, while
-//! viewing. Elements in no tag show in every scene.
+//! viewing: viewing opens on the last, and Play steps through them from the first. Elements in
+//! no tag show in every scene. A scene added without tags shows a tag of its own, named after
+//! it ([`tag_for_scene`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -14,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::geometry::Rect;
-use crate::stored::{StoredDiagram, StoredElement};
+use crate::stored::{StoredConnection, StoredContent, StoredDiagram, StoredElement};
 
 /// The longest a tag's or a scene's name can be, in characters.
 pub const TAG_NAME_MAX: usize = 40;
@@ -116,6 +122,25 @@ pub fn scene_of(id: String, name: &str, shown: &[String], tags: &[DiagramTag]) -
     }
 }
 
+/// The tag a new scene named `name` shows when it's given none: the tag of that name, ignoring
+/// case, or a new one named as the scene, added at the end of `tags`. Returns the tags with it,
+/// and its id.
+pub fn tag_for_scene(name: &str, tags: &[DiagramTag]) -> (Vec<DiagramTag>, String) {
+    let trimmed = name.trim();
+    let lower = trimmed.to_lowercase();
+    let mut tags = tags.to_vec();
+    if let Some(existing) = tags.iter().find(|t| t.name.trim().to_lowercase() == lower) {
+        let id = existing.id.clone();
+        return (tags, id);
+    }
+    let id = new_id();
+    tags.push(DiagramTag {
+        id: id.clone(),
+        name: trimmed.to_owned(),
+    });
+    (tags, id)
+}
+
 /// `scenes` with `scene` in place of the one with its id, or added at the end when there's none.
 pub fn with_scene(scenes: &[DiagramScene], scene: DiagramScene) -> Vec<DiagramScene> {
     let mut scenes = scenes.to_vec();
@@ -165,14 +190,52 @@ pub fn hidden_in_scene(tags: &[DiagramTag], scene: &DiagramScene) -> BTreeSet<St
         .collect()
 }
 
-/// The tags an element as stored is in: its `tags` property.
-pub fn element_tags(element: &StoredElement) -> Vec<String> {
-    match element.props.get("tags") {
+/// The `tags` property in `props`, an element's or an arrow's.
+fn tags_in(props: &serde_json::Map<String, Value>) -> Vec<String> {
+    match props.get("tags") {
         Some(Value::Array(ids)) => ids
             .iter()
             .filter_map(|v| v.as_str().map(str::to_owned))
             .collect(),
         _ => Vec::new(),
+    }
+}
+
+/// Sets the `tags` property in `props`, leaving it out when there are none.
+fn set_tags_in(props: &mut serde_json::Map<String, Value>, tags: Vec<String>) {
+    if tags.is_empty() {
+        props.remove("tags");
+    } else {
+        props.insert(
+            "tags".into(),
+            Value::Array(tags.into_iter().map(Value::from).collect()),
+        );
+    }
+}
+
+/// The tags an element as stored is in: its `tags` property.
+pub fn element_tags(element: &StoredElement) -> Vec<String> {
+    tags_in(&element.props)
+}
+
+/// The tags an arrow as stored is in, such as a sequence diagram's message: its `tags`
+/// property.
+pub fn connection_tags(connection: &StoredConnection) -> Vec<String> {
+    tags_in(&connection.props)
+}
+
+/// Sets the tags an arrow as stored is in, leaving the property out when there are none.
+pub fn set_connection_tags(connection: &mut StoredConnection, tags: Vec<String>) {
+    set_tags_in(&mut connection.props, tags);
+}
+
+/// `connections` taken out of the tag `id`.
+pub fn untag_connections(connections: &mut [StoredConnection], id: &str) {
+    for connection in connections {
+        let tags = connection_tags(connection);
+        if tags.iter().any(|t| t == id) {
+            set_connection_tags(connection, tags.into_iter().filter(|t| t != id).collect());
+        }
     }
 }
 
@@ -217,14 +280,7 @@ pub fn leftmost_active_section(shown: &[ShownElement]) -> Option<usize> {
 
 /// Sets the tags an element as stored is in, leaving the property out when there are none.
 pub fn set_element_tags(element: &mut StoredElement, tags: Vec<String>) {
-    if tags.is_empty() {
-        element.props.remove("tags");
-    } else {
-        element.props.insert(
-            "tags".into(),
-            Value::Array(tags.into_iter().map(Value::from).collect()),
-        );
-    }
+    set_tags_in(&mut element.props, tags);
 }
 
 /// `elements` taken out of the tag `id`.
@@ -237,15 +293,33 @@ pub fn untag_elements(elements: &mut [StoredElement], id: &str) {
     }
 }
 
-/// How many elements are in each tag, by its id.
-pub fn tag_counts(elements: &[StoredElement]) -> BTreeMap<String, usize> {
+/// How many elements are in each tag, by its id; or with `arrows`, where tags hold arrows, as a
+/// sequence diagram's do, how many arrows.
+pub fn tag_counts(content: &StoredContent, arrows: bool) -> BTreeMap<String, usize> {
     let mut counts = BTreeMap::new();
-    for element in elements {
-        for tag in element_tags(element) {
-            *counts.entry(tag).or_insert(0) += 1;
-        }
+    let each: Vec<Vec<String>> = if arrows {
+        content.connections.iter().map(connection_tags).collect()
+    } else {
+        content.elements.iter().map(element_tags).collect()
+    };
+    for tag in each.into_iter().flatten() {
+        *counts.entry(tag).or_insert(0) += 1;
     }
     counts
+}
+
+/// The ids of the arrows their own tags hide while the tags `hidden` are, where tags hold
+/// arrows: those in tags, every one of them hidden. One in no tag always shows. Each arrow is
+/// given as its id and its tags.
+pub fn hidden_arrow_ids<'a>(
+    arrows: impl IntoIterator<Item = (&'a str, &'a [String])>,
+    hidden: &BTreeSet<String>,
+) -> BTreeSet<String> {
+    arrows
+        .into_iter()
+        .filter(|(_, tags)| !tags.is_empty() && tags.iter().all(|t| hidden.contains(t)))
+        .map(|(id, _)| id.to_owned())
+        .collect()
 }
 
 /// The ids of the elements hidden while the tags `hidden` are: those whose every tag is hidden,
@@ -289,8 +363,9 @@ pub fn hidden_element_ids<'a>(
 }
 
 /// Replaces `diagram`'s tags with `given`, each an id to keep a tag (or none to add one) and a
-/// name, in the order they play. A tag left out is deleted: its elements are taken out of it,
-/// and the scenes that showed only it go. Nothing changes when a name or an id is wrong.
+/// name, in the order they play. A tag left out is deleted: its elements, or its messages, are
+/// taken out of it, and the scenes that showed only it go. Nothing changes when a name or an id
+/// is wrong.
 pub fn replace_tags(
     diagram: &mut StoredDiagram,
     given: &[(Option<String>, String)],
@@ -325,12 +400,17 @@ pub fn replace_tags(
         .collect();
     for id in &gone {
         untag_elements(&mut diagram.content.elements, id);
+        untag_connections(&mut diagram.content.connections, id);
         diagram.scenes = scenes_without_tag(&diagram.scenes, id);
     }
-    // Elements' and scenes' tags follow the tags' new order.
+    // Elements', arrows', and scenes' tags follow the tags' new order.
     for element in &mut diagram.content.elements {
         let ordered = in_tag_order(&element_tags(element), &tags);
         set_element_tags(element, ordered);
+    }
+    for connection in &mut diagram.content.connections {
+        let ordered = in_tag_order(&connection_tags(connection), &tags);
+        set_connection_tags(connection, ordered);
     }
     for scene in &mut diagram.scenes {
         scene.tags = in_tag_order(&scene.tags, &tags);
@@ -340,23 +420,30 @@ pub fn replace_tags(
 }
 
 /// Replaces `diagram`'s scenes with `given`, each an id to keep a scene (or none to add one), a
-/// name, and the tags it shows, by id or name, in the order they're stepped through. Nothing
-/// changes when one is wrong.
+/// name, and the tags it shows, by id or name, in the order they're stepped through. A scene
+/// given no tags shows a tag of its own: the tag of its name, or a new one named after it,
+/// added to the diagram's tags. Nothing changes when one is wrong.
 pub fn replace_scenes(
     diagram: &mut StoredDiagram,
     given: &[(Option<String>, String, Vec<String>)],
 ) -> Result<(), String> {
     let mut scenes: Vec<DiagramScene> = Vec::new();
+    let mut tags = diagram.tags.clone();
     for (id, name, shown) in given {
         let mut ids = Vec::new();
         for text in shown {
             let wanted = text.trim().to_lowercase();
-            let tag = diagram
-                .tags
+            let tag = tags
                 .iter()
                 .find(|t| t.id == *text || t.name.trim().to_lowercase() == wanted)
                 .ok_or_else(|| format!("Scene “{}”: there's no tag “{text}”.", name.trim()))?;
             ids.push(tag.id.clone());
+        }
+        // Its own tag's name is checked as the scene's, below; nothing is kept if it's wrong.
+        if ids.is_empty() && !name.trim().is_empty() {
+            let (with_own, own) = tag_for_scene(name, &tags);
+            tags = with_own;
+            ids.push(own);
         }
         if let Some((name_problem, tags_problem)) = scene_problem(name, &ids, &scenes, None) {
             let problem = name_problem.or(tags_problem).unwrap_or_default();
@@ -368,8 +455,9 @@ pub fn replace_scenes(
         if scenes.iter().any(|s| s.id == id) {
             return Err(format!("The scene id {id} is given twice."));
         }
-        scenes.push(scene_of(id, name, &ids, &diagram.tags));
+        scenes.push(scene_of(id, name, &ids, &tags));
     }
+    diagram.tags = tags;
     diagram.scenes = scenes;
     Ok(())
 }
@@ -744,5 +832,117 @@ mod tests {
         .unwrap();
         assert_eq!(diagram.scenes[0].tags, ["pay"]);
         assert!(replace_scenes(&mut diagram, &[(None, "S".into(), vec!["nope".into()])]).is_err());
+    }
+
+    #[test]
+    fn a_scene_without_tags_shows_a_tag_of_its_own() {
+        // The tag of its name, ignoring case, when there is one.
+        let (same, id) = tag_for_scene(" payments ", &tags());
+        assert_eq!((same, id.as_str()), (tags(), "pay"));
+        // Otherwise a new one, named as the scene, at the end.
+        let (added, id) = tag_for_scene(" Step 1 ", &tags());
+        assert_eq!(added.len(), 4);
+        assert_eq!(added[3], tag(&id, "Step 1"));
+    }
+
+    #[test]
+    fn hides_an_arrow_whose_every_tag_is_hidden() {
+        let s = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<String>>();
+        let (core, both, none) = (s(&["core"]), s(&["core", "pay"]), s(&[]));
+        let arrows = [
+            ("a", core.as_slice()),
+            ("b", both.as_slice()),
+            ("c", none.as_slice()),
+        ];
+        let hidden = |h: &[&str]| {
+            let h = h.iter().map(|s| (*s).to_owned()).collect();
+            hidden_arrow_ids(arrows.iter().copied(), &h)
+                .into_iter()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(hidden(&["core"]), ["a"]);
+        assert_eq!(hidden(&["core", "pay"]), ["a", "b"]);
+        assert!(hidden(&[]).is_empty());
+    }
+
+    fn sequence_diagram() -> StoredDiagram {
+        use crate::model::{DiagramMeta, DiagramTypeId};
+        let connection = StoredConnection::from_json(&serde_json::json!({
+            "id": "m", "sourceId": "a", "targetId": "b", "tags": ["pay", "core"]
+        }))
+        .unwrap();
+        StoredDiagram {
+            meta: DiagramMeta {
+                id: "d".into(),
+                diagram_type: DiagramTypeId::Sequence,
+                name: "D".into(),
+                description: None,
+                created_at: String::new(),
+                updated_at: String::new(),
+            },
+            colors: BTreeMap::new(),
+            line_weight: None,
+            canvas: None,
+            subtype: None,
+            tags: tags(),
+            scenes: vec![scene("a", &["core"])],
+            content: StoredContent {
+                elements: Vec::new(),
+                connections: vec![connection],
+            },
+        }
+    }
+
+    #[test]
+    fn a_sequence_diagrams_messages_are_counted_and_untagged() {
+        let mut diagram = sequence_diagram();
+        let counts = tag_counts(&diagram.content, true);
+        assert_eq!(counts.get("pay"), Some(&1));
+        assert!(tag_counts(&diagram.content, false).is_empty());
+        let given = [(Some("pay".to_owned()), "Payments".to_owned())];
+        replace_tags(&mut diagram, &given).unwrap();
+        assert_eq!(connection_tags(&diagram.content.connections[0]), ["pay"]);
+        assert!(diagram.scenes.is_empty());
+        untag_connections(&mut diagram.content.connections, "pay");
+        assert!(!diagram.content.connections[0].props.contains_key("tags"));
+    }
+
+    #[test]
+    fn replacing_scenes_gives_one_without_tags_a_tag_of_its_own() {
+        let mut diagram = sequence_diagram();
+        replace_scenes(
+            &mut diagram,
+            &[
+                (None, "Core".into(), Vec::new()),
+                (None, "Sign in".into(), Vec::new()),
+                (None, "All".into(), vec!["core".into(), "sign in".into()]),
+            ],
+        )
+        .unwrap();
+        assert_eq!(diagram.tags.len(), 4);
+        let own = diagram.tags[3].id.clone();
+        assert_eq!(diagram.tags[3].name, "Sign in");
+        let shown: Vec<Vec<String>> = diagram.scenes.iter().map(|s| s.tags.clone()).collect();
+        assert_eq!(
+            shown,
+            [
+                vec!["core".to_owned()],
+                vec![own.clone()],
+                vec!["core".to_owned(), own]
+            ]
+        );
+        // Nothing is kept when one is wrong, its own tag included.
+        let before = diagram.clone();
+        assert!(
+            replace_scenes(
+                &mut diagram,
+                &[
+                    (None, "New".into(), Vec::new()),
+                    (None, "Bad".into(), vec!["nope".into()])
+                ]
+            )
+            .is_err()
+        );
+        assert_eq!(diagram, before);
     }
 }

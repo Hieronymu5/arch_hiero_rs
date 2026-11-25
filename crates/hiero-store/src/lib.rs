@@ -2063,6 +2063,85 @@ mod tests {
         }
     }
 
+    /// Each scene's name and the names of the tags it shows.
+    fn scenes_of(diagram: &StoredDiagram) -> Vec<(String, Vec<String>)> {
+        let name = |id: &String| {
+            diagram
+                .tags
+                .iter()
+                .find(|t| t.id == *id)
+                .map(|t| t.name.clone())
+                .unwrap()
+        };
+        diagram
+            .scenes
+            .iter()
+            .map(|s| (s.name.clone(), s.tags.iter().map(name).collect()))
+            .collect()
+    }
+
+    fn sample(name: &str) -> StoredDiagram {
+        seed_diagrams()
+            .into_iter()
+            .find(|d| d.meta.name == name)
+            .unwrap()
+    }
+
+    #[test]
+    fn the_conceptual_sample_steps_through_its_phases_then_shows_them_all() {
+        let mcp = sample("Arch Hiero - MCP Capabilities");
+        let phases: Vec<String> = mcp.tags.iter().map(|t| t.name.clone()).collect();
+        assert_eq!(phases, ["Phase I", "Phase II", "Phase III", "Phase IV"]);
+        let mut expected: Vec<_> = phases
+            .iter()
+            .map(|p| (p.clone(), vec![p.clone()]))
+            .collect();
+        expected.push(("MCP Capabilities".into(), phases.clone()));
+        assert_eq!(scenes_of(&mcp), expected);
+        let tagged = |e: &StoredElement| hiero_core::tags::element_tags(e).len() == 1;
+        assert!(mcp.content.elements.iter().all(tagged));
+    }
+
+    #[test]
+    fn the_online_order_and_oauth_samples_build_up_a_step_at_a_time() {
+        use hiero_core::tags::{connection_tags, element_tags};
+        for name in ["Online Order", "OAuth 2.0 Login"] {
+            let diagram = sample(name);
+            let steps: Vec<String> = diagram.tags.iter().map(|t| t.name.clone()).collect();
+            // Each scene adds its step to those before it, so the last shows them all.
+            let expected: Vec<_> = steps
+                .iter()
+                .enumerate()
+                .map(|(i, step)| (step.clone(), steps[..=i].to_vec()))
+                .collect();
+            assert_eq!(scenes_of(&diagram), expected, "{name}");
+        }
+        // The flowchart's pool and lanes are in no tag, so show throughout; each step is in one.
+        let order = sample("Online Order");
+        for e in &order.content.elements {
+            let lane = matches!(e.kind.as_str(), "pool" | "lane");
+            assert_eq!(element_tags(e).len(), usize::from(!lane), "{}", e.label);
+        }
+        // The sequence diagram's messages are each in a tag, in time order; its participants in
+        // none.
+        let oauth = sample("OAuth 2.0 Login");
+        let ids: Vec<Vec<String>> = oauth.tags.iter().map(|t| vec![t.id.clone()]).collect();
+        let tags: Vec<Vec<String>> = oauth
+            .content
+            .connections
+            .iter()
+            .map(connection_tags)
+            .collect();
+        assert_eq!(tags, ids);
+        assert!(
+            oauth
+                .content
+                .elements
+                .iter()
+                .all(|e| element_tags(e).is_empty())
+        );
+    }
+
     #[test]
     fn the_travel_agent_sample_has_a_tag_scene_and_section_for_each_trip_stage() {
         use hiero_core::tags::{element_tags, hidden_element_ids, hidden_in_scene};
@@ -2082,14 +2161,15 @@ mod tests {
                 .id
                 .clone()
         };
-        // The whole diagram comes first, then each stage in the order a trip goes through them.
+        // Each stage in the order a trip goes through them, then the whole diagram, last, which
+        // viewing opens on and playing builds up to.
         let scenes: Vec<(&str, Vec<String>)> = travel
             .scenes
             .iter()
             .map(|s| (s.name.as_str(), s.tags.clone()))
             .collect();
-        let mut expected = vec![("Travel Agent", stages.map(tag_id).to_vec())];
-        expected.extend(stages.map(|stage| (stage, vec![tag_id(stage)])));
+        let mut expected: Vec<_> = stages.map(|stage| (stage, vec![tag_id(stage)])).to_vec();
+        expected.push(("Travel Agent", stages.map(tag_id).to_vec()));
         assert_eq!(scenes, expected);
         // The stages head the diagram, left to right.
         let elements = &travel.content.elements;

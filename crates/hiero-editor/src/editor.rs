@@ -1025,6 +1025,7 @@ impl<T: DiagramView> Editor<T> {
         let mut request = None;
         let mut link: Option<(ElementId, Option<DiagramId>)> = None;
         let mut tag_change: Option<(ElementId, String, bool)> = None;
+        let mut arrow_tag_change: Option<(ConnectionId, String, bool)> = None;
         if let Some(id) = cx.eng.selected_connection.clone()
             && let Some(connection) = cx.eng.connection(&id).cloned()
         {
@@ -1033,6 +1034,18 @@ impl<T: DiagramView> Editor<T> {
                 .arrow_name(&connection.source_id, &connection.target_id);
             ui.label(RichText::new(title).strong());
             T::arrow_properties(ui, &mut cx, &connection);
+            // Where tags hold arrows, as a sequence diagram's messages, a checkbox for each of
+            // the diagram's tags, ticked for those it's in.
+            if T::ID.tags_hold_arrows() && !self.tag.tags.is_empty() {
+                ui.add_space(5.0);
+                heading(ui, "Tags");
+                for tag in &self.tag.tags {
+                    let mut on = connection.tags.contains(&tag.id);
+                    if ui.checkbox(&mut on, &tag.name).changed() {
+                        arrow_tag_change = Some((id.clone(), tag.id.clone(), on));
+                    }
+                }
+            }
             ui.add_space(6.0);
             if page_button(ui, &format!("Remove {}", T::ID.arrow_noun().one), false).clicked() {
                 remove_arrow = Some(id);
@@ -1096,8 +1109,9 @@ impl<T: DiagramView> Editor<T> {
                     }
                 }
             }
-            // A checkbox for each of the diagram's tags, ticked for those it's in.
-            if !self.tag.tags.is_empty() {
+            // A checkbox for each of the diagram's tags, ticked for those it's in, unless its
+            // tags hold its arrows.
+            if !self.tag.tags.is_empty() && !T::ID.tags_hold_arrows() {
                 ui.add_space(5.0);
                 heading(ui, "Tags");
                 for tag in &self.tag.tags {
@@ -1178,6 +1192,9 @@ impl<T: DiagramView> Editor<T> {
         }
         if let Some((element, tag, into)) = tag_change {
             self.set_element_tag(&element, &tag, into);
+        }
+        if let Some((arrow, tag, into)) = arrow_tag_change {
+            self.set_arrow_tag(&arrow, &tag, into);
         }
         if remove_selection {
             self.act(None, |eng| {
@@ -1389,7 +1406,7 @@ impl<T: DiagramView> Editor<T> {
         );
         let displayed = self.displayed().into_owned();
         self.tick_scenes(ui.ctx(), now);
-        let hidden = self.tag_hidden();
+        let hidden = self.hidden_now();
         let scene = match self.paint_tagged(&painter, xf, &displayed, dragging, dark, &hidden, now)
         {
             Some(scene) => scene,
@@ -1404,7 +1421,7 @@ impl<T: DiagramView> Editor<T> {
                 scene
             }
         };
-        self.paint_link_marks(&painter, &scene, xf, &displayed, dragging, &hidden);
+        self.paint_link_marks(&painter, &scene, xf, &displayed, dragging, &hidden.elements);
         if !self.viewing {
             self.paint_applying_rings(&painter, xf, &displayed, palette(ui).accent);
         }
@@ -1799,7 +1816,19 @@ impl<T: DiagramView> Editor<T> {
 
     fn press(&mut self, pos: Pos2, world: Point, modifiers: egui::Modifiers, xf: Transform) {
         // While a tag is applied, a press puts the element in it or takes it out, and moves
-        // nothing.
+        // nothing; where tags hold arrows, as a sequence diagram's messages, the arrow.
+        if self.tag.applying.is_some() && T::ID.tags_hold_arrows() {
+            let lines = T::arrow_lines(&self.eng, self.eng.layout(), None);
+            let hit = lines.iter().rev().find(|l| {
+                l.boxes.iter().any(|b| b.contains_point(world))
+                    || distance_to_segment(pos, xf.pos(l.from), xf.pos(l.to)) <= 6.0
+            });
+            if let Some(line) = hit {
+                let id = line.id.clone();
+                self.toggle_arrow_in_applying(&id);
+                return;
+            }
+        }
         if self.tag.applying.is_some()
             && let Some(id) = Self::element_at(&self.eng, world).map(|e| e.el.id.clone())
         {
@@ -2303,11 +2332,14 @@ impl<T: DiagramView> Editor<T> {
                 }
                 egui::Event::Paste(text) => match Clip::<T>::from_text(&text) {
                     Ok(mut clip) => {
-                        // Pasted from another diagram, elements keep only the tags this one has.
+                        // Pasted from another diagram, elements and arrows keep only the tags
+                        // this one has.
+                        let known = |t: &String| self.tag.tags.iter().any(|k| k.id == *t);
                         for element in &mut clip.elements {
-                            element
-                                .tags
-                                .retain(|t| self.tag.tags.iter().any(|k| k.id == *t));
+                            element.tags.retain(known);
+                        }
+                        for arrow in &mut clip.connections {
+                            arrow.tags.retain(known);
                         }
                         self.act(None, |eng| eng.paste(&clip));
                         if let Some(first) = self.eng.selection.first() {

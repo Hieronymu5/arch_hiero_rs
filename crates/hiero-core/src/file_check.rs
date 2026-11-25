@@ -543,7 +543,40 @@ pub fn check_diagram<T: DiagramType>(diagram: &Object) -> Result<(), String> {
         return Err(at(format!("“{key}” isn’t a field a diagram has.")));
     }
     check_content::<T>(elements, connections)?;
-    check_element_tags(elements, &tag_ids)
+    check_element_tags(elements, &tag_ids)?;
+    if T::ID.tags_hold_arrows() {
+        check_arrow_tags::<T>(elements, connections, &tag_ids)?;
+    }
+    Ok(())
+}
+
+/// Checks a diagram whose tags hold its arrows, as a sequence diagram's messages: its elements
+/// are in none, as they show throughout, and each arrow's tags are the diagram's, each once.
+fn check_arrow_tags<T: DiagramType>(
+    elements: &[Value],
+    connections: &[Value],
+    tag_ids: &BTreeSet<String>,
+) -> Result<(), String> {
+    if let Some(element) = elements.iter().find(|e| e.get("tags").is_some()) {
+        // Only a sequence diagram's tags hold its arrows.
+        return Err(format!(
+            "{}: A sequence diagram’s participants aren’t in tags: its messages are.",
+            element_prefix(element.as_object())
+        ));
+    }
+    for connection in connections {
+        let tags: Vec<&str> = match connection.get("tags").and_then(Value::as_array) {
+            Some(tags) => tags.iter().filter_map(Value::as_str).collect(),
+            None => continue,
+        };
+        let id = connection
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        tags_known(&tags, tag_ids)
+            .map_err(|m| format!("The {} {id}: {m}", T::ID.arrow_noun().one))?;
+    }
+    Ok(())
 }
 
 /// The tags or scenes of a diagram: a list, left out when it's empty.
@@ -918,9 +951,26 @@ fn check_arrow<'a, T: DiagramType>(
             target.label
         )));
     }
+    // Which tags it's in, where tags hold arrows; whether they're the diagram's is checked
+    // with the diagram.
+    if T::ID.tags_hold_arrows()
+        && let Some(tags) = object.get("tags")
+    {
+        if is_empty(tags) {
+            return Err(at(left_out("tags")));
+        }
+        let list = tags
+            .as_array()
+            .ok_or_else(|| at(must_be("tags", "a list")))?;
+        if !list.iter().all(Value::is_string) {
+            return Err(at(must_be("tags", "a list of text")));
+        }
+    }
     // 31.
     let allowed = |k: &str| {
-        matches!(k, "id" | "sourceId" | "targetId") || T::ARROW_FIELDS.iter().any(|f| f.key == k)
+        matches!(k, "id" | "sourceId" | "targetId")
+            || (T::ID.tags_hold_arrows() && k == "tags")
+            || T::ARROW_FIELDS.iter().any(|f| f.key == k)
     };
     if let Some(key) = first_unknown(object, allowed) {
         return Err(at(format!(

@@ -478,6 +478,65 @@ fn tags_and_scenes() {
     );
 }
 
+/// A sequence diagram whose tags hold its messages.
+fn sequence_tagged() -> Value {
+    file(json!({
+        "id": "55555555-5555-4555-8555-555555555555",
+        "name": "Sign in",
+        "type": "sequence",
+        "createdAt": "2026-10-01T09:00:00.000Z",
+        "updatedAt": "2026-10-02T09:00:00.000Z",
+        "tags": [{"id": "one", "name": "Step 1"}, {"id": "two", "name": "Step 2"}],
+        "scenes": [{"id": "s1", "name": "Step 1", "tags": ["one"]}],
+        "elements": [
+            {"id": "user", "kind": "actor", "label": "User", "x": 40, "y": 40},
+            {"id": "app", "kind": "application", "label": "App", "x": 300, "y": 40}
+        ],
+        "connections": [
+            {"id": "m1", "sourceId": "user", "targetId": "app", "label": "Sign in", "tags": ["one"]},
+            {"id": "m2", "sourceId": "app", "targetId": "user", "kind": "return", "tags": ["one", "two"]}
+        ]
+    }))
+}
+
+#[test]
+fn a_sequence_diagrams_tags_hold_its_messages() {
+    let diagram = diagram_from_file(&sequence_tagged()).unwrap_or_else(|e| panic!("{e}"));
+    let back = read_diagram_file(&diagram_to_zip(&diagram)).unwrap();
+    assert_eq!(back, diagram);
+    assert_eq!(
+        refused(
+            sequence_tagged(),
+            set("/diagram/elements/0", "tags", json!(["one"]))
+        ),
+        "“User”: A sequence diagram’s participants aren’t in tags: its messages are."
+    );
+    assert_eq!(
+        refused(
+            sequence_tagged(),
+            set("/diagram/connections/0", "tags", json!(["gone"]))
+        ),
+        "The message m1: The tag gone isn’t one of the diagram’s."
+    );
+    assert!(
+        refused(
+            sequence_tagged(),
+            set("/diagram/connections/0", "tags", json!([]))
+        )
+        .ends_with("“tags” must be left out when it’s empty or the default.")
+    );
+    // Only a sequence diagram's arrows are in tags.
+    let mut tagged_arrow = tagged();
+    let arrow = at(&mut tagged_arrow, "/diagram/connections/0");
+    arrow.insert("tags".into(), json!(["happy"]));
+    assert!(
+        diagram_from_file(&tagged_arrow)
+            .unwrap_err()
+            .0
+            .ends_with("“tags” isn’t a field an arrow has.")
+    );
+}
+
 #[test]
 fn elements_on_their_own() {
     let c = conceptual;

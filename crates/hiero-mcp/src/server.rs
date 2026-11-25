@@ -158,15 +158,18 @@ pub struct DetailsParams {
     /// that are shown or hidden together. Give each {id, name} to keep a tag (renamed, if the
     /// name is new), or {name} alone to add one. A tag left out is deleted: its elements are
     /// taken out of it, and scenes that showed only it are deleted. Names are unique, ignoring
-    /// case, and at most 40 characters. Put elements in tags with edit_diagram's "tags". A
-    /// diagram's JSON has them in "tags", left out when there are none.
+    /// case, and at most 40 characters. Put elements in tags with edit_diagram's "tags". On a
+    /// sequence diagram, tags hold messages instead: its participants are in none, and always
+    /// show. A diagram's JSON has them in "tags", left out when there are none.
     #[serde(default)]
     pub tags: Option<Vec<TagParam>>,
-    /// The diagram's scenes, replacing them all, in the order they're stepped through while
-    /// viewing: each {id?, name, tags}, showing the elements of the tags named (by id or name,
-    /// at least one) and hiding the rest of the tags' elements; elements in no tag show in every
-    /// scene. Set after "tags", so it can name tags added in the same call. A diagram's JSON has
-    /// them in "scenes".
+    /// The diagram's scenes, replacing them all, in the order Play steps through them while
+    /// viewing (viewing opens on the last, so make the last show every tag): each {id?, name,
+    /// tags?}, showing the elements of the tags named (by id or name) and drawing the rest of
+    /// the tags' elements faint; elements in no tag show in every scene. A scene without tags
+    /// shows a tag of its own: the tag of its name, or a new one named after it, to put elements
+    /// in with edit_diagram. Set after "tags", so it can name tags added in the same call. A
+    /// diagram's JSON has them in "scenes".
     #[serde(default)]
     pub scenes: Option<Vec<SceneParam>>,
     /// The revision from get_diagram. If the diagram changed since, the update is refused.
@@ -188,7 +191,8 @@ pub struct SceneParam {
     #[serde(default)]
     pub id: Option<String>,
     pub name: String,
-    /// The tags it shows, by id or name.
+    /// The tags it shows, by id or name. Left out or empty, a tag of its own, named after it.
+    #[serde(default)]
     pub tags: Vec<String>,
 }
 
@@ -202,10 +206,13 @@ pub struct EditParams {
     /// detailed one of what it stands for; any number of elements can link to the same one,
     /// and linking or unlinking never creates, deletes, or moves a diagram; "" removes the
     /// link), tags? (replaces the diagram's tags the element is in, by id or name; [] takes it
-    /// out of them all; add_element takes tags? too)},
+    /// out of them all; add_element takes tags? too; not on a sequence diagram, whose tags hold
+    /// its messages)},
     /// move_element {id, x, y}, resize_element {id, width, height}, remove_element {id} (also
     /// removes its arrows; what a container holds stays on the diagram, outside it, except a
-    /// deployed component layer's components, which go with it), add_connection {ref?, source_id, target_id, props?}, update_connection {id, props},
+    /// deployed component layer's components, which go with it), add_connection {ref?, source_id, target_id, props?, tags?}, update_connection {id, props?, tags?}
+    /// (tags? only on a sequence diagram: the tags its message is in, by id or name, replacing
+    /// them; [] takes it out of them all; a message shows while any of its tags does),
     /// remove_connection {id}, move_connection {id, index} (moves an arrow to that place, from 0,
     /// in the diagram's order of arrows: a sequence diagram's messages are in time order, top to
     /// bottom). Any id can be a ref given to an element added earlier in the same batch.

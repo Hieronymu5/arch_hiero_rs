@@ -213,6 +213,7 @@ impl<T: DiagramType> Engine<T> {
                     id: ConnectionId(self.new_id()),
                     source_id: new_ids.get(&c.source_id)?.clone(),
                     target_id: new_ids.get(&c.target_id)?.clone(),
+                    tags: c.tags.clone(),
                     props: c.props.clone(),
                 })
             })

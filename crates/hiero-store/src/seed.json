@@ -35,7 +35,6 @@
         "id": "scene-phase-2",
         "name": "Phase II",
         "tags": [
-          "phase-1",
           "phase-2"
         ]
       },
@@ -43,14 +42,19 @@
         "id": "scene-phase-3",
         "name": "Phase III",
         "tags": [
-          "phase-1",
-          "phase-2",
           "phase-3"
         ]
       },
       {
         "id": "scene-phase-4",
         "name": "Phase IV",
+        "tags": [
+          "phase-4"
+        ]
+      },
+      {
+        "id": "scene-mcp-capabilities",
+        "name": "MCP Capabilities",
         "tags": [
           "phase-1",
           "phase-2",
@@ -408,17 +412,6 @@
     ],
     "scenes": [
       {
-        "id": "99b60ce0-7e21-4d2d-8647-03a408be8b30",
-        "name": "Travel Agent",
-        "tags": [
-          "b0da1e6e-96e4-4194-9cf5-331316706b09",
-          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe",
-          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
-          "78722bbf-b1ff-4950-be21-aa2f12c88538",
-          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
-        ]
-      },
-      {
         "id": "34c2d87e-c8ca-4dba-b172-d4500333423b",
         "name": "Explore",
         "tags": [
@@ -450,6 +443,17 @@
         "id": "16e1877e-4fe6-446c-9506-65a7dde6c52b",
         "name": "Feedback",
         "tags": [
+          "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
+        ]
+      },
+      {
+        "id": "99b60ce0-7e21-4d2d-8647-03a408be8b30",
+        "name": "Travel Agent",
+        "tags": [
+          "b0da1e6e-96e4-4194-9cf5-331316706b09",
+          "d8f358d8-2fa2-4ea8-a4ff-83a9c86301fe",
+          "ea5cd462-1cf5-4e1a-96f9-8e86732d7bbe",
+          "78722bbf-b1ff-4950-be21-aa2f12c88538",
           "6aac36af-b0d2-4e95-bf9f-d3c1cf5bb438"
         ]
       }
@@ -1963,6 +1967,231 @@
     "type": "flowchart",
     "lineWeight": "medium",
     "description": "An online order from checkout to the door, across the shop, warehouse and courier",
+    "tags": [
+      {
+        "id": "order-step-1",
+        "name": "Place an order"
+      },
+      {
+        "id": "order-step-2",
+        "name": "Pay at checkout"
+      },
+      {
+        "id": "order-step-3",
+        "name": "Take payment"
+      },
+      {
+        "id": "order-step-4",
+        "name": "Paid?"
+      },
+      {
+        "id": "order-step-5",
+        "name": "Order failed"
+      },
+      {
+        "id": "order-step-6",
+        "name": "Pick and pack"
+      },
+      {
+        "id": "order-step-7",
+        "name": "Packing slip"
+      },
+      {
+        "id": "order-step-8",
+        "name": "Wait for pickup"
+      },
+      {
+        "id": "order-step-9",
+        "name": "Deliver the parcel"
+      },
+      {
+        "id": "order-step-10",
+        "name": "Anyone home?"
+      },
+      {
+        "id": "order-step-11",
+        "name": "Order delivered"
+      },
+      {
+        "id": "order-step-12",
+        "name": "Take to the depot"
+      },
+      {
+        "id": "order-step-13",
+        "name": "Collect at depot"
+      }
+    ],
+    "scenes": [
+      {
+        "id": "scene-order-step-1",
+        "name": "Place an order",
+        "tags": [
+          "order-step-1"
+        ]
+      },
+      {
+        "id": "scene-order-step-2",
+        "name": "Pay at checkout",
+        "tags": [
+          "order-step-1",
+          "order-step-2"
+        ]
+      },
+      {
+        "id": "scene-order-step-3",
+        "name": "Take payment",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3"
+        ]
+      },
+      {
+        "id": "scene-order-step-4",
+        "name": "Paid?",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4"
+        ]
+      },
+      {
+        "id": "scene-order-step-5",
+        "name": "Order failed",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5"
+        ]
+      },
+      {
+        "id": "scene-order-step-6",
+        "name": "Pick and pack",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6"
+        ]
+      },
+      {
+        "id": "scene-order-step-7",
+        "name": "Packing slip",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6",
+          "order-step-7"
+        ]
+      },
+      {
+        "id": "scene-order-step-8",
+        "name": "Wait for pickup",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6",
+          "order-step-7",
+          "order-step-8"
+        ]
+      },
+      {
+        "id": "scene-order-step-9",
+        "name": "Deliver the parcel",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6",
+          "order-step-7",
+          "order-step-8",
+          "order-step-9"
+        ]
+      },
+      {
+        "id": "scene-order-step-10",
+        "name": "Anyone home?",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6",
+          "order-step-7",
+          "order-step-8",
+          "order-step-9",
+          "order-step-10"
+        ]
+      },
+      {
+        "id": "scene-order-step-11",
+        "name": "Order delivered",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6",
+          "order-step-7",
+          "order-step-8",
+          "order-step-9",
+          "order-step-10",
+          "order-step-11"
+        ]
+      },
+      {
+        "id": "scene-order-step-12",
+        "name": "Take to the depot",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6",
+          "order-step-7",
+          "order-step-8",
+          "order-step-9",
+          "order-step-10",
+          "order-step-11",
+          "order-step-12"
+        ]
+      },
+      {
+        "id": "scene-order-step-13",
+        "name": "Collect at depot",
+        "tags": [
+          "order-step-1",
+          "order-step-2",
+          "order-step-3",
+          "order-step-4",
+          "order-step-5",
+          "order-step-6",
+          "order-step-7",
+          "order-step-8",
+          "order-step-9",
+          "order-step-10",
+          "order-step-11",
+          "order-step-12",
+          "order-step-13"
+        ]
+      }
+    ],
     "elements": [
       {
         "id": "01166905-9950-458c-b081-42a743b8c05f",
@@ -1970,7 +2199,10 @@
         "label": "Place an order",
         "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
         "x": 120,
-        "y": 120
+        "y": 120,
+        "tags": [
+          "order-step-1"
+        ]
       },
       {
         "id": "0710023c-42d2-4608-b91b-92cde94e8ff6",
@@ -1978,7 +2210,10 @@
         "label": "Order delivered",
         "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
         "x": 120,
-        "y": 820
+        "y": 820,
+        "tags": [
+          "order-step-11"
+        ]
       },
       {
         "height": 1000,
@@ -2036,7 +2271,10 @@
         "label": "Pay at checkout",
         "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
         "x": 120,
-        "y": 260
+        "y": 260,
+        "tags": [
+          "order-step-2"
+        ]
       },
       {
         "id": "15c01881-9ec5-494f-a9f7-4047467e823c",
@@ -2044,7 +2282,10 @@
         "label": "Take payment",
         "parentId": "9d6b46e5-4129-429d-b812-651d9429c123",
         "x": 420,
-        "y": 260
+        "y": 260,
+        "tags": [
+          "order-step-3"
+        ]
       },
       {
         "id": "1d722e22-41bc-4de6-988f-c3bbb6413e1c",
@@ -2052,7 +2293,10 @@
         "label": "Paid?",
         "parentId": "9d6b46e5-4129-429d-b812-651d9429c123",
         "x": 420,
-        "y": 420
+        "y": 420,
+        "tags": [
+          "order-step-4"
+        ]
       },
       {
         "id": "54544b03-94a0-4344-a9eb-7be04e29cdc6",
@@ -2060,7 +2304,10 @@
         "label": "Order failed",
         "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
         "x": 120,
-        "y": 460
+        "y": 460,
+        "tags": [
+          "order-step-5"
+        ]
       },
       {
         "id": "a26b25fe-eb8f-4689-b0e7-1235fbed2329",
@@ -2068,7 +2315,10 @@
         "label": "Stock",
         "parentId": "cdb665c4-98b9-44d6-8db2-a677a942ae45",
         "x": 740,
-        "y": 260
+        "y": 260,
+        "tags": [
+          "order-step-6"
+        ]
       },
       {
         "id": "0d6c7b20-96a9-48f1-9471-da6b64f1315e",
@@ -2076,7 +2326,10 @@
         "label": "Pick and pack",
         "parentId": "cdb665c4-98b9-44d6-8db2-a677a942ae45",
         "x": 720,
-        "y": 440
+        "y": 440,
+        "tags": [
+          "order-step-6"
+        ]
       },
       {
         "id": "8bfd03ca-b4ee-47e6-a645-9b694f4ee303",
@@ -2084,7 +2337,10 @@
         "label": "Packing slip",
         "parentId": "cdb665c4-98b9-44d6-8db2-a677a942ae45",
         "x": 720,
-        "y": 620
+        "y": 620,
+        "tags": [
+          "order-step-7"
+        ]
       },
       {
         "id": "e6b03f37-b9cd-4244-ab7c-ef93b18b1426",
@@ -2092,7 +2348,10 @@
         "label": "Wait for pickup",
         "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
         "x": 1020,
-        "y": 440
+        "y": 440,
+        "tags": [
+          "order-step-8"
+        ]
       },
       {
         "id": "94867520-a94a-4676-981c-3313ff99dc3e",
@@ -2100,7 +2359,10 @@
         "label": "Deliver the parcel",
         "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
         "x": 1020,
-        "y": 620
+        "y": 620,
+        "tags": [
+          "order-step-9"
+        ]
       },
       {
         "id": "3e215afa-ace4-4cae-b7a0-38ee2a2e3470",
@@ -2108,7 +2370,10 @@
         "label": "Anyone home?",
         "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
         "x": 1020,
-        "y": 780
+        "y": 780,
+        "tags": [
+          "order-step-10"
+        ]
       },
       {
         "id": "7b370f9e-1557-4ad8-808c-4c81985dab5a",
@@ -2116,7 +2381,10 @@
         "label": "Take to the depot",
         "parentId": "0cc0dfbc-3f5d-48a0-a5bd-9fe649b3740d",
         "x": 1020,
-        "y": 940
+        "y": 940,
+        "tags": [
+          "order-step-12"
+        ]
       },
       {
         "id": "b7714c0a-c8fb-458e-b65f-f4ddcd293b90",
@@ -2124,7 +2392,10 @@
         "label": "Collect at depot",
         "parentId": "d1c2eb0c-946f-47b1-a372-aea6741d1053",
         "x": 120,
-        "y": 980
+        "y": 980,
+        "tags": [
+          "order-step-13"
+        ]
       }
     ],
     "connections": [
@@ -2459,6 +2730,255 @@
     "description": "How a user signs in to a service provider (SP) through an identity provider (IDP), by OAuth 2.0's authorization code flow with PKCE",
     "createdAt": "2026-11-07T09:00:00.000Z",
     "updatedAt": "2026-11-07T09:00:00.000Z",
+    "tags": [
+      {
+        "id": "oauth-step-1",
+        "name": "Sign in"
+      },
+      {
+        "id": "oauth-step-2",
+        "name": "Create state and PKCE"
+      },
+      {
+        "id": "oauth-step-3",
+        "name": "Redirect to IDP"
+      },
+      {
+        "id": "oauth-step-4",
+        "name": "Authorize request"
+      },
+      {
+        "id": "oauth-step-5",
+        "name": "Login page"
+      },
+      {
+        "id": "oauth-step-6",
+        "name": "Submit credentials"
+      },
+      {
+        "id": "oauth-step-7",
+        "name": "Authenticate user"
+      },
+      {
+        "id": "oauth-step-8",
+        "name": "Redirect to SP"
+      },
+      {
+        "id": "oauth-step-9",
+        "name": "Callback"
+      },
+      {
+        "id": "oauth-step-10",
+        "name": "Check state"
+      },
+      {
+        "id": "oauth-step-11",
+        "name": "Token request"
+      },
+      {
+        "id": "oauth-step-12",
+        "name": "Tokens"
+      },
+      {
+        "id": "oauth-step-13",
+        "name": "Validate ID token"
+      },
+      {
+        "id": "oauth-step-14",
+        "name": "Signed in"
+      }
+    ],
+    "scenes": [
+      {
+        "id": "scene-oauth-step-1",
+        "name": "Sign in",
+        "tags": [
+          "oauth-step-1"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-2",
+        "name": "Create state and PKCE",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-3",
+        "name": "Redirect to IDP",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-4",
+        "name": "Authorize request",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-5",
+        "name": "Login page",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-6",
+        "name": "Submit credentials",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-7",
+        "name": "Authenticate user",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-8",
+        "name": "Redirect to SP",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7",
+          "oauth-step-8"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-9",
+        "name": "Callback",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7",
+          "oauth-step-8",
+          "oauth-step-9"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-10",
+        "name": "Check state",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7",
+          "oauth-step-8",
+          "oauth-step-9",
+          "oauth-step-10"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-11",
+        "name": "Token request",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7",
+          "oauth-step-8",
+          "oauth-step-9",
+          "oauth-step-10",
+          "oauth-step-11"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-12",
+        "name": "Tokens",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7",
+          "oauth-step-8",
+          "oauth-step-9",
+          "oauth-step-10",
+          "oauth-step-11",
+          "oauth-step-12"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-13",
+        "name": "Validate ID token",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7",
+          "oauth-step-8",
+          "oauth-step-9",
+          "oauth-step-10",
+          "oauth-step-11",
+          "oauth-step-12",
+          "oauth-step-13"
+        ]
+      },
+      {
+        "id": "scene-oauth-step-14",
+        "name": "Signed in",
+        "tags": [
+          "oauth-step-1",
+          "oauth-step-2",
+          "oauth-step-3",
+          "oauth-step-4",
+          "oauth-step-5",
+          "oauth-step-6",
+          "oauth-step-7",
+          "oauth-step-8",
+          "oauth-step-9",
+          "oauth-step-10",
+          "oauth-step-11",
+          "oauth-step-12",
+          "oauth-step-13",
+          "oauth-step-14"
+        ]
+      }
+    ],
     "elements": [
       {
         "id": "0a9f3877-9c81-453a-9845-92d003b28b82",
@@ -2490,90 +3010,132 @@
         "id": "23b50f61-288e-41ff-8960-1c15f3728a0c",
         "label": "Sign in",
         "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
-        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "tags": [
+          "oauth-step-1"
+        ]
       },
       {
         "id": "25173325-157b-4676-9a4b-1a0269e3107c",
         "label": "Create state and PKCE verifier",
         "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
-        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "tags": [
+          "oauth-step-2"
+        ]
       },
       {
         "id": "54e27982-3d2b-4c78-aebb-a10e45593eb0",
         "kind": "return",
         "label": "302 redirect to IDP /authorize",
         "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
-        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "tags": [
+          "oauth-step-3"
+        ]
       },
       {
         "id": "0c81e337-5278-4af3-9449-2e0360e9a598",
         "label": "GET /authorize (client_id, redirect_uri, scope, state, code_challenge)",
         "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
-        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "tags": [
+          "oauth-step-4"
+        ]
       },
       {
         "id": "94234dc3-3e54-4898-a1b8-c771a06819a0",
         "kind": "return",
         "label": "Login page",
         "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
-        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "tags": [
+          "oauth-step-5"
+        ]
       },
       {
         "id": "4abf0d61-73f9-4c32-ab84-9218f13135f2",
         "label": "Submit credentials and consent",
         "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
-        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "tags": [
+          "oauth-step-6"
+        ]
       },
       {
         "id": "240125e1-be85-488b-8740-289c4ca7eb69",
         "label": "Authenticate user",
         "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
-        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "tags": [
+          "oauth-step-7"
+        ]
       },
       {
         "id": "32745fba-5ac0-4a81-8e6f-78baf1e203ca",
         "kind": "return",
         "label": "302 redirect to SP /callback (code, state)",
         "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
-        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "tags": [
+          "oauth-step-8"
+        ]
       },
       {
         "id": "26bc69b5-ed68-4f27-89b8-4f21558e14d5",
         "label": "GET /callback (code, state)",
         "sourceId": "0a9f3877-9c81-453a-9845-92d003b28b82",
-        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "tags": [
+          "oauth-step-9"
+        ]
       },
       {
         "id": "da9e055e-1202-4a2c-b002-2c9f68f73db3",
         "label": "Check state",
         "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
-        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "tags": [
+          "oauth-step-10"
+        ]
       },
       {
         "id": "6d466984-acf4-4e2f-9f33-853a59d97851",
         "label": "POST /token (code, code_verifier, client credentials)",
         "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
-        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083"
+        "targetId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
+        "tags": [
+          "oauth-step-11"
+        ]
       },
       {
         "id": "51c4a9fc-0ff4-4b4e-a1f8-e270b0c10dcd",
         "kind": "return",
         "label": "Access, ID, and refresh tokens",
         "sourceId": "1d968e2b-5ff5-469b-b9e4-73e2029ab083",
-        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "tags": [
+          "oauth-step-12"
+        ]
       },
       {
         "id": "d1fc7ea4-c56d-4158-b43d-ffdc76146005",
         "label": "Validate ID token and start session",
         "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
-        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286"
+        "targetId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
+        "tags": [
+          "oauth-step-13"
+        ]
       },
       {
         "id": "831b1d7c-c670-46e1-b425-f6bc87bab17c",
         "kind": "return",
         "label": "Home page, signed in (session cookie)",
         "sourceId": "c4465170-ceaf-49ee-8a71-ee77ca964286",
-        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82"
+        "targetId": "0a9f3877-9c81-453a-9845-92d003b28b82",
+        "tags": [
+          "oauth-step-14"
+        ]
       }
     ]
   },

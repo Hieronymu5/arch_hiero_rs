@@ -1725,6 +1725,7 @@ impl<T: DiagramType> Engine<T> {
             id: ConnectionId(self.new_id()),
             source_id: source.clone(),
             target_id: target.clone(),
+            tags: Vec::new(),
             props,
         };
         let id = connection.id.clone();
@@ -1787,6 +1788,25 @@ impl<T: DiagramType> Engine<T> {
             .map(|mut c| {
                 if c.id == *id {
                     c.props = props.clone();
+                }
+                c
+            })
+            .collect();
+        self.set_connections(connections);
+    }
+
+    /// Sets the tags an arrow is in, where tags hold arrows, as a sequence diagram's messages.
+    pub fn set_connection_tags(&mut self, id: &ConnectionId, tags: Vec<String>) {
+        if self.connection(id).is_none_or(|c| c.tags == tags) {
+            return;
+        }
+        let connections = self
+            .connections
+            .iter()
+            .cloned()
+            .map(|mut c| {
+                if c.id == *id {
+                    c.tags.clone_from(&tags);
                 }
                 c
             })

@@ -6,25 +6,35 @@
 //! Settings, where tags are added, renamed, and deleted. Which tags are hidden isn't saved:
 //! each visit starts with all of them shown.
 //!
+//! A sequence diagram's tags hold its messages instead: its participants show throughout, and
+//! a message its tags hide is faint while editing, and gone or faint while viewing, as an
+//! element would be. Applying a tag, clicking a message puts it in or takes it out.
+//!
 //! While viewing a diagram with scenes, a Scenes panel takes the tags' place: Previous, Play or
-//! Pause, and Next, then the scenes. What a scene doesn't show stays very faint, and so does
-//! every arrow to or from it: all the arrows stay, routed together, so none moves as the scenes
-//! step on. As they do, the camera first eases to frame what the scene adds. Once it's there,
-//! what the scene takes away fades, arrows and all, and what it brings in is built from the top
-//! down: each element fades in as a line moving down the canvas reaches it, and each arrow,
-//! faint until then, is drawn down as the line passes. Scrolling or zooming stops the camera.
+//! Pause, and Next, then the scenes. Viewing opens on the last scene. What a scene doesn't show
+//! stays very faint, and so does every arrow to or from it: all the arrows stay, routed
+//! together, so none moves as the scenes step on. As they do, the camera first eases to frame
+//! what the scene adds. Once it's there, what the scene takes away fades, arrows and all, and
+//! what it brings in is built from the top down: each element fades in as a line moving down
+//! the canvas reaches it, and each arrow, faint until then, is drawn down as the line passes.
+//! Playing from the last scene starts again from the first: everything fades first, as in no
+//! scene. Once the last scene played is in, the camera eases back to where the view was before
+//! it first moved, at the user's own zoom.
+//! Scrolling or zooming stops the camera.
 
 use std::collections::BTreeSet;
 
 use egui::{Color32, CursorIcon, Pos2, RichText, Sense, Stroke, Ui};
+use std::collections::BTreeMap;
+
 use hiero_core::engine::{Conn, Laid};
 use hiero_core::geometry::Rect;
 use hiero_core::legend::Stamp;
-use hiero_core::model::ElementId;
+use hiero_core::model::{ConnectionId, ElementId};
 use hiero_core::scene::Scene;
 use hiero_core::tags::{
-    DiagramScene, DiagramTag, ShownElement, Sweep, SweepPace, ease, ease_in_out,
-    hidden_element_ids, hidden_in_scene, leftmost_active_section, scene_frame,
+    DiagramScene, DiagramTag, ShownElement, Sweep, SweepPace, bounds_of, ease, ease_in_out,
+    hidden_arrow_ids, hidden_element_ids, hidden_in_scene, leftmost_active_section, scene_frame,
 };
 
 use super::{DiagramRequest, DiagramView, Editor};
@@ -39,6 +49,9 @@ const EDIT_FAINT: f32 = 0.3;
 const SCENE_FAINT: f32 = 0.08;
 /// How long each scene shows while the scenes play, in seconds.
 const SCENE_SECONDS: f64 = 3.0;
+/// How long everything shows faint before the first scene comes in, when the scenes play from
+/// the start, in seconds.
+const BLANK_SECONDS: f64 = 1.2;
 /// How long the camera takes to frame a scene, and how long after it's there the scene starts
 /// to build, in seconds.
 const CAMERA_SECONDS: f64 = 0.9;
@@ -67,9 +80,22 @@ pub(super) struct TagState {
     hidden: BTreeSet<String>,
     /// The tag being applied to elements by clicking them, while editing.
     pub applying: Option<String>,
-    /// Where the scene showing is in the scenes, while viewing.
-    scene: usize,
-    /// While the scenes play: when the scene showing started showing, in egui's time.
+    /// Where the scene showing is in the scenes, while viewing: unset for the last, which
+    /// viewing opens on.
+    scene: Option<usize>,
+    /// Whether the scenes are about to play from the start: everything shows faint, as in no
+    /// scene, until the first comes in.
+    blank: bool,
+    /// Whether to ease back to where the view was once the last scene played is in.
+    zoom_back: bool,
+    /// The zoom the view had before the camera first moved it, the user's own, to go back to.
+    own_zoom: Option<f32>,
+    /// Where the view's top left was, in canvas pixels, before the camera first moved it, to go
+    /// back to once the scenes have played. Only the first move's is kept, so the camera's
+    /// moves between scenes don't change it. Unset while the view is the user's own.
+    view_before: Option<(f64, f64)>,
+    /// While the scenes play: when the scene showing started showing, or everything faded, in
+    /// egui's time.
     playing: Option<f64>,
     /// While the scenes step from one to another: what's shown changing.
     step: Option<Step>,
@@ -87,7 +113,56 @@ pub(super) struct TagState {
     /// What's drawn for the content, the elements hidden, and whether every arrow is kept. At
     /// most five, for a step's two ends, what both show, and what's faint throughout it and
     /// what isn't.
-    pub cache: Vec<(u64, BTreeSet<ElementId>, bool, Picture)>,
+    pub cache: Vec<(u64, Hidden, bool, Picture)>,
+}
+
+/// What tags hide: elements, and where tags hold arrows, as a sequence diagram's messages,
+/// arrows.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(super) struct Hidden {
+    pub elements: BTreeSet<ElementId>,
+    pub arrows: BTreeSet<ConnectionId>,
+}
+
+impl Hidden {
+    pub fn is_empty(&self) -> bool {
+        self.elements.is_empty() && self.arrows.is_empty()
+    }
+
+    /// What either hides.
+    fn union(&self, other: &Self) -> Self {
+        Self {
+            elements: self.elements.union(&other.elements).cloned().collect(),
+            arrows: self.arrows.union(&other.arrows).cloned().collect(),
+        }
+    }
+
+    /// What both hide.
+    fn intersection(&self, other: &Self) -> Self {
+        Self {
+            elements: self
+                .elements
+                .intersection(&other.elements)
+                .cloned()
+                .collect(),
+            arrows: self.arrows.intersection(&other.arrows).cloned().collect(),
+        }
+    }
+
+    /// What this hides and `other` doesn't.
+    fn difference(&self, other: &Self) -> Self {
+        Self {
+            elements: self.elements.difference(&other.elements).cloned().collect(),
+            arrows: self.arrows.difference(&other.arrows).cloned().collect(),
+        }
+    }
+
+    /// Whether the arrow `c` is hidden: by its own tags, or with an element at either end.
+    fn hides_arrow<A>(&self, c: &hiero_core::model::Connection<A>) -> bool {
+        self.arrows.contains(&c.id)
+            || self.elements.contains(&c.source_id)
+            || self.elements.contains(&c.target_id)
+    }
 }
 
 /// What's drawn while some elements are hidden.
@@ -103,8 +178,8 @@ pub(super) struct Picture {
 
 /// The scenes stepping from one to another.
 struct Step {
-    /// The tags hidden before.
-    before: BTreeSet<String>,
+    /// What was hidden before.
+    before: Hidden,
     /// When it started, in egui's time.
     start: f64,
     /// The line building what the scene adds, if it adds anything.
@@ -132,11 +207,16 @@ struct Changes {
     arrows: Scene,
 }
 
-/// What the camera frames: an area of the canvas, or all that's drawn, legend and all.
+/// What the camera frames: an area of the canvas, all that's drawn, legend and all, or the
+/// view at `zoom` with its top left at `corner`, or the drawing's top left without one.
 #[derive(Debug, Clone, Copy)]
 enum Frame {
     Area(Rect),
     All,
+    Back {
+        zoom: f32,
+        corner: Option<(f64, f64)>,
+    },
 }
 
 /// The camera easing the view from one part of the canvas to another.
@@ -171,9 +251,12 @@ impl TagState {
         !self.tags.is_empty() || !self.scenes.is_empty()
     }
 
-    /// Viewing starts or stops: the scenes start again from the first, and applying stops.
+    /// Viewing starts or stops: the scenes start again from the last, and applying stops.
     pub fn viewing_changed(&mut self) {
-        self.scene = 0;
+        self.scene = None;
+        self.blank = false;
+        self.zoom_back = false;
+        self.view_before = None;
         self.playing = None;
         self.step = None;
         self.frame = None;
@@ -181,7 +264,7 @@ impl TagState {
         self.stepped = false;
         self.applying = None;
         self.cache.clear();
-        // Viewing starts at the first scene, whose section is scrolled into view.
+        // Viewing starts at the last scene, whose section is scrolled into view.
         self.reveal_section = !self.scenes.is_empty();
     }
 }
@@ -324,7 +407,7 @@ impl<T: DiagramView> Editor<T> {
         {
             state.applying = None;
         }
-        state.scene = state.scene.min(scenes.len().saturating_sub(1));
+        state.scene = state.scene.map(|i| i.min(scenes.len().saturating_sub(1)));
         state.step = None;
         state.cache.clear();
     }
@@ -334,8 +417,17 @@ impl<T: DiagramView> Editor<T> {
         if !self.viewing || self.tag.scenes.is_empty() {
             return None;
         }
-        let index = self.tag.scene.min(self.tag.scenes.len() - 1);
+        let last = self.tag.scenes.len() - 1;
+        let index = self.tag.scene.unwrap_or(last).min(last);
         Some((index, &self.tag.scenes[index]))
+    }
+
+    /// Where the scene showing is in the scenes, while viewing: none while the scenes are
+    /// about to play from the start, with everything faint.
+    fn scene_index(&self) -> Option<usize> {
+        self.active_scene()
+            .filter(|_| !self.tag.blank)
+            .map(|(i, _)| i)
     }
 
     /// The tags hidden: while viewing a scene, those it doesn't show; otherwise those hidden by
@@ -347,9 +439,22 @@ impl<T: DiagramView> Editor<T> {
         }
     }
 
-    /// The elements hidden while the tags `hidden` are.
-    fn hidden_by(&self, hidden: &BTreeSet<String>) -> BTreeSet<ElementId> {
-        hidden_element_ids(
+    /// What's hidden while the tags `hidden` are: elements, or where tags hold arrows, arrows.
+    fn hidden_by(&self, hidden: &BTreeSet<String>) -> Hidden {
+        if T::ID.tags_hold_arrows() {
+            let arrows = hidden_arrow_ids(
+                self.eng
+                    .connections()
+                    .iter()
+                    .map(|c| (c.id.0.as_str(), c.tags.as_slice())),
+                hidden,
+            );
+            return Hidden {
+                elements: BTreeSet::new(),
+                arrows: arrows.into_iter().map(ConnectionId).collect(),
+            };
+        }
+        let elements = hidden_element_ids(
             self.eng.elements().iter().map(|e| {
                 (
                     e.id.0.as_str(),
@@ -358,15 +463,46 @@ impl<T: DiagramView> Editor<T> {
                 )
             }),
             hidden,
-        )
-        .into_iter()
-        .map(ElementId)
-        .collect()
+        );
+        Hidden {
+            elements: elements.into_iter().map(ElementId).collect(),
+            arrows: BTreeSet::new(),
+        }
+    }
+
+    /// What its tags hide now: while the scenes are about to play from the start, everything a
+    /// scene could show, which is every element, or where tags hold arrows, every arrow.
+    pub(super) fn hidden_now(&self) -> Hidden {
+        if self.tag.blank && self.active_scene().is_some() {
+            return if T::ID.tags_hold_arrows() {
+                Hidden {
+                    elements: BTreeSet::new(),
+                    arrows: self
+                        .eng
+                        .connections()
+                        .iter()
+                        .map(|c| c.id.clone())
+                        .collect(),
+                }
+            } else {
+                Hidden {
+                    elements: self.eng.elements().iter().map(|e| e.id.clone()).collect(),
+                    arrows: BTreeSet::new(),
+                }
+            };
+        }
+        self.hidden_by(&self.hidden_tag_ids())
     }
 
     /// The elements their tags hide now.
     pub fn tag_hidden(&self) -> BTreeSet<ElementId> {
-        self.hidden_by(&self.hidden_tag_ids())
+        self.hidden_now().elements
+    }
+
+    /// The arrows their own tags hide now, where tags hold arrows, as a sequence diagram's
+    /// messages.
+    pub fn arrows_tag_hidden(&self) -> BTreeSet<ConnectionId> {
+        self.hidden_now().arrows
     }
 
     // Tags
@@ -406,8 +542,13 @@ impl<T: DiagramView> Editor<T> {
         self.tag.applying = tag.map(|t| t.id.clone());
         self.eng.announcement = match tag {
             Some(tag) => format!(
-                "Applying {}: select elements to put them in it or take them out. Press Escape or select empty canvas to stop.",
-                tag.name
+                "Applying {}: select {} to put them in it or take them out. Press Escape or select empty canvas to stop.",
+                tag.name,
+                if T::ID.tags_hold_arrows() {
+                    T::ID.arrow_noun().many
+                } else {
+                    "elements"
+                }
             ),
             None => "Stopped applying the tag.".into(),
         };
@@ -427,8 +568,54 @@ impl<T: DiagramView> Editor<T> {
         self.set_element_tag(id, &tag, into);
     }
 
+    /// Puts an arrow in the tag being applied, or takes it out when it's in it, where tags hold
+    /// arrows.
+    pub(super) fn toggle_arrow_in_applying(&mut self, id: &ConnectionId) {
+        let (Some(tag), Some(arrow)) = (self.tag.applying.clone(), self.eng.connection(id)) else {
+            return;
+        };
+        let into = !arrow.tags.contains(&tag);
+        self.set_arrow_tag(id, &tag, into);
+    }
+
+    /// Puts an arrow in the tag `tag_id`, or takes it out, as one undo step, and says so, where
+    /// tags hold arrows, as a sequence diagram's messages.
+    pub(super) fn set_arrow_tag(&mut self, id: &ConnectionId, tag_id: &str, into: bool) {
+        if !T::ID.tags_hold_arrows() {
+            return;
+        }
+        let Some(tag) = self.tag.tags.iter().find(|t| t.id == tag_id).cloned() else {
+            return;
+        };
+        let Some(arrow) = self.eng.connection(id) else {
+            return;
+        };
+        if arrow.tags.contains(&tag.id) == into {
+            return;
+        }
+        let mut tags = arrow.tags.clone();
+        if into {
+            tags.push(tag.id.clone());
+        } else {
+            tags.retain(|t| *t != tag.id);
+        }
+        let tags = hiero_core::tags::in_tag_order(&tags, &self.tag.tags);
+        let name = self.eng.arrow_name(&arrow.source_id, &arrow.target_id);
+        let id = id.clone();
+        self.act(None, move |eng| eng.set_connection_tags(&id, tags));
+        self.eng.announcement = format!(
+            "{name} {} {}.",
+            if into { "put in" } else { "taken out of" },
+            tag.name
+        );
+    }
+
     /// Puts an element in the tag `tag_id`, or takes it out, as one undo step, and says so.
+    /// Where tags hold arrows, elements are in none.
     pub(super) fn set_element_tag(&mut self, id: &ElementId, tag_id: &str, into: bool) {
+        if T::ID.tags_hold_arrows() {
+            return;
+        }
         let Some(tag) = self.tag.tags.iter().find(|t| t.id == tag_id).cloned() else {
             return;
         };
@@ -469,6 +656,23 @@ impl<T: DiagramView> Editor<T> {
         let Some(applying) = &self.tag.applying else {
             return;
         };
+        // A message in it is drawn over in the accent, thicker.
+        if T::ID.tags_hold_arrows() {
+            let stroke = Stroke::new(4.0, accent);
+            for line in T::arrow_lines(&self.eng, displayed, self.slide()) {
+                if self
+                    .eng
+                    .connection(&line.id)
+                    .is_some_and(|c| c.tags.contains(applying))
+                {
+                    painter.line_segment([xf.pos(line.from), xf.pos(line.to)], stroke);
+                    for b in &line.boxes {
+                        painter.rect_stroke(xf.rect(*b), 2, stroke, egui::StrokeKind::Middle);
+                    }
+                }
+            }
+            return;
+        }
         for element in displayed.iter().filter(|e| e.el.tags.contains(applying)) {
             let rect = xf
                 .rect(T::drawn_rect(&self.eng, element))
@@ -488,8 +692,8 @@ impl<T: DiagramView> Editor<T> {
     #[expect(clippy::too_many_arguments, reason = "the pictures of a step")]
     fn changes(
         &self,
-        before: &BTreeSet<ElementId>,
-        hidden: &BTreeSet<ElementId>,
+        before: &Hidden,
+        hidden: &Hidden,
         displayed: &[Laid<T>],
         then: &Picture,
         now: &Picture,
@@ -498,7 +702,7 @@ impl<T: DiagramView> Editor<T> {
     ) -> Changes {
         let entering: Vec<(f64, Scene)> = displayed
             .iter()
-            .filter(|e| before.contains(e.id()) && !hidden.contains(e.id()))
+            .filter(|e| before.elements.contains(e.id()) && !hidden.elements.contains(e.id()))
             .map(|e| {
                 let alone = self.eng.only(|id| id == e.id(), false);
                 (
@@ -521,24 +725,15 @@ impl<T: DiagramView> Editor<T> {
             )
         };
         let no_arrows = all(&|_| false);
-        let rect_of = |id: &ElementId| {
-            displayed
-                .iter()
-                .find(|e| e.id() == id)
-                .map(|e| T::drawn_rect(&self.eng, e))
-        };
+        let spans = self.arrow_spans(displayed);
         let faint_entering: Vec<(f64, Scene)> = self
             .eng
             .connections()
             .iter()
-            .filter(|c| {
-                let ends = [&c.source_id, &c.target_id];
-                ends.iter().any(|id| before.contains(*id))
-                    && ends.iter().all(|id| !hidden.contains(*id))
-            })
+            .filter(|c| before.hides_arrow(c) && !hidden.hides_arrow(c))
             .filter_map(|c| {
-                let (top, _) = arrow_span(rect_of(&c.source_id)?, rect_of(&c.target_id)?);
-                Some((top, all(&|d| d.id == c.id).without(&no_arrows)))
+                let (top, _) = spans.get(&c.id)?;
+                Some((*top, all(&|d| d.id == c.id).without(&no_arrows)))
             })
             .collect();
         let faint_arrows = faint_entering.iter().fold(
@@ -560,32 +755,78 @@ impl<T: DiagramView> Editor<T> {
         let Some(scene) = self.tag.scenes.get(index) else {
             return;
         };
-        let stepped = self.active_scene().is_some_and(|(at, _)| at != index);
-        let before = self.hidden_tag_ids();
+        let stepped = self.tag.blank || self.active_scene().is_some_and(|(at, _)| at != index);
+        let before = self.hidden_now();
         self.eng.announcement = format!(
             "Scene {} of {}: {}.",
             index + 1,
             self.tag.scenes.len(),
             scene.name
         );
-        self.tag.scene = index;
+        self.tag.scene = Some(index);
+        self.tag.blank = false;
+        self.tag.zoom_back = false;
         self.tag.stepped |= stepped;
         self.tag.reveal_section = !self.tag.stepped;
         if stepped {
-            let sweep = self.sweep_from(&self.hidden_by(&before));
+            let sweep = self.sweep_from(&before);
+            self.tag.frame = self.scene_frame(&before);
             self.tag.step = Some(Step {
                 before,
                 start: now,
                 sweep,
                 changes: None,
             });
-            self.tag.frame = self.scene_frame();
         }
     }
 
-    /// What the camera frames for the scene showing: all that's drawn when it hides nothing,
-    /// else what it shows that another scene hides, or all it shows when that's nothing.
-    fn scene_frame(&self) -> Option<Frame> {
+    /// Each arrow's top and bottom on the canvas: where tags hold arrows, as a sequence
+    /// diagram's messages, which run far from their ends' boxes, where it's drawn, with its text
+    /// over it; otherwise between its ends.
+    fn arrow_spans(&self, displayed: &[Laid<T>]) -> BTreeMap<ConnectionId, (f64, f64)> {
+        if T::ID.tags_hold_arrows() {
+            return T::arrow_lines(&self.eng, displayed, None)
+                .into_iter()
+                .map(|line| {
+                    let r = Self::message_area(&line);
+                    (line.id, (r.y, r.bottom()))
+                })
+                .collect();
+        }
+        let rect_of = |id: &ElementId| {
+            displayed
+                .iter()
+                .find(|e| e.id() == id)
+                .map(|e| T::drawn_rect(&self.eng, e))
+        };
+        self.eng
+            .connections()
+            .iter()
+            .filter_map(|c| {
+                let span = arrow_span(rect_of(&c.source_id)?, rect_of(&c.target_id)?);
+                Some((c.id.clone(), span))
+            })
+            .collect()
+    }
+
+    /// The area a message is drawn in, with its text above the line.
+    fn message_area(line: &super::ArrowLine) -> Rect {
+        let ends = [
+            Rect::new(line.from.x, line.from.y, 0.0, 0.0),
+            Rect::new(line.to.x, line.to.y, 0.0, 0.0),
+        ];
+        let r = bounds_of(ends.into_iter().chain(line.boxes.iter().copied())).unwrap_or_default();
+        Rect::new(r.x, r.y - 40.0, r.width, r.height + 60.0)
+    }
+
+    /// What the camera frames for the scene showing, coming from one that hid `before`: all
+    /// that's drawn when it hides nothing, else what it shows that another scene hides, or all
+    /// it shows when that's nothing. Where tags hold arrows, whose ends every scene shows, the
+    /// arrows it brings in, or all it shows when it brings none.
+    fn scene_frame(&self, before: &Hidden) -> Option<Frame> {
+        if T::ID.tags_hold_arrows() {
+            return self.messages_frame(before);
+        }
         let hidden = self.tag_hidden();
         if hidden.is_empty() {
             return Some(Frame::All);
@@ -594,7 +835,10 @@ impl<T: DiagramView> Editor<T> {
             .tag
             .scenes
             .iter()
-            .flat_map(|scene| self.hidden_by(&hidden_in_scene(&self.tag.tags, scene)))
+            .flat_map(|scene| {
+                self.hidden_by(&hidden_in_scene(&self.tag.tags, scene))
+                    .elements
+            })
             .collect();
         let shown: Vec<(Rect, bool)> = self
             .eng
@@ -611,34 +855,42 @@ impl<T: DiagramView> Editor<T> {
         scene_frame(&shown).map(Frame::Area)
     }
 
+    /// What the camera frames for a scene of a diagram whose tags hold its arrows: the arrows
+    /// it brings in, coming from one that hid `before`, or all it shows when it brings none,
+    /// rather than the whole diagram, whose participants every scene shows. Nothing when it
+    /// shows none, so the camera stays where it is.
+    fn messages_frame(&self, before: &Hidden) -> Option<Frame> {
+        let hidden = self.hidden_now();
+        let lines = T::arrow_lines(&self.eng, self.eng.layout(), None);
+        let area = |pick: &dyn Fn(&ConnectionId) -> bool| {
+            bounds_of(lines.iter().filter(|l| pick(&l.id)).map(Self::message_area))
+        };
+        let shown = |id: &ConnectionId| !hidden.arrows.contains(id);
+        area(&|id| before.arrows.contains(id) && shown(id))
+            .or_else(|| area(&shown))
+            .map(Frame::Area)
+    }
+
     /// The line that builds what the scene showing brings in, coming from one that hid
     /// `before`: the elements it shows that were hidden, and the arrows it draws that weren't.
-    fn sweep_from(&self, before: &BTreeSet<ElementId>) -> Option<Sweep> {
-        let hidden = self.tag_hidden();
+    fn sweep_from(&self, before: &Hidden) -> Option<Sweep> {
+        let hidden = self.hidden_now();
         let layout = self.eng.layout();
-        let rect_of = |id: &ElementId| {
-            layout
-                .iter()
-                .find(|e| e.id() == id)
-                .map(|e| T::drawn_rect(&self.eng, e))
-        };
+        let arrow_spans = self.arrow_spans(layout);
         let mut spans: Vec<(f64, f64)> = layout
             .iter()
-            .filter(|e| before.contains(e.id()) && !hidden.contains(e.id()))
+            .filter(|e| before.elements.contains(e.id()) && !hidden.elements.contains(e.id()))
             .map(|e| {
                 let r = T::drawn_rect(&self.eng, e);
                 (r.y, r.bottom())
             })
             .collect();
         for c in self.eng.connections() {
-            let ends = [&c.source_id, &c.target_id];
-            let drawn_now = ends.iter().all(|id| !hidden.contains(*id));
-            let drawn_before = ends.iter().all(|id| !before.contains(*id));
-            if drawn_now
-                && !drawn_before
-                && let (Some(a), Some(b)) = (rect_of(&c.source_id), rect_of(&c.target_id))
+            if !hidden.hides_arrow(c)
+                && before.hides_arrow(c)
+                && let Some(span) = arrow_spans.get(&c.id)
             {
-                spans.push(arrow_span(a, b));
+                spans.push(*span);
             }
         }
         Sweep::over(&spans, SWEEP)
@@ -660,12 +912,28 @@ impl<T: DiagramView> Editor<T> {
             self.tag.camera_view = None;
         }
         if let Some(frame) = self.tag.frame.take() {
-            let target = match frame {
-                Frame::Area(r) => r,
-                Frame::All => area,
-            };
             let from = self.view.shown(viewport);
-            self.tag.camera = View::framing(target, viewport).and_then(|to| {
+            // The view the camera first moves is the user's own, to go back to after.
+            if self.tag.camera_view != Some(self.view) {
+                self.tag.own_zoom = Some(self.view.zoom);
+            }
+            if !matches!(frame, Frame::Back { .. }) {
+                self.tag.view_before.get_or_insert((from.x, from.y));
+            }
+            let target = match frame {
+                Frame::Area(r) => View::framing(r, viewport),
+                Frame::All => View::framing(area, viewport),
+                // Where it was, at that zoom, as far as the view can go.
+                Frame::Back { zoom, corner } => {
+                    let (x, y) = corner.unwrap_or((area.x, area.y));
+                    let (w, h) = (
+                        f64::from(viewport.width() / zoom),
+                        f64::from(viewport.height() / zoom),
+                    );
+                    Some(Rect::new(x, y, w, h))
+                }
+            };
+            self.tag.camera = target.and_then(|to| {
                 // No further than the view can go, so it moves straight there rather than
                 // stopping short at the edge of the drawing.
                 let mut there = self.view;
@@ -747,37 +1015,66 @@ impl<T: DiagramView> Editor<T> {
     /// Shows the scene at `index`, stopping play.
     pub fn go_to_scene(&mut self, index: usize, now: f64) {
         self.tag.playing = None;
+        self.tag.zoom_back = false;
         self.show_scene(index, now);
     }
 
-    /// Plays the scenes from the one showing, or from the first when it's the last, or pauses.
+    /// Plays the scenes on from the one showing, or pauses. From the last, they play from the
+    /// start: everything fades, then the first scene comes in, and the others after it.
     pub fn toggle_play(&mut self, now: f64) {
         if self.tag.playing.take().is_some() {
             self.eng.announcement = "Paused.".into();
             return;
         }
-        if self.tag.scene + 1 >= self.tag.scenes.len() {
-            self.show_scene(0, now);
+        if self
+            .scene_index()
+            .is_some_and(|i| i + 1 >= self.tag.scenes.len())
+        {
+            self.clear_scenes(now);
         }
         self.tag.playing = Some(now);
     }
 
+    /// Fades everything, as in no scene, to play the scenes from the start.
+    fn clear_scenes(&mut self, now: f64) {
+        let before = self.hidden_now();
+        self.tag.blank = true;
+        self.tag.zoom_back = false;
+        self.tag.stepped = true;
+        self.tag.reveal_section = false;
+        self.tag.step = Some(Step {
+            before,
+            start: now,
+            sweep: None,
+            changes: None,
+        });
+        self.eng.announcement = "Playing the scenes from the start.".into();
+    }
+
     /// Steps to the next scene while they play, stopping at the last; ends a step that's
-    /// over; and asks for the frames they need.
+    /// over; once the last scene played is in, eases back to the user's own zoom; and asks for
+    /// the frames they need.
     pub(super) fn tick_scenes(&mut self, ctx: &egui::Context, now: f64) {
         if let Some(since) = self.tag.playing {
+            let wait = if self.tag.blank {
+                BLANK_SECONDS
+            } else {
+                SCENE_SECONDS
+            };
             if self.active_scene().is_none() {
                 self.tag.playing = None;
-            } else if now - since >= SCENE_SECONDS {
-                let next = self.tag.scene + 1;
-                if next < self.tag.scenes.len() {
+            } else if now - since >= wait {
+                let next = self.scene_index().map_or(0, |i| i + 1);
+                let count = self.tag.scenes.len();
+                if next < count {
                     self.show_scene(next, now);
                 }
-                self.tag.playing = (next + 1 < self.tag.scenes.len()).then_some(now);
+                self.tag.playing = (next + 1 < count).then_some(now);
+                self.tag.zoom_back = next + 1 >= count;
             } else {
                 #[expect(clippy::cast_possible_truncation, reason = "seconds")]
                 ctx.request_repaint_after(std::time::Duration::from_secs_f32(
-                    (SCENE_SECONDS - (now - since)) as f32,
+                    (wait - (now - since)) as f32,
                 ));
             }
         }
@@ -792,6 +1089,17 @@ impl<T: DiagramView> Editor<T> {
                 ctx.request_repaint();
             }
         }
+        // Once the camera has stopped and the last scene is in.
+        let settled = self.tag.step.is_none() && self.tag.camera.is_none();
+        if self.tag.zoom_back && settled && self.tag.frame.is_none() && self.tag.playing.is_none() {
+            self.tag.zoom_back = false;
+            // The camera doesn't move when the view is there already.
+            self.tag.frame = Some(Frame::Back {
+                zoom: self.tag.own_zoom.unwrap_or(self.view.zoom),
+                corner: self.tag.view_before.take(),
+            });
+            ctx.request_repaint();
+        }
     }
 
     // Drawing
@@ -800,12 +1108,7 @@ impl<T: DiagramView> Editor<T> {
     /// between them and, while viewing, the legend; and those hidden, with no arrows. While a
     /// scene shows, every arrow stays, routed with all the others, so none moves as the scenes
     /// step on: in full between two elements shown, and faint to or from one hidden.
-    fn picture(
-        &mut self,
-        hidden: &BTreeSet<ElementId>,
-        displayed: &[Laid<T>],
-        dragging: bool,
-    ) -> Picture {
+    fn picture(&mut self, hidden: &Hidden, displayed: &[Laid<T>], dragging: bool) -> Picture {
         let changes = self.eng.changes();
         let every_arrow = self.viewing && self.active_scene().is_some();
         if !dragging
@@ -817,7 +1120,7 @@ impl<T: DiagramView> Editor<T> {
         {
             return picture.clone();
         }
-        let is_hidden = |e: &Laid<T>| hidden.contains(&e.el.id);
+        let is_hidden = |e: &Laid<T>| hidden.elements.contains(&e.el.id);
         let shown_layout: Vec<Laid<T>> = displayed
             .iter()
             .filter(|e| !is_hidden(e))
@@ -825,39 +1128,40 @@ impl<T: DiagramView> Editor<T> {
             .collect();
         let hidden_layout: Vec<Laid<T>> =
             displayed.iter().filter(|e| is_hidden(e)).cloned().collect();
-        let (mut shown, faint_arrows) = if every_arrow {
-            let is_faint =
-                |c: &Conn<T>| hidden.contains(&c.source_id) || hidden.contains(&c.target_id);
-            let all = |draw: &dyn Fn(&Conn<T>) -> bool| {
-                T::scene(
-                    &self.eng.only(|_| true, true).drawing_arrows(draw),
-                    displayed,
-                    None,
-                )
-            };
-            let no_arrows = all(&|_| false);
-            let mut shown = T::scene(
-                &self
-                    .eng
-                    .only(|id| !hidden.contains(id), true)
-                    .drawing_arrows(|_| false),
-                &shown_layout,
+        let all = |draw: &dyn Fn(&Conn<T>) -> bool| {
+            T::scene(
+                &self.eng.only(|_| true, true).drawing_arrows(draw),
+                displayed,
                 None,
-            );
+            )
+        };
+        let shown_only = self.eng.only(|id| !hidden.elements.contains(id), true);
+        let (mut shown, faint_arrows) = if every_arrow {
+            let is_faint = |c: &Conn<T>| hidden.hides_arrow(c);
+            let no_arrows = all(&|_| false);
+            let mut shown = T::scene(&shown_only.drawing_arrows(|_| false), &shown_layout, None);
             let full = all(&|c| !is_faint(c)).without(&no_arrows);
             shown.nodes.extend(full.nodes);
             (shown, all(&is_faint).without(&no_arrows))
+        } else if hidden.arrows.is_empty() {
+            let shown = T::scene(&shown_only, &shown_layout, self.slide());
+            let none = shown.clone_empty();
+            (shown, none)
         } else {
+            // The arrows their own tags hide, faint, so they can still be picked while editing.
+            let no_arrows = all(&|_| false);
             let shown = T::scene(
-                &self.eng.only(|id| !hidden.contains(id), true),
+                &shown_only.drawing_arrows(|c| !hidden.arrows.contains(&c.id)),
                 &shown_layout,
                 self.slide(),
             );
-            let none = shown.clone_empty();
-            (shown, none)
+            (
+                shown,
+                all(&|c| hidden.arrows.contains(&c.id)).without(&no_arrows),
+            )
         };
         let faint = T::scene(
-            &self.eng.only(|id| hidden.contains(id), false),
+            &self.eng.only(|id| hidden.elements.contains(id), false),
             &hidden_layout,
             None,
         );
@@ -894,7 +1198,7 @@ impl<T: DiagramView> Editor<T> {
         displayed: &[Laid<T>],
         dragging: bool,
         dark: bool,
-        hidden: &BTreeSet<ElementId>,
+        hidden: &Hidden,
         now: f64,
     ) -> Option<Scene> {
         let step = self
@@ -928,11 +1232,11 @@ impl<T: DiagramView> Editor<T> {
         match step {
             Some(mut step) => {
                 let elapsed = now - step.start;
-                let before = self.hidden_by(&step.before);
+                let before = step.before.clone();
                 // What both show.
-                let either: BTreeSet<ElementId> = before.union(hidden).cloned().collect();
-                let always: BTreeSet<ElementId> = before.intersection(hidden).cloned().collect();
-                let changing: BTreeSet<ElementId> = either.difference(&always).cloned().collect();
+                let either = before.union(hidden);
+                let always = before.intersection(hidden);
+                let changing = either.difference(&always);
                 let both = self.picture(&either, displayed, dragging);
                 let always_picture = self.picture(&always, displayed, dragging);
                 paint_scene_hiding(painter, &both.shown, xf, &mut self.cache, 1.0, dark, &hide);
@@ -1187,18 +1491,19 @@ impl<T: DiagramView> Editor<T> {
 
     fn scenes_ui(&mut self, ui: &mut Ui) {
         let now = ui.input(|i| i.time);
-        let (index, _) = self.active_scene().expect("viewing with scenes");
+        // None while everything has faded, before the first scene comes in.
+        let index = self.scene_index();
         let last = self.tag.scenes.len() - 1;
         let playing = self.tag.playing.is_some();
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
             let width = (ui.available_width() - 12.0) / 3.0;
-            let previous = ui.add_enabled_ui(index > 0, |ui| {
+            let previous = ui.add_enabled_ui(index.is_some_and(|i| i > 0), |ui| {
                 icon_button(ui, previous_icon, "Previous scene", width)
             });
             if previous.inner.clicked() {
-                self.go_to_scene(index.saturating_sub(1), now);
+                self.go_to_scene(index.unwrap_or(0).saturating_sub(1), now);
             }
             let (icon, name): (crate::theme::ButtonIcon, _) = if playing {
                 (pause_icon, "Pause")
@@ -1208,17 +1513,17 @@ impl<T: DiagramView> Editor<T> {
             if icon_button(ui, icon, name, width).clicked() {
                 self.toggle_play(now);
             }
-            let next = ui.add_enabled_ui(index < last, |ui| {
+            let next = ui.add_enabled_ui(index.is_none_or(|i| i < last), |ui| {
                 icon_button(ui, next_icon, "Next scene", width)
             });
             if next.inner.clicked() {
-                self.go_to_scene((index + 1).min(last), now);
+                self.go_to_scene(index.map_or(0, |i| (i + 1).min(last)), now);
             }
         });
         ui.add_space(8.0);
         let mut go = None;
         for (i, scene) in self.tag.scenes.iter().enumerate() {
-            if choice_button(ui, &scene.name, 28.0, i == index).clicked() {
+            if choice_button(ui, &scene.name, 28.0, Some(i) == index).clicked() {
                 go = Some(i);
             }
         }

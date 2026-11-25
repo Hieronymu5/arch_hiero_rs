@@ -26,7 +26,7 @@ The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__
 | `list_diagrams`, `get_diagram` | Find a diagram, and read its elements, arrows, `revision`, and `layout`: each element's drawn `x`, `y`, `width`, and `height`. |
 | `create_diagram` | `name`, `type`, and an optional `description`. A diagram's type can't be changed later. |
 | `edit_diagram` | A batch of `ops` (below), applied with the type's rules, all or nothing. |
-| `update_diagram_details` | The name, description, colours, line weight (`"thin"`, `"medium"`, or `"thick"`), or canvas size (`canvas_width` up to 12000, `canvas_height` up to 8000, in steps of 20; 2400 × 1600 by default). Make the canvas bigger before placing elements beyond it, since elements are kept on it. |
+| `update_diagram_details` | The name, description, colours, line weight (`"thin"`, `"medium"`, or `"thick"`), or canvas size (`canvas_width` up to 12000, `canvas_height` up to 8000, in steps of 20; 2400 × 1600 by default). Make the canvas bigger before placing elements beyond it, since elements are kept on it. Also the `tags` and `scenes` (see Tags and scenes, below), each replacing the whole list. |
 | `save_version`, `list_versions` | Record the diagram as a numbered version, with a short description. |
 | `export_diagram` | `svg` or `drawio` (returned as text, and written to `path` if given), or `zip` (the diagram file, with its sub diagrams, to `path`: the file to give the user when they want to import it back into Arch Hiero, here or on another machine; the result lists the diagrams it holds). Add `overwrite: true` to replace a file. |
 
@@ -38,13 +38,13 @@ The tools come from an MCP server named `arch-hiero`, such as `mcp__arch-hiero__
 
 | `op` | Fields |
 | --- | --- |
-| `add_element` | `kind`, `label`, optional `description`, `parent_id`, `x`, `y`, `props`, and `ref` |
-| `update_element` | `id`, and any of `label`, `description`, `parent_id` (`""` takes it out of its container), and `props` (merged; `null` clears a field) |
+| `add_element` | `kind`, `label`, optional `description`, `parent_id`, `x`, `y`, `props`, `tags`, and `ref` |
+| `update_element` | `id`, and any of `label`, `description`, `parent_id` (`""` takes it out of its container), `props` (merged; `null` clears a field), and `tags` (replacing them; `[]` takes it out of them all) |
 | `move_element` | `id`, `x`, `y` |
 | `resize_element` | `id`, `width`, `height` |
 | `remove_element` | `id`, which also removes its arrows. A container's contents stay on the diagram, outside it, with their arrows, except a deployed component layer's, which go with it; and removing a physical network's last zone removes the network too |
-| `add_connection` | `source_id`, `target_id`, optional `props` and `ref` |
-| `update_connection` | `id`, `props` (merged) |
+| `add_connection` | `source_id`, `target_id`, optional `props`, `ref`, and on a sequence diagram `tags` |
+| `update_connection` | `id`, and any of `props` (merged) and on a sequence diagram `tags` (replacing them) |
 | `remove_connection` | `id` |
 
 Give each new element a `ref`, such as `"orderEntry"`, and use it as an id in later edits of the same batch, for `parent_id`, `source_id`, and the like. The result lists the real id given to each `ref` under `created`, and includes the diagram and its `layout` afterwards. Element fields are snake case (`parent_id`); `props` are camel case (`componentType`), as `list_diagram_types` lists them.
@@ -91,6 +91,18 @@ Put the whole diagram, or each large part, in one `edit_diagram` batch.
 4. **Save:** export SVG and draw.io with `export_diagram` and a `path` where the user asked, named after the diagram, such as `physical-3-tier-web-app.svg`. A conceptual or deployed component diagram's exports have a legend to the right of the drawing, lined up with its bottom. Then call `save_version` with a description of what you built, so the diagram shows as Saved. Say which arrows aren't straight and why.
 
 Start from the example closest to what you're building, in `examples/`.
+
+## Tags and scenes
+
+Tags group elements, and scenes walk through them while viewing: each scene shows its tags' elements and draws the rest faint. Viewing opens on the last scene, and Play steps through them from the first. For a diagram told in stages, such as phases or the steps of a journey:
+
+1. Add a scene for each stage with `update_diagram_details`' `scenes`, each `{"name": "Explore"}` with no `tags`: each gets a tag of its own, named after it. `scenes` replaces the whole list, so give the ones already there too, with their ids.
+2. Put each stage's elements in its tag with `edit_diagram`'s `update_element` and `tags`. Elements in no tag show in every scene, so leave out what every stage shares, such as the system they're all about.
+3. Add a last scene that shows every tag, named after the whole diagram, so viewing opens on all of it and playing builds up to it.
+
+`get_diagram`'s diagram lists the tags and scenes, with the tags each scene shows; each element lists the tags it's in. A tag or scene is named by its name or id.
+
+On a sequence diagram, tags hold messages, not participants, which always show: give the messages `tags` with `add_connection` or `update_connection`. For a flow told a message at a time, give each message a tag, and add a scene per message that shows its tag and those before it.
 
 ## Conventions by diagram type
 

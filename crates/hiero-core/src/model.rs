@@ -178,6 +178,12 @@ impl DiagramTypeId {
         !matches!(self, Self::DeployedComponent)
     }
 
+    /// Whether the type's tags hold its arrows rather than its elements, as a sequence
+    /// diagram's messages: its participants are in no tag, and show throughout.
+    pub const fn tags_hold_arrows(self) -> bool {
+        matches!(self, Self::Sequence)
+    }
+
     /// What the type calls its arrows: C4 calls them relationships, and a sequence diagram
     /// messages.
     pub const fn arrow_noun(self) -> Noun {
@@ -376,6 +382,12 @@ pub struct Connection<A> {
     pub id: ConnectionId,
     pub source_id: ElementId,
     pub target_id: ElementId,
+    /// The ids of the diagram's tags the arrow is in, each once, in the order of the diagram's
+    /// tags, where tags hold arrows rather than elements, as a sequence diagram's messages: see
+    /// [`DiagramTypeId::tags_hold_arrows`]. It shows while any of them does; one in no tag
+    /// always shows.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     #[serde(flatten)]
     pub props: A,
 }
