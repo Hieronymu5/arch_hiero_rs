@@ -565,6 +565,8 @@ pub struct Engine<T: DiagramType> {
     measure: &'static dyn MeasureText,
     next_id: Box<dyn FnMut() -> String + Send>,
     changes: u64,
+    /// The arrows routed as usual but not drawn (see [`Engine::drawing_arrows`]).
+    undrawn: HashSet<ConnectionId>,
 }
 
 impl<T: DiagramType> Engine<T> {
@@ -583,6 +585,7 @@ impl<T: DiagramType> Engine<T> {
             measure: font_metrics(),
             next_id: Box::new(|| uuid::Uuid::new_v4().to_string()),
             changes: 0,
+            undrawn: HashSet::new(),
         };
         engine.relayout();
         engine
@@ -624,7 +627,27 @@ impl<T: DiagramType> Engine<T> {
             measure: self.measure,
             next_id: Box::new(String::new),
             changes: self.changes,
+            undrawn: HashSet::new(),
         }
+    }
+
+    /// The engine drawing only the arrows `draw` accepts, though every arrow is still routed,
+    /// so those drawn go where they would with all of them: for drawing some arrows faint and
+    /// the rest not, with none moving.
+    #[must_use]
+    pub fn drawing_arrows(mut self, draw: impl Fn(&Conn<T>) -> bool) -> Self {
+        self.undrawn = self
+            .connections
+            .iter()
+            .filter(|c| !draw(c))
+            .map(|c| c.id.clone())
+            .collect();
+        self
+    }
+
+    /// Whether the arrow `id` is drawn: all are, unless [`Engine::drawing_arrows`] says not.
+    pub fn draws_arrow(&self, id: &ConnectionId) -> bool {
+        !self.undrawn.contains(id)
     }
 
     /// An engine for a new diagram, with what the type starts with.

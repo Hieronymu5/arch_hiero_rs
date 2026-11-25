@@ -123,6 +123,7 @@ pub fn scene_of(eng: &Engine<C4>, layout: &[Laid<C4>]) -> Scene {
     let elements: Vec<LookElement> = layout.iter().map(look_of).collect();
     let arrows: Vec<ArrowLook> = drawn_arrows(eng, layout)
         .into_iter()
+        .filter(|a| eng.draws_arrow(&a.id))
         .map(|a| a.look)
         .collect();
     draw_diagram(

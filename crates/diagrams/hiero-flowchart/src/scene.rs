@@ -151,6 +151,7 @@ pub fn scene_of(eng: &Engine<Flowchart>, layout: &[Laid<Flowchart>]) -> Scene {
     let elements = looks(layout);
     let arrows: Vec<ArrowLook> = drawn_arrows(eng, layout)
         .into_iter()
+        .filter(|a| eng.draws_arrow(&a.id))
         .map(|a| a.look)
         .collect();
     draw_diagram(

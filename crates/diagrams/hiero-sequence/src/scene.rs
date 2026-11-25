@@ -262,7 +262,7 @@ pub fn scene_of(
     for e in layout {
         nodes.extend(draw_element(&look_of(e), eng.measure(), &colors, weight));
     }
-    for m in &timeline.messages {
+    for m in timeline.messages.iter().filter(|m| eng.draws_arrow(&m.id)) {
         nodes.extend(message_nodes(m, eng.measure()));
     }
     Scene {

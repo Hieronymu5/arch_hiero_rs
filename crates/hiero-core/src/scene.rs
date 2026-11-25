@@ -249,7 +249,7 @@ impl Scene {
     }
 
     /// The scene with nothing drawn, in its colours and bounds.
-    fn clone_empty(&self) -> Scene {
+    pub fn clone_empty(&self) -> Scene {
         Scene {
             nodes: Vec::new(),
             bounds: self.bounds,

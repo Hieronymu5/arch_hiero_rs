@@ -7,16 +7,17 @@
 //! each visit starts with all of them shown.
 //!
 //! While viewing a diagram with scenes, a Scenes panel takes the tags' place: Previous, Play or
-//! Pause, and Next, then the scenes. What a scene doesn't show stays very faint; arrows show
-//! once both their ends do. As the scenes step on, the camera eases to frame what the scene
-//! adds, what it takes away fades, and what it brings in is built from the top down: each
-//! element fades in as a line moving down the canvas reaches it, and each arrow is drawn down
-//! as the line passes. Scrolling or zooming stops the camera.
+//! Pause, and Next, then the scenes. What a scene doesn't show stays very faint, and so does
+//! every arrow to or from it: all the arrows stay, routed together, so none moves as the scenes
+//! step on. As they do, the camera first eases to frame what the scene adds. Once it's there,
+//! what the scene takes away fades, arrows and all, and what it brings in is built from the top
+//! down: each element fades in as a line moving down the canvas reaches it, and each arrow,
+//! faint until then, is drawn down as the line passes. Scrolling or zooming stops the camera.
 
 use std::collections::BTreeSet;
 
 use egui::{Color32, CursorIcon, Pos2, RichText, Sense, Stroke, Ui};
-use hiero_core::engine::Laid;
+use hiero_core::engine::{Conn, Laid};
 use hiero_core::geometry::Rect;
 use hiero_core::legend::Stamp;
 use hiero_core::model::ElementId;
@@ -38,14 +39,17 @@ const EDIT_FAINT: f32 = 0.3;
 const SCENE_FAINT: f32 = 0.08;
 /// How long each scene shows while the scenes play, in seconds.
 const SCENE_SECONDS: f64 = 3.0;
-/// How long the camera takes to frame a scene, in seconds.
+/// How long the camera takes to frame a scene, and how long after it's there the scene starts
+/// to build, in seconds.
 const CAMERA_SECONDS: f64 = 0.9;
-/// How a scene is built from the top down: the line starts moving half a second in, at 350
-/// canvas pixels a second, or faster so it takes at most 1.6 seconds.
+const CAMERA_PAUSE_SECONDS: f64 = 0.1;
+/// How a scene is built from the top down, once the camera is there: the line moves at 350
+/// canvas pixels a second, or faster so it takes at most 1.4 seconds, so a step fits in the
+/// `SCENE_SECONDS` the scenes play for.
 const SWEEP: SweepPace = SweepPace {
-    start: 0.5,
+    start: 0.0,
     speed: 350.0,
-    longest: 1.6,
+    longest: 1.4,
 };
 /// How long an element the line reaches takes to fade in, in seconds.
 const APPEAR_SECONDS: f64 = 0.35;
@@ -75,12 +79,26 @@ pub(super) struct TagState {
     camera: Option<Camera>,
     /// The view the camera last set, to tell when the user moves it, which stops the camera.
     camera_view: Option<View>,
-    /// Set when a scene is shown, until the section it's about is scrolled into view.
+    /// Set when the first scene is shown, until the section it's about is scrolled into view.
     pub reveal_section: bool,
-    /// What's drawn for the content and the elements hidden: the elements shown, with the
-    /// arrows between them, and those hidden. At most five, for a step's two ends, what both
-    /// show, and what's faint throughout it and what isn't.
-    pub cache: Vec<(u64, BTreeSet<ElementId>, Scene, Scene)>,
+    /// Whether the scenes have stepped on since viewing started. From then on the camera
+    /// frames each scene, so the section isn't scrolled into view for it.
+    stepped: bool,
+    /// What's drawn for the content, the elements hidden, and whether every arrow is kept. At
+    /// most five, for a step's two ends, what both show, and what's faint throughout it and
+    /// what isn't.
+    pub cache: Vec<(u64, BTreeSet<ElementId>, bool, Picture)>,
+}
+
+/// What's drawn while some elements are hidden.
+#[derive(Clone)]
+pub(super) struct Picture {
+    /// The elements shown, with the arrows drawn in full, and while viewing, the legend.
+    shown: Scene,
+    /// The elements hidden, with no arrows.
+    faint: Scene,
+    /// While a scene shows, the arrows to or from an element it hides, which stay, faint.
+    faint_arrows: Scene,
 }
 
 /// The scenes stepping from one to another.
@@ -98,8 +116,11 @@ struct Step {
 /// What a step changes, each drawn on its own, so what both scenes draw, such as a container
 /// both show, isn't drawn again over what's faint in it.
 struct Changes {
-    /// The elements the scene takes away, which fade together; their arrows go at once.
+    /// The elements the scene takes away, with their arrows, which fade together.
     leaving: Scene,
+    /// The arrows faint at either end of the step, but not to or from what's hidden throughout
+    /// it, which are drawn with that.
+    faint_arrows: Scene,
     /// Each element the scene brings in, with its top, which fades in whole as the line
     /// reaches it.
     entering: Vec<(f64, Scene)>,
@@ -154,6 +175,7 @@ impl TagState {
         self.step = None;
         self.frame = None;
         self.camera = None;
+        self.stepped = false;
         self.applying = None;
         self.cache.clear();
         // Viewing starts at the first scene, whose section is scrolled into view.
@@ -454,24 +476,23 @@ impl<T: DiagramView> Editor<T> {
 
     // Scenes
 
-    /// What a step from a scene hiding `before` to one hiding `hidden` changes: the elements it
-    /// takes away, those it brings in, each on its own, and the arrows it brings in, which are
-    /// what's left of the scene coming in, `now`, without what both draw, `both`, and those
-    /// elements.
+    /// What a step from a scene hiding `before` to one hiding `hidden` changes, from what each
+    /// end draws (`then` and `now`), what both show (`both`), and what's hidden throughout
+    /// (`always`): what it takes away, which is what the one before drew that both don't; the
+    /// elements it brings in, each on its own; the arrows it brings in, which are what's left
+    /// of the scene coming in without what both draw and those elements; and the arrows faint
+    /// at either end, but not throughout.
+    #[expect(clippy::too_many_arguments, reason = "the pictures of a step")]
     fn changes(
         &self,
         before: &BTreeSet<ElementId>,
         hidden: &BTreeSet<ElementId>,
         displayed: &[Laid<T>],
-        both: &Scene,
-        now: &Scene,
+        then: &Picture,
+        now: &Picture,
+        both: &Picture,
+        always: &Picture,
     ) -> Changes {
-        let leaving: Vec<Laid<T>> = displayed
-            .iter()
-            .filter(|e| hidden.contains(e.id()) && !before.contains(e.id()))
-            .cloned()
-            .collect();
-        let leaving_ids: BTreeSet<&ElementId> = leaving.iter().map(Laid::id).collect();
         let entering: Vec<(f64, Scene)> = displayed
             .iter()
             .filter(|e| before.contains(e.id()) && !hidden.contains(e.id()))
@@ -485,15 +506,12 @@ impl<T: DiagramView> Editor<T> {
             .collect();
         let arrows = entering
             .iter()
-            .fold(now.without(both), |arrows, (_, element)| {
+            .fold(now.shown.without(&both.shown), |arrows, (_, element)| {
                 arrows.without(element)
             });
         Changes {
-            leaving: T::scene(
-                &self.eng.only(|id| leaving_ids.contains(id), false),
-                &leaving,
-                None,
-            ),
+            leaving: then.shown.without(&both.shown),
+            faint_arrows: both.faint_arrows.without(&always.faint_arrows),
             entering,
             arrows,
         }
@@ -514,7 +532,8 @@ impl<T: DiagramView> Editor<T> {
             scene.name
         );
         self.tag.scene = index;
-        self.tag.reveal_section = true;
+        self.tag.stepped |= stepped;
+        self.tag.reveal_section = !self.tag.stepped;
         if stepped {
             let sweep = self.sweep_from(&self.hidden_by(&before));
             self.tag.step = Some(Step {
@@ -608,11 +627,30 @@ impl<T: DiagramView> Editor<T> {
                 Frame::Area(r) => r,
                 Frame::All => area,
             };
-            self.tag.camera = View::framing(target, viewport).map(|to| Camera {
-                from: self.view.shown(viewport),
-                to,
-                start: now,
+            let from = self.view.shown(viewport);
+            self.tag.camera = View::framing(target, viewport).and_then(|to| {
+                // No further than the view can go, so it moves straight there rather than
+                // stopping short at the edge of the drawing.
+                let mut there = self.view;
+                there.show(to, viewport);
+                let to = there.shown(viewport);
+                // Already there, to within a pixel on the screen: nothing to move.
+                let zoom = f64::from(viewport.width()) / to.width;
+                let near = |a: f64, b: f64| ((a - b) * zoom).abs() < 1.0;
+                let moves =
+                    !(near(from.x, to.x) && near(from.y, to.y) && near(from.width, to.width));
+                moves.then_some(Camera {
+                    from,
+                    to,
+                    start: now,
+                })
             });
+            // The scene builds once the camera is there.
+            if self.tag.camera.is_some()
+                && let Some(step) = &mut self.tag.step
+            {
+                step.start = now + CAMERA_SECONDS + CAMERA_PAUSE_SECONDS;
+            }
         }
         let Some(camera) = self.tag.camera else {
             return false;
@@ -722,22 +760,25 @@ impl<T: DiagramView> Editor<T> {
     // Drawing
 
     /// What's drawn while the elements `hidden` are hidden: the elements shown, with the arrows
-    /// between them and, while viewing, the legend; and those hidden, with no arrows.
+    /// between them and, while viewing, the legend; and those hidden, with no arrows. While a
+    /// scene shows, every arrow stays, routed with all the others, so none moves as the scenes
+    /// step on: in full between two elements shown, and faint to or from one hidden.
     fn picture(
         &mut self,
         hidden: &BTreeSet<ElementId>,
         displayed: &[Laid<T>],
         dragging: bool,
-    ) -> (Scene, Scene) {
+    ) -> Picture {
         let changes = self.eng.changes();
+        let every_arrow = self.viewing && self.active_scene().is_some();
         if !dragging
-            && let Some((_, _, shown, faint)) = self
+            && let Some((_, _, _, picture)) = self
                 .tag
                 .cache
                 .iter()
-                .find(|(c, h, _, _)| *c == changes && h == hidden)
+                .find(|(c, h, e, _)| *c == changes && h == hidden && *e == every_arrow)
         {
-            return (shown.clone(), faint.clone());
+            return picture.clone();
         }
         let is_hidden = |e: &Laid<T>| hidden.contains(&e.el.id);
         let shown_layout: Vec<Laid<T>> = displayed
@@ -747,11 +788,37 @@ impl<T: DiagramView> Editor<T> {
             .collect();
         let hidden_layout: Vec<Laid<T>> =
             displayed.iter().filter(|e| is_hidden(e)).cloned().collect();
-        let mut shown = T::scene(
-            &self.eng.only(|id| !hidden.contains(id), true),
-            &shown_layout,
-            self.slide(),
-        );
+        let (mut shown, faint_arrows) = if every_arrow {
+            let is_faint =
+                |c: &Conn<T>| hidden.contains(&c.source_id) || hidden.contains(&c.target_id);
+            let all = |draw: &dyn Fn(&Conn<T>) -> bool| {
+                T::scene(
+                    &self.eng.only(|_| true, true).drawing_arrows(draw),
+                    displayed,
+                    None,
+                )
+            };
+            let no_arrows = all(&|_| false);
+            let mut shown = T::scene(
+                &self
+                    .eng
+                    .only(|id| !hidden.contains(id), true)
+                    .drawing_arrows(|_| false),
+                &shown_layout,
+                None,
+            );
+            let full = all(&|c| !is_faint(c)).without(&no_arrows);
+            shown.nodes.extend(full.nodes);
+            (shown, all(&is_faint).without(&no_arrows))
+        } else {
+            let shown = T::scene(
+                &self.eng.only(|id| !hidden.contains(id), true),
+                &shown_layout,
+                self.slide(),
+            );
+            let none = shown.clone_empty();
+            (shown, none)
+        };
         let faint = T::scene(
             &self.eng.only(|id| hidden.contains(id), false),
             &hidden_layout,
@@ -764,15 +831,20 @@ impl<T: DiagramView> Editor<T> {
             shown.bounds = T::scene(&self.eng, displayed, None).bounds;
             legend.add_to_canvas(&mut shown);
         }
+        let picture = Picture {
+            shown,
+            faint,
+            faint_arrows,
+        };
         if !dragging {
             if self.tag.cache.len() >= 5 {
                 self.tag.cache.remove(0);
             }
             self.tag
                 .cache
-                .push((changes, hidden.clone(), shown.clone(), faint.clone()));
+                .push((changes, hidden.clone(), every_arrow, picture.clone()));
         }
-        (shown, faint)
+        picture
     }
 
     /// Paints the diagram as its tags and scenes show it, and returns the scene of what's
@@ -809,14 +881,11 @@ impl<T: DiagramView> Editor<T> {
         // draws faint only what's hidden at either end, once, so it stays as faint as ever.
         // Leaving out the text typed over in place.
         let hide = self.inline_hidden();
-        let draw = |editor: &mut Self,
-                    (shown, hidden): &(Scene, Scene),
-                    opacity: f32,
-                    with_faint: bool| {
-            let cache = &mut editor.cache;
-            paint_scene_hiding(painter, shown, xf, cache, opacity, dark, &hide);
-            if let Some(faint) = faint.filter(|_| with_faint) {
-                paint_scene_hiding(painter, hidden, xf, cache, faint, dark, &hide);
+        let paint_faint = |editor: &mut Self, scenes: &[&Scene]| {
+            if let Some(faint) = faint {
+                for scene in scenes {
+                    paint_scene_hiding(painter, scene, xf, &mut editor.cache, faint, dark, &hide);
+                }
             }
         };
         match step {
@@ -825,32 +894,31 @@ impl<T: DiagramView> Editor<T> {
                 let before = self.hidden_by(&step.before);
                 // What both show.
                 let either: BTreeSet<ElementId> = before.union(hidden).cloned().collect();
+                let always: BTreeSet<ElementId> = before.intersection(hidden).cloned().collect();
+                let changing: BTreeSet<ElementId> = either.difference(&always).cloned().collect();
                 let both = self.picture(&either, displayed, dragging);
-                draw(self, &both, 1.0, false);
+                let always_picture = self.picture(&always, displayed, dragging);
+                paint_scene_hiding(painter, &both.shown, xf, &mut self.cache, 1.0, dark, &hide);
                 let changes = match step.changes.take() {
                     Some(changes) if !dragging => changes,
-                    _ => self.changes(&before, hidden, displayed, &both.0, &now_picture.0),
+                    _ => {
+                        let then = self.picture(&before, displayed, dragging);
+                        self.changes(
+                            &before,
+                            hidden,
+                            displayed,
+                            &then,
+                            &now_picture,
+                            &both,
+                            &always_picture,
+                        )
+                    }
                 };
                 // Faint, what this step takes away or brings in, under it, so it fades to its
                 // faint self or comes up from it. What both hide is drawn faint last, over all
                 // that's drawn again, such as a container both show, so it never goes.
-                let always: BTreeSet<ElementId> = before.intersection(hidden).cloned().collect();
-                let changing: BTreeSet<ElementId> = either.difference(&always).cloned().collect();
-                let paint_faint = |editor: &mut Self, ids: &BTreeSet<ElementId>| {
-                    if let Some(faint) = faint.filter(|_| !ids.is_empty()) {
-                        let (_, hidden) = editor.picture(ids, displayed, dragging);
-                        paint_scene_hiding(
-                            painter,
-                            &hidden,
-                            xf,
-                            &mut editor.cache,
-                            faint,
-                            dark,
-                            &hide,
-                        );
-                    }
-                };
-                paint_faint(self, &changing);
+                let changing_picture = self.picture(&changing, displayed, dragging);
+                paint_faint(self, &[&changing_picture.faint, &changes.faint_arrows]);
                 let mut paint = |scene: &Scene, painter: &egui::Painter, opacity: f64| {
                     #[expect(clippy::cast_possible_truncation, reason = "a fraction")]
                     let opacity = opacity as f32;
@@ -891,13 +959,24 @@ impl<T: DiagramView> Editor<T> {
                         paint(&changes.arrows, &painter.with_clip_rect(above), 1.0);
                     }
                 }
-                paint_faint(self, &always);
+                paint_faint(self, &[&always_picture.faint, &always_picture.faint_arrows]);
                 step.changes = Some(changes);
                 self.tag.step = Some(step);
             }
-            None => draw(self, &now_picture, 1.0, true),
+            None => {
+                paint_scene_hiding(
+                    painter,
+                    &now_picture.shown,
+                    xf,
+                    &mut self.cache,
+                    1.0,
+                    dark,
+                    &hide,
+                );
+                paint_faint(self, &[&now_picture.faint, &now_picture.faint_arrows]);
+            }
         }
-        Some(now_picture.0)
+        Some(now_picture.shown)
     }
 
     // The panel

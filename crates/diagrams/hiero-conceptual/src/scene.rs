@@ -382,6 +382,7 @@ pub fn scene_of(
     let elements: Vec<LookElement> = layout.iter().map(|e| look_of(eng, e)).collect();
     let arrows: Vec<ArrowLook> = drawn_arrows(eng, layout, moving)
         .into_iter()
+        .filter(|a| eng.draws_arrow(&a.id))
         .map(|a| a.look)
         .collect();
     draw_diagram(
@@ -481,6 +482,7 @@ mod tests {
     use super::*;
     use hiero_core::export::svg::scene_to_svg;
     use hiero_core::look::DiagramColors;
+    use hiero_core::scene::Node;
     use hiero_core::text::EstimateText;
 
     static ESTIMATE: EstimateText = EstimateText;
@@ -591,6 +593,41 @@ mod tests {
     /// Where `look` crosses the vertical line at `x`.
     fn y_at(look: &ArrowLook, x: f64) -> f64 {
         look.from.y + (look.to.y - look.from.y) * (x - look.from.x) / (look.to.x - look.from.x)
+    }
+
+    #[test]
+    fn draws_only_some_arrows_where_all_of_them_route_them() {
+        // Two arrows from the application leave its right side at evenly spread points.
+        let elements = serde_json::from_value(serde_json::json!([
+            { "id": "a", "kind": "application", "label": "CRM", "x": 0, "y": 100 },
+            { "id": "b", "kind": "application", "label": "Billing", "x": 600, "y": 0 },
+            { "id": "c", "kind": "application", "label": "Payroll", "x": 600, "y": 300 },
+        ]))
+        .unwrap();
+        let connections = serde_json::from_value(serde_json::json!([
+            { "id": "ab", "sourceId": "a", "targetId": "b" },
+            { "id": "ac", "sourceId": "a", "targetId": "c" },
+        ]))
+        .unwrap();
+        let e = Engine::<Conceptual>::new(elements, connections, DiagramColors::default())
+            .with_measure(&ESTIMATE);
+        let lines = |eng: &Engine<Conceptual>| -> Vec<Node> {
+            scene_of(eng, e.layout(), None)
+                .nodes
+                .into_iter()
+                .filter(|n| matches!(n, Node::Line { .. }))
+                .collect()
+        };
+        let all = lines(&e);
+        assert_eq!(all.len(), 2);
+        // Drawing one, it's where it is with both, unlike with the other gone.
+        let one = lines(
+            &e.only(|_| true, true)
+                .drawing_arrows(|c| c.id == "ab".into()),
+        );
+        assert_eq!(one, all[..1]);
+        assert_ne!(lines(&e.only(|id| *id != "c".into(), true)), one);
+        assert!(lines(&e.only(|_| true, true).drawing_arrows(|_| false)).is_empty());
     }
 
     #[test]

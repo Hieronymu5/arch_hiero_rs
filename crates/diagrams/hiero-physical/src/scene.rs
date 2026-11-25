@@ -418,7 +418,11 @@ pub fn scene_of(eng: &Engine<Physical>, layout: &[Laid<Physical>]) -> Scene {
     let elements: Vec<LookElement> = layout.iter().map(|e| look_of(eng, e)).collect();
     let drawn = drawn_arrows(eng, layout);
     let firewalls = edge_firewalls(eng, layout, &drawn);
-    let arrows: Vec<ArrowLook> = drawn.into_iter().map(|a| a.look).collect();
+    let arrows: Vec<ArrowLook> = drawn
+        .into_iter()
+        .filter(|a| eng.draws_arrow(&a.id))
+        .map(|a| a.look)
+        .collect();
     let colors = base_colors(eng);
     let weight = eng.line_weight();
     let mut scene = draw_diagram(&elements, &arrows, eng.measure(), &colors, weight);

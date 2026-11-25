@@ -413,7 +413,7 @@ pub fn scene_of(eng: &Engine<HighLevel>, layout: &[Laid<HighLevel>]) -> Scene {
         .flat_map(|e| element_nodes(e, eng.measure(), width))
         .collect();
     let arrows = drawn_arrows(eng, layout);
-    for a in &arrows {
+    for a in arrows.iter().filter(|a| eng.draws_arrow(&a.id)) {
         let outline = arrow_outline(a.from, a.to, a.two_way);
         if !outline.is_empty() {
             nodes.push(Node::path(

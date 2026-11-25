@@ -12,7 +12,8 @@ kept in play order. An element can be in any number of them:
 
 - An element in no tag always shows.
 - One in tags shows while any of them does, and only while what holds it shows too.
-- An arrow shows only while both its ends do.
+- An arrow shows only while both its ends do. While a scene shows, every arrow stays, faint
+  while either end is (see Scenes).
 
 Names are required, at most 40 characters, and unique within the diagram, ignoring case.
 
@@ -66,21 +67,25 @@ rules for tag names.
 - **Viewing a diagram with scenes:** a Scenes panel takes the Tags panel's place. It has
   Previous, Play or Pause, and Next, then the scenes, with the one showing highlighted. Viewing
   starts at the first scene.
-- **What a scene doesn't show** stays very faint (8%) and can't be clicked. The first scene
-  shown is drawn at once.
+- **What a scene doesn't show** stays very faint (8%) and can't be clicked, and so does every
+  arrow to or from it. All the arrows are routed together, so none moves as the scenes step
+  on. The first scene shown is drawn at once.
 - **As the scenes step on,** the camera eases (slow, fast, slow, over 0.9 s) to frame what the
   scene adds: what it shows that another scene hides, as what every scene shows would keep the
   camera still, or all it shows when that's nothing, or all that's drawn, legend included, when
   it hides nothing. It's in the middle of the view, as large as fits 40 points from the edges,
-  up to 150%. Scrolling or zooming stops the camera, and its zoom isn't remembered as the
-  user's own. The elements the scene takes away fade to faint in 0.3 s, and their arrows go at
-  once. What it brings in is built from the top down: half a second in, a line moves down the
-  canvas from the topmost new element or arrow, at 350 px a second, or faster so it reaches the
-  lowest in 1.6 s. Each element fades in whole over 0.35 s as the line reaches its top, and
-  each arrow, with its connector and text, is drawn down as the line passes. The fades follow
+  up to 150%, but no further than the view can go, so it doesn't stall at the drawing's edge.
+  When the view is there already (within a pixel), it doesn't move. Scrolling or zooming stops
+  the camera, and its zoom isn't remembered as the user's own. Once the camera is there, 0.1 s
+  later (or at once if it didn't move), the elements the scene takes away fade to faint in
+  0.3 s, with their arrows, and what it brings in is built from the top down: a line moves down
+  the canvas from the topmost new element or arrow, at 350 px a second, or faster so it
+  reaches the lowest in 1.4 s. Each element fades in whole over 0.35 s as the line reaches its
+  top, and each arrow, with its connector and text, faint until then, is drawn down as the
+  line passes. The fades follow
   CSS's `ease`. What both scenes show stays as it is. The prototype skips all this for reduced
   motion, which egui can't tell.
-- **The first scene shown,** and each scene the camera doesn't frame, scrolls the leftmost
+- **The first scene shown,** before the scenes have stepped on, scrolls the leftmost
   section it's about into view, if it isn't already: a section in one of its tags, or one over
   an element it shows of its tags that reaches under no other section. Its left end shows when
   it's too wide to fit.
